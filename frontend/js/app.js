@@ -1030,6 +1030,13 @@ function sincronizarChipsFaixa() {
     .forEach((b) => b.classList.toggle('ativo', (b.dataset.janela || '') === estado.validades.janela));
 }
 
+document.getElementById('botaoLimparFiltrosValidades').addEventListener('click', () => {
+  document.getElementById('filtroBuscaValidades').value = '';
+  estado.validades.janela = '';
+  sincronizarChipsFaixa();
+  carregarValidades();
+});
+
 function corFaixaValidade(faixa) {
   if (faixa === 'vencido') return 'cancelado';   // vermelho
   if (faixa === 'd30') return 'atrasado';         // âmbar (urgente)
