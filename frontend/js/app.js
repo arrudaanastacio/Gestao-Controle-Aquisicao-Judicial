@@ -29,6 +29,42 @@ function formatarData(iso) {
   return `${dia}/${mes}/${ano}`;
 }
 
+// Interpreta o texto de lotes vindo do relatório de estoque.
+// Cada lote vem separado por "\" no formato:
+//   "Lote N°: XXX Validade: DD/MM/YYYY Fabricante: YYY Qtde: NNN"
+// Retorna uma lista de objetos { lote, validade, fabricante, qtde }.
+function parsearLotes(texto) {
+  if (!texto) return [];
+  const t = String(texto).trim();
+  if (!t || /^sem lote$/i.test(t)) return [];
+
+  return t.split('\\').map((parte) => parte.trim()).filter(Boolean).map((p) => {
+    const lote = (p.match(/Lote\s*N[°º:]*\s*([^\s]+(?:\s+[^\s]+)*?)(?=\s+Validade:|\s+Fabricante:|\s+Qtde:|$)/i) || [])[1];
+    const validade = (p.match(/Validade:\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1];
+    const fabricante = (p.match(/Fabricante:\s*(.+?)(?=\s+Qtde:|$)/i) || [])[1];
+    const qtde = (p.match(/Qtde:\s*([\d.,]+)/i) || [])[1];
+    return {
+      lote: lote ? lote.trim() : '—',
+      validade: validade || null,
+      fabricante: fabricante ? fabricante.trim() : '—',
+      qtde: qtde || null,
+    };
+  });
+}
+
+// Classifica uma validade DD/MM/YYYY: 'vencido', 'proximo' (<=90 dias) ou ''.
+function classeValidade(validadeBR) {
+  if (!validadeBR) return '';
+  const [d, m, a] = validadeBR.split('/').map(Number);
+  if (!d || !m || !a) return '';
+  const data = new Date(a, m - 1, d);
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const diasRestantes = Math.floor((data - hoje) / (1000 * 60 * 60 * 24));
+  if (diasRestantes < 0) return 'vencido';
+  if (diasRestantes <= 90) return 'proximo';
+  return '';
+}
+
 function classeStatus(status, dataPrevisao) {
   const finalizados = ['Finalizado'];
   const negativos = ['Cancelado', 'Fracassado', 'Deserto', 'Revogado'];
@@ -892,6 +928,32 @@ async function abrirDetalheEstoque(codigoEncoded) {
     `;
   } else {
     html += '<p style="color:var(--cinza-texto);">Este item não consta no relatório de estoque mais recente.</p>';
+  }
+
+  // Lotes e validades (vindos do relatório de estoque)
+  if (e) {
+    const lotes = parsearLotes(e.lotes);
+    html += '<h4 style="margin:18px 0 8px; font-size:14px; font-family:var(--fonte-titulo);">Lotes e validades</h4>';
+    if (lotes.length === 0) {
+      html += '<p style="color:var(--cinza-texto); font-size:13px;">Sem informação de lote para este item no relatório.</p>';
+    } else {
+      html += `<table style="font-size:12.5px;"><thead><tr><th>Lote</th><th>Validade</th><th>Quantidade</th><th>Fabricante</th></tr></thead><tbody>`;
+      html += lotes.map((l) => {
+        const cls = classeValidade(l.validade);
+        const tag = cls === 'vencido'
+          ? `<span class="etiqueta-status cancelado">${l.validade} · vencido</span>`
+          : cls === 'proximo'
+            ? `<span class="etiqueta-status atrasado">${l.validade} · vence em breve</span>`
+            : (l.validade || '—');
+        return `<tr>
+          <td class="col-codigo">${l.lote}</td>
+          <td class="col-data">${tag}</td>
+          <td>${l.qtde ? fmtNumero(Number(String(l.qtde).replace(/\./g, '').replace(',', '.'))) : '—'}</td>
+          <td style="font-size:11.5px; color:var(--cinza-texto);">${l.fabricante}</td>
+        </tr>`;
+      }).join('');
+      html += '</tbody></table>';
+    }
   }
 
   // Situação de compra judicial
