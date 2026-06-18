@@ -1178,7 +1178,7 @@ async function abrirDetalheValidade(codigo) {
   `;
 
   html += `<table style="font-size:12.5px;"><thead><tr>
-    <th>Lote</th><th>Validade</th><th>Dias p/ vencer</th><th>Quantidade</th><th>Valor</th>
+    <th>Lote</th><th>Validade</th><th>Dias p/ vencer</th><th>Quantidade</th><th>Valor</th><th>Fornecedor</th>
   </tr></thead><tbody>`;
   html += lotes.map((l) => {
     const cls = corFaixaValidade(l.faixa);
@@ -1191,6 +1191,7 @@ async function abrirDetalheValidade(codigo) {
       <td>${diasTxt}</td>
       <td>${fmtNumero(l.qtde)}</td>
       <td>${reais(l.valor_total)}</td>
+      <td style="font-size:11.5px; color:var(--cinza-texto);">${l.fabricante || '—'}</td>
     </tr>`;
   }).join('');
   html += '</tbody></table>';
