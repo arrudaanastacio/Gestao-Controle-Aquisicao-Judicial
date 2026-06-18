@@ -358,11 +358,12 @@ thead th {
 
 /* Contêiner com rolagem horizontal, para tabelas largas (muitas colunas) */
 .tabela-rolavel-x {
-  overflow-x: auto;
+  overflow: auto;
   max-height: 70vh;
-  overflow-y: auto;
 }
 .tabela-rolavel-x table { min-width: 1500px; }
+
+/* Cabeçalho fixo no topo ao rolar verticalmente */
 .tabela-rolavel-x thead th {
   position: sticky;
   top: 0;
@@ -371,6 +372,23 @@ thead th {
   box-shadow: inset 0 -1px 0 var(--linha);
   white-space: nowrap;
 }
+
+/* Primeira coluna (Código do Item) congelada ao rolar horizontalmente */
+.tabela-rolavel-x th:first-child,
+.tabela-rolavel-x td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--papel-elevado);
+  box-shadow: inset -1px 0 0 var(--linha);
+}
+/* O canto (cabeçalho da 1ª coluna) precisa ficar acima de ambos */
+.tabela-rolavel-x thead th:first-child {
+  z-index: 3;
+  background: #f2efe6;
+}
+/* Mantém o destaque da linha sob hover também na coluna congelada */
+.tabela-rolavel-x tbody tr:hover td:first-child { background: #fbfaf3; }
 
 /* Contêiner com rolagem própria + cabeçalho fixo (usado na tabela de estoque).
    A altura máxima cria a área rolável; o thead "gruda" no topo ao rolar. */
