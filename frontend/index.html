@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Compras Judiciais · Tenente Pena</title>
+<link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body>
+  <div id="telaCarregando" style="position:fixed;inset:0;background:#f5f5f0;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:inherit;">
+    <p style="color:#555;font-size:1rem;">Verificando sessão…</p>
+  </div>
+  <div class="app-shell" hidden>
+    <aside class="barra-lateral">
+      <div>
+        <p class="marca-lateral-eyebrow">Tenente Pena</p>
+        <div class="marca-lateral">Compras&nbsp;de<br>Medicamentos<br>Judiciais</div>
+      </div>
+      <nav class="nav-lateral" style="margin-top:32px;">
+        <a href="#" data-pagina="painel" class="ativo">Painel</a>
+        <a href="#" data-pagina="solicitacoes">Solicitações</a>
+        <a href="#" data-pagina="busca">Buscar medicamento</a>
+        <a href="#" data-pagina="relatorio">Relatório consolidado</a>
+        <a href="#" data-pagina="estoque">Estoque</a>
+        <a href="#" data-pagina="elenco" id="linkElenco" hidden>Elenco de medicamentos</a>
+        <a href="#" data-pagina="importadores" id="linkImportadores" hidden>Importar dados</a>
+        <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
+        <a href="#" data-pagina="usuarios" id="linkUsuarios" hidden>Usuários</a>
+      </nav>
+      <div class="rodape-lateral">
+        <div class="nome" id="nomeUsuario">—</div>
+        <span class="perfil-tag" id="perfilUsuario">—</span>
+        <button id="botaoSair">Sair</button>
+      </div>
+    </aside>
+
+    <main class="conteudo">
+      <section id="paginaPainel">
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Painel geral</h2>
+            <p>Visão consolidada de todas as solicitações de compra por status</p>
+          </div>
+        </div>
+        <div class="grade-resumo" id="grideResumo"></div>
+      </section>
+
+      <section id="paginaSolicitacoes" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Solicitações</h2>
+            <p>Consulte o andamento de cada item solicitado</p>
+          </div>
+          <button class="botao-primario" id="botaoNovaSolicitacao" hidden>+ Nova solicitação</button>
+        </div>
+
+        <p class="somente-leitura-aviso" id="avisoSomenteLeitura" hidden>
+          Seu perfil tem acesso somente de consulta.
+        </p>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBusca" placeholder="Buscar por medicamento, ofício ou empenho…">
+          <select id="filtroStatus">
+            <option value="">Todos os status</option>
+            <option value="Planejamento">Planejamento</option>
+            <option value="Empenhado">Empenhado</option>
+            <option value="Entrega Parcial">Entrega Parcial</option>
+            <option value="Finalizado">Finalizado</option>
+            <option value="Cancelado">Cancelado</option>
+            <option value="Deserto">Deserto</option>
+            <option value="Fracassado">Fracassado</option>
+            <option value="Revogado">Revogado</option>
+          </select>
+          <select id="filtroAno">
+            <option value="">Todos os anos</option>
+          </select>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--cinza-texto);">
+            <input type="checkbox" id="filtroAtrasados"> Só atrasados
+          </label>
+        </div>
+
+        <div class="tabela-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Medicamento</th>
+                <th>Período</th>
+                <th>Ofício</th>
+                <th>Previsão entrega</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="corpoTabelaSolicitacoes"></tbody>
+          </table>
+          <div class="estado-vazio" id="estadoVazio" hidden>Nenhuma solicitação encontrada com estes filtros.</div>
+          <div class="paginacao">
+            <span id="textoPaginacao">—</span>
+            <div class="botoes">
+              <button id="botaoAnterior">← Anterior</button>
+              <button id="botaoProximo">Próximo →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaBusca" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Buscar andamento de medicamento</h2>
+            <p>Digite o código ou o nome do medicamento para ver todo o histórico de compras, mês a mês</p>
+          </div>
+        </div>
+
+        <div class="barra-filtros">
+          <input type="text" id="campoBuscaMedicamento" placeholder="Ex.: abatacepte, ou código 1L00002/21/44391/01/00">
+          <button class="botao-primario" id="botaoBuscarMedicamento">Buscar</button>
+        </div>
+
+        <div id="resultadosBuscaMedicamento"></div>
+      </section>
+
+      <section id="paginaRelatorio" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Relatório consolidado</h2>
+            <p>Todos os meses reunidos em uma única lista — somente itens com modalidade de compra definida</p>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <select id="filtroAnoRelatorio">
+              <option value="">Todos os anos</option>
+            </select>
+            <button class="botao-secundario" id="botaoExportarRelatorio">Exportar CSV</button>
+          </div>
+        </div>
+
+        <div class="tabela-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Medicamento</th>
+                <th>Período</th>
+                <th>Modalidade</th>
+                <th>Ofício</th>
+                <th>Empenho</th>
+                <th>Previsão entrega</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="corpoTabelaRelatorio"></tbody>
+          </table>
+          <div class="estado-vazio" id="estadoVazioRelatorio" hidden>Nenhum registro encontrado.</div>
+        </div>
+      </section>
+
+      <section id="paginaEstoque" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Estoque</h2>
+            <p id="subtituloEstoque">Situação atual dos itens em estoque na UD 01 - Tenente Pena</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <select id="seletorDataEstoque" title="Data do estoque"></select>
+          </div>
+        </div>
+
+        <div id="avisoSemEstoque" class="estado-vazio" hidden>
+          Nenhum relatório de estoque importado ainda. Use o menu "Importar dados" para enviar o primeiro relatório.
+        </div>
+
+        <div id="conteudoEstoque" hidden>
+          <div class="grade-resumo" id="grideResumoEstoque"></div>
+
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaEstoque" placeholder="Buscar por medicamento, código ou siafísico…">
+            <select id="filtroSituacaoEstoque">
+              <option value="">Todas as situações</option>
+              <option value="ruptura">Ruptura (estoque zero com demanda)</option>
+              <option value="baixo">Estoque baixo (autonomia abaixo do limite)</option>
+              <option value="zerado">Estoque zerado</option>
+            </select>
+          </div>
+
+          <div class="barra-filtros barra-filtros-colunas">
+            <select id="filtroCategoria" data-coluna="categoria"><option value="">Categoria: todas</option></select>
+            <select id="filtroControlado" data-coluna="controlado"><option value="">Controlado: todos</option></select>
+            <select id="filtroTipoItem" data-coluna="tipo_item"><option value="">Tipo item: todos</option></select>
+            <select id="filtroMarca" data-coluna="marca"><option value="">Marca: todas</option></select>
+            <select id="filtroImportado" data-coluna="importado"><option value="">Importado: todos</option></select>
+            <select id="filtroOutrasDemandas" data-coluna="outras_demandas"><option value="">Outras demandas: todas</option></select>
+            <button id="botaoLimparFiltrosEstoque" class="botao-secundario" type="button">Limpar filtros</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Medicamento</th>
+                    <th>Estoque</th>
+                    <th>Autonomia</th>
+                    <th>Demanda</th>
+                    <th>Consumo/mês</th>
+                    <th>Compra judicial</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaEstoque"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioEstoque" hidden>Nenhum item encontrado com estes filtros.</div>
+            <div class="paginacao">
+              <span id="textoPaginacaoEstoque">—</span>
+              <div class="botoes">
+                <button id="botaoAnteriorEstoque">← Anterior</button>
+                <button id="botaoProximoEstoque">Próximo →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaElenco" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Elenco de medicamentos</h2>
+            <p>Busque um item do catálogo pelo código para corrigir código siafísico, descrição ou CATMAT</p>
+          </div>
+        </div>
+
+        <div class="barra-filtros">
+          <input type="text" id="campoBuscaElenco" placeholder="Código do item (ex.: 1L00002/21/44391/01/00)">
+          <button class="botao-primario" id="botaoBuscarElenco">Buscar</button>
+        </div>
+
+        <div id="resultadoBuscaElenco"></div>
+      </section>
+
+      <section id="paginaImportadores" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Importar dados</h2>
+            <p>Envie planilhas no mesmo layout do controle original para atualizar o elenco ou lançar novas aquisições</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" style="grid-template-columns: 1fr 1fr;">
+          <div class="cartao-resumo" style="text-align:left;">
+            <h3 style="font-size:16px; margin-bottom:8px;">Elenco de medicamentos</h3>
+            <p style="font-size:12.5px; color:var(--cinza-texto); margin:0 0 14px;">
+              Planilha com as colunas Código do Item, Código Siafísico e Descrição. Itens novos são
+              cadastrados, itens existentes são atualizados, e itens que saírem da lista são
+              inativados (nunca excluídos) — com alerta se já tiverem histórico de compra.
+            </p>
+            <input type="file" id="arquivoElenco" accept=".xlsx,.xlsm">
+            <div style="margin-top:12px; display:flex; gap:8px;">
+              <button class="botao-secundario" id="botaoPreviaElenco">Analisar planilha</button>
+              <button class="botao-primario" id="botaoConfirmarElenco" disabled>Confirmar importação</button>
+            </div>
+            <div id="resultadoImportacaoElenco" style="margin-top:14px;"></div>
+          </div>
+
+          <div class="cartao-resumo" style="text-align:left;">
+            <h3 style="font-size:16px; margin-bottom:8px;">Novas aquisições (solicitações mensais)</h3>
+            <p style="font-size:12.5px; color:var(--cinza-texto); margin:0 0 14px;">
+              Planilha no layout original (uma aba por mês, ex.: AGOSTO-2026). Só linhas com algum
+              campo de movimento preenchido são importadas; linhas totalmente vazias são ignoradas.
+            </p>
+            <input type="file" id="arquivoSolicitacoes" accept=".xlsx,.xlsm">
+            <div style="margin:10px 0;">
+              <label style="font-size:12.5px; display:flex; align-items:center; gap:6px;">
+                <input type="radio" name="modoImportacao" value="somente_novos" checked>
+                Importar apenas o que ainda não existe
+              </label>
+              <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; margin-top:4px;">
+                <input type="radio" name="modoImportacao" value="substituir">
+                Atualizar também os já existentes (mesmo item/mês/ano)
+              </label>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="botao-secundario" id="botaoPreviaSolicitacoes">Analisar planilha</button>
+              <button class="botao-primario" id="botaoConfirmarSolicitacoes" disabled>Confirmar importação</button>
+            </div>
+            <div id="resultadoImportacaoSolicitacoes" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
+        <div class="grade-resumo" style="grid-template-columns: 1fr 1fr; margin-top:14px;">
+          <div class="cartao-resumo" style="text-align:left;">
+            <h3 style="font-size:16px; margin-bottom:8px;">Estoque diário (Itens em Estoque UDTP)</h3>
+            <p style="font-size:12.5px; color:var(--cinza-texto); margin:0 0 14px;">
+              Relatório de estoque no layout "Itens em Estoque UDTP". Cada importação é uma foto do
+              dia — o histórico é mantido para acompanhar a evolução. A data é detectada pelo nome
+              da aba; ajuste se necessário. Ao importar, os alertas de estoque são recalculados.
+            </p>
+            <input type="file" id="arquivoEstoque" accept=".xlsx,.xlsm">
+            <div style="margin-top:10px;">
+              <label style="font-size:12px; font-weight:600; color:var(--tinta-suave);">Data de referência</label>
+              <input type="date" id="dataReferenciaEstoque" style="margin-top:4px; padding:8px 10px; border:1px solid var(--linha); border-radius:4px; font-size:13px;">
+            </div>
+            <div style="margin-top:12px; display:flex; gap:8px;">
+              <button class="botao-secundario" id="botaoPreviaEstoque">Analisar planilha</button>
+              <button class="botao-primario" id="botaoConfirmarEstoque" disabled>Confirmar importação</button>
+            </div>
+            <div id="resultadoImportacaoEstoque" style="margin-top:14px;"></div>
+          </div>
+
+          <div class="cartao-resumo" style="text-align:left;">
+            <h3 style="font-size:16px; margin-bottom:8px;">Configuração de alertas de estoque</h3>
+            <p style="font-size:12.5px; color:var(--cinza-texto); margin:0 0 14px;">
+              Define a autonomia mínima (em meses) abaixo da qual um item é considerado com estoque
+              baixo. Itens com estoque zero e demanda continuam sempre como ruptura (crítico).
+            </p>
+            <label style="font-size:12px; font-weight:600; color:var(--tinta-suave);">Autonomia mínima (meses)</label>
+            <input type="number" id="campoLimiarAutonomia" min="0" step="0.5" style="margin-top:4px; width:120px; padding:8px 10px; border:1px solid var(--linha); border-radius:4px; font-size:13px;">
+            <div style="margin-top:12px;">
+              <button class="botao-primario" id="botaoSalvarLimiar">Salvar configuração</button>
+            </div>
+            <div id="resultadoLimiar" style="margin-top:10px; font-size:12.5px; color:var(--verde-ok);"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaAlertas" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Alertas</h2>
+            <p>Situações que precisam de atenção, geradas automaticamente pelo sistema</p>
+          </div>
+        </div>
+        <div class="barra-filtros">
+          <select id="filtroTipoAlerta">
+            <option value="">Todos os tipos</option>
+            <option value="estoque_ruptura">Ruptura de estoque</option>
+            <option value="estoque_baixo">Estoque baixo</option>
+            <option value="compra_aberta_demanda_zero">Compra em aberto + demanda zero</option>
+            <option value="item_removido_com_historico">Item removido do elenco com histórico</option>
+          </select>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--cinza-texto);">
+            <input type="checkbox" id="filtroAlertasResolvidos"> Mostrar resolvidos
+          </label>
+        </div>
+        <div id="listaAlertas"></div>
+      </section>
+
+      <section id="paginaUsuarios" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Usuários</h2>
+            <p>Gerencie quem pode acessar o sistema e com qual perfil</p>
+          </div>
+          <button class="botao-primario" id="botaoNovoUsuario">+ Novo usuário</button>
+        </div>
+        <div class="tabela-wrap">
+          <table>
+            <thead>
+              <tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody id="corpoTabelaUsuarios"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal de edição/criação de solicitação -->
+  <div class="fundo-modal" id="modalSolicitacao" hidden>
+    <div class="modal">
+      <h3 id="tituloModalSolicitacao">Editar solicitação</h3>
+      <p class="descricao-item" id="descricaoModalSolicitacao"></p>
+      <form id="formSolicitacao">
+        <div class="grade-form">
+          <div class="campo-largo" id="campoItemNovo" hidden>
+            <label for="campoCodigoItem">Item do catálogo (código ou descrição)</label>
+            <input type="text" id="campoCodigoItem" list="listaItens" placeholder="Digite para buscar…">
+            <datalist id="listaItens"></datalist>
+          </div>
+
+          <div>
+            <label for="campoAno">Ano</label>
+            <input type="number" id="campoAno" min="2020" max="2100">
+          </div>
+          <div>
+            <label for="campoMes">Mês</label>
+            <select id="campoMes">
+              <option>Janeiro</option><option>Fevereiro</option><option>Março</option>
+              <option>Abril</option><option>Maio</option><option>Junho</option>
+              <option>Julho</option><option>Agosto</option><option>Setembro</option>
+              <option>Outubro</option><option>Novembro</option><option>Dezembro</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="campoTipo">Tipo</label>
+            <select id="campoTipo">
+              <option value="AS">AS</option>
+              <option value="JS">JS</option>
+            </select>
+          </div>
+          <div>
+            <label for="campoModalidade">Modalidade de compra</label>
+            <input type="text" id="campoModalidade">
+          </div>
+
+          <div>
+            <label for="campoOficio">Nº Ofício</label>
+            <input type="text" id="campoOficio">
+          </div>
+          <div>
+            <label for="campoQtdeSolicitada">Qtde solicitada</label>
+            <input type="number" id="campoQtdeSolicitada">
+          </div>
+
+          <div>
+            <label for="campoDataSolicitacao">Data da solicitação</label>
+            <input type="date" id="campoDataSolicitacao">
+          </div>
+          <div>
+            <label for="campoRequisicaoGsnet">Requisição GSNET</label>
+            <input type="text" id="campoRequisicaoGsnet">
+          </div>
+
+          <div>
+            <label for="campoNEmpenho">Nº Empenho</label>
+            <input type="text" id="campoNEmpenho">
+          </div>
+          <div>
+            <label for="campoQuantidadeEmpenho">Quantidade empenhada</label>
+            <input type="number" id="campoQuantidadeEmpenho">
+          </div>
+
+          <div>
+            <label for="campoDataPrevisao">Previsão de entrega</label>
+            <input type="date" id="campoDataPrevisao">
+          </div>
+          <div>
+            <label for="campoDataEntrega">Data de entrega</label>
+            <input type="date" id="campoDataEntrega">
+          </div>
+
+          <div>
+            <label for="campoQtdeEntregue">Qtde entregue</label>
+            <input type="number" id="campoQtdeEntregue">
+          </div>
+          <div>
+            <label for="campoQtdePendente">Qtde pendente</label>
+            <input type="number" id="campoQtdePendente">
+          </div>
+
+          <div class="campo-largo">
+            <label for="campoStatus">Status</label>
+            <select id="campoStatus">
+              <option value="">Em andamento</option>
+              <option>Planejamento</option>
+              <option>Adjucado</option>
+              <option>Empenhado</option>
+              <option>Entrega Parcial</option>
+              <option>Finalizado</option>
+              <option>Cancelado</option>
+              <option>Deserto</option>
+              <option>Fracassado</option>
+              <option>Revogado</option>
+            </select>
+          </div>
+
+          <div class="campo-largo">
+            <label for="campoObservacao">Observação</label>
+            <textarea id="campoObservacao"></textarea>
+          </div>
+          <div class="campo-largo">
+            <label for="campoJustificativa">Justificativa</label>
+            <textarea id="campoJustificativa"></textarea>
+          </div>
+        </div>
+
+        <div class="acoes-modal">
+          <button type="button" class="botao-secundario" id="botaoExcluirSolicitacao" hidden>Excluir</button>
+          <button type="button" class="botao-secundario" id="botaoCancelarModal">Cancelar</button>
+          <button type="submit" class="botao-primario">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de usuário -->
+  <div class="fundo-modal" id="modalUsuario" hidden>
+    <div class="modal" style="max-width:420px;">
+      <h3 id="tituloModalUsuario">Novo usuário</h3>
+      <form id="formUsuario">
+        <div class="grade-form">
+          <div class="campo-largo">
+            <label for="campoNomeUsuario">Nome</label>
+            <input type="text" id="campoNomeUsuario" required>
+          </div>
+          <div class="campo-largo">
+            <label for="campoEmailUsuario">E-mail</label>
+            <input type="email" id="campoEmailUsuario" required>
+          </div>
+          <div class="campo-largo">
+            <label for="campoSenhaUsuario">Senha <span id="rotuloSenhaOpcional"></span></label>
+            <input type="password" id="campoSenhaUsuario">
+          </div>
+          <div>
+            <label for="campoPerfilUsuario">Perfil</label>
+            <select id="campoPerfilUsuario">
+              <option value="consulta">Consulta</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div>
+            <label for="campoAtivoUsuario">Status</label>
+            <select id="campoAtivoUsuario">
+              <option value="1">Ativo</option>
+              <option value="0">Inativo</option>
+            </select>
+          </div>
+        </div>
+        <div class="acoes-modal">
+          <button type="button" class="botao-secundario" id="botaoCancelarModalUsuario">Cancelar</button>
+          <button type="submit" class="botao-primario">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="fundo-modal" id="modalEstoqueItem" hidden>
+    <div class="modal" style="max-width:640px;">
+      <h3 id="tituloModalEstoque">Detalhe do item</h3>
+      <p class="descricao-item" id="codigoModalEstoque"></p>
+      <div id="conteudoModalEstoque"></div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="botaoFecharModalEstoque">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

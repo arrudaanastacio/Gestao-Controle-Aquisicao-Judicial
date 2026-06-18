@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acesso · Controle de Compras Judiciais</title>
+<link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body class="pagina-login">
+  <div class="cartao-login">
+    <div class="selo-login" aria-hidden="true">
+      <svg viewBox="0 0 48 48" width="40" height="40">
+        <rect x="6" y="4" width="36" height="40" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+        <line x1="13" y1="14" x2="35" y2="14" stroke="currentColor" stroke-width="2"/>
+        <line x1="13" y1="22" x2="35" y2="22" stroke="currentColor" stroke-width="2"/>
+        <line x1="13" y1="30" x2="27" y2="30" stroke="currentColor" stroke-width="2"/>
+        <circle cx="33" cy="33" r="6" fill="none" stroke="currentColor" stroke-width="2"/>
+        <line x1="37.2" y1="37.2" x2="42" y2="42" stroke="currentColor" stroke-width="2"/>
+      </svg>
+    </div>
+    <p class="eyebrow-login">Controle de Demandas Judiciais</p>
+    <h1>Tenente Pena</h1>
+    <p class="subtitulo-login">Acompanhamento de compras de medicamentos</p>
+
+    <form id="formLogin" novalidate>
+      <label for="email">E-mail</label>
+      <input type="text" id="email" name="email" autocomplete="off" autofocus>
+
+      <label for="senha">Senha</label>
+      <input type="password" id="senha" name="senha" autocomplete="off">
+
+      <button type="button" id="botaoEntrar">Entrar</button>
+      <p class="erro-login" id="erroLogin" role="alert" hidden></p>
+    </form>
+  </div>
+
+  <script>
+    (function () {
+      var botao = document.getElementById('botaoEntrar');
+      var campoEmail = document.getElementById('email');
+      var campoSenha = document.getElementById('senha');
+      var erroEl = document.getElementById('erroLogin');
+
+      function mostrarErro(msg) {
+        erroEl.textContent = msg;
+        erroEl.hidden = false;
+        botao.disabled = false;
+        botao.textContent = 'Entrar';
+      }
+
+      function entrar() {
+        var email = campoEmail.value.trim();
+        var senha = campoSenha.value;
+        console.log('Tentando login — email:', email, '| senha preenchida?', !!senha);
+
+        if (!email || !senha) {
+          mostrarErro('Preencha o e-mail e a senha.');
+          return;
+        }
+
+        erroEl.hidden = true;
+        botao.disabled = true;
+        botao.textContent = 'Entrando…';
+
+        fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, senha: senha })
+        })
+        .then(function (resp) {
+          return resp.json().then(function (dados) {
+            console.log('Resposta login — status:', resp.status, '| dados:', dados);
+            if (!resp.ok) {
+              mostrarErro(dados.erro || 'Erro ao entrar.');
+              return;
+            }
+            window.location.href = '/index.html';
+          });
+        })
+        .catch(function (err) {
+          console.error('Erro de rede:', err);
+          mostrarErro('Não foi possível conectar ao servidor.');
+        });
+      }
+
+      // Fase de captura no document — executa ANTES de qualquer handler de extensão
+      document.addEventListener('click', function (ev) {
+        if (ev.target === botao || ev.target.closest('#botaoEntrar')) {
+          ev.stopImmediatePropagation();
+          entrar();
+        }
+      }, true);
+
+      // Mousedown como segundo canal, caso o click seja bloqueado
+      botao.addEventListener('mousedown', function (ev) {
+        if (ev.button === 0) entrar();
+      });
+
+      campoEmail.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') campoSenha.focus(); });
+      campoSenha.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') entrar(); });
+
+      console.log('Login inicializado. Botão encontrado?', !!botao);
+    })();
+  </script>
+</body>
+</html>

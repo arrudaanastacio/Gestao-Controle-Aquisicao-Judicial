@@ -1,0 +1,55 @@
+============================================================
+  COMECE AQUI - Controle de Compras Judiciais Tenente Pena
+============================================================
+
+Este sistema roda no seu computador e e acessado pelo navegador.
+
+------------------------------------------------------------
+ANTES DE TUDO: verifique o Node.js
+------------------------------------------------------------
+1. Aperte a tecla Windows, digite  cmd  e abra o Prompt de Comando.
+2. Digite:  node --version
+3. Precisa aparecer v22 ou maior (ex: v22.14.0).
+   - Se aparecer v20 ou menor, ou der erro, instale o Node.js
+     em https://nodejs.org (baixe a versao LTS, instale e reinicie).
+
+------------------------------------------------------------
+PASSO A PASSO (tudo dentro da pasta "backend")
+------------------------------------------------------------
+Abra a pasta "backend" e rode os arquivos NESTA ORDEM,
+dando dois cliques em cada um:
+
+  1 - instalar.bat
+      (instala o sistema - so precisa rodar uma vez)
+
+  2 - criar-usuario-admin.bat
+      (cria seu login - informe nome, e-mail e senha)
+
+  3 - iniciar-sistema.bat
+      (liga o sistema - deixe essa janela preta aberta)
+
+------------------------------------------------------------
+ACESSAR O SISTEMA
+------------------------------------------------------------
+Com a janela do passo 3 aberta, abra o navegador (Chrome, Edge)
+e acesse:
+
+      http://localhost:3000
+
+Faca login com o e-mail e a senha que voce criou no passo 2.
+
+------------------------------------------------------------
+PARA TESTAR
+------------------------------------------------------------
+- Menu "Estoque" > o sistema ja vem com o catalogo de itens.
+  Para ver dados de estoque, va em "Importar dados" e envie o
+  arquivo "Itens em Estoque UDTP".
+- Menu "Importar dados" > teste importar o elenco e as
+  solicitacoes mensais.
+- Menu "Alertas" > veja os avisos gerados automaticamente.
+
+Duvidas ou erros: anote a mensagem que aparecer na janela preta
+e me mande.
+
+O manual completo esta no arquivo  backend/README.md
+============================================================

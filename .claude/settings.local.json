@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(node --version)",
+      "Bash(node -e \"const { DatabaseSync } = require\\('node:sqlite'\\); const db = new DatabaseSync\\('./data/medicamentos_judicial.db'\\); const usuarios = db.prepare\\('SELECT id, nome, email, perfil, ativo FROM usuarios'\\).all\\(\\); console.log\\(JSON.stringify\\(usuarios, null, 2\\)\\);\")",
+      "Bash(node -e ' *)"
+    ]
+  }
+}
