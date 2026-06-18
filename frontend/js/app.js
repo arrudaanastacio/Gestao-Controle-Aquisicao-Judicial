@@ -53,6 +53,23 @@ function parsearLotes(texto) {
   });
 }
 
+// A partir do texto de lotes, retorna a validade mais próxima de vencer
+// (a menor data), com os dias restantes. Retorna null se não houver validade.
+function proximaValidade(lotesTexto) {
+  const lotes = parsearLotes(lotesTexto).filter((l) => l.validade);
+  if (lotes.length === 0) return null;
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  let melhor = null;
+  for (const l of lotes) {
+    const [d, m, a] = l.validade.split('/').map(Number);
+    if (!d || !m || !a) continue;
+    const data = new Date(a, m - 1, d);
+    const dias = Math.floor((data - hoje) / (1000 * 60 * 60 * 24));
+    if (melhor === null || dias < melhor.dias) melhor = { validade: l.validade, dias };
+  }
+  return melhor;
+}
+
 // Classifica uma validade DD/MM/YYYY: 'vencido', 'proximo' (<=90 dias) ou ''.
 function classeValidade(validadeBR) {
   if (!validadeBR) return '';
@@ -887,6 +904,13 @@ async function carregarTabelaEstoque() {
       const compraTag = it.compras_abertas > 0
         ? '<span class="etiqueta-status planejamento">Compra em aberto</span>'
         : '<span style="color:var(--cinza-texto); font-size:12px;">—</span>';
+      const prox = proximaValidade(it.lotes);
+      let validadeTd = '<span style="color:var(--cinza-texto); font-size:12px;">—</span>';
+      if (prox) {
+        const clsV = classeValidade(prox.validade);
+        const tagV = clsV === 'vencido' ? 'cancelado' : clsV === 'proximo' ? 'atrasado' : 'finalizado';
+        validadeTd = `<span class="etiqueta-status ${tagV}">${prox.validade}</span>`;
+      }
       return `
         <tr>
           <td>${it.descricao || '—'}<br><span class="col-codigo">${it.codigo_item}</span></td>
@@ -894,6 +918,7 @@ async function carregarTabelaEstoque() {
           <td>${fmtNumero(it.consumo_mensal_total)}</td>
           <td>${fmtNumero(it.estoque)}</td>
           <td><span class="etiqueta-status ${classe}">${autonomiaTxt}</span></td>
+          <td class="col-data">${validadeTd}</td>
           <td>${compraTag}</td>
           <td><button class="botao-editar" data-codigo="${encodeURIComponent(it.codigo_item)}">Ver</button></td>
         </tr>
@@ -1036,6 +1061,48 @@ document.getElementById('botaoLimparFiltrosValidades').addEventListener('click',
   sincronizarChipsFaixa();
   carregarValidades();
 });
+
+document.getElementById('botaoExportarValidades').addEventListener('click', exportarValidadesCSV);
+
+// Exporta os lotes da gestão de validades (respeitando os filtros atuais) para CSV.
+// Usa ponto-e-vírgula e BOM UTF-8 para abrir certinho no Excel em português.
+async function exportarValidadesCSV() {
+  const params = new URLSearchParams();
+  if (estado.validades.data) params.set('data', estado.validades.data);
+  const q = document.getElementById('filtroBuscaValidades').value.trim();
+  if (q) params.set('q', q);
+  if (estado.validades.janela) params.set('janela', estado.validades.janela);
+
+  const dados = await api(`/estoque/validades?${params.toString()}`);
+  if (!dados.lotes || dados.lotes.length === 0) {
+    alert('Não há lotes para exportar com os filtros atuais.');
+    return;
+  }
+
+  const csvCampo = (v) => {
+    const t = (v === null || v === undefined) ? '' : String(v);
+    return `"${t.replace(/"/g, '""')}"`; // protege aspas, ponto-e-vírgula e quebras
+  };
+
+  const cabecalho = ['Medicamento', 'Código do item', 'Lote', 'Validade', 'Dias para vencer',
+    'Quantidade', 'Valor unitário', 'Valor total', 'Fornecedor', 'Categoria', 'Marca'];
+
+  const linhas = dados.lotes.map((l) => [
+    l.descricao, l.codigo_item, l.lote, l.validade, l.dias_para_vencer,
+    l.qtde, l.valor_unit, l.valor_total, l.fabricante, l.categoria, l.marca,
+  ].map(csvCampo).join(';'));
+
+  const csv = '﻿' + [cabecalho.map(csvCampo).join(';'), ...linhas].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `validades_${dados.dataReferencia || 'estoque'}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 function corFaixaValidade(faixa) {
   if (faixa === 'vencido') return 'cancelado';   // vermelho
