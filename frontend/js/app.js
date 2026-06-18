@@ -1125,17 +1125,77 @@ async function carregarValidades() {
       `;
     }).join('');
 
-    // Clicar numa linha filtra pelo medicamento → cards recalculam para ele
+    // Clicar numa linha abre o detalhe do medicamento (lotes e validades)
     corpo.querySelectorAll('.linha-clicavel').forEach((tr) => {
-      tr.addEventListener('click', () => {
-        document.getElementById('filtroBuscaValidades').value = tr.dataset.codigo;
-        carregarValidades();
-      });
+      tr.addEventListener('click', () => abrirDetalheValidade(tr.dataset.codigo));
     });
   }
 
   document.getElementById('textoContagemValidades').textContent =
     `${dados.lotes.length} lote(s) exibido(s) · ${fmtNumero(r.totalLotes)} no total · valor total ${reais(r.valorTotal)}`;
+}
+
+document.getElementById('botaoFecharModalValidade').addEventListener('click', () => {
+  document.getElementById('modalValidadeItem').hidden = true;
+});
+
+// Abre o modal com os lotes e validades de um medicamento específico
+async function abrirDetalheValidade(codigo) {
+  const modal = document.getElementById('modalValidadeItem');
+  const conteudo = document.getElementById('conteudoModalValidade');
+  conteudo.innerHTML = '<p style="color:var(--cinza-texto);">Carregando…</p>';
+  document.getElementById('tituloModalValidade').textContent = 'Detalhe do item';
+  document.getElementById('codigoModalValidade').textContent = codigo;
+  modal.hidden = false;
+
+  const params = new URLSearchParams();
+  if (estado.validades.data) params.set('data', estado.validades.data);
+  params.set('q', codigo); // traz todos os lotes deste item (sem filtro de faixa)
+  const dados = await api(`/estoque/validades?${params.toString()}`);
+
+  // Pega só os lotes exatamente deste código
+  const lotes = dados.lotes.filter((l) => l.codigo_item === codigo);
+  const reais = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+  if (lotes.length === 0) {
+    conteudo.innerHTML = '<p style="color:var(--cinza-texto);">Sem lotes com validade para este item.</p>';
+    return;
+  }
+
+  const it = lotes[0];
+  document.getElementById('tituloModalValidade').textContent = it.descricao || codigo;
+
+  // Resumo do item
+  const totalQtde = lotes.reduce((s, l) => s + (l.qtde || 0), 0);
+  const totalValor = lotes.reduce((s, l) => s + (l.valor_total || 0), 0);
+  let html = `
+    <div class="grade-resumo" style="grid-template-columns: repeat(3, 1fr); margin-bottom:18px;">
+      <div class="cartao-resumo"><div class="numero" style="font-size:20px;">${fmtNumero(lotes.length)}</div><div class="rotulo">Lotes</div></div>
+      <div class="cartao-resumo"><div class="numero" style="font-size:20px;">${fmtNumero(totalQtde)}</div><div class="rotulo">Quantidade total</div></div>
+      <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${reais(totalValor)}</div><div class="rotulo">Valor total</div></div>
+    </div>
+    <p style="font-size:12.5px; color:var(--cinza-texto); margin:0 0 12px;">Categoria: <strong>${it.categoria || '—'}</strong>${it.marca ? ' · Marca: <strong>' + it.marca + '</strong>' : ''}</p>
+  `;
+
+  html += `<table style="font-size:12.5px;"><thead><tr>
+    <th>Lote</th><th>Validade</th><th>Dias p/ vencer</th><th>Quantidade</th><th>Valor</th>
+  </tr></thead><tbody>`;
+  html += lotes.map((l) => {
+    const cls = corFaixaValidade(l.faixa);
+    const diasTxt = l.dias_para_vencer < 0
+      ? `vencido há ${Math.abs(l.dias_para_vencer)} dia(s)`
+      : `${l.dias_para_vencer} dia(s)`;
+    return `<tr>
+      <td class="col-codigo">${l.lote || '—'}</td>
+      <td class="col-data"><span class="etiqueta-status ${cls}">${l.validade}</span></td>
+      <td>${diasTxt}</td>
+      <td>${fmtNumero(l.qtde)}</td>
+      <td>${reais(l.valor_total)}</td>
+    </tr>`;
+  }).join('');
+  html += '</tbody></table>';
+
+  conteudo.innerHTML = html;
 }
 
 // -------------------- Importador de estoque --------------------
