@@ -1021,13 +1021,14 @@ async function abrirDetalheEstoque(codigoEncoded) {
     if (dados.temCompraAberta) {
       html += '<p style="font-size:12.5px; color:var(--selo); margin:0 0 8px;">✓ Este item tem compra em aberto (em andamento).</p>';
     }
-    html += `<table style="font-size:12.5px;"><thead><tr><th>Período</th><th>Modalidade</th><th>Empenho</th><th>Previsão</th><th>Status</th></tr></thead><tbody>`;
+    html += `<table style="font-size:12.5px;"><thead><tr><th>Período</th><th>Modalidade</th><th>Qtd. solicitada</th><th>Empenho</th><th>Previsão</th><th>Status</th></tr></thead><tbody>`;
     html += dados.compras.map((c) => {
       const classe = classeStatus(c.status, c.data_previsao_entrega);
       const rotulo = rotuloStatus(c.status, c.data_previsao_entrega);
       return `<tr>
         <td>${c.mes}/${c.ano}</td>
         <td>${c.modalidade_compra || '—'}</td>
+        <td>${valorCelula(c.qtde_solicitada)}</td>
         <td>${c.n_empenho || '—'}</td>
         <td class="col-data">${formatarData(c.data_previsao_entrega)}</td>
         <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
