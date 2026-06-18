@@ -81,19 +81,32 @@
         </div>
 
         <div class="tabela-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Medicamento</th>
-                <th>Período</th>
-                <th>Ofício</th>
-                <th>Previsão entrega</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="corpoTabelaSolicitacoes"></tbody>
-          </table>
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código do Item</th>
+                  <th>Código Siafísico</th>
+                  <th>Descrição do Item</th>
+                  <th>Ano</th>
+                  <th>Mês</th>
+                  <th>Tipo</th>
+                  <th>Modalidade de Compra</th>
+                  <th>Ofício</th>
+                  <th>Qtde. Solicitada</th>
+                  <th>Data de Solicitação</th>
+                  <th>Requisição GSNET</th>
+                  <th>Nº Empenho</th>
+                  <th>Data Entrega</th>
+                  <th>Qtde. Entregue</th>
+                  <th>Qtde. Pendente</th>
+                  <th>Status do Item</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaSolicitacoes"></tbody>
+            </table>
+          </div>
           <div class="estado-vazio" id="estadoVazio" hidden>Nenhuma solicitação encontrada com estes filtros.</div>
           <div class="paginacao">
             <span id="textoPaginacao">—</span>
@@ -136,20 +149,31 @@
         </div>
 
         <div class="tabela-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Medicamento</th>
-                <th>Período</th>
-                <th>Modalidade</th>
-                <th>Ofício</th>
-                <th>Empenho</th>
-                <th>Previsão entrega</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="corpoTabelaRelatorio"></tbody>
-          </table>
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código do Item</th>
+                  <th>Código Siafísico</th>
+                  <th>Descrição do Item</th>
+                  <th>Ano</th>
+                  <th>Mês</th>
+                  <th>Tipo</th>
+                  <th>Modalidade de Compra</th>
+                  <th>Ofício</th>
+                  <th>Qtde. Solicitada</th>
+                  <th>Data de Solicitação</th>
+                  <th>Requisição GSNET</th>
+                  <th>Nº Empenho</th>
+                  <th>Data Entrega</th>
+                  <th>Qtde. Entregue</th>
+                  <th>Qtde. Pendente</th>
+                  <th>Status do Item</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaRelatorio"></tbody>
+            </table>
+          </div>
           <div class="estado-vazio" id="estadoVazioRelatorio" hidden>Nenhum registro encontrado.</div>
         </div>
       </section>

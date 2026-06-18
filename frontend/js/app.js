@@ -30,6 +30,12 @@ function formatarData(iso) {
   return `${dia}/${mes}/${ano}`;
 }
 
+// Mostra um valor de célula ou "—" quando vazio/nulo (para tabelas largas).
+function valorCelula(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  return v;
+}
+
 // Interpreta o texto de lotes vindo do relatório de estoque.
 // Cada lote vem separado por "\" no formato:
 //   "Lote N°: XXX Validade: DD/MM/YYYY Fabricante: YYY Qtde: NNN"
@@ -267,13 +273,21 @@ async function carregarSolicitacoes() {
       const rotulo = rotuloStatus(s.status, s.data_previsao_entrega);
       return `
         <tr>
-          <td>
-            <div>${s.descricao}</div>
-            <div class="col-codigo">${s.codigo_item}</div>
-          </td>
-          <td class="col-data">${s.mes}/${s.ano} · ${s.tipo || '—'}</td>
+          <td class="col-codigo">${s.codigo_item || '—'}</td>
+          <td class="col-codigo">${s.codigo_siafisico || '—'}</td>
+          <td>${s.descricao || '—'}</td>
+          <td>${s.ano || '—'}</td>
+          <td>${s.mes || '—'}</td>
+          <td>${s.tipo || '—'}</td>
+          <td>${s.modalidade_compra || '—'}</td>
           <td class="col-codigo">${s.n_oficio || '—'}</td>
-          <td class="col-data">${formatarData(s.data_previsao_entrega)}</td>
+          <td>${valorCelula(s.qtde_solicitada)}</td>
+          <td class="col-data">${formatarData(s.data_solicitacao)}</td>
+          <td class="col-codigo">${s.requisicao_gsnet || '—'}</td>
+          <td class="col-codigo">${s.n_empenho || '—'}</td>
+          <td class="col-data">${formatarData(s.data_entrega)}</td>
+          <td>${valorCelula(s.qtde_entregue)}</td>
+          <td>${valorCelula(s.qtde_pendente)}</td>
           <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
           <td>${estado.usuario.perfil === 'admin' ? `<button class="botao-editar" data-id="${s.id}">Editar</button>` : ''}</td>
         </tr>
@@ -514,12 +528,21 @@ async function carregarRelatorio() {
     const rotulo = rotuloStatus(s.status, s.data_previsao_entrega);
     return `
       <tr>
-        <td>${s.descricao}<br><span class="col-codigo">${s.codigo_item}</span></td>
-        <td>${s.mes}/${s.ano}</td>
+        <td class="col-codigo">${s.codigo_item || '—'}</td>
+        <td class="col-codigo">${s.codigo_siafisico || '—'}</td>
+        <td>${s.descricao || '—'}</td>
+        <td>${s.ano || '—'}</td>
+        <td>${s.mes || '—'}</td>
+        <td>${s.tipo || '—'}</td>
         <td>${s.modalidade_compra || '—'}</td>
-        <td>${s.n_oficio || '—'}</td>
-        <td>${s.n_empenho || '—'}</td>
-        <td class="col-data">${formatarData(s.data_previsao_entrega)}</td>
+        <td class="col-codigo">${s.n_oficio || '—'}</td>
+        <td>${valorCelula(s.qtde_solicitada)}</td>
+        <td class="col-data">${formatarData(s.data_solicitacao)}</td>
+        <td class="col-codigo">${s.requisicao_gsnet || '—'}</td>
+        <td class="col-codigo">${s.n_empenho || '—'}</td>
+        <td class="col-data">${formatarData(s.data_entrega)}</td>
+        <td>${valorCelula(s.qtde_entregue)}</td>
+        <td>${valorCelula(s.qtde_pendente)}</td>
         <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
       </tr>
     `;

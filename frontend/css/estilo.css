@@ -356,6 +356,22 @@ thead th {
   background: #fbfaf6;
 }
 
+/* Contêiner com rolagem horizontal, para tabelas largas (muitas colunas) */
+.tabela-rolavel-x {
+  overflow-x: auto;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.tabela-rolavel-x table { min-width: 1500px; }
+.tabela-rolavel-x thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f2efe6;
+  box-shadow: inset 0 -1px 0 var(--linha);
+  white-space: nowrap;
+}
+
 /* Contêiner com rolagem própria + cabeçalho fixo (usado na tabela de estoque).
    A altura máxima cria a área rolável; o thead "gruda" no topo ao rolar. */
 .tabela-rolavel {
