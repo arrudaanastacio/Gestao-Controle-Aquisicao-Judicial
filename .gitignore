@@ -13,6 +13,9 @@ backend/.env
 *.db-wal
 *.db-shm
 
+# Exportações/dumps do banco (contêm dados e senhas) — não versionar
+backend/data/export/
+
 # Arquivos temporários do sistema
 Thumbs.db
 desktop.ini

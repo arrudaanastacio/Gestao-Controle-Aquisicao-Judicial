@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node src/server.js",
-    "criar-admin": "node src/seedAdmin.js"
+    "criar-admin": "node src/seedAdmin.js",
+    "exportar-banco": "node src/exportarBanco.js"
   },
   "keywords": [],
   "author": "",
