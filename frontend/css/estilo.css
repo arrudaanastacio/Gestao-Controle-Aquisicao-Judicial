@@ -375,6 +375,17 @@ thead th {
 .barra-filtros-colunas { margin-top: -6px; }
 .barra-filtros-colunas select { min-width: 150px; }
 
+/* Cards de KPI clicáveis (gestão de validades) */
+.cartao-clicavel { cursor: pointer; transition: border-color .12s, box-shadow .12s; }
+.cartao-clicavel:hover { border-color: var(--selo); }
+.cartao-clicavel.selecionado {
+  border-color: var(--selo);
+  box-shadow: 0 0 0 2px var(--selo) inset;
+}
+
+/* Linhas de lote clicáveis */
+.linha-clicavel { cursor: pointer; }
+
 /* Chips de filtro por faixa de validade */
 .filtros-faixa { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip-faixa {

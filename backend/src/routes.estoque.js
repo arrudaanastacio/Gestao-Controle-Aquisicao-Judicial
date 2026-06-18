@@ -437,8 +437,20 @@ router.get('/validades', (req, res) => {
     }
   }
 
-  // KPIs por faixa (contagem de lotes e valor), sempre sobre o conjunto total
   const FAIXAS = ['vencido', 'd30', 'd60', 'd90', 'mais90'];
+
+  // Filtro de texto/medicamento: afeta TANTO os KPIs quanto a tabela.
+  // (assim, ao buscar/clicar num medicamento, os cards recalculam para ele)
+  if (q) {
+    const termo = q.toLowerCase();
+    linhas = linhas.filter((ln) =>
+      (ln.descricao || '').toLowerCase().includes(termo) ||
+      (ln.codigo_item || '').toLowerCase().includes(termo) ||
+      (ln.lote || '').toLowerCase().includes(termo));
+  }
+
+  // KPIs por faixa, calculados sobre o conjunto já filtrado por texto,
+  // mas ANTES do filtro de faixa (para os cards não se anularem entre si).
   const resumo = { totalLotes: linhas.length, valorTotal: 0 };
   for (const f of FAIXAS) resumo[f] = { qtdeLotes: 0, valor: 0 };
   for (const ln of linhas) {
@@ -447,14 +459,7 @@ router.get('/validades', (req, res) => {
     resumo[ln.faixa].valor += ln.valor_total;
   }
 
-  // Aplica filtros (texto e faixa) só na lista exibida
-  if (q) {
-    const termo = q.toLowerCase();
-    linhas = linhas.filter((ln) =>
-      (ln.descricao || '').toLowerCase().includes(termo) ||
-      (ln.codigo_item || '').toLowerCase().includes(termo) ||
-      (ln.lote || '').toLowerCase().includes(termo));
-  }
+  // Filtro de faixa: afeta SÓ a tabela exibida.
   if (janela && FAIXAS.includes(janela)) {
     linhas = linhas.filter((ln) => ln.faixa === janela);
   }

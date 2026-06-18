@@ -1019,11 +1019,16 @@ document.getElementById('seletorDataValidades').addEventListener('change', (ev) 
 document.querySelectorAll('#filtrosFaixaValidades .chip-faixa').forEach((btn) => {
   btn.addEventListener('click', () => {
     estado.validades.janela = btn.dataset.janela;
-    document.querySelectorAll('#filtrosFaixaValidades .chip-faixa')
-      .forEach((b) => b.classList.toggle('ativo', b === btn));
+    sincronizarChipsFaixa();
     carregarValidades();
   });
 });
+
+// Mantém os chips de faixa coerentes com o estado atual (mudado por chip ou card)
+function sincronizarChipsFaixa() {
+  document.querySelectorAll('#filtrosFaixaValidades .chip-faixa')
+    .forEach((b) => b.classList.toggle('ativo', (b.dataset.janela || '') === estado.validades.janela));
+}
 
 function corFaixaValidade(faixa) {
   if (faixa === 'vencido') return 'cancelado';   // vermelho
@@ -1061,17 +1066,31 @@ async function carregarValidades() {
   document.getElementById('subtituloValidades').textContent =
     `Lotes e validades do estoque em ${formatarData(dados.dataReferencia)}`;
 
-  // KPIs
+  // KPIs (cards clicáveis: clicar filtra a tabela pela faixa)
   const r = dados.resumo;
   const reais = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
   const kpi = document.getElementById('grideKpiValidades');
-  kpi.innerHTML = `
-    <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(r.vencido.qtdeLotes)}</div><div class="rotulo">Lotes vencidos<br><span style="font-size:11px;">${reais(r.vencido.valor)}</span></div></div>
-    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d30.qtdeLotes)}</div><div class="rotulo">Vencem em até 30 dias<br><span style="font-size:11px;">${reais(r.d30.valor)}</span></div></div>
-    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d60.qtdeLotes)}</div><div class="rotulo">31 a 60 dias<br><span style="font-size:11px;">${reais(r.d60.valor)}</span></div></div>
-    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d90.qtdeLotes)}</div><div class="rotulo">61 a 90 dias<br><span style="font-size:11px;">${reais(r.d90.valor)}</span></div></div>
-    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.mais90.qtdeLotes)}</div><div class="rotulo">Mais de 90 dias<br><span style="font-size:11px;">${reais(r.mais90.valor)}</span></div></div>
-  `;
+  const jat = estado.validades.janela;
+  const cartao = (faixa, rotulo, classeExtra = '') => `
+    <div class="cartao-resumo cartao-clicavel ${classeExtra} ${jat === faixa ? 'selecionado' : ''}" data-janela="${faixa}">
+      <div class="numero">${fmtNumero(r[faixa].qtdeLotes)}</div>
+      <div class="rotulo">${rotulo}<br><span style="font-size:11px;">${reais(r[faixa].valor)}</span></div>
+    </div>`;
+  kpi.innerHTML =
+    cartao('vencido', 'Lotes vencidos', 'alerta') +
+    cartao('d30', 'Vencem em até 30 dias') +
+    cartao('d60', '31 a 60 dias') +
+    cartao('d90', '61 a 90 dias') +
+    cartao('mais90', 'Mais de 90 dias');
+
+  kpi.querySelectorAll('.cartao-clicavel').forEach((c) => {
+    c.addEventListener('click', () => {
+      // clicar de novo no card já ativo remove o filtro
+      estado.validades.janela = (estado.validades.janela === c.dataset.janela) ? '' : c.dataset.janela;
+      sincronizarChipsFaixa();
+      carregarValidades();
+    });
+  });
 
   // Tabela
   const corpo = document.getElementById('corpoTabelaValidades');
@@ -1087,7 +1106,7 @@ async function carregarValidades() {
         ? `vencido há ${Math.abs(l.dias_para_vencer)} dia(s)`
         : `${l.dias_para_vencer} dia(s)`;
       return `
-        <tr>
+        <tr class="linha-clicavel" data-codigo="${(l.codigo_item || '').replace(/"/g, '&quot;')}" title="Clique para ver só este medicamento">
           <td>${l.descricao || '—'}<br><span class="col-codigo">${l.codigo_item}</span></td>
           <td class="col-codigo">${l.lote || '—'}</td>
           <td class="col-data"><span class="etiqueta-status ${cls}">${l.validade}</span></td>
@@ -1098,6 +1117,14 @@ async function carregarValidades() {
         </tr>
       `;
     }).join('');
+
+    // Clicar numa linha filtra pelo medicamento → cards recalculam para ele
+    corpo.querySelectorAll('.linha-clicavel').forEach((tr) => {
+      tr.addEventListener('click', () => {
+        document.getElementById('filtroBuscaValidades').value = tr.dataset.codigo;
+        carregarValidades();
+      });
+    });
   }
 
   document.getElementById('textoContagemValidades').textContent =
