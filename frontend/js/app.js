@@ -1,11 +1,3 @@
-// -------------------- Diagnóstico (remover após resolver o problema) --------------------
-window.onerror = function (msg, src, line, col, err) {
-  console.error('[ERRO GLOBAL]', msg, '| linha:', line, '| arquivo:', src, '| erro:', err);
-};
-window.addEventListener('unhandledrejection', (ev) => {
-  console.error('[PROMISE REJEITADA SEM CATCH]', ev.reason);
-});
-
 // -------------------- Estado global --------------------
 const estado = {
   usuario: null,
@@ -17,20 +9,11 @@ const estado = {
 
 // -------------------- Utilitários --------------------
 async function api(caminho, opcoes = {}) {
-  console.log('[API]', opcoes.method || 'GET', caminho);
-  let resp;
-  try {
-    resp = await fetch(`/api${caminho}`, {
-      headers: { 'Content-Type': 'application/json' },
-      ...opcoes,
-    });
-  } catch (erroRede) {
-    console.error('[API] Erro de rede em', caminho, erroRede);
-    throw erroRede;
-  }
-  console.log('[API] Resposta', resp.status, caminho);
+  const resp = await fetch(`/api${caminho}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opcoes,
+  });
   if (resp.status === 401) {
-    console.warn('[API] 401 em', caminho, '— redirecionando para login');
     window.location.href = '/login.html';
     throw new Error('Não autenticado');
   }
@@ -123,7 +106,6 @@ function mostrarErroPagina(idSecao, mensagem) {
 }
 
 async function mudarPagina(pagina) {
-  console.log('[NAV] mudarPagina →', pagina);
   estado.paginaAtual = pagina;
   document.querySelectorAll('.nav-lateral a').forEach((a) => a.classList.toggle('ativo', a.dataset.pagina === pagina));
   document.getElementById('paginaPainel').hidden = pagina !== 'painel';
@@ -144,7 +126,6 @@ async function mudarPagina(pagina) {
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
   } catch (e) {
-    console.error('[NAV] Erro ao carregar página', pagina, e);
     if (!window.location.href.includes('login.html')) {
       mostrarErroPagina('pagina' + pagina.charAt(0).toUpperCase() + pagina.slice(1),
         'Erro ao carregar dados: ' + e.message);
@@ -1175,25 +1156,15 @@ formUsuario.addEventListener('submit', async (ev) => {
 
 // -------------------- Inicialização --------------------
 (async function iniciar() {
-  console.log('[INIT] Iniciando aplicação');
   try {
-    console.log('[INIT] Verificando autenticação (/api/auth/me)...');
     await carregarUsuario();
-    console.log('[INIT] Usuário autenticado:', estado.usuario?.nome, '| perfil:', estado.usuario?.perfil);
-
     preencherAnos();
-
-    console.log('[INIT] Removendo tela de carregamento...');
     document.getElementById('telaCarregando').hidden = true;
     document.querySelector('.app-shell').hidden = false;
-    console.log('[INIT] App-shell visível. Carregando painel...');
-
     await mudarPagina('painel');
-    console.log('[INIT] Painel carregado com sucesso.');
   } catch (e) {
-    console.error('[INIT] Falha na inicialização:', e.message, e);
-    // carregarUsuario já redireciona para login em caso de 401
-    // Se for outro erro (ex: servidor indisponível), redireciona também
+    // carregarUsuario já redireciona para login em caso de 401.
+    // Para qualquer outro erro (ex: servidor indisponível), redireciona também.
     if (!window.location.href.includes('login.html')) {
       window.location.href = '/login.html';
     }

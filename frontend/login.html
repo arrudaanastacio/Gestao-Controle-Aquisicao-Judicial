@@ -48,16 +48,18 @@
         botao.textContent = 'Entrar';
       }
 
+      var enviando = false;
       function entrar() {
+        if (enviando) return; // evita envio duplicado
         var email = campoEmail.value.trim();
         var senha = campoSenha.value;
-        console.log('Tentando login — email:', email, '| senha preenchida?', !!senha);
 
         if (!email || !senha) {
           mostrarErro('Preencha o e-mail e a senha.');
           return;
         }
 
+        enviando = true;
         erroEl.hidden = true;
         botao.disabled = true;
         botao.textContent = 'Entrando…';
@@ -69,37 +71,23 @@
         })
         .then(function (resp) {
           return resp.json().then(function (dados) {
-            console.log('Resposta login — status:', resp.status, '| dados:', dados);
             if (!resp.ok) {
+              enviando = false;
               mostrarErro(dados.erro || 'Erro ao entrar.');
               return;
             }
             window.location.href = '/index.html';
           });
         })
-        .catch(function (err) {
-          console.error('Erro de rede:', err);
+        .catch(function () {
+          enviando = false;
           mostrarErro('Não foi possível conectar ao servidor.');
         });
       }
 
-      // Fase de captura no document — executa ANTES de qualquer handler de extensão
-      document.addEventListener('click', function (ev) {
-        if (ev.target === botao || ev.target.closest('#botaoEntrar')) {
-          ev.stopImmediatePropagation();
-          entrar();
-        }
-      }, true);
-
-      // Mousedown como segundo canal, caso o click seja bloqueado
-      botao.addEventListener('mousedown', function (ev) {
-        if (ev.button === 0) entrar();
-      });
-
+      botao.addEventListener('click', entrar);
       campoEmail.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') campoSenha.focus(); });
       campoSenha.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') entrar(); });
-
-      console.log('Login inicializado. Botão encontrado?', !!botao);
     })();
   </script>
 </body>
