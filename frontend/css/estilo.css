@@ -375,6 +375,24 @@ thead th {
 .barra-filtros-colunas { margin-top: -6px; }
 .barra-filtros-colunas select { min-width: 150px; }
 
+/* Chips de filtro por faixa de validade */
+.filtros-faixa { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip-faixa {
+  background: var(--papel-elevado);
+  border: 1px solid var(--linha);
+  color: var(--tinta);
+  padding: 7px 13px;
+  font-size: 12.5px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+.chip-faixa:hover { border-color: var(--selo); }
+.chip-faixa.ativo {
+  background: var(--selo);
+  color: #fdfdfb;
+  border-color: var(--selo);
+}
+
 tbody td {
   padding: 11px 14px;
   border-bottom: 1px solid #ece8db;

@@ -22,6 +22,7 @@
         <a href="#" data-pagina="busca">Buscar medicamento</a>
         <a href="#" data-pagina="relatorio">Relatório consolidado</a>
         <a href="#" data-pagina="estoque">Estoque</a>
+        <a href="#" data-pagina="validades">Gestão de validades</a>
         <a href="#" data-pagina="elenco" id="linkElenco" hidden>Elenco de medicamentos</a>
         <a href="#" data-pagina="importadores" id="linkImportadores" hidden>Importar dados</a>
         <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
@@ -223,6 +224,61 @@
                 <button id="botaoAnteriorEstoque">← Anterior</button>
                 <button id="botaoProximoEstoque">Próximo →</button>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaValidades" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Gestão de validades</h2>
+            <p id="subtituloValidades">Controle de lotes e datas de validade do estoque</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <select id="seletorDataValidades" title="Data do estoque"></select>
+          </div>
+        </div>
+
+        <div id="avisoSemValidades" class="estado-vazio" hidden>
+          Nenhum relatório de estoque importado ainda. Use o menu "Importar dados" para enviar o primeiro relatório.
+        </div>
+
+        <div id="conteudoValidades" hidden>
+          <div class="grade-resumo" id="grideKpiValidades"></div>
+
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaValidades" placeholder="Buscar por medicamento, código ou lote…">
+            <div class="filtros-faixa" id="filtrosFaixaValidades">
+              <button type="button" class="chip-faixa ativo" data-janela="">Todos</button>
+              <button type="button" class="chip-faixa" data-janela="vencido">Vencidos</button>
+              <button type="button" class="chip-faixa" data-janela="d30">Até 30 dias</button>
+              <button type="button" class="chip-faixa" data-janela="d60">31 a 60 dias</button>
+              <button type="button" class="chip-faixa" data-janela="d90">61 a 90 dias</button>
+              <button type="button" class="chip-faixa" data-janela="mais90">Mais de 90 dias</button>
+            </div>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Medicamento</th>
+                    <th>Lote</th>
+                    <th>Validade</th>
+                    <th>Dias p/ vencer</th>
+                    <th>Quantidade</th>
+                    <th>Valor</th>
+                    <th>Categoria</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaValidades"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioValidades" hidden>Nenhum lote encontrado com estes filtros.</div>
+            <div class="paginacao">
+              <span id="textoContagemValidades">—</span>
             </div>
           </div>
         </div>

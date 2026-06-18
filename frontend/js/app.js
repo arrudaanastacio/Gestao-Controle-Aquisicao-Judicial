@@ -4,6 +4,7 @@ const estado = {
   paginaAtual: 'painel',
   solicitacoes: { pagina: 1, pageSize: 20, total: 0, filtros: {} },
   estoque: { pagina: 1, pageSize: 30, total: 0, data: null },
+  validades: { data: null, janela: '' },
   itensCache: [],
 };
 
@@ -149,6 +150,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaBusca').hidden = pagina !== 'busca';
   document.getElementById('paginaRelatorio').hidden = pagina !== 'relatorio';
   document.getElementById('paginaEstoque').hidden = pagina !== 'estoque';
+  document.getElementById('paginaValidades').hidden = pagina !== 'validades';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
   document.getElementById('paginaAlertas').hidden = pagina !== 'alertas';
@@ -159,6 +161,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'solicitacoes') await carregarSolicitacoes();
     if (pagina === 'relatorio') await carregarRelatorio();
     if (pagina === 'estoque') await carregarEstoque();
+    if (pagina === 'validades') await carregarValidades();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
   } catch (e) {
@@ -1001,6 +1004,104 @@ async function abrirDetalheEstoque(codigoEncoded) {
   }
 
   conteudo.innerHTML = html;
+}
+
+// -------------------- Gestão de validades --------------------
+let debounceBuscaValidades;
+document.getElementById('filtroBuscaValidades').addEventListener('input', () => {
+  clearTimeout(debounceBuscaValidades);
+  debounceBuscaValidades = setTimeout(carregarValidades, 350);
+});
+document.getElementById('seletorDataValidades').addEventListener('change', (ev) => {
+  estado.validades.data = ev.target.value;
+  carregarValidades();
+});
+document.querySelectorAll('#filtrosFaixaValidades .chip-faixa').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    estado.validades.janela = btn.dataset.janela;
+    document.querySelectorAll('#filtrosFaixaValidades .chip-faixa')
+      .forEach((b) => b.classList.toggle('ativo', b === btn));
+    carregarValidades();
+  });
+});
+
+function corFaixaValidade(faixa) {
+  if (faixa === 'vencido') return 'cancelado';   // vermelho
+  if (faixa === 'd30') return 'atrasado';         // âmbar (urgente)
+  if (faixa === 'd60') return 'planejamento';     // azul
+  if (faixa === 'd90') return 'andamento';        // cinza
+  return 'finalizado';                            // verde (folgado)
+}
+
+async function carregarValidades() {
+  const params = new URLSearchParams();
+  if (estado.validades.data) params.set('data', estado.validades.data);
+  const q = document.getElementById('filtroBuscaValidades').value.trim();
+  if (q) params.set('q', q);
+  if (estado.validades.janela) params.set('janela', estado.validades.janela);
+
+  const dados = await api(`/estoque/validades?${params.toString()}`);
+
+  if (!dados.dataReferencia) {
+    document.getElementById('avisoSemValidades').hidden = false;
+    document.getElementById('conteudoValidades').hidden = true;
+    return;
+  }
+  document.getElementById('avisoSemValidades').hidden = true;
+  document.getElementById('conteudoValidades').hidden = false;
+
+  // Seletor de datas
+  const seletor = document.getElementById('seletorDataValidades');
+  seletor.innerHTML = dados.datasDisponiveis.map((d) =>
+    `<option value="${d.data_referencia}">${formatarData(d.data_referencia)} (${d.total_itens} itens)</option>`
+  ).join('');
+  if (!estado.validades.data) estado.validades.data = dados.dataReferencia;
+  seletor.value = estado.validades.data;
+
+  document.getElementById('subtituloValidades').textContent =
+    `Lotes e validades do estoque em ${formatarData(dados.dataReferencia)}`;
+
+  // KPIs
+  const r = dados.resumo;
+  const reais = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  const kpi = document.getElementById('grideKpiValidades');
+  kpi.innerHTML = `
+    <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(r.vencido.qtdeLotes)}</div><div class="rotulo">Lotes vencidos<br><span style="font-size:11px;">${reais(r.vencido.valor)}</span></div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d30.qtdeLotes)}</div><div class="rotulo">Vencem em até 30 dias<br><span style="font-size:11px;">${reais(r.d30.valor)}</span></div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d60.qtdeLotes)}</div><div class="rotulo">31 a 60 dias<br><span style="font-size:11px;">${reais(r.d60.valor)}</span></div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d90.qtdeLotes)}</div><div class="rotulo">61 a 90 dias<br><span style="font-size:11px;">${reais(r.d90.valor)}</span></div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.mais90.qtdeLotes)}</div><div class="rotulo">Mais de 90 dias<br><span style="font-size:11px;">${reais(r.mais90.valor)}</span></div></div>
+  `;
+
+  // Tabela
+  const corpo = document.getElementById('corpoTabelaValidades');
+  const vazio = document.getElementById('estadoVazioValidades');
+  if (dados.lotes.length === 0) {
+    corpo.innerHTML = '';
+    vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.lotes.map((l) => {
+      const cls = corFaixaValidade(l.faixa);
+      const diasTxt = l.dias_para_vencer < 0
+        ? `vencido há ${Math.abs(l.dias_para_vencer)} dia(s)`
+        : `${l.dias_para_vencer} dia(s)`;
+      return `
+        <tr>
+          <td>${l.descricao || '—'}<br><span class="col-codigo">${l.codigo_item}</span></td>
+          <td class="col-codigo">${l.lote || '—'}</td>
+          <td class="col-data"><span class="etiqueta-status ${cls}">${l.validade}</span></td>
+          <td>${diasTxt}</td>
+          <td>${fmtNumero(l.qtde)}</td>
+          <td>${reais(l.valor_total)}</td>
+          <td style="font-size:12px; color:var(--cinza-texto);">${l.categoria || '—'}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('textoContagemValidades').textContent =
+    `${dados.lotes.length} lote(s) exibido(s) · ${fmtNumero(r.totalLotes)} no total · valor total ${reais(r.valorTotal)}`;
 }
 
 // -------------------- Importador de estoque --------------------

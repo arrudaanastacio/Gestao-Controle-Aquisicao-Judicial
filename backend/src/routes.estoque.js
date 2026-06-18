@@ -354,6 +354,119 @@ router.get('/resumo', (req, res) => {
   res.json({ dataReferencia: dataRef, limiarAutonomia: limiar, totalItens, ruptura, baixo, zerado, valorTotalEstoque: valorTotal });
 });
 
+// Interpreta o texto de lotes do relatório (vários lotes separados por "\").
+// Formato: "Lote N°: XXX Validade: DD/MM/YYYY Fabricante: YYY Qtde: NNN"
+function parsearLotesServidor(texto) {
+  if (!texto) return [];
+  const t = String(texto).trim();
+  if (!t || /^sem lote$/i.test(t)) return [];
+  return t.split('\\').map((p) => p.trim()).filter(Boolean).map((p) => {
+    const lote = (p.match(/Lote\s*N[°º:]*\s*([^\s]+(?:\s+[^\s]+)*?)(?=\s+Validade:|\s+Fabricante:|\s+Qtde:|$)/i) || [])[1];
+    const validade = (p.match(/Validade:\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1];
+    const fabricante = (p.match(/Fabricante:\s*(.+?)(?=\s+Qtde:|$)/i) || [])[1];
+    const qtdeStr = (p.match(/Qtde:\s*([\d.,]+)/i) || [])[1];
+    const qtde = qtdeStr ? Number(qtdeStr.replace(/\./g, '').replace(',', '.')) : null;
+    return {
+      lote: lote ? lote.trim() : null,
+      validade: validade || null,
+      fabricante: fabricante ? fabricante.trim() : null,
+      qtde: Number.isFinite(qtde) ? qtde : null,
+    };
+  });
+}
+
+// Converte DD/MM/YYYY para Date (meia-noite local) ou null.
+function dataDeBR(validadeBR) {
+  if (!validadeBR) return null;
+  const [d, m, a] = validadeBR.split('/').map(Number);
+  if (!d || !m || !a) return null;
+  return new Date(a, m - 1, d);
+}
+
+// Em qual faixa de vencimento cai um nº de dias restantes.
+function faixaVencimento(dias) {
+  if (dias < 0) return 'vencido';
+  if (dias <= 30) return 'd30';
+  if (dias <= 60) return 'd60';
+  if (dias <= 90) return 'd90';
+  return 'mais90';
+}
+
+// ---------- Gestão de validades: lotes a vencer, KPIs e filtro por faixa ----------
+router.get('/validades', (req, res) => {
+  const { data, q, janela } = req.query;
+
+  let dataRef = data;
+  if (!dataRef) {
+    const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+    if (!ultima) return res.json({ dataReferencia: null, lotes: [], resumo: null, datasDisponiveis: [] });
+    dataRef = ultima.data_referencia;
+  }
+
+  const itens = db.prepare(
+    `SELECT codigo_item, descricao, siafisico, categoria, marca, lotes,
+            COALESCE(valor_medio_unitario, custo_unitario, 0) AS valor_unit
+     FROM estoque_itens WHERE data_referencia = ? AND lotes IS NOT NULL AND lotes <> ''`
+  ).all(dataRef);
+
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const MS_DIA = 1000 * 60 * 60 * 24;
+
+  let linhas = [];
+  for (const it of itens) {
+    for (const l of parsearLotesServidor(it.lotes)) {
+      const dataVal = dataDeBR(l.validade);
+      if (!dataVal) continue; // sem validade → fora da gestão de vencimento
+      const dias = Math.floor((dataVal - hoje) / MS_DIA);
+      const qtde = l.qtde || 0;
+      const valorTotal = qtde * it.valor_unit;
+      linhas.push({
+        codigo_item: it.codigo_item,
+        descricao: it.descricao,
+        categoria: it.categoria,
+        marca: it.marca,
+        lote: l.lote,
+        fabricante: l.fabricante,
+        validade: l.validade,
+        qtde,
+        valor_unit: it.valor_unit,
+        valor_total: valorTotal,
+        dias_para_vencer: dias,
+        faixa: faixaVencimento(dias),
+      });
+    }
+  }
+
+  // KPIs por faixa (contagem de lotes e valor), sempre sobre o conjunto total
+  const FAIXAS = ['vencido', 'd30', 'd60', 'd90', 'mais90'];
+  const resumo = { totalLotes: linhas.length, valorTotal: 0 };
+  for (const f of FAIXAS) resumo[f] = { qtdeLotes: 0, valor: 0 };
+  for (const ln of linhas) {
+    resumo.valorTotal += ln.valor_total;
+    resumo[ln.faixa].qtdeLotes += 1;
+    resumo[ln.faixa].valor += ln.valor_total;
+  }
+
+  // Aplica filtros (texto e faixa) só na lista exibida
+  if (q) {
+    const termo = q.toLowerCase();
+    linhas = linhas.filter((ln) =>
+      (ln.descricao || '').toLowerCase().includes(termo) ||
+      (ln.codigo_item || '').toLowerCase().includes(termo) ||
+      (ln.lote || '').toLowerCase().includes(termo));
+  }
+  if (janela && FAIXAS.includes(janela)) {
+    linhas = linhas.filter((ln) => ln.faixa === janela);
+  }
+
+  // Ordena por validade mais próxima primeiro
+  linhas.sort((a, b) => a.dias_para_vencer - b.dias_para_vencer);
+
+  const datasDisponiveis = db.prepare('SELECT data_referencia, total_itens FROM estoque_importacoes ORDER BY data_referencia DESC').all();
+
+  res.json({ dataReferencia: dataRef, resumo, lotes: linhas, datasDisponiveis });
+});
+
 // ---------- Detalhe de um item: situação de estoque + compras judiciais ----------
 router.get('/item/:codigo', (req, res) => {
   const codigo = req.params.codigo;
