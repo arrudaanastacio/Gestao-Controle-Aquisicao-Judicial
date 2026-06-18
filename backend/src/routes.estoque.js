@@ -264,7 +264,7 @@ router.get('/filtros', (req, res) => {
 });
 
 router.get('/', (req, res) => {
-  const { data, q, situacao, page = 1, pageSize = 50,
+  const { data, q, situacao, autonomia, page = 1, pageSize = 50,
     categoria, controlado, tipo_item, marca, importado, outras_demandas } = req.query;
 
   // Determina a data de referência: a informada, ou a mais recente importada
@@ -290,6 +290,19 @@ router.get('/', (req, res) => {
   if (situacao === 'ruptura') condicoes.push('(e.estoque <= 0 AND e.demandas > 0)');
   if (situacao === 'baixo') condicoes.push('(e.estoque > 0 AND e.autonomia > 0 AND e.autonomia <= ' + limiar + ')');
   if (situacao === 'zerado') condicoes.push('e.estoque <= 0');
+
+  // Filtro por faixa de autonomia (meses de cobertura).
+  // Considera apenas itens com autonomia preenchida (não nula).
+  const FAIXAS_AUTONOMIA = {
+    '0': 'e.autonomia = 0',
+    '0-1': 'e.autonomia >= 0 AND e.autonomia <= 1',
+    '1-2': 'e.autonomia > 1 AND e.autonomia <= 2',
+    '2-6': 'e.autonomia > 2 AND e.autonomia <= 6',
+    '6mais': 'e.autonomia > 6',
+  };
+  if (autonomia && FAIXAS_AUTONOMIA[autonomia]) {
+    condicoes.push('e.autonomia IS NOT NULL AND (' + FAIXAS_AUTONOMIA[autonomia] + ')');
+  }
 
   // Filtros por coluna (menus suspensos). Cada um casa pelo valor exato escolhido.
   const filtrosColuna = { categoria, controlado, tipo_item, marca, importado, outras_demandas };

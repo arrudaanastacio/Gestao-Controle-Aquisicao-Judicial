@@ -179,6 +179,14 @@
               <option value="baixo">Estoque baixo (autonomia abaixo do limite)</option>
               <option value="zerado">Estoque zerado</option>
             </select>
+            <select id="filtroAutonomiaEstoque">
+              <option value="">Autonomia: todas</option>
+              <option value="0">Sem autonomia (0 mês)</option>
+              <option value="0-1">Até 1 mês</option>
+              <option value="1-2">De 1 a 2 meses</option>
+              <option value="2-6">De 2 a 6 meses</option>
+              <option value="6mais">Mais de 6 meses</option>
+            </select>
           </div>
 
           <div class="barra-filtros barra-filtros-colunas">
@@ -197,10 +205,10 @@
                 <thead>
                   <tr>
                     <th>Medicamento</th>
-                    <th>Estoque</th>
-                    <th>Autonomia</th>
                     <th>Demanda</th>
                     <th>Consumo/mês</th>
+                    <th>Estoque</th>
+                    <th>Autonomia</th>
                     <th>Compra judicial</th>
                     <th></th>
                   </tr>

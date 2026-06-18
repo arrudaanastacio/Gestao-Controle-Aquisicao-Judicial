@@ -743,6 +743,9 @@ document.getElementById('filtroBuscaEstoque').addEventListener('input', () => {
 document.getElementById('filtroSituacaoEstoque').addEventListener('change', () => {
   estado.estoque.pagina = 1; carregarTabelaEstoque();
 });
+document.getElementById('filtroAutonomiaEstoque').addEventListener('change', () => {
+  estado.estoque.pagina = 1; carregarTabelaEstoque();
+});
 document.getElementById('seletorDataEstoque').addEventListener('change', async (ev) => {
   estado.estoque.data = ev.target.value;
   estado.estoque.pagina = 1;
@@ -761,6 +764,7 @@ document.getElementById('seletorDataEstoque').addEventListener('change', async (
 document.getElementById('botaoLimparFiltrosEstoque').addEventListener('click', () => {
   document.getElementById('filtroBuscaEstoque').value = '';
   document.getElementById('filtroSituacaoEstoque').value = '';
+  document.getElementById('filtroAutonomiaEstoque').value = '';
   ['filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas']
     .forEach((id) => { document.getElementById(id).value = ''; });
   estado.estoque.pagina = 1;
@@ -850,11 +854,13 @@ const FILTROS_COLUNA_ESTOQUE = [
 async function carregarTabelaEstoque() {
   const q = document.getElementById('filtroBuscaEstoque').value.trim();
   const situacao = document.getElementById('filtroSituacaoEstoque').value;
+  const autonomia = document.getElementById('filtroAutonomiaEstoque').value;
 
   const params = new URLSearchParams({ page: estado.estoque.pagina, pageSize: estado.estoque.pageSize });
   if (estado.estoque.data) params.set('data', estado.estoque.data);
   if (q) params.set('q', q);
   if (situacao) params.set('situacao', situacao);
+  if (autonomia) params.set('autonomia', autonomia);
 
   // Filtros por coluna (menus suspensos)
   FILTROS_COLUNA_ESTOQUE.forEach(({ id, coluna }) => {
@@ -881,10 +887,10 @@ async function carregarTabelaEstoque() {
       return `
         <tr>
           <td>${it.descricao || '—'}<br><span class="col-codigo">${it.codigo_item}</span></td>
-          <td>${fmtNumero(it.estoque)}</td>
-          <td><span class="etiqueta-status ${classe}">${autonomiaTxt}</span></td>
           <td>${fmtNumero(it.demandas)}</td>
           <td>${fmtNumero(it.consumo_mensal_total)}</td>
+          <td>${fmtNumero(it.estoque)}</td>
+          <td><span class="etiqueta-status ${classe}">${autonomiaTxt}</span></td>
           <td>${compraTag}</td>
           <td><button class="botao-editar" data-codigo="${encodeURIComponent(it.codigo_item)}">Ver</button></td>
         </tr>
