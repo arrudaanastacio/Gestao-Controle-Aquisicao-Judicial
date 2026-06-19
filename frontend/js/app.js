@@ -117,6 +117,11 @@ async function carregarUsuario() {
   document.getElementById('nomeUsuario').textContent = usuario.nome;
   document.getElementById('perfilUsuario').textContent = usuario.perfil === 'admin' ? 'Admin' : 'Consulta';
 
+  // Iniciais no avatar (primeira letra dos dois primeiros nomes)
+  const partes = (usuario.nome || '?').trim().split(/\s+/);
+  const iniciais = (partes[0]?.[0] || '') + (partes.length > 1 ? partes[partes.length - 1][0] : '');
+  document.getElementById('avatarUsuario').textContent = iniciais.toUpperCase() || '?';
+
   if (usuario.perfil === 'admin') {
     document.getElementById('linkUsuarios').hidden = false;
     document.getElementById('linkElenco').hidden = false;

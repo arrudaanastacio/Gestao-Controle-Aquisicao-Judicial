@@ -12,15 +12,12 @@
   </div>
   <div class="app-shell" hidden>
     <aside class="barra-lateral">
-      <div class="indicador-menu" aria-hidden="true">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-          <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <span class="indicador-menu-texto">MENU</span>
-      </div>
       <div class="bloco-marca">
-        <p class="marca-lateral-eyebrow">Tenente Pena</p>
-        <div class="marca-lateral">Compras&nbsp;de<br>Medicamentos<br>Judiciais</div>
+        <div class="marca-monograma" aria-hidden="true">TP</div>
+        <div class="marca-texto">
+          <p class="marca-lateral-eyebrow">Tenente Pena</p>
+          <div class="marca-lateral">Compras&nbsp;de<br>Medicamentos<br>Judiciais</div>
+        </div>
       </div>
       <nav class="nav-lateral" style="margin-top:24px;">
         <a href="#" data-pagina="painel" class="ativo">Painel</a>
@@ -58,9 +55,17 @@
         </div>
       </nav>
       <div class="rodape-lateral">
-        <div class="nome" id="nomeUsuario">—</div>
-        <span class="perfil-tag" id="perfilUsuario">—</span>
-        <button id="botaoSair">Sair</button>
+        <div class="rodape-usuario">
+          <div class="avatar-usuario" id="avatarUsuario" aria-hidden="true">—</div>
+          <div class="rodape-info">
+            <div class="nome" id="nomeUsuario">—</div>
+            <span class="perfil-tag" id="perfilUsuario">—</span>
+          </div>
+        </div>
+        <button id="botaoSair" title="Sair">
+          <svg class="icone-sair" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          <span class="rotulo-sair">Sair</span>
+        </button>
       </div>
     </aside>
 

@@ -161,63 +161,120 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   flex-direction: column;
 }
 
-/* Ícone de menu mostrado só quando a barra está recolhida */
-.indicador-menu {
-  display: none;
-  flex-direction: column;
+/* Marca: monograma + texto */
+.bloco-marca { display: flex; align-items: center; gap: 12px; }
+.marca-monograma {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #2f6f57, #1f4c3c);
+  border: 1px solid rgba(143, 224, 194, 0.35);
+  color: #aef0d6;
+  font-family: var(--fonte-titulo);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  color: #cfe4dd;
-  margin-top: 4px;
-}
-.indicador-menu-texto {
-  font-family: var(--fonte-mono);
-  font-size: 9px;
-  letter-spacing: 0.12em;
+  justify-content: center;
 }
 
-/* ----- Menu lateral recolhível (desktop): recolhe e expande ao passar o mouse ----- */
+/* Rodapé: avatar + info + sair */
+.rodape-usuario { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.avatar-usuario {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(143, 224, 194, 0.16);
+  border: 1px solid rgba(143, 224, 194, 0.3);
+  color: #aef0d6;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+}
+.rodape-lateral button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ----- Menu lateral em trilho de ícones (desktop): recolhe e expande no hover ----- */
 @media (min-width: 761px) {
-  .app-shell { grid-template-columns: 60px 1fr; }
-
-  /* A barra é fixa (flutua); o conteúdo fica na 2ª coluna e não desloca */
+  .app-shell { grid-template-columns: 76px 1fr; }
   .app-shell .conteudo { grid-column: 2; }
 
   .barra-lateral {
     position: fixed;
-    top: 0;
-    left: 0;
+    top: 0; left: 0;
     height: 100vh;
-    width: 60px;
+    width: 76px;
     overflow: hidden;
     z-index: 60;
-    padding: 24px 10px;
-    transition: width 0.18s ease, padding 0.18s ease;
+    padding: 22px 14px;
+    transition: width 0.2s ease, padding 0.2s ease, box-shadow 0.2s ease;
+  }
+  .barra-lateral:hover {
+    width: 256px;
+    overflow-y: auto;
+    box-shadow: 10px 0 40px rgba(0, 0, 0, 0.38);
   }
 
-  /* Conteúdo da barra some quando recolhida, aparece ao expandir */
-  .barra-lateral .bloco-marca,
-  .barra-lateral .nav-lateral,
-  .barra-lateral .rodape-lateral {
+  /* Recolhido: mostra só os ícones, centralizados; some os rótulos */
+  .barra-lateral .nav-rotulo,
+  .barra-lateral .marca-texto,
+  .barra-lateral .rodape-info,
+  .barra-lateral .rotulo-sair {
     opacity: 0;
-    pointer-events: none;
+    width: 0;
+    overflow: hidden;
+    white-space: nowrap;
     transition: opacity 0.12s ease;
   }
-  .barra-lateral .indicador-menu { display: flex; }
-
-  .barra-lateral:hover {
-    width: 240px;
-    padding: 24px 18px;
-    overflow-y: auto;
-    box-shadow: 6px 0 24px rgba(0, 0, 0, 0.30);
-  }
-  .barra-lateral:hover .bloco-marca,
-  .barra-lateral:hover .nav-lateral,
-  .barra-lateral:hover .rodape-lateral {
+  .barra-lateral:hover .nav-rotulo,
+  .barra-lateral:hover .marca-texto,
+  .barra-lateral:hover .rodape-info,
+  .barra-lateral:hover .rotulo-sair {
     opacity: 1;
-    pointer-events: auto;
+    width: auto;
   }
-  .barra-lateral:hover .indicador-menu { display: none; }
+
+  .barra-lateral .nav-lateral a { justify-content: center; padding: 11px; gap: 0; }
+  .barra-lateral:hover .nav-lateral a { justify-content: flex-start; padding: 9px 11px; gap: 11px; }
+  .barra-lateral .nav-lateral a svg { width: 19px; height: 19px; }
+  .barra-lateral:hover .nav-lateral a svg { width: 17px; height: 17px; }
+
+  /* Títulos de grupo e subtítulos viram só uma divisória quando recolhido */
+  .barra-lateral .nav-grupo-titulo,
+  .barra-lateral .nav-sub {
+    height: 0; margin: 0; opacity: 0; overflow: hidden;
+  }
+  .barra-lateral:hover .nav-grupo-titulo { height: auto; margin: 0 0 8px; opacity: 1; }
+  .barra-lateral:hover .nav-sub { height: auto; margin: 7px 0 2px; opacity: 1; }
+
+  /* Marca e rodapé centralizados quando recolhido */
+  .barra-lateral .rodape-usuario { justify-content: center; margin-bottom: 8px; }
+  .barra-lateral:hover .rodape-usuario { justify-content: flex-start; }
+  .barra-lateral .rodape-lateral button { padding: 9px; }
+
+  /* Indicador de alertas vira um pontinho no ícone quando recolhido */
+  .barra-lateral #linkAlertas { position: relative; }
+  .barra-lateral:not(:hover) #linkAlertas:has(.badge-alerta:not([hidden]))::after {
+    content: '';
+    position: absolute;
+    top: 8px;
+    right: 18px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--vermelho);
+    border: 2px solid var(--selo-escuro);
+  }
 }
 
 .marca-lateral {
