@@ -126,6 +126,7 @@ CREATE TABLE IF NOT EXISTS estoque_itens (
 const colunasEstoque = db.prepare("PRAGMA table_info(estoque_itens)").all().map((c) => c.name);
 if (!colunasEstoque.includes('controlado')) db.exec("ALTER TABLE estoque_itens ADD COLUMN controlado TEXT");
 if (!colunasEstoque.includes('importado')) db.exec("ALTER TABLE estoque_itens ADD COLUMN importado TEXT");
+if (!colunasEstoque.includes('unidade')) db.exec("ALTER TABLE estoque_itens ADD COLUMN unidade TEXT");
 
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoque_codigo ON estoque_itens(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoque_data ON estoque_itens(data_referencia);`);

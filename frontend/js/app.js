@@ -818,7 +818,7 @@ document.getElementById('seletorDataEstoque').addEventListener('change', async (
 });
 
 // Liga cada menu suspenso de coluna para refazer a busca ao mudar
-['filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas'].forEach((id) => {
+['filtroUnidade', 'filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => {
     estado.estoque.pagina = 1;
     carregarTabelaEstoque();
@@ -829,7 +829,7 @@ document.getElementById('botaoLimparFiltrosEstoque').addEventListener('click', (
   document.getElementById('filtroBuscaEstoque').value = '';
   document.getElementById('filtroSituacaoEstoque').value = '';
   document.getElementById('filtroAutonomiaEstoque').value = '';
-  ['filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas']
+  ['filtroUnidade', 'filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas']
     .forEach((id) => { document.getElementById(id).value = ''; });
   estado.estoque.pagina = 1;
   carregarTabelaEstoque();
@@ -907,6 +907,7 @@ async function carregarEstoque() {
 }
 
 const FILTROS_COLUNA_ESTOQUE = [
+  { id: 'filtroUnidade', coluna: 'unidade' },
   { id: 'filtroCategoria', coluna: 'categoria' },
   { id: 'filtroControlado', coluna: 'controlado' },
   { id: 'filtroTipoItem', coluna: 'tipo_item' },

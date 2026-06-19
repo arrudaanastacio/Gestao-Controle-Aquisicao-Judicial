@@ -78,6 +78,7 @@ function processarEstoque(buffer) {
       descricao: texto(r[COL.descricao]),
       siafisico: texto(r[COL.siafisico]),
       catmat: texto(r[COL.catmat]),
+      unidade: texto(r[COL.unidade]),
       categoria: texto(r[COL.categoria]),
       controlado: texto(r[COL.controlado]),
       tipo_item: texto(r[COL.tipo_item]),
@@ -157,7 +158,7 @@ router.post('/importar/confirmar', exigirPerfil('admin'), upload.single('arquivo
   const importacaoId = infoImp.lastInsertRowid;
 
   const campos = ['importacao_id', 'data_referencia', 'codigo_item', 'id_item_origem', 'descricao',
-    'siafisico', 'catmat', 'categoria', 'controlado', 'tipo_item', 'marca', 'importado',
+    'siafisico', 'catmat', 'unidade', 'categoria', 'controlado', 'tipo_item', 'marca', 'importado',
     'outras_demandas', 'demandas',
     'demandas_aj', 'consumo_mensal_total', 'consumo_mensal_aj', 'estoque', 'autonomia',
     'custo_unitario', 'valor_medio_unitario', 'lotes'];
@@ -167,7 +168,7 @@ router.post('/importar/confirmar', exigirPerfil('admin'), upload.single('arquivo
 
   for (const l of linhas) {
     stmt.run(importacaoId, dataReferencia, l.codigo_item, l.id_item_origem, l.descricao,
-      l.siafisico, l.catmat, l.categoria, l.controlado, l.tipo_item, l.marca, l.importado,
+      l.siafisico, l.catmat, l.unidade, l.categoria, l.controlado, l.tipo_item, l.marca, l.importado,
       l.outras_demandas, l.demandas,
       l.demandas_aj, l.consumo_mensal_total, l.consumo_mensal_aj, l.estoque, l.autonomia,
       l.custo_unitario, l.valor_medio_unitario, l.lotes);
@@ -250,10 +251,10 @@ router.get('/filtros', (req, res) => {
   let dataRef = req.query.data;
   if (!dataRef) {
     const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
-    if (!ultima) return res.json({ categoria: [], controlado: [], tipo_item: [], marca: [], importado: [], outras_demandas: [] });
+    if (!ultima) return res.json({ unidade: [], categoria: [], controlado: [], tipo_item: [], marca: [], importado: [], outras_demandas: [] });
     dataRef = ultima.data_referencia;
   }
-  const colunas = ['categoria', 'controlado', 'tipo_item', 'marca', 'importado', 'outras_demandas'];
+  const colunas = ['unidade', 'categoria', 'controlado', 'tipo_item', 'marca', 'importado', 'outras_demandas'];
   const resultado = {};
   for (const col of colunas) {
     resultado[col] = db.prepare(
@@ -265,7 +266,7 @@ router.get('/filtros', (req, res) => {
 
 router.get('/', (req, res) => {
   const { data, q, situacao, autonomia, page = 1, pageSize = 50,
-    categoria, controlado, tipo_item, marca, importado, outras_demandas } = req.query;
+    unidade, categoria, controlado, tipo_item, marca, importado, outras_demandas } = req.query;
 
   // Determina a data de referência: a informada, ou a mais recente importada
   let dataRef = data;
@@ -305,7 +306,7 @@ router.get('/', (req, res) => {
   }
 
   // Filtros por coluna (menus suspensos). Cada um casa pelo valor exato escolhido.
-  const filtrosColuna = { categoria, controlado, tipo_item, marca, importado, outras_demandas };
+  const filtrosColuna = { unidade, categoria, controlado, tipo_item, marca, importado, outras_demandas };
   for (const [coluna, valor] of Object.entries(filtrosColuna)) {
     if (valor) {
       condicoes.push(`e.${coluna} = ?`);
