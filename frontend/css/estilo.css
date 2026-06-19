@@ -244,41 +244,75 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 }
 
 .nav-lateral a {
+  display: flex;
+  align-items: center;
+  gap: 11px;
   color: #cfe4dd;
   text-decoration: none;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
-  padding: 9px 10px;
-  border-radius: 4px;
-  transition: background 0.15s ease;
+  line-height: 1.25;
+  padding: 9px 11px;
+  border-radius: 9px;
+  position: relative;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.nav-lateral a svg {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+.nav-lateral a:hover { background: rgba(255,255,255,0.07); }
+.nav-lateral a:hover svg { opacity: 1; }
+.nav-lateral a.ativo {
+  background: rgba(255,255,255,0.13);
+  color: #fff;
+}
+.nav-lateral a.ativo svg { opacity: 1; color: #8fe0c2; }
+.nav-lateral a.ativo::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: 2px;
+  background: #8fe0c2;
 }
 
-.nav-lateral a:hover { background: rgba(255,255,255,0.08); }
-.nav-lateral a.ativo { background: rgba(255,255,255,0.14); color: #fff; }
-
 /* Grupos do menu (Operações, Consultas, Monitoramento, Administração) */
-.nav-grupo { margin-top: 16px; }
+.nav-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
 .nav-grupo-titulo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #a9c4ba;
-  margin: 0 0 6px;
+  color: #bcd5cb;
+  margin: 0 0 8px;
   padding: 0 2px;
 }
 .nav-sub {
   font-family: var(--fonte-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.08em;
+  font-size: 9px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #7f9a90;
-  margin: 8px 0 2px;
-  padding-left: 10px;
+  color: #79938a;
+  margin: 7px 0 2px;
+  padding-left: 11px;
 }
-.nav-sub-vazio { opacity: 0.55; }
+.nav-sub-vazio { opacity: 0.5; }
 .nav-sub-vazio span { font-style: italic; text-transform: none; letter-spacing: 0; }
-.nav-grupo a { padding-left: 14px; }
 
 .badge-alerta {
   display: inline-block;
