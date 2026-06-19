@@ -239,7 +239,10 @@
           </div>
 
           <div class="barra-filtros barra-filtros-colunas">
-            <select id="filtroUnidade" data-coluna="unidade"><option value="">Unidade dispensadora: todas</option></select>
+            <div class="multi-filtro" id="filtroUnidadeWrap">
+              <button type="button" class="multi-filtro-botao" id="filtroUnidadeBotao">Unidade dispensadora: todas <span aria-hidden="true">▾</span></button>
+              <div class="multi-filtro-painel" id="filtroUnidadePainel" hidden></div>
+            </div>
             <select id="filtroCategoria" data-coluna="categoria"><option value="">Categoria: todas</option></select>
             <select id="filtroControlado" data-coluna="controlado"><option value="">Controlado: todos</option></select>
             <select id="filtroTipoItem" data-coluna="tipo_item"><option value="">Tipo item: todos</option></select>

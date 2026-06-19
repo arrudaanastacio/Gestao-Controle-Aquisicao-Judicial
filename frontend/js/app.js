@@ -818,7 +818,7 @@ document.getElementById('seletorDataEstoque').addEventListener('change', async (
 });
 
 // Liga cada menu suspenso de coluna para refazer a busca ao mudar
-['filtroUnidade', 'filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas'].forEach((id) => {
+['filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => {
     estado.estoque.pagina = 1;
     carregarTabelaEstoque();
@@ -829,11 +829,65 @@ document.getElementById('botaoLimparFiltrosEstoque').addEventListener('click', (
   document.getElementById('filtroBuscaEstoque').value = '';
   document.getElementById('filtroSituacaoEstoque').value = '';
   document.getElementById('filtroAutonomiaEstoque').value = '';
-  ['filtroUnidade', 'filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas']
+  ['filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas']
     .forEach((id) => { document.getElementById(id).value = ''; });
+  unidadesSelecionadas = [];
+  document.querySelectorAll('#filtroUnidadePainel input[type="checkbox"]').forEach((c) => { c.checked = false; });
+  atualizarRotuloUnidade();
   estado.estoque.pagina = 1;
   carregarTabelaEstoque();
 });
+
+// ----- Filtro de Unidade dispensadora com seleção múltipla -----
+let unidadesSelecionadas = [];
+
+const filtroUnidadeBotao = document.getElementById('filtroUnidadeBotao');
+const filtroUnidadePainel = document.getElementById('filtroUnidadePainel');
+
+filtroUnidadeBotao.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  filtroUnidadePainel.hidden = !filtroUnidadePainel.hidden;
+});
+// Fecha o painel ao clicar fora
+document.addEventListener('click', (ev) => {
+  if (!document.getElementById('filtroUnidadeWrap').contains(ev.target)) {
+    filtroUnidadePainel.hidden = true;
+  }
+});
+
+function atualizarRotuloUnidade() {
+  const n = unidadesSelecionadas.length;
+  filtroUnidadeBotao.innerHTML = (n === 0
+    ? 'Unidade dispensadora: todas'
+    : `Unidade dispensadora: ${n} selecionada${n > 1 ? 's' : ''}`) + ' <span aria-hidden="true">▾</span>';
+}
+
+// Monta as caixas de seleção de unidade a partir dos valores disponíveis
+function montarFiltroUnidade(valores) {
+  if (!valores || valores.length === 0) {
+    filtroUnidadePainel.innerHTML = '<div style="padding:6px 4px; color:var(--cinza-texto); font-size:12px;">Sem unidades nesta data. Reimporte o estoque para preencher.</div>';
+    unidadesSelecionadas = [];
+    atualizarRotuloUnidade();
+    return;
+  }
+  filtroUnidadePainel.innerHTML = valores.map((v) => {
+    const escapado = v.replace(/"/g, '&quot;');
+    const marcado = unidadesSelecionadas.includes(v) ? 'checked' : '';
+    return `<label class="multi-filtro-item"><input type="checkbox" value="${escapado}" ${marcado}> ${v}</label>`;
+  }).join('');
+
+  filtroUnidadePainel.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      unidadesSelecionadas = Array.from(filtroUnidadePainel.querySelectorAll('input:checked')).map((c) => c.value);
+      atualizarRotuloUnidade();
+      estado.estoque.pagina = 1;
+      carregarTabelaEstoque();
+    });
+  });
+  // remove seleções que não existem mais nesta data
+  unidadesSelecionadas = unidadesSelecionadas.filter((u) => valores.includes(u));
+  atualizarRotuloUnidade();
+}
 
 // Popula os menus suspensos com os valores distintos da data selecionada
 async function carregarFiltrosEstoque() {
@@ -855,6 +909,9 @@ async function carregarFiltrosEstoque() {
     sel.innerHTML = `<option value="">${rotuloPadrao}</option>` + opcoes;
     sel.value = valorAtual; // preserva seleção se ainda existir
   });
+
+  // Unidade dispensadora (seleção múltipla)
+  montarFiltroUnidade(dados.unidade || []);
 }
 document.getElementById('botaoAnteriorEstoque').addEventListener('click', () => {
   if (estado.estoque.pagina > 1) { estado.estoque.pagina--; carregarTabelaEstoque(); }
@@ -907,7 +964,6 @@ async function carregarEstoque() {
 }
 
 const FILTROS_COLUNA_ESTOQUE = [
-  { id: 'filtroUnidade', coluna: 'unidade' },
   { id: 'filtroCategoria', coluna: 'categoria' },
   { id: 'filtroControlado', coluna: 'controlado' },
   { id: 'filtroTipoItem', coluna: 'tipo_item' },
@@ -932,6 +988,9 @@ async function carregarTabelaEstoque() {
     const v = document.getElementById(id).value;
     if (v) params.set(coluna, v);
   });
+
+  // Unidade dispensadora (seleção múltipla) → uma ou mais unidades
+  if (unidadesSelecionadas.length) params.set('unidade', unidadesSelecionadas.join(','));
 
   const dados = await api(`/estoque?${params.toString()}`);
   const limiar = dados.limiarAutonomia;

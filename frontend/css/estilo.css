@@ -487,6 +487,47 @@ thead th {
 .barra-filtros-colunas { margin-top: -6px; }
 .barra-filtros-colunas select { min-width: 150px; }
 
+/* Filtro com seleção múltipla (unidade dispensadora) */
+.multi-filtro { position: relative; }
+.multi-filtro-botao {
+  padding: 8px 10px;
+  border: 1px solid var(--linha);
+  border-radius: 4px;
+  background: var(--papel-elevado);
+  font-size: 13px;
+  font-family: var(--fonte-corpo);
+  color: var(--tinta);
+  cursor: pointer;
+  min-width: 200px;
+  text-align: left;
+}
+.multi-filtro-botao:hover { border-color: var(--selo); }
+.multi-filtro-painel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  min-width: 240px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--papel-elevado);
+  border: 1px solid var(--linha);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  padding: 6px;
+}
+.multi-filtro-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.multi-filtro-item:hover { background: #fbfaf3; }
+.multi-filtro-item input { width: auto; margin: 0; }
+
 /* Cards de KPI clicáveis (gestão de validades) */
 .cartao-clicavel { cursor: pointer; transition: border-color .12s, box-shadow .12s; }
 .cartao-clicavel:hover { border-color: var(--selo); }

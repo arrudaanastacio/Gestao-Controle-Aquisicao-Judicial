@@ -306,11 +306,20 @@ router.get('/', (req, res) => {
   }
 
   // Filtros por coluna (menus suspensos). Cada um casa pelo valor exato escolhido.
-  const filtrosColuna = { unidade, categoria, controlado, tipo_item, marca, importado, outras_demandas };
+  const filtrosColuna = { categoria, controlado, tipo_item, marca, importado, outras_demandas };
   for (const [coluna, valor] of Object.entries(filtrosColuna)) {
     if (valor) {
       condicoes.push(`e.${coluna} = ?`);
       params.push(valor);
+    }
+  }
+
+  // Unidade dispensadora aceita VÁRIAS unidades (separadas por vírgula) → IN (...)
+  if (unidade) {
+    const unidades = String(unidade).split(',').map((u) => u.trim()).filter(Boolean);
+    if (unidades.length) {
+      condicoes.push(`e.unidade IN (${unidades.map(() => '?').join(',')})`);
+      params.push(...unidades);
     }
   }
 
