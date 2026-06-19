@@ -127,6 +127,9 @@ async function carregarUsuario() {
     carregarConfigLimiar();
   } else {
     document.getElementById('avisoSomenteLeitura').hidden = false;
+    // Perfil de consulta não vê os grupos que só têm itens administrativos
+    document.getElementById('grupoMonitoramento').hidden = true;
+    document.getElementById('grupoAdministracao').hidden = true;
   }
 }
 

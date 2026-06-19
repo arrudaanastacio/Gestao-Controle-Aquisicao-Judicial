@@ -22,18 +22,40 @@
         <p class="marca-lateral-eyebrow">Tenente Pena</p>
         <div class="marca-lateral">Compras&nbsp;de<br>Medicamentos<br>Judiciais</div>
       </div>
-      <nav class="nav-lateral" style="margin-top:32px;">
+      <nav class="nav-lateral" style="margin-top:24px;">
         <a href="#" data-pagina="painel" class="ativo">Painel</a>
-        <a href="#" data-pagina="solicitacoes">Relatório de Compras - Aquisição em Andamento Tenente Pena</a>
-        <a href="#" data-pagina="busca">Buscar medicamento</a>
-        <a href="#" data-pagina="relatorio">Relatório de Compras Geral</a>
-        <a href="#" data-pagina="estoque">Estoque</a>
-        <a href="#" data-pagina="validades">Gestão de validades</a>
-        <a href="#" data-pagina="historico">Histórico Estoque</a>
-        <a href="#" data-pagina="elenco" id="linkElenco" hidden>Elenco de medicamentos</a>
-        <a href="#" data-pagina="importadores" id="linkImportadores" hidden>Importar dados</a>
-        <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
-        <a href="#" data-pagina="usuarios" id="linkUsuarios" hidden>Usuários</a>
+
+        <div class="nav-grupo">
+          <p class="nav-grupo-titulo">📊 Operações</p>
+          <p class="nav-sub">Tenente Pena</p>
+          <a href="#" data-pagina="solicitacoes">Relatório de Compras – Aquisição em Andamento</a>
+          <a href="#" data-pagina="relatorio">Relatório de Compras Geral</a>
+          <a href="#" data-pagina="estoque">Estoque</a>
+          <a href="#" data-pagina="validades">Gestão de Validades</a>
+          <p class="nav-sub nav-sub-vazio">Demais Unidades <span>(em breve)</span></p>
+        </div>
+
+        <div class="nav-grupo">
+          <p class="nav-grupo-titulo">🔍 Consultas</p>
+          <p class="nav-sub">Tenente Pena</p>
+          <a href="#" data-pagina="busca">Buscar Medicamento</a>
+          <a href="#" data-pagina="historico">Histórico de Estoque</a>
+          <a href="#" data-pagina="elenco" id="linkElenco" hidden>Elenco de Medicamentos</a>
+          <p class="nav-sub nav-sub-vazio">Demais Unidades <span>(em breve)</span></p>
+        </div>
+
+        <div class="nav-grupo" id="grupoMonitoramento">
+          <p class="nav-grupo-titulo">⚠️ Monitoramento</p>
+          <p class="nav-sub">Tenente Pena</p>
+          <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
+          <p class="nav-sub nav-sub-vazio">Demais Unidades <span>(em breve)</span></p>
+        </div>
+
+        <div class="nav-grupo" id="grupoAdministracao">
+          <p class="nav-grupo-titulo">⚙️ Administração</p>
+          <a href="#" data-pagina="importadores" id="linkImportadores" hidden>Importar Dados</a>
+          <a href="#" data-pagina="usuarios" id="linkUsuarios" hidden>Usuários</a>
+        </div>
       </nav>
       <div class="rodape-lateral">
         <div class="nome" id="nomeUsuario">—</div>

@@ -256,6 +256,30 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .nav-lateral a:hover { background: rgba(255,255,255,0.08); }
 .nav-lateral a.ativo { background: rgba(255,255,255,0.14); color: #fff; }
 
+/* Grupos do menu (Operações, Consultas, Monitoramento, Administração) */
+.nav-grupo { margin-top: 16px; }
+.nav-grupo-titulo {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a9c4ba;
+  margin: 0 0 6px;
+  padding: 0 2px;
+}
+.nav-sub {
+  font-family: var(--fonte-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7f9a90;
+  margin: 8px 0 2px;
+  padding-left: 10px;
+}
+.nav-sub-vazio { opacity: 0.55; }
+.nav-sub-vazio span { font-style: italic; text-transform: none; letter-spacing: 0; }
+.nav-grupo a { padding-left: 14px; }
+
 .badge-alerta {
   display: inline-block;
   background: var(--vermelho);
