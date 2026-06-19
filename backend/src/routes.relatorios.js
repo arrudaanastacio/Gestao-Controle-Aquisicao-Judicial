@@ -30,9 +30,12 @@ router.get('/consolidado', (req, res) => {
   const params = [];
 
   if (q) {
-    condicoes.push('(i.descricao LIKE ? OR s.codigo_item LIKE ? OR s.n_oficio LIKE ? OR s.n_empenho LIKE ?)');
+    condicoes.push(`(
+      i.descricao LIKE ? OR s.codigo_item LIKE ? OR i.codigo_siafisico LIKE ?
+      OR s.n_oficio LIKE ? OR s.requisicao_gsnet LIKE ? OR s.n_empenho LIKE ?
+    )`);
     const like = `%${q}%`;
-    params.push(like, like, like, like);
+    params.push(like, like, like, like, like, like);
   }
   if (status) {
     condicoes.push('s.status = ?');
@@ -77,10 +80,12 @@ router.get('/consolidado', (req, res) => {
   `).all(...params)
     .sort((a, b) => a.ano - b.ano || ORDEM_MES[a.mes] - ORDEM_MES[b.mes] || a.codigo_item.localeCompare(b.codigo_item));
 
-  // Resumo por mês, útil para conferir o controle mês a mês na mesma resposta
+  // Resumo por mês, útil para conferir o controle mês a mês na mesma resposta.
+  // Faz o mesmo JOIN com itens porque o filtro de busca usa colunas de i.
   const resumoPorMes = db.prepare(`
     SELECT s.ano, s.mes, COUNT(*) as qtde
     FROM solicitacoes s
+    JOIN itens i ON s.codigo_item = i.codigo_item
     ${where}
     GROUP BY s.ano, s.mes
   `).all(...params)

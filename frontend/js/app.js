@@ -487,15 +487,37 @@ async function buscarMedicamento() {
 
 // -------------------- Relatório consolidado (todos os meses) --------------------
 const filtroAnoRelatorio = document.getElementById('filtroAnoRelatorio');
+const filtroBuscaRelatorio = document.getElementById('filtroBuscaRelatorio');
+const filtroStatusRelatorio = document.getElementById('filtroStatusRelatorio');
 
-document.getElementById('botaoExportarRelatorio').addEventListener('click', () => {
+// Monta os parâmetros de filtro atuais do relatório
+function paramsRelatorio() {
   const params = new URLSearchParams();
   if (filtroAnoRelatorio.value) params.set('ano', filtroAnoRelatorio.value);
+  if (filtroBuscaRelatorio.value.trim()) params.set('q', filtroBuscaRelatorio.value.trim());
+  if (filtroStatusRelatorio.value) params.set('status', filtroStatusRelatorio.value);
+  return params;
+}
+
+document.getElementById('botaoExportarRelatorio').addEventListener('click', () => {
+  const params = paramsRelatorio();
   params.set('formato', 'csv');
   window.open(`/api/relatorios/consolidado?${params.toString()}`, '_blank');
 });
 
 filtroAnoRelatorio.addEventListener('change', carregarRelatorio);
+filtroStatusRelatorio.addEventListener('change', carregarRelatorio);
+let debounceBuscaRelatorio;
+filtroBuscaRelatorio.addEventListener('input', () => {
+  clearTimeout(debounceBuscaRelatorio);
+  debounceBuscaRelatorio = setTimeout(carregarRelatorio, 350);
+});
+document.getElementById('botaoLimparFiltrosRelatorio').addEventListener('click', () => {
+  filtroBuscaRelatorio.value = '';
+  filtroStatusRelatorio.value = '';
+  filtroAnoRelatorio.value = '';
+  carregarRelatorio();
+});
 
 async function carregarRelatorio() {
   if (filtroAnoRelatorio.options.length <= 1) {
@@ -508,8 +530,7 @@ async function carregarRelatorio() {
     }
   }
 
-  const params = new URLSearchParams();
-  if (filtroAnoRelatorio.value) params.set('ano', filtroAnoRelatorio.value);
+  const params = paramsRelatorio();
 
   const { solicitacoes } = await api(`/relatorios/consolidado?${params.toString()}`);
 

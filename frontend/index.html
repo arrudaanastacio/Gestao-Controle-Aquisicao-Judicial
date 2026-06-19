@@ -154,6 +154,23 @@
           </div>
         </div>
 
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaRelatorio" placeholder="Buscar por código, siafísico, descrição, ofício, requisição GSNET ou empenho…">
+          <select id="filtroStatusRelatorio">
+            <option value="">Todos os status</option>
+            <option value="Planejamento">Planejamento</option>
+            <option value="Adjucado">Adjucado</option>
+            <option value="Empenhado">Empenhado</option>
+            <option value="Entrega Parcial">Entrega Parcial</option>
+            <option value="Finalizado">Finalizado</option>
+            <option value="Cancelado">Cancelado</option>
+            <option value="Deserto">Deserto</option>
+            <option value="Fracassado">Fracassado</option>
+            <option value="Revogado">Revogado</option>
+          </select>
+          <button class="botao-secundario" id="botaoLimparFiltrosRelatorio" type="button">Limpar</button>
+        </div>
+
         <div class="tabela-wrap">
           <div class="tabela-rolavel-x">
             <table>
