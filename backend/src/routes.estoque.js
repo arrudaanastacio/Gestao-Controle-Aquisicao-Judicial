@@ -3,6 +3,7 @@ const multer = require('multer');
 const XLSX = require('xlsx');
 const db = require('./db');
 const { autenticar, exigirPerfil } = require('./auth');
+const { referenciaParaColeta } = require('./diasUteis');
 
 const router = express.Router();
 router.use(autenticar);
@@ -177,7 +178,32 @@ router.post('/importar/confirmar', exigirPerfil('admin'), upload.single('arquivo
   // Gera alertas a partir desta foto
   const alertasGerados = gerarAlertasEstoque(dataReferencia, importacaoId);
 
-  const resumo = { dataReferencia, totalItens: linhas.length, substituiu: !!existente, ...alertasGerados };
+  // ----- Arquivamento histórico (regra do 1º dia útil para 01 e 15) -----
+  const jaArquivadas = new Set(
+    db.prepare("SELECT referencia_historica FROM estoque_importacoes WHERE arquivado = 1 AND referencia_historica IS NOT NULL")
+      .all().map((r) => r.referencia_historica)
+  );
+  const referencia = referenciaParaColeta(dataReferencia, jaArquivadas);
+  if (referencia) {
+    db.prepare('UPDATE estoque_importacoes SET arquivado = 1, referencia_historica = ? WHERE id = ?')
+      .run(referencia, importacaoId);
+  }
+
+  // ----- Limpeza: mantém só os snapshots históricos (01/15) + o estoque atual -----
+  const atual = db.prepare('SELECT id FROM estoque_importacoes ORDER BY data_referencia DESC, id DESC LIMIT 1').get();
+  const descartar = db.prepare('SELECT id FROM estoque_importacoes WHERE arquivado = 0 AND id != ?').all(atual.id);
+  const delItens = db.prepare('DELETE FROM estoque_itens WHERE importacao_id = ?');
+  const delImp = db.prepare('DELETE FROM estoque_importacoes WHERE id = ?');
+  for (const r of descartar) { delItens.run(r.id); delImp.run(r.id); }
+
+  const resumo = {
+    dataReferencia,
+    totalItens: linhas.length,
+    substituiu: !!existente,
+    arquivadoComoHistorico: referencia || null,
+    snapshotsDescartados: descartar.length,
+    ...alertasGerados,
+  };
 
   db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
     .run('estoque', req.file.originalname, req.usuario.email, JSON.stringify(resumo));
@@ -362,6 +388,69 @@ router.get('/resumo', (req, res) => {
   const valorTotal = db.prepare('SELECT SUM(estoque * COALESCE(valor_medio_unitario, custo_unitario, 0)) v FROM estoque_itens WHERE data_referencia = ?').get(dataRef).v;
 
   res.json({ dataReferencia: dataRef, limiarAutonomia: limiar, totalItens, ruptura, baixo, zerado, valorTotalEstoque: valorTotal });
+});
+
+// ---------- Histórico de estoque: lista dos snapshots arquivados (01/15) ----------
+router.get('/historico', (req, res) => {
+  const snapshots = db.prepare(`
+    SELECT ei.id, ei.referencia_historica, ei.data_referencia AS data_coleta, ei.total_itens,
+      (SELECT ROUND(SUM(it.estoque * COALESCE(it.valor_medio_unitario, it.custo_unitario, 0)), 2)
+       FROM estoque_itens it WHERE it.importacao_id = ei.id) AS valor_total
+    FROM estoque_importacoes ei
+    WHERE ei.arquivado = 1 AND ei.referencia_historica IS NOT NULL
+    ORDER BY ei.referencia_historica DESC
+  `).all();
+  res.json({ snapshots });
+});
+
+// ---------- Comparação entre dois snapshots históricos ----------
+router.get('/historico/comparar', (req, res) => {
+  const { ref1, ref2, q } = req.query;
+  if (!ref1 || !ref2) return res.status(400).json({ erro: 'Informe as duas referências (ref1 e ref2).' });
+
+  const imp = (ref) => db.prepare('SELECT id, data_referencia FROM estoque_importacoes WHERE referencia_historica = ? AND arquivado = 1').get(ref);
+  const i1 = imp(ref1);
+  const i2 = imp(ref2);
+  if (!i1 || !i2) return res.status(404).json({ erro: 'Snapshot histórico não encontrado para uma das referências.' });
+
+  // Junta os itens das duas fotos por código. Usa a descrição mais recente disponível.
+  const linhas = db.prepare(`
+    SELECT
+      COALESCE(a.codigo_item, b.codigo_item) AS codigo_item,
+      COALESCE(a.descricao, b.descricao) AS descricao,
+      COALESCE(a.categoria, b.categoria) AS categoria,
+      a.estoque AS estoque1, b.estoque AS estoque2,
+      a.autonomia AS autonomia1, b.autonomia AS autonomia2,
+      ROUND(a.estoque * COALESCE(a.valor_medio_unitario, a.custo_unitario, 0), 2) AS valor1,
+      ROUND(b.estoque * COALESCE(b.valor_medio_unitario, b.custo_unitario, 0), 2) AS valor2
+    FROM (SELECT * FROM estoque_itens WHERE importacao_id = ?) a
+    FULL OUTER JOIN (SELECT * FROM estoque_itens WHERE importacao_id = ?) b
+      ON a.codigo_item = b.codigo_item
+  `).all(i1.id, i2.id);
+
+  let resultado = linhas.map((l) => ({
+    ...l,
+    estoque1: l.estoque1 ?? 0,
+    estoque2: l.estoque2 ?? 0,
+    variacao_estoque: (l.estoque2 ?? 0) - (l.estoque1 ?? 0),
+    variacao_valor: (l.valor2 ?? 0) - (l.valor1 ?? 0),
+  }));
+
+  if (q) {
+    const termo = q.toLowerCase();
+    resultado = resultado.filter((l) =>
+      (l.descricao || '').toLowerCase().includes(termo) ||
+      (l.codigo_item || '').toLowerCase().includes(termo));
+  }
+
+  resultado.sort((a, b) => Math.abs(b.variacao_estoque) - Math.abs(a.variacao_estoque));
+
+  res.json({
+    ref1, ref2,
+    dataColeta1: i1.data_referencia, dataColeta2: i2.data_referencia,
+    total: resultado.length,
+    itens: resultado,
+  });
 });
 
 // Interpreta o texto de lotes do relatório (vários lotes separados por "\").

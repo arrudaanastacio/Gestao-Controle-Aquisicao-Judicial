@@ -29,6 +29,7 @@
         <a href="#" data-pagina="relatorio">Relatório de Compras Geral</a>
         <a href="#" data-pagina="estoque">Estoque</a>
         <a href="#" data-pagina="validades">Gestão de validades</a>
+        <a href="#" data-pagina="historico">Histórico Estoque</a>
         <a href="#" data-pagina="elenco" id="linkElenco" hidden>Elenco de medicamentos</a>
         <a href="#" data-pagina="importadores" id="linkImportadores" hidden>Importar dados</a>
         <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
@@ -335,6 +336,67 @@
             <div class="paginacao">
               <span id="textoContagemValidades">—</span>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaHistorico" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Histórico Estoque</h2>
+            <p>Série histórica dos estoques de dia 01 e 15 de cada mês (primeiro dia útil) para comparativos</p>
+          </div>
+        </div>
+
+        <div id="avisoSemHistorico" class="estado-vazio" hidden>
+          Ainda não há snapshots históricos. Eles são guardados automaticamente nas importações de dia 01 e 15 (ou no primeiro dia útil seguinte).
+        </div>
+
+        <div id="conteudoHistorico">
+          <h3 style="font-size:15px; margin:8px 0 12px;">Snapshots arquivados</h3>
+          <div class="tabela-wrap" style="margin-bottom:26px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Referência</th>
+                  <th>Data de coleta</th>
+                  <th>Itens</th>
+                  <th>Valor total em estoque</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaHistorico"></tbody>
+            </table>
+          </div>
+
+          <h3 style="font-size:15px; margin:8px 0 12px;">Comparar dois períodos</h3>
+          <div class="barra-filtros">
+            <select id="histRef1"></select>
+            <span style="color:var(--cinza-texto);">x</span>
+            <select id="histRef2"></select>
+            <input type="text" id="histBusca" placeholder="Filtrar por medicamento ou código…" style="min-width:240px;">
+            <button id="botaoCompararHist" class="botao-primario" type="button">Comparar</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Medicamento</th>
+                    <th>Categoria</th>
+                    <th id="thEstoque1">Estoque (ref. 1)</th>
+                    <th id="thEstoque2">Estoque (ref. 2)</th>
+                    <th>Variação estoque</th>
+                    <th id="thValor1">Valor (ref. 1)</th>
+                    <th id="thValor2">Valor (ref. 2)</th>
+                    <th>Variação valor</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaComparar"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioComparar" hidden>Selecione duas referências e clique em Comparar.</div>
+            <div class="paginacao"><span id="textoContagemComparar">—</span></div>
           </div>
         </div>
       </section>

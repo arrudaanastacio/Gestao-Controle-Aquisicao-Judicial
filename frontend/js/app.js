@@ -174,6 +174,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaRelatorio').hidden = pagina !== 'relatorio';
   document.getElementById('paginaEstoque').hidden = pagina !== 'estoque';
   document.getElementById('paginaValidades').hidden = pagina !== 'validades';
+  document.getElementById('paginaHistorico').hidden = pagina !== 'historico';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
   document.getElementById('paginaAlertas').hidden = pagina !== 'alertas';
@@ -185,6 +186,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'relatorio') await carregarRelatorio();
     if (pagina === 'estoque') await carregarEstoque();
     if (pagina === 'validades') await carregarValidades();
+    if (pagina === 'historico') await carregarHistorico();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
   } catch (e) {
@@ -1371,6 +1373,97 @@ async function abrirDetalheValidade(codigo) {
   conteudo.innerHTML = html;
 }
 
+// -------------------- Histórico Estoque (snapshots 01/15 + comparação) --------------------
+function formatarRef(iso) {
+  // referência sempre vem como yyyy-mm-dd
+  return formatarData(iso);
+}
+
+async function carregarHistorico() {
+  const { snapshots } = await api('/estoque/historico');
+
+  const aviso = document.getElementById('avisoSemHistorico');
+  const conteudo = document.getElementById('conteudoHistorico');
+  if (!snapshots || snapshots.length === 0) {
+    aviso.hidden = false;
+    conteudo.hidden = true;
+    return;
+  }
+  aviso.hidden = true;
+  conteudo.hidden = false;
+
+  // Tabela de snapshots
+  const reais = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  document.getElementById('corpoTabelaHistorico').innerHTML = snapshots.map((s) => {
+    const coletaDiferente = s.data_coleta !== s.referencia_historica;
+    return `<tr>
+      <td class="col-data">${formatarRef(s.referencia_historica)}</td>
+      <td class="col-data">${formatarData(s.data_coleta)}${coletaDiferente ? ' <span style="color:var(--cinza-texto); font-size:11px;">(1º dia útil)</span>' : ''}</td>
+      <td>${fmtNumero(s.total_itens)}</td>
+      <td>${reais(s.valor_total)}</td>
+    </tr>`;
+  }).join('');
+
+  // Popula os dois seletores de comparação
+  const opcoes = snapshots.map((s) =>
+    `<option value="${s.referencia_historica}">${formatarRef(s.referencia_historica)}</option>`
+  ).join('');
+  const r1 = document.getElementById('histRef1');
+  const r2 = document.getElementById('histRef2');
+  r1.innerHTML = opcoes;
+  r2.innerHTML = opcoes;
+  // por padrão compara os dois mais recentes
+  if (snapshots.length >= 2) { r1.selectedIndex = 1; r2.selectedIndex = 0; }
+}
+
+document.getElementById('botaoCompararHist').addEventListener('click', compararHistorico);
+
+async function compararHistorico() {
+  const ref1 = document.getElementById('histRef1').value;
+  const ref2 = document.getElementById('histRef2').value;
+  const q = document.getElementById('histBusca').value.trim();
+  if (!ref1 || !ref2) return;
+  if (ref1 === ref2) { alert('Escolha duas referências diferentes para comparar.'); return; }
+
+  const params = new URLSearchParams({ ref1, ref2 });
+  if (q) params.set('q', q);
+  const dados = await api(`/estoque/historico/comparar?${params.toString()}`);
+
+  // Atualiza os títulos das colunas com as referências escolhidas
+  document.getElementById('thEstoque1').textContent = `Estoque (${formatarRef(ref1)})`;
+  document.getElementById('thEstoque2').textContent = `Estoque (${formatarRef(ref2)})`;
+  document.getElementById('thValor1').textContent = `Valor (${formatarRef(ref1)})`;
+  document.getElementById('thValor2').textContent = `Valor (${formatarRef(ref2)})`;
+
+  const corpo = document.getElementById('corpoTabelaComparar');
+  const vazio = document.getElementById('estadoVazioComparar');
+  const reais = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  const sinal = (v) => (v > 0 ? '+' : '') + fmtNumero(v);
+  const corVar = (v) => v > 0 ? 'var(--selo)' : (v < 0 ? 'var(--vermelho)' : 'var(--cinza-texto)');
+
+  if (!dados.itens.length) {
+    corpo.innerHTML = '';
+    vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.slice(0, 1000).map((it) => `
+      <tr>
+        <td>${it.descricao || '—'}<br><span class="col-codigo">${it.codigo_item}</span></td>
+        <td style="font-size:12px; color:var(--cinza-texto);">${it.categoria || '—'}</td>
+        <td>${fmtNumero(it.estoque1)}</td>
+        <td>${fmtNumero(it.estoque2)}</td>
+        <td style="color:${corVar(it.variacao_estoque)};">${sinal(it.variacao_estoque)}</td>
+        <td>${reais(it.valor1)}</td>
+        <td>${reais(it.valor2)}</td>
+        <td style="color:${corVar(it.variacao_valor)};">${(it.variacao_valor > 0 ? '+' : '') + reais(it.variacao_valor)}</td>
+      </tr>
+    `).join('');
+  }
+
+  document.getElementById('textoContagemComparar').textContent =
+    `${dados.total} item(ns) comparados entre ${formatarRef(ref1)} (coleta ${formatarData(dados.dataColeta1)}) e ${formatarRef(ref2)} (coleta ${formatarData(dados.dataColeta2)})`;
+}
+
 // -------------------- Importador de estoque --------------------
 let arquivoEstoqueSelecionado = null;
 document.getElementById('botaoPreviaEstoque').addEventListener('click', async () => {
@@ -1427,9 +1520,13 @@ document.getElementById('botaoConfirmarEstoque').addEventListener('click', async
     const dados = await resp.json();
     if (!resp.ok) throw new Error(dados.erro);
 
+    const linhaHistorico = dados.arquivadoComoHistorico
+      ? `<div class="linha"><span>📌 Arquivado como histórico</span><strong>Referência ${formatarData(dados.arquivadoComoHistorico)}</strong></div>`
+      : `<div class="linha"><span>Arquivamento histórico</span><strong style="color:var(--cinza-texto);">não é dia 01/15 — só atualiza o atual</strong></div>`;
     el.innerHTML = `<div class="bloco-resultado-importacao">
-      <div class="linha"><span>Data de referência</span><strong>${formatarData(dados.dataReferencia)}</strong></div>
+      <div class="linha"><span>Data de referência (coleta)</span><strong>${formatarData(dados.dataReferencia)}</strong></div>
       <div class="linha"><span>Itens importados</span><strong>${dados.totalItens}</strong></div>
+      ${linhaHistorico}
       <div class="linha"><span>Alertas de ruptura</span><strong>${dados.alertasRuptura}</strong></div>
       <div class="linha"><span>Alertas de estoque baixo</span><strong>${dados.alertasEstoqueBaixo}</strong></div>
       <div class="linha"><span>Compra em aberto + demanda zero</span><strong>${dados.alertasCompraDemandaZero}</strong></div>

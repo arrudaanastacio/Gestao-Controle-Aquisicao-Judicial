@@ -128,6 +128,12 @@ if (!colunasEstoque.includes('controlado')) db.exec("ALTER TABLE estoque_itens A
 if (!colunasEstoque.includes('importado')) db.exec("ALTER TABLE estoque_itens ADD COLUMN importado TEXT");
 if (!colunasEstoque.includes('unidade')) db.exec("ALTER TABLE estoque_itens ADD COLUMN unidade TEXT");
 
+// Arquivamento histórico: marca quais importações sao snapshots permanentes
+// (referencia dia 01 ou 15). data_referencia segue sendo a data de coleta.
+const colunasImport = db.prepare("PRAGMA table_info(estoque_importacoes)").all().map((c) => c.name);
+if (!colunasImport.includes('arquivado')) db.exec("ALTER TABLE estoque_importacoes ADD COLUMN arquivado INTEGER NOT NULL DEFAULT 0");
+if (!colunasImport.includes('referencia_historica')) db.exec("ALTER TABLE estoque_importacoes ADD COLUMN referencia_historica TEXT");
+
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoque_codigo ON estoque_itens(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoque_data ON estoque_itens(data_referencia);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoque_importacao ON estoque_itens(importacao_id);`);
