@@ -22,9 +22,12 @@ router.get('/', (req, res) => {
   const params = [];
 
   if (q) {
-    condicoes.push('(i.descricao LIKE ? OR s.codigo_item LIKE ? OR s.n_oficio LIKE ? OR s.n_empenho LIKE ?)');
+    condicoes.push(`(
+      i.descricao LIKE ? OR s.codigo_item LIKE ? OR i.codigo_siafisico LIKE ?
+      OR s.n_oficio LIKE ? OR s.requisicao_gsnet LIKE ? OR s.n_empenho LIKE ?
+    )`);
     const like = `%${q}%`;
-    params.push(like, like, like, like);
+    params.push(like, like, like, like, like, like);
   }
   if (status) {
     condicoes.push('s.status = ?');
