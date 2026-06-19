@@ -161,6 +161,65 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   flex-direction: column;
 }
 
+/* Ícone de menu mostrado só quando a barra está recolhida */
+.indicador-menu {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #cfe4dd;
+  margin-top: 4px;
+}
+.indicador-menu-texto {
+  font-family: var(--fonte-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+/* ----- Menu lateral recolhível (desktop): recolhe e expande ao passar o mouse ----- */
+@media (min-width: 761px) {
+  .app-shell { grid-template-columns: 60px 1fr; }
+
+  /* A barra é fixa (flutua); o conteúdo fica na 2ª coluna e não desloca */
+  .app-shell .conteudo { grid-column: 2; }
+
+  .barra-lateral {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 60px;
+    overflow: hidden;
+    z-index: 60;
+    padding: 24px 10px;
+    transition: width 0.18s ease, padding 0.18s ease;
+  }
+
+  /* Conteúdo da barra some quando recolhida, aparece ao expandir */
+  .barra-lateral .bloco-marca,
+  .barra-lateral .nav-lateral,
+  .barra-lateral .rodape-lateral {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+  }
+  .barra-lateral .indicador-menu { display: flex; }
+
+  .barra-lateral:hover {
+    width: 240px;
+    padding: 24px 18px;
+    overflow-y: auto;
+    box-shadow: 6px 0 24px rgba(0, 0, 0, 0.30);
+  }
+  .barra-lateral:hover .bloco-marca,
+  .barra-lateral:hover .nav-lateral,
+  .barra-lateral:hover .rodape-lateral {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .barra-lateral:hover .indicador-menu { display: none; }
+}
+
 .marca-lateral {
   font-family: var(--fonte-titulo);
   font-size: 18px;
