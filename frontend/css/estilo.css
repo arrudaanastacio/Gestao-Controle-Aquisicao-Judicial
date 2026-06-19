@@ -245,6 +245,15 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   max-width: 1280px;
 }
 
+/* Páginas de relatório/estoque usam a largura total disponível,
+   já que têm muitas colunas e se beneficiam de mais espaço. */
+.conteudo:has(> #paginaSolicitacoes:not([hidden])),
+.conteudo:has(> #paginaRelatorio:not([hidden])),
+.conteudo:has(> #paginaEstoque:not([hidden])),
+.conteudo:has(> #paginaValidades:not([hidden])) {
+  max-width: none;
+}
+
 .cabecalho-pagina {
   display: flex;
   justify-content: space-between;
@@ -361,7 +370,13 @@ thead th {
   overflow: auto;
   max-height: 70vh;
 }
-.tabela-rolavel-x table { min-width: 1500px; }
+.tabela-rolavel-x table { min-width: 1350px; }
+
+/* Linhas mais compactas nos relatórios largos (aproveita melhor o espaço) */
+.tabela-rolavel-x tbody td { padding: 7px 10px; }
+.tabela-rolavel-x thead th { padding: 8px 10px; }
+/* Coluna de descrição com largura controlada para não esticar a linha */
+.tabela-rolavel-x td:nth-child(3) { min-width: 230px; max-width: 300px; }
 
 /* Cabeçalho fixo no topo ao rolar verticalmente */
 .tabela-rolavel-x thead th {
