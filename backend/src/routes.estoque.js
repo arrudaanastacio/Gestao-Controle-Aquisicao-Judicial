@@ -362,7 +362,7 @@ router.get('/', (req, res) => {
       (SELECT COUNT(*) FROM solicitacoes s WHERE s.codigo_item = e.codigo_item AND s.status IN (${placeholders})) AS compras_abertas
     FROM estoque_itens e
     ${where}
-    ORDER BY (e.estoque <= 0 AND e.demandas > 0) DESC, e.autonomia ASC, e.descricao
+    ORDER BY e.descricao COLLATE NOCASE ASC
     LIMIT ? OFFSET ?
   `).all(...STATUS_EM_ABERTO, ...params, limit, offset);
 
