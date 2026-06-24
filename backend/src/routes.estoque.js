@@ -23,15 +23,41 @@ function condEscopoUnidade(escopo, pfx = '') {
   return null;
 }
 
-// Posições das colunas no relatório "Itens em Estoque UDTP" (cabeçalho na linha 6, dados a partir da 7)
-const COL = {
-  unidade: 0, categoria: 1, controlado: 2, tipo_item: 3, marca: 4, importado: 5,
-  outras_demandas: 6, intercambiaveis: 7, id_item: 8, codigo: 9, descricao: 10,
-  siafisico: 11, descritivo_siafisico: 12, data_revisao_siafi: 13, demandas: 14,
-  demandas_cf: 15, demandas_jefaz: 16, demandas_aj: 17, consumo_mensal_total: 18,
-  consumo_mensal_cf: 19, consumo_mensal_jefaz: 20, consumo_mensal_aj: 21,
-  estoque: 22, autonomia: 23, custo_unitario: 24, valor_medio_unitario: 25,
-  catmat: 26, lotes: 27,
+// Normaliza um texto de cabeçalho: minúsculas, sem acento, sem underscore,
+// espaços colapsados. Usado para casar colunas pelo NOME (robusto a mudanças
+// de posição/ordem das colunas no relatório).
+function normalizarCabecalho(s) {
+  return String(s ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // remove acentos
+    .replace(/_/g, ' ')
+    .toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+// Para cada campo, o(s) nome(s) de cabeçalho aceitos (já normalizados).
+// O casamento é por igualdade exata (evita confundir "estoque" com
+// "estoque vencido", ou "demandas" com "demandas aj").
+const MAPA_CABECALHOS = {
+  unidade: ['unidade dispensadora'],
+  categoria: ['categoria'],
+  controlado: ['controlado'],
+  tipo_item: ['tipo item'],
+  marca: ['marca'],
+  importado: ['importado'],
+  outras_demandas: ['outras demandas'],
+  id_item: ['id item'],
+  codigo: ['codigo'],
+  descricao: ['descricao do item'],
+  siafisico: ['siafisico'],
+  demandas: ['demandas'],
+  demandas_aj: ['demandas aj'],
+  consumo_mensal_total: ['consumo mensal total'],
+  consumo_mensal_aj: ['consumo mensal aj'],
+  estoque: ['estoque'],
+  autonomia: ['autonomia'],
+  custo_unitario: ['custo unitario'],
+  valor_medio_unitario: ['valor medio unitario'],
+  catmat: ['catmat'],
+  lotes: ['lotes'],
 };
 
 function limpar(v) {
@@ -66,8 +92,8 @@ function processarEstoque(buffer) {
   // Localiza a linha de cabeçalho (a que contém "Código" e "Descrição do Item")
   let linhaCabecalho = -1;
   for (let i = 0; i < Math.min(linhasBrutas.length, 15); i++) {
-    const linha = (linhasBrutas[i] || []).map((c) => String(c ?? '').toLowerCase());
-    if (linha.includes('código') && linha.some((c) => c.includes('descrição do item'))) {
+    const linha = (linhasBrutas[i] || []).map(normalizarCabecalho);
+    if (linha.includes('codigo') && linha.includes('descricao do item')) {
       linhaCabecalho = i;
       break;
     }
@@ -76,35 +102,47 @@ function processarEstoque(buffer) {
     throw new Error('Não reconheci o layout do relatório de estoque (não encontrei a linha de cabeçalho com "Código" e "Descrição do Item").');
   }
 
+  // Mapeia cada campo para o índice da coluna pelo NOME do cabeçalho
+  const cabecalhoNorm = (linhasBrutas[linhaCabecalho] || []).map(normalizarCabecalho);
+  const COL = {};
+  for (const [campo, nomes] of Object.entries(MAPA_CABECALHOS)) {
+    COL[campo] = cabecalhoNorm.findIndex((c) => nomes.includes(c));
+  }
+  if (COL.codigo === -1 || COL.descricao === -1) {
+    throw new Error('Não encontrei as colunas obrigatórias "Código" e/ou "Descrição do Item" no relatório.');
+  }
+  // helper: lê a célula só se a coluna existe no arquivo
+  const cel = (r, campo) => (COL[campo] >= 0 ? r[COL[campo]] : null);
+
   const linhas = [];
   for (let i = linhaCabecalho + 1; i < linhasBrutas.length; i++) {
     const r = linhasBrutas[i];
     if (!r) continue;
-    const codigo = texto(r[COL.codigo]);
+    const codigo = texto(cel(r, 'codigo'));
     if (!codigo) continue;
 
     linhas.push({
       codigo_item: codigo,
-      id_item_origem: texto(r[COL.id_item]),
-      descricao: texto(r[COL.descricao]),
-      siafisico: texto(r[COL.siafisico]),
-      catmat: texto(r[COL.catmat]),
-      unidade: texto(r[COL.unidade]),
-      categoria: texto(r[COL.categoria]),
-      controlado: texto(r[COL.controlado]),
-      tipo_item: texto(r[COL.tipo_item]),
-      marca: texto(r[COL.marca]),
-      importado: texto(r[COL.importado]),
-      outras_demandas: texto(r[COL.outras_demandas]),
-      demandas: numero(r[COL.demandas]),
-      demandas_aj: numero(r[COL.demandas_aj]),
-      consumo_mensal_total: numero(r[COL.consumo_mensal_total]),
-      consumo_mensal_aj: numero(r[COL.consumo_mensal_aj]),
-      estoque: numero(r[COL.estoque]),
-      autonomia: numero(r[COL.autonomia]),
-      custo_unitario: numero(r[COL.custo_unitario]),
-      valor_medio_unitario: numero(r[COL.valor_medio_unitario]),
-      lotes: texto(r[COL.lotes]),
+      id_item_origem: texto(cel(r, 'id_item')),
+      descricao: texto(cel(r, 'descricao')),
+      siafisico: texto(cel(r, 'siafisico')),
+      catmat: texto(cel(r, 'catmat')),
+      unidade: texto(cel(r, 'unidade')),
+      categoria: texto(cel(r, 'categoria')),
+      controlado: texto(cel(r, 'controlado')),
+      tipo_item: texto(cel(r, 'tipo_item')),
+      marca: texto(cel(r, 'marca')),
+      importado: texto(cel(r, 'importado')),
+      outras_demandas: texto(cel(r, 'outras_demandas')),
+      demandas: numero(cel(r, 'demandas')),
+      demandas_aj: numero(cel(r, 'demandas_aj')),
+      consumo_mensal_total: numero(cel(r, 'consumo_mensal_total')),
+      consumo_mensal_aj: numero(cel(r, 'consumo_mensal_aj')),
+      estoque: numero(cel(r, 'estoque')),
+      autonomia: numero(cel(r, 'autonomia')),
+      custo_unitario: numero(cel(r, 'custo_unitario')),
+      valor_medio_unitario: numero(cel(r, 'valor_medio_unitario')),
+      lotes: texto(cel(r, 'lotes')),
     });
   }
 
