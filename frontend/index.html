@@ -29,7 +29,8 @@
           <a href="#" data-pagina="relatorio">Relatório de Compras Geral</a>
           <a href="#" data-pagina="estoque">Estoque</a>
           <a href="#" data-pagina="validades">Consultar Validades</a>
-          <p class="nav-sub nav-sub-vazio">Demais Unidades <span>(em breve)</span></p>
+          <p class="nav-sub">Demais Unidades</p>
+          <a href="#" data-pagina="estoqueGeral">Itens em Estoque Geral</a>
         </div>
 
         <div class="nav-grupo">
@@ -304,6 +305,87 @@
               <div class="botoes">
                 <button id="botaoAnteriorEstoque">← Anterior</button>
                 <button id="botaoProximoEstoque">Próximo →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaEstoqueGeral" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Itens em Estoque Geral</h2>
+            <p id="subtituloEstoqueGeral">Estoque das demais unidades dispensadoras (exceto Tenente Pena)</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <select id="seletorDataEstoqueGeral" title="Data do estoque"></select>
+          </div>
+        </div>
+
+        <div id="avisoSemEstoqueGeral" class="estado-vazio" hidden>
+          Nenhum item de outras unidades no estoque importado. Os itens aparecem aqui quando a importação tiver linhas de unidades diferentes de "UD 01 - Tenente Pena".
+        </div>
+
+        <div id="conteudoEstoqueGeral" hidden>
+          <div class="grade-resumo" id="grideResumoEstoqueGeral"></div>
+
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaEstoqueGeral" placeholder="Buscar por medicamento, código ou siafísico…">
+            <select id="filtroSituacaoEstoqueGeral">
+              <option value="">Todas as situações</option>
+              <option value="ruptura">Ruptura (estoque zero com demanda)</option>
+              <option value="baixo">Estoque baixo (autonomia abaixo do limite)</option>
+              <option value="zerado">Estoque zerado</option>
+            </select>
+            <select id="filtroAutonomiaEstoqueGeral">
+              <option value="">Autonomia: todas</option>
+              <option value="0">Sem autonomia (0 mês)</option>
+              <option value="0-1">Até 1 mês</option>
+              <option value="1-2">De 1 a 2 meses</option>
+              <option value="2-6">De 2 a 6 meses</option>
+              <option value="6mais">Mais de 6 meses</option>
+            </select>
+          </div>
+
+          <div class="barra-filtros barra-filtros-colunas">
+            <div class="multi-filtro" id="filtroUnidadeWrapGeral">
+              <button type="button" class="multi-filtro-botao" id="filtroUnidadeBotaoGeral">Unidade dispensadora: todas <span aria-hidden="true">▾</span></button>
+              <div class="multi-filtro-painel" id="filtroUnidadePainelGeral" hidden></div>
+            </div>
+            <select id="filtroCategoriaGeral"><option value="">Categoria: todas</option></select>
+            <select id="filtroControladoGeral"><option value="">Controlado: todos</option></select>
+            <select id="filtroTipoItemGeral"><option value="">Tipo item: todos</option></select>
+            <select id="filtroMarcaGeral"><option value="">Marca: todas</option></select>
+            <select id="filtroImportadoGeral"><option value="">Importado: todos</option></select>
+            <select id="filtroOutrasDemandasGeral"><option value="">Outras demandas: todas</option></select>
+            <button id="botaoLimparFiltrosEstoqueGeral" class="botao-secundario" type="button">Limpar filtros</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Medicamento</th>
+                    <th>Unidade</th>
+                    <th>Demanda</th>
+                    <th>Consumo/mês</th>
+                    <th>Estoque</th>
+                    <th>Autonomia</th>
+                    <th>Próx. validade</th>
+                    <th>Compra judicial</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaEstoqueGeral"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioEstoqueGeral" hidden>Nenhum item encontrado com estes filtros.</div>
+            <div class="paginacao">
+              <span id="textoPaginacaoEstoqueGeral">—</span>
+              <div class="botoes">
+                <button id="botaoAnteriorEstoqueGeral">← Anterior</button>
+                <button id="botaoProximoEstoqueGeral">Próximo →</button>
               </div>
             </div>
           </div>

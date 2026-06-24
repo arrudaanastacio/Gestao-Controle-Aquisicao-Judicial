@@ -169,6 +169,7 @@ const ICONES_NAV = {
   solicitacoes: '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/>',
   relatorio: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
   estoque: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
+  estoqueGeral: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 13h18"/>',
   validades: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M9 3v4M15 3v4M12 12v3l2 1"/>',
   busca: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-3.5-3.5"/>',
   historico: '<path d="M4 12a8 8 0 1 0 2-5.3"/><path d="M4 4v3h3"/><path d="M12 8v4l3 2"/>',
@@ -210,6 +211,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaBusca').hidden = pagina !== 'busca';
   document.getElementById('paginaRelatorio').hidden = pagina !== 'relatorio';
   document.getElementById('paginaEstoque').hidden = pagina !== 'estoque';
+  document.getElementById('paginaEstoqueGeral').hidden = pagina !== 'estoqueGeral';
   document.getElementById('paginaValidades').hidden = pagina !== 'validades';
   document.getElementById('paginaHistorico').hidden = pagina !== 'historico';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
@@ -222,6 +224,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'solicitacoes') await carregarSolicitacoes();
     if (pagina === 'relatorio') await carregarRelatorio();
     if (pagina === 'estoque') await carregarEstoque();
+    if (pagina === 'estoqueGeral') await carregarEstoqueGeral();
     if (pagina === 'validades') await carregarValidades();
     if (pagina === 'historico') await carregarHistorico();
     if (pagina === 'alertas') await carregarAlertas();
@@ -931,6 +934,7 @@ function montarFiltroUnidade(valores) {
 // Popula os menus suspensos com os valores distintos da data selecionada
 async function carregarFiltrosEstoque() {
   const params = new URLSearchParams();
+  params.set('escopoUnidade', 'udtp');
   if (estado.estoque.data) params.set('data', estado.estoque.data);
   let dados;
   try {
@@ -963,7 +967,7 @@ document.getElementById('botaoFecharModalEstoque').addEventListener('click', () 
 });
 
 async function carregarEstoque() {
-  const resumo = await api('/estoque/resumo');
+  const resumo = await api('/estoque/resumo?escopoUnidade=udtp');
 
   if (!resumo.dataReferencia) {
     document.getElementById('avisoSemEstoque').hidden = false;
@@ -976,7 +980,7 @@ async function carregarEstoque() {
 
   // Preenche seletor de datas (apenas na primeira vez ou se mudou)
   const seletor = document.getElementById('seletorDataEstoque');
-  const lista = await api('/estoque?pageSize=1');
+  const lista = await api('/estoque?pageSize=1&escopoUnidade=udtp');
   seletor.innerHTML = lista.datasDisponiveis.map((d) =>
     `<option value="${d.data_referencia}">${formatarData(d.data_referencia)} (${d.total_itens} itens)</option>`
   ).join('');
@@ -1017,6 +1021,7 @@ async function carregarTabelaEstoque() {
   const autonomia = document.getElementById('filtroAutonomiaEstoque').value;
 
   const params = new URLSearchParams({ page: estado.estoque.pagina, pageSize: estado.estoque.pageSize });
+  params.set('escopoUnidade', 'udtp');
   if (estado.estoque.data) params.set('data', estado.estoque.data);
   if (q) params.set('q', q);
   if (situacao) params.set('situacao', situacao);
@@ -1080,13 +1085,193 @@ async function carregarTabelaEstoque() {
   document.getElementById('botaoProximoEstoque').disabled = dados.page >= totalPaginas;
 }
 
-async function abrirDetalheEstoque(codigoEncoded) {
+// ==================== Itens em Estoque Geral (Demais Unidades) ====================
+const estadoEstoqueGeral = { pagina: 1, pageSize: 30, data: null };
+let unidadesSelecionadasGeral = [];
+const COLS_FILTRO_GERAL = [
+  { id: 'filtroCategoriaGeral', coluna: 'categoria' },
+  { id: 'filtroControladoGeral', coluna: 'controlado' },
+  { id: 'filtroTipoItemGeral', coluna: 'tipo_item' },
+  { id: 'filtroMarcaGeral', coluna: 'marca' },
+  { id: 'filtroImportadoGeral', coluna: 'importado' },
+  { id: 'filtroOutrasDemandasGeral', coluna: 'outras_demandas' },
+];
+
+let debounceBuscaGeral;
+document.getElementById('filtroBuscaEstoqueGeral').addEventListener('input', () => {
+  clearTimeout(debounceBuscaGeral);
+  debounceBuscaGeral = setTimeout(() => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); }, 350);
+});
+document.getElementById('filtroSituacaoEstoqueGeral').addEventListener('change', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
+document.getElementById('filtroAutonomiaEstoqueGeral').addEventListener('change', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
+document.getElementById('seletorDataEstoqueGeral').addEventListener('change', async (ev) => {
+  estadoEstoqueGeral.data = ev.target.value; estadoEstoqueGeral.pagina = 1;
+  await carregarFiltrosEstoqueGeral(); carregarTabelaEstoqueGeral();
+});
+COLS_FILTRO_GERAL.forEach(({ id }) => {
+  document.getElementById(id).addEventListener('change', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
+});
+document.getElementById('botaoLimparFiltrosEstoqueGeral').addEventListener('click', () => {
+  document.getElementById('filtroBuscaEstoqueGeral').value = '';
+  document.getElementById('filtroSituacaoEstoqueGeral').value = '';
+  document.getElementById('filtroAutonomiaEstoqueGeral').value = '';
+  COLS_FILTRO_GERAL.forEach(({ id }) => { document.getElementById(id).value = ''; });
+  unidadesSelecionadasGeral = [];
+  document.querySelectorAll('#filtroUnidadePainelGeral input[type="checkbox"]').forEach((c) => { c.checked = false; });
+  atualizarRotuloUnidadeGeral();
+  estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral();
+});
+document.getElementById('botaoAnteriorEstoqueGeral').addEventListener('click', () => {
+  if (estadoEstoqueGeral.pagina > 1) { estadoEstoqueGeral.pagina--; carregarTabelaEstoqueGeral(); }
+});
+document.getElementById('botaoProximoEstoqueGeral').addEventListener('click', () => {
+  estadoEstoqueGeral.pagina++; carregarTabelaEstoqueGeral();
+});
+
+const filtroUnidadeBotaoGeral = document.getElementById('filtroUnidadeBotaoGeral');
+const filtroUnidadePainelGeral = document.getElementById('filtroUnidadePainelGeral');
+filtroUnidadeBotaoGeral.addEventListener('click', (ev) => { ev.stopPropagation(); filtroUnidadePainelGeral.hidden = !filtroUnidadePainelGeral.hidden; });
+document.addEventListener('click', (ev) => {
+  if (!document.getElementById('filtroUnidadeWrapGeral').contains(ev.target)) filtroUnidadePainelGeral.hidden = true;
+});
+function atualizarRotuloUnidadeGeral() {
+  const n = unidadesSelecionadasGeral.length;
+  filtroUnidadeBotaoGeral.innerHTML = (n === 0 ? 'Unidade dispensadora: todas' : `Unidade dispensadora: ${n} selecionada${n > 1 ? 's' : ''}`) + ' <span aria-hidden="true">▾</span>';
+}
+function montarFiltroUnidadeGeral(valores) {
+  if (!valores || valores.length === 0) {
+    filtroUnidadePainelGeral.innerHTML = '<div style="padding:6px 4px; color:var(--cinza-texto); font-size:12px;">Sem unidades nesta data. Reimporte o estoque para preencher.</div>';
+    unidadesSelecionadasGeral = []; atualizarRotuloUnidadeGeral(); return;
+  }
+  filtroUnidadePainelGeral.innerHTML = valores.map((v) => {
+    const e = v.replace(/"/g, '&quot;'); const m = unidadesSelecionadasGeral.includes(v) ? 'checked' : '';
+    return `<label class="multi-filtro-item"><input type="checkbox" value="${e}" ${m}> ${v}</label>`;
+  }).join('');
+  filtroUnidadePainelGeral.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      unidadesSelecionadasGeral = Array.from(filtroUnidadePainelGeral.querySelectorAll('input:checked')).map((c) => c.value);
+      atualizarRotuloUnidadeGeral(); estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral();
+    });
+  });
+  unidadesSelecionadasGeral = unidadesSelecionadasGeral.filter((u) => valores.includes(u));
+  atualizarRotuloUnidadeGeral();
+}
+
+async function carregarFiltrosEstoqueGeral() {
+  const params = new URLSearchParams();
+  params.set('escopoUnidade', 'geral');
+  if (estadoEstoqueGeral.data) params.set('data', estadoEstoqueGeral.data);
+  let dados;
+  try { dados = await api(`/estoque/filtros?${params.toString()}`); } catch (e) { return; }
+  COLS_FILTRO_GERAL.forEach(({ id, coluna }) => {
+    const sel = document.getElementById(id);
+    const valorAtual = sel.value;
+    const rotuloPadrao = sel.options[0].textContent;
+    const opcoes = (dados[coluna] || []).map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+    sel.innerHTML = `<option value="">${rotuloPadrao}</option>` + opcoes;
+    sel.value = valorAtual;
+  });
+  montarFiltroUnidadeGeral(dados.unidade || []);
+}
+
+async function carregarEstoqueGeral() {
+  const resumo = await api('/estoque/resumo?escopoUnidade=geral');
+  if (!resumo.dataReferencia) {
+    document.getElementById('avisoSemEstoqueGeral').hidden = false;
+    document.getElementById('conteudoEstoqueGeral').hidden = true;
+    return;
+  }
+  document.getElementById('avisoSemEstoqueGeral').hidden = true;
+  document.getElementById('conteudoEstoqueGeral').hidden = false;
+
+  const seletor = document.getElementById('seletorDataEstoqueGeral');
+  const lista = await api('/estoque?pageSize=1&escopoUnidade=geral');
+  seletor.innerHTML = lista.datasDisponiveis.map((d) => `<option value="${d.data_referencia}">${formatarData(d.data_referencia)} (${d.total_itens} itens)</option>`).join('');
+  if (!estadoEstoqueGeral.data) estadoEstoqueGeral.data = resumo.dataReferencia;
+  seletor.value = estadoEstoqueGeral.data;
+
+  document.getElementById('subtituloEstoqueGeral').textContent =
+    `Itens em estoque das demais unidades em ${formatarData(resumo.dataReferencia)} · autonomia mínima: ${resumo.limiarAutonomia} mês(es)`;
+
+  const valorFmt = resumo.valorTotalEstoque ? 'R$ ' + Number(resumo.valorTotalEstoque).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '—';
+  document.getElementById('grideResumoEstoqueGeral').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.totalItens)}</div><div class="rotulo">Itens no estoque</div></div>
+    <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(resumo.ruptura)}</div><div class="rotulo">Em ruptura (zero + demanda)</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.baixo)}</div><div class="rotulo">Estoque baixo (autonomia)</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.zerado)}</div><div class="rotulo">Estoque zerado</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:20px;">${valorFmt}</div><div class="rotulo">Valor total em estoque</div></div>
+  `;
+  await carregarFiltrosEstoqueGeral();
+  carregarTabelaEstoqueGeral();
+}
+
+async function carregarTabelaEstoqueGeral() {
+  const q = document.getElementById('filtroBuscaEstoqueGeral').value.trim();
+  const situacao = document.getElementById('filtroSituacaoEstoqueGeral').value;
+  const autonomia = document.getElementById('filtroAutonomiaEstoqueGeral').value;
+
+  const params = new URLSearchParams({ page: estadoEstoqueGeral.pagina, pageSize: estadoEstoqueGeral.pageSize });
+  params.set('escopoUnidade', 'geral');
+  if (estadoEstoqueGeral.data) params.set('data', estadoEstoqueGeral.data);
+  if (q) params.set('q', q);
+  if (situacao) params.set('situacao', situacao);
+  if (autonomia) params.set('autonomia', autonomia);
+  COLS_FILTRO_GERAL.forEach(({ id, coluna }) => { const v = document.getElementById(id).value; if (v) params.set(coluna, v); });
+  if (unidadesSelecionadasGeral.length) params.set('unidade', unidadesSelecionadasGeral.join(','));
+
+  const dados = await api(`/estoque?${params.toString()}`);
+  const limiar = dados.limiarAutonomia;
+  const corpo = document.getElementById('corpoTabelaEstoqueGeral');
+  const vazio = document.getElementById('estadoVazioEstoqueGeral');
+
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((it) => {
+      const classe = classeAutonomia(it, limiar);
+      const autonomiaTxt = it.autonomia === null ? '—' : `${fmtNumero(it.autonomia)} mês(es)`;
+      const compraTag = it.compras_abertas > 0
+        ? '<span class="etiqueta-status planejamento">Compra em aberto</span>'
+        : '<span style="color:var(--cinza-texto); font-size:12px;">—</span>';
+      const prox = proximaValidade(it.lotes);
+      let validadeTd = '<span style="color:var(--cinza-texto); font-size:12px;">—</span>';
+      if (prox) {
+        const clsV = classeValidade(prox.validade);
+        const tagV = clsV === 'vencido' ? 'cancelado' : clsV === 'proximo' ? 'atrasado' : 'finalizado';
+        validadeTd = `<span class="etiqueta-status ${tagV}">${prox.validade}</span>`;
+      }
+      return `
+        <tr>
+          <td>${it.descricao || '—'}<br><span class="col-codigo">${it.codigo_item}</span></td>
+          <td>${it.unidade || '—'}</td>
+          <td>${fmtNumero(it.demandas)}</td>
+          <td>${fmtNumero(it.consumo_mensal_total)}</td>
+          <td>${fmtNumero(it.estoque)}</td>
+          <td><span class="etiqueta-status ${classe}">${autonomiaTxt}</span></td>
+          <td class="col-data">${validadeTd}</td>
+          <td>${compraTag}</td>
+          <td><button class="botao-editar" data-codigo="${encodeURIComponent(it.codigo_item)}">Ver</button></td>
+        </tr>`;
+    }).join('');
+    corpo.querySelectorAll('button[data-codigo]').forEach((btn) => {
+      btn.addEventListener('click', () => abrirDetalheEstoque(btn.dataset.codigo, 'geral'));
+    });
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoEstoqueGeral').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} itens`;
+  document.getElementById('botaoAnteriorEstoqueGeral').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoEstoqueGeral').disabled = dados.page >= totalPaginas;
+}
+
+async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
   const modal = document.getElementById('modalEstoqueItem');
   const conteudo = document.getElementById('conteudoModalEstoque');
   conteudo.innerHTML = '<p style="color:var(--cinza-texto);">Carregando…</p>';
   modal.hidden = false;
 
-  const dados = await api(`/estoque/item/${codigoEncoded}`);
+  const dados = await api(`/estoque/item/${codigoEncoded}?escopoUnidade=${escopo}`);
   const e = dados.estoqueAtual;
 
   document.getElementById('tituloModalEstoque').textContent = e ? (e.descricao || dados.codigo) : dados.codigo;
@@ -1570,6 +1755,7 @@ document.getElementById('botaoConfirmarEstoque').addEventListener('click', async
     </div>`;
     document.getElementById('botaoConfirmarEstoque').disabled = true;
     estado.estoque.data = dados.dataReferencia;
+    estadoEstoqueGeral.data = dados.dataReferencia;
     atualizarBadgeAlertas();
   } catch (e) {
     el.innerHTML = `<div class="estado-vazio">${e.message}</div>`;

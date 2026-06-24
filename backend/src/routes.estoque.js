@@ -13,6 +13,16 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 
 // Status de compra considerados "em aberto" (compra ainda não concluída)
 const STATUS_EM_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
 
+// Divide o estoque por escopo de unidade dispensadora:
+//   'udtp'  → UD 01 - Tenente Pena (inclui linhas antigas sem unidade preenchida)
+//   'geral' → todas as demais unidades
+// Retorna a condição SQL (com o prefixo de coluna informado, ex.: 'e.') ou null.
+function condEscopoUnidade(escopo, pfx = '') {
+  if (escopo === 'udtp') return `(${pfx}unidade IS NULL OR ${pfx}unidade LIKE '%Tenente Pena%')`;
+  if (escopo === 'geral') return `(${pfx}unidade IS NOT NULL AND ${pfx}unidade NOT LIKE '%Tenente Pena%')`;
+  return null;
+}
+
 // Posições das colunas no relatório "Itens em Estoque UDTP" (cabeçalho na linha 6, dados a partir da 7)
 const COL = {
   unidade: 0, categoria: 1, controlado: 2, tipo_item: 3, marca: 4, importado: 5,
@@ -280,18 +290,20 @@ router.get('/filtros', (req, res) => {
     if (!ultima) return res.json({ unidade: [], categoria: [], controlado: [], tipo_item: [], marca: [], importado: [], outras_demandas: [] });
     dataRef = ultima.data_referencia;
   }
+  const escCond = condEscopoUnidade(req.query.escopoUnidade);
+  const andEsc = escCond ? ' AND ' + escCond : '';
   const colunas = ['unidade', 'categoria', 'controlado', 'tipo_item', 'marca', 'importado', 'outras_demandas'];
   const resultado = {};
   for (const col of colunas) {
     resultado[col] = db.prepare(
-      `SELECT DISTINCT ${col} v FROM estoque_itens WHERE data_referencia = ? AND ${col} IS NOT NULL AND ${col} <> '' ORDER BY v`
+      `SELECT DISTINCT ${col} v FROM estoque_itens WHERE data_referencia = ? AND ${col} IS NOT NULL AND ${col} <> ''${andEsc} ORDER BY v`
     ).all(dataRef).map((r) => r.v);
   }
   res.json(resultado);
 });
 
 router.get('/', (req, res) => {
-  const { data, q, situacao, autonomia, page = 1, pageSize = 50,
+  const { data, q, situacao, autonomia, escopoUnidade, page = 1, pageSize = 50,
     unidade, categoria, controlado, tipo_item, marca, importado, outras_demandas } = req.query;
 
   // Determina a data de referência: a informada, ou a mais recente importada
@@ -308,6 +320,9 @@ router.get('/', (req, res) => {
 
   const condicoes = ['e.data_referencia = ?'];
   const params = [dataRef];
+
+  const escCond = condEscopoUnidade(escopoUnidade, 'e.');
+  if (escCond) condicoes.push(escCond);
 
   if (q) {
     condicoes.push('(e.descricao LIKE ? OR e.codigo_item LIKE ? OR e.siafisico LIKE ?)');
@@ -381,11 +396,14 @@ router.get('/resumo', (req, res) => {
     db.prepare("SELECT valor FROM configuracoes WHERE chave = 'autonomia_minima_meses'").get()?.valor || '2'
   );
 
-  const totalItens = db.prepare('SELECT COUNT(*) c FROM estoque_itens WHERE data_referencia = ?').get(dataRef).c;
-  const ruptura = db.prepare('SELECT COUNT(*) c FROM estoque_itens WHERE data_referencia = ? AND estoque <= 0 AND demandas > 0').get(dataRef).c;
-  const baixo = db.prepare('SELECT COUNT(*) c FROM estoque_itens WHERE data_referencia = ? AND estoque > 0 AND autonomia > 0 AND autonomia <= ?').get(dataRef, limiar).c;
-  const zerado = db.prepare('SELECT COUNT(*) c FROM estoque_itens WHERE data_referencia = ? AND estoque <= 0').get(dataRef).c;
-  const valorTotal = db.prepare('SELECT SUM(estoque * COALESCE(valor_medio_unitario, custo_unitario, 0)) v FROM estoque_itens WHERE data_referencia = ?').get(dataRef).v;
+  const escCond = condEscopoUnidade(req.query.escopoUnidade);
+  const andEsc = escCond ? ' AND ' + escCond : '';
+
+  const totalItens = db.prepare(`SELECT COUNT(*) c FROM estoque_itens WHERE data_referencia = ?${andEsc}`).get(dataRef).c;
+  const ruptura = db.prepare(`SELECT COUNT(*) c FROM estoque_itens WHERE data_referencia = ? AND estoque <= 0 AND demandas > 0${andEsc}`).get(dataRef).c;
+  const baixo = db.prepare(`SELECT COUNT(*) c FROM estoque_itens WHERE data_referencia = ? AND estoque > 0 AND autonomia > 0 AND autonomia <= ?${andEsc}`).get(dataRef, limiar).c;
+  const zerado = db.prepare(`SELECT COUNT(*) c FROM estoque_itens WHERE data_referencia = ? AND estoque <= 0${andEsc}`).get(dataRef).c;
+  const valorTotal = db.prepare(`SELECT SUM(estoque * COALESCE(valor_medio_unitario, custo_unitario, 0)) v FROM estoque_itens WHERE data_referencia = ?${andEsc}`).get(dataRef).v;
 
   res.json({ dataReferencia: dataRef, limiarAutonomia: limiar, totalItens, ruptura, baixo, zerado, valorTotalEstoque: valorTotal });
 });
@@ -502,10 +520,13 @@ router.get('/validades', (req, res) => {
     dataRef = ultima.data_referencia;
   }
 
+  // Validades é uma visão do Tenente Pena (UDTP) por padrão
+  const escCond = condEscopoUnidade(req.query.escopoUnidade || 'udtp');
+  const andEsc = escCond ? ' AND ' + escCond : '';
   const itens = db.prepare(
     `SELECT codigo_item, descricao, siafisico, categoria, marca, lotes,
             COALESCE(valor_medio_unitario, custo_unitario, 0) AS valor_unit
-     FROM estoque_itens WHERE data_referencia = ? AND lotes IS NOT NULL AND lotes <> ''`
+     FROM estoque_itens WHERE data_referencia = ? AND lotes IS NOT NULL AND lotes <> ''${andEsc}`
   ).all(dataRef);
 
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
@@ -575,9 +596,11 @@ router.get('/validades', (req, res) => {
 router.get('/item/:codigo', (req, res) => {
   const codigo = req.params.codigo;
 
+  const escCond = condEscopoUnidade(req.query.escopoUnidade);
+  const andEsc = escCond ? ' AND ' + escCond : '';
   const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
   const estoqueAtual = ultima
-    ? db.prepare('SELECT * FROM estoque_itens WHERE codigo_item = ? AND data_referencia = ?').get(codigo, ultima.data_referencia)
+    ? db.prepare(`SELECT * FROM estoque_itens WHERE codigo_item = ? AND data_referencia = ?${andEsc}`).get(codigo, ultima.data_referencia)
     : null;
 
   // Evolução do estoque ao longo do tempo (histórico)
