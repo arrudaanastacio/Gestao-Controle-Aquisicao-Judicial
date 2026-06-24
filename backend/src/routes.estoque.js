@@ -271,7 +271,11 @@ function gerarAlertasEstoque(dataReferencia, importacaoId) {
   // Remove alertas automáticos de estoque ainda abertos (serão regerados a partir da foto mais recente)
   db.prepare("DELETE FROM alertas WHERE tipo IN ('estoque_baixo','estoque_ruptura','compra_aberta_demanda_zero') AND resolvido = 0").run();
 
-  const itens = db.prepare('SELECT * FROM estoque_itens WHERE importacao_id = ?').all(importacaoId);
+  // Alertas cruzam estoque × compras judiciais (que são do Tenente Pena),
+  // por isso só geramos alertas para os itens da UD 01 - Tenente Pena.
+  const itens = db.prepare(
+    `SELECT * FROM estoque_itens WHERE importacao_id = ? AND ${condEscopoUnidade('udtp')}`
+  ).all(importacaoId);
 
   // Conjunto de itens com compra em aberto (no controle de compras judiciais)
   const placeholders = STATUS_EM_ABERTO.map(() => '?').join(',');
