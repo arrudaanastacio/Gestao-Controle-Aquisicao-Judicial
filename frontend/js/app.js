@@ -1244,7 +1244,6 @@ async function carregarTabelaEstoqueGeral() {
       return `
         <tr>
           <td>${it.descricao || '—'}<br><span class="col-codigo">${it.codigo_item}</span></td>
-          <td>${it.unidade || '—'}</td>
           <td>${fmtNumero(it.demandas)}</td>
           <td>${fmtNumero(it.consumo_mensal_total)}</td>
           <td>${fmtNumero(it.estoque)}</td>
