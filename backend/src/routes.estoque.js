@@ -525,6 +525,58 @@ router.get('/historico/comparar', (req, res) => {
   });
 });
 
+// ---------- Evolução de estoque: busca de medicamentos (na foto mais recente) ----------
+router.get('/evolucao/buscar', (req, res) => {
+  const { q, escopoUnidade } = req.query;
+  if (!q || q.trim().length < 2) return res.json({ itens: [] });
+
+  const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+  if (!ultima) return res.json({ itens: [] });
+
+  const escCond = condEscopoUnidade(escopoUnidade || 'udtp', 'e.');
+  const andEsc = escCond ? ' AND ' + escCond : '';
+  const like = `%${q.trim()}%`;
+  const itens = db.prepare(`
+    SELECT DISTINCT e.codigo_item, e.descricao
+    FROM estoque_itens e
+    WHERE e.data_referencia = ? AND (e.descricao LIKE ? OR e.codigo_item LIKE ? OR e.siafisico LIKE ?)${andEsc}
+    ORDER BY e.descricao
+    LIMIT 30
+  `).all(ultima.data_referencia, like, like, like);
+  res.json({ itens });
+});
+
+// ---------- Evolução de estoque de um item ao longo da série histórica ----------
+router.get('/evolucao', (req, res) => {
+  const { codigo, escopoUnidade } = req.query;
+  if (!codigo) return res.status(400).json({ erro: 'Informe o código do item.' });
+
+  const escCond = condEscopoUnidade(escopoUnidade || 'udtp', 'it.');
+  const andEsc = escCond ? ' AND ' + escCond : '';
+
+  // Série por data (todos os snapshots guardados: histórico 01/15 + atual)
+  const serie = db.prepare(`
+    SELECT ei.data_referencia,
+           ei.referencia_historica,
+           ei.arquivado,
+           SUM(it.estoque) AS estoque,
+           AVG(it.autonomia) AS autonomia,
+           SUM(it.demandas) AS demandas,
+           ROUND(SUM(it.estoque * COALESCE(it.valor_medio_unitario, it.custo_unitario, 0)), 2) AS valor
+    FROM estoque_importacoes ei
+    JOIN estoque_itens it ON it.importacao_id = ei.id AND it.codigo_item = ?
+    WHERE 1=1 ${andEsc}
+    GROUP BY ei.id
+    ORDER BY ei.data_referencia
+  `).all(codigo);
+
+  const descricao = db.prepare(
+    'SELECT descricao FROM estoque_itens WHERE codigo_item = ? ORDER BY data_referencia DESC LIMIT 1'
+  ).get(codigo)?.descricao || codigo;
+
+  res.json({ codigo, descricao, serie });
+});
+
 // Interpreta o texto de lotes do relatório (vários lotes separados por "\").
 // Formato: "Lote N°: XXX Validade: DD/MM/YYYY Fabricante: YYY Qtde: NNN"
 function parsearLotesServidor(texto) {

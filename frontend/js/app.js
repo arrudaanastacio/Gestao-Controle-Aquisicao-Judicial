@@ -173,6 +173,7 @@ const ICONES_NAV = {
   validades: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M9 3v4M15 3v4M12 12v3l2 1"/>',
   busca: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-3.5-3.5"/>',
   historico: '<path d="M4 12a8 8 0 1 0 2-5.3"/><path d="M4 4v3h3"/><path d="M12 8v4l3 2"/>',
+  evolucao: '<path d="M4 19h16"/><path d="M4 19V5"/><path d="M7 15l4-5 3 3 5-7"/>',
   elenco: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   alertas: '<path d="M6 9a6 6 0 1 1 12 0c0 4 2 5 2 5H4s2-1 2-5"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   importadores: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
@@ -214,6 +215,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaEstoqueGeral').hidden = pagina !== 'estoqueGeral';
   document.getElementById('paginaValidades').hidden = pagina !== 'validades';
   document.getElementById('paginaHistorico').hidden = pagina !== 'historico';
+  document.getElementById('paginaEvolucao').hidden = pagina !== 'evolucao';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
   document.getElementById('paginaAlertas').hidden = pagina !== 'alertas';
@@ -227,6 +229,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'estoqueGeral') await carregarEstoqueGeral();
     if (pagina === 'validades') await carregarValidades();
     if (pagina === 'historico') await carregarHistorico();
+    if (pagina === 'evolucao') iniciarEvolucao();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
   } catch (e) {
@@ -1684,6 +1687,134 @@ async function compararHistorico() {
 
   document.getElementById('textoContagemComparar').textContent =
     `${dados.total} item(ns) comparados entre ${formatarRef(ref1)} (coleta ${formatarData(dados.dataColeta1)}) e ${formatarRef(ref2)} (coleta ${formatarData(dados.dataColeta2)})`;
+}
+
+// -------------------- Evolução de Estoque (série histórica) --------------------
+let serieEvolucaoAtual = null;
+let debounceEvolucao;
+
+function iniciarEvolucao() {
+  // mostra o estado inicial quando entra na aba
+  if (!serieEvolucaoAtual) {
+    document.getElementById('conteudoEvolucao').hidden = true;
+    document.getElementById('vazioEvolucao').hidden = false;
+  }
+}
+
+document.getElementById('buscaEvolucao').addEventListener('input', () => {
+  clearTimeout(debounceEvolucao);
+  debounceEvolucao = setTimeout(buscarEvolucao, 350);
+});
+
+async function buscarEvolucao() {
+  const q = document.getElementById('buscaEvolucao').value.trim();
+  const cont = document.getElementById('resultadosEvolucao');
+  if (q.length < 2) { cont.innerHTML = ''; return; }
+
+  const { itens } = await api(`/estoque/evolucao/buscar?q=${encodeURIComponent(q)}&escopoUnidade=udtp`);
+  if (!itens.length) {
+    cont.innerHTML = '<div class="estado-vazio">Nenhum medicamento encontrado.</div>';
+    return;
+  }
+  cont.innerHTML = itens.map((i) => `
+    <div class="cartao-busca-evolucao" data-codigo="${encodeURIComponent(i.codigo_item)}" style="cursor:pointer; padding:9px 12px; border:1px solid var(--linha); border-radius:6px; margin-bottom:6px; background:var(--papel-elevado);">
+      <div>${i.descricao || '—'}</div>
+      <div class="col-codigo">${i.codigo_item}</div>
+    </div>
+  `).join('');
+  cont.querySelectorAll('.cartao-busca-evolucao').forEach((c) => {
+    c.addEventListener('click', () => carregarEvolucao(c.dataset.codigo));
+  });
+}
+
+async function carregarEvolucao(codigoEncoded) {
+  const dados = await api(`/estoque/evolucao?codigo=${codigoEncoded}&escopoUnidade=udtp`);
+  serieEvolucaoAtual = dados;
+
+  document.getElementById('vazioEvolucao').hidden = true;
+  document.getElementById('conteudoEvolucao').hidden = false;
+  document.getElementById('resultadosEvolucao').innerHTML = '';
+  document.getElementById('buscaEvolucao').value = '';
+
+  document.getElementById('tituloEvolucao').textContent = dados.descricao;
+  document.getElementById('codigoEvolucao').textContent = dados.codigo;
+
+  // Tabela
+  const reais = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  document.getElementById('corpoTabelaEvolucao').innerHTML = dados.serie.map((s) => `
+    <tr>
+      <td class="col-data">${formatarData(s.data_referencia)}</td>
+      <td class="col-data">${s.referencia_historica ? formatarData(s.referencia_historica) : '<span style="color:var(--cinza-texto);">atual</span>'}</td>
+      <td>${fmtNumero(s.estoque)}</td>
+      <td>${fmtNumero(s.autonomia)}</td>
+      <td>${fmtNumero(s.demandas)}</td>
+      <td>${reais(s.valor)}</td>
+    </tr>
+  `).join('');
+
+  desenharGraficoEvolucao();
+}
+
+document.getElementById('metricaEvolucao').addEventListener('change', desenharGraficoEvolucao);
+
+function desenharGraficoEvolucao() {
+  if (!serieEvolucaoAtual) return;
+  const metrica = document.getElementById('metricaEvolucao').value;
+  const serie = serieEvolucaoAtual.serie;
+  const cont = document.getElementById('graficoEvolucao');
+
+  const pontos = serie.map((s) => ({
+    label: formatarData(s.data_referencia),
+    valor: Number(s[metrica] || 0),
+  }));
+
+  if (pontos.length === 0) {
+    cont.innerHTML = '<div class="estado-vazio">Sem dados na série histórica ainda.</div>';
+    return;
+  }
+
+  const ehReais = metrica === 'valor';
+  const fmt = (v) => ehReais
+    ? 'R$ ' + Math.round(v).toLocaleString('pt-BR')
+    : v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+  // dimensões
+  const L = 760, A = 260, mEsq = 64, mDir = 20, mTopo = 20, mBaixo = 46;
+  const larguraUtil = L - mEsq - mDir;
+  const alturaUtil = A - mTopo - mBaixo;
+  const maxV = Math.max(...pontos.map((p) => p.valor), 1);
+  const minV = Math.min(...pontos.map((p) => p.valor), 0);
+  const faixa = (maxV - minV) || 1;
+
+  const x = (i) => mEsq + (pontos.length === 1 ? larguraUtil / 2 : (i / (pontos.length - 1)) * larguraUtil);
+  const y = (v) => mTopo + alturaUtil - ((v - minV) / faixa) * alturaUtil;
+
+  // linhas de grade horizontais (4 níveis) + rótulos do eixo Y
+  let grade = '';
+  for (let g = 0; g <= 4; g++) {
+    const v = minV + (faixa * g) / 4;
+    const yy = y(v);
+    grade += `<line x1="${mEsq}" y1="${yy}" x2="${L - mDir}" y2="${yy}" stroke="#ece8db" stroke-width="1"/>`;
+    grade += `<text x="${mEsq - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#8a8676">${fmt(v)}</text>`;
+  }
+
+  const linhaPontos = pontos.map((p, i) => `${x(i)},${y(p.valor)}`).join(' ');
+  const bolinhas = pontos.map((p, i) => `
+    <circle cx="${x(i)}" cy="${y(p.valor)}" r="4" fill="#2f6f57"/>
+    <text x="${x(i)}" y="${y(p.valor) - 9}" text-anchor="middle" font-size="10" fill="#2f4f43">${fmt(p.valor)}</text>
+    <text x="${x(i)}" y="${A - mBaixo + 18}" text-anchor="middle" font-size="10" fill="#8a8676">${p.label}</text>
+  `).join('');
+
+  cont.innerHTML = `
+    <svg viewBox="0 0 ${L} ${A}" style="width:100%; min-width:${pontos.length > 6 ? L : 0}px; height:auto;">
+      ${grade}
+      <line x1="${mEsq}" y1="${mTopo}" x2="${mEsq}" y2="${A - mBaixo}" stroke="#cfc9b8" stroke-width="1"/>
+      <line x1="${mEsq}" y1="${A - mBaixo}" x2="${L - mDir}" y2="${A - mBaixo}" stroke="#cfc9b8" stroke-width="1"/>
+      ${pontos.length > 1 ? `<polyline points="${linhaPontos}" fill="none" stroke="#2f6f57" stroke-width="2"/>` : ''}
+      ${bolinhas}
+    </svg>
+    ${pontos.length === 1 ? '<div style="text-align:center; color:var(--cinza-texto); font-size:12px; margin-top:6px;">Só há 1 ponto na série por enquanto. O gráfico ganha forma conforme os snapshots de dia 01 e 15 forem sendo guardados.</div>' : ''}
+  `;
 }
 
 // -------------------- Importador de estoque --------------------

@@ -38,6 +38,7 @@
           <p class="nav-sub">Tenente Pena</p>
           <a href="#" data-pagina="busca">Consulta de Medicamentos</a>
           <a href="#" data-pagina="historico">Histórico de Estoque</a>
+          <a href="#" data-pagina="evolucao">Evolução de Estoque</a>
           <a href="#" data-pagina="elenco" id="linkElenco" hidden>Catálogo de Medicamentos</a>
           <p class="nav-sub nav-sub-vazio">Demais Unidades <span>(em breve)</span></p>
         </div>
@@ -510,6 +511,56 @@
         </div>
       </section>
 
+      <section id="paginaEvolucao" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Evolução de Estoque</h2>
+            <p>Acompanhe a evolução do estoque de um medicamento ao longo da série histórica (01 e 15 de cada mês)</p>
+          </div>
+        </div>
+
+        <div class="barra-filtros">
+          <input type="text" id="buscaEvolucao" placeholder="Digite o nome ou o código do medicamento…" style="min-width:340px;">
+        </div>
+
+        <div id="resultadosEvolucao" style="margin-bottom:18px;"></div>
+
+        <div class="estado-vazio" id="vazioEvolucao">Busque um medicamento acima para ver a evolução do estoque.</div>
+
+        <div id="conteudoEvolucao" hidden>
+          <h3 id="tituloEvolucao" style="font-size:16px; margin:6px 0 2px;"></h3>
+          <p class="col-codigo" id="codigoEvolucao" style="margin:0 0 16px;"></p>
+
+          <div class="barra-filtros">
+            <span style="font-size:13px; color:var(--cinza-texto);">Indicador:</span>
+            <select id="metricaEvolucao">
+              <option value="estoque">Estoque</option>
+              <option value="autonomia">Autonomia (meses)</option>
+              <option value="valor">Valor em estoque (R$)</option>
+              <option value="demandas">Demanda</option>
+            </select>
+          </div>
+
+          <div id="graficoEvolucao" style="background:var(--papel-elevado); border:1px solid var(--linha); border-radius:8px; padding:14px; margin-bottom:18px; overflow-x:auto;"></div>
+
+          <div class="tabela-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data (coleta)</th>
+                  <th>Referência</th>
+                  <th>Estoque</th>
+                  <th>Autonomia</th>
+                  <th>Demanda</th>
+                  <th>Valor em estoque</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaEvolucao"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section id="paginaElenco" hidden>
         <div class="cabecalho-pagina">
           <div>
@@ -835,6 +886,6 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=3"></script>
+  <script src="/js/app.js?v=4"></script>
 </body>
 </html>
