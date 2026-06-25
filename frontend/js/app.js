@@ -1767,16 +1767,18 @@ async function carregarTabelaAutores() {
     corpo.innerHTML = dados.itens.map((a) => `
       <tr>
         <td>${a.autor || '—'}</td>
-        <td>${a.idade || '—'}</td>
+        <td class="col-codigo">${a.id_demanda || '—'}</td>
+        <td class="col-codigo">${a.protocolo || '—'}</td>
         <td class="col-codigo">${a.processo || '—'}</td>
         <td>${a.status_demanda || '—'}</td>
+        <td>${a.tipo_demanda || '—'}</td>
         <td class="col-codigo">${a.codigo_item || '—'}</td>
+        <td class="col-codigo">${a.cod_siafisico || '—'}</td>
         <td>${a.descricao_item || '—'}</td>
         <td>${a.qtde_consumo || '—'}</td>
-        <td>${a.status_item || '—'}</td>
+        <td>${a.prazo || '—'}</td>
+        <td>${a.periodicidade || '—'}</td>
         <td>${a.categoria || '—'}</td>
-        <td class="col-data">${a.data_ultima_dispensacao || '—'}</td>
-        <td>${a.procurador_estado || '—'}</td>
       </tr>
     `).join('');
   }
