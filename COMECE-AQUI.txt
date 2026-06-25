@@ -42,11 +42,39 @@ Faca login com o e-mail e a senha que voce criou no passo 2.
 PARA TESTAR
 ------------------------------------------------------------
 - Menu "Estoque" > o sistema ja vem com o catalogo de itens.
-  Para ver dados de estoque, va em "Importar dados" e envie o
-  arquivo "Itens em Estoque UDTP".
-- Menu "Importar dados" > teste importar o elenco e as
-  solicitacoes mensais.
+- Menu "Importacao" > teste importar o elenco e as solicitacoes.
 - Menu "Alertas" > veja os avisos gerados automaticamente.
+
+------------------------------------------------------------
+IMPORTACAO AUTOMATICA DO ESTOQUE (funciona sozinha)
+------------------------------------------------------------
+Enquanto o sistema estiver LIGADO (passo 3 aberto), ele vigia o
+arquivo de estoque e IMPORTA SOZINHO sempre que ele for atualizado:
+
+  Arquivo monitorado:
+  G:\CAF\GAF\GGAF\PROGRAMACAO\CPDAE\RELATORIO DE COMPRAS\2026\
+  MEDICAMENTO\MACRO\itens em estoque.csv
+
+- Verifica a cada 30 segundos. Quando o arquivo muda, importa.
+- A DATA do estoque e sempre a DATA DO ARQUIVO (data de modificacao).
+- Separa sozinho:
+    * "UD 01 - Tenente Pena"  -> menu Estoque
+    * demais unidades         -> menu "Itens em Estoque Geral"
+- Nos dias 01 e 15 de cada mes (ou no 1o dia util seguinte), o
+  sistema guarda um historico permanente (menu "Historico Estoque").
+
+Voce NAO precisa importar o estoque na mao. Se quiser importar um
+arquivo manualmente assim mesmo, use o menu "Importacao".
+
+Para ligar/desligar ou trocar o caminho do arquivo: ver o arquivo
+backend\.env (linhas CAMINHO_ESTOQUE_CSV e AUTO_IMPORTAR_ESTOQUE).
+
+------------------------------------------------------------
+BACKUP (importante)
+------------------------------------------------------------
+- Backup automatico na nuvem: todo dia as 17h (OneDrive PRODESP).
+- Backup manual: backend\6 - backup-completo.bat
+- Detalhes no arquivo  COMO-FAZER-BACKUP.txt
 
 Duvidas ou erros: anote a mensagem que aparecer na janela preta
 e me mande.
