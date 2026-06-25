@@ -657,6 +657,18 @@ thead th {
 /* Linhas de lote clicáveis */
 .linha-clicavel { cursor: pointer; }
 
+/* Requisição de compra: cartões de paciente e itens */
+.req-paciente-card {
+  padding: 9px 12px;
+  border: 1px solid var(--linha);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  background: var(--papel-elevado);
+  cursor: pointer;
+}
+.req-paciente-card:hover { border-color: var(--selo); background: #fbfaf3; }
+.req-item:hover { background: #fbfaf3; }
+
 /* Chips de filtro por faixa de validade */
 .filtros-faixa { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip-faixa {

@@ -1790,6 +1790,175 @@ async function carregarTabelaAutores() {
   document.getElementById('botaoProximoAutores').disabled = dados.page >= totalPaginas;
 }
 
+// -------------------- Requisição de Compra (construtor) --------------------
+let reqPacienteAtual = null;
+let reqItensAtuais = [];
+
+const modalRequisicao = document.getElementById('modalRequisicao');
+document.getElementById('botaoAbrirRequisicao').addEventListener('click', abrirRequisicao);
+document.getElementById('botaoFecharRequisicao').addEventListener('click', () => { modalRequisicao.hidden = true; });
+document.getElementById('reqVoltar').addEventListener('click', voltarParaBuscaPaciente);
+document.getElementById('botaoGerarRequisicao').addEventListener('click', gerarRequisicao);
+
+function abrirRequisicao() {
+  modalRequisicao.hidden = false;
+  voltarParaBuscaPaciente();
+}
+
+function voltarParaBuscaPaciente() {
+  reqPacienteAtual = null;
+  reqItensAtuais = [];
+  document.getElementById('reqEtapaPaciente').hidden = false;
+  document.getElementById('reqEtapaItens').hidden = true;
+  document.getElementById('reqVoltar').hidden = true;
+  document.getElementById('botaoGerarRequisicao').hidden = true;
+  document.getElementById('reqInputPaciente').value = '';
+  document.getElementById('reqResultadosPaciente').innerHTML = '';
+  document.getElementById('reqInputPaciente').focus();
+}
+
+let debounceReqPaciente;
+document.getElementById('reqInputPaciente').addEventListener('input', () => {
+  clearTimeout(debounceReqPaciente);
+  debounceReqPaciente = setTimeout(buscarPacienteRequisicao, 350);
+});
+
+async function buscarPacienteRequisicao() {
+  const q = document.getElementById('reqInputPaciente').value.trim();
+  const cont = document.getElementById('reqResultadosPaciente');
+  if (q.length < 2) { cont.innerHTML = ''; return; }
+  const { pacientes } = await api(`/autores/pacientes?q=${encodeURIComponent(q)}`);
+  if (!pacientes.length) { cont.innerHTML = '<div class="estado-vazio">Nenhum paciente encontrado.</div>'; return; }
+  cont.innerHTML = pacientes.map((p) => `
+    <div class="req-paciente-card" data-autor="${(p.autor || '').replace(/"/g, '&quot;')}">
+      <div><strong>${p.autor}</strong></div>
+      <div class="col-codigo">${p.qtde_itens} item(ns) · processo ${p.processo || '—'}</div>
+    </div>
+  `).join('');
+  cont.querySelectorAll('.req-paciente-card').forEach((c) => {
+    c.addEventListener('click', () => selecionarPaciente(c.dataset.autor));
+  });
+}
+
+async function selecionarPaciente(autor) {
+  const dados = await api(`/autores/paciente?autor=${encodeURIComponent(autor)}`);
+  reqPacienteAtual = dados.info;
+  reqItensAtuais = dados.itens;
+
+  document.getElementById('reqEtapaPaciente').hidden = true;
+  document.getElementById('reqEtapaItens').hidden = false;
+  document.getElementById('reqVoltar').hidden = false;
+  document.getElementById('botaoGerarRequisicao').hidden = false;
+
+  const info = dados.info;
+  document.getElementById('reqPacienteCabecalho').innerHTML = `
+    <div style="background:var(--papel); border:1px solid var(--linha); border-radius:8px; padding:12px 14px;">
+      <div style="font-size:15px; font-weight:600;">${info.autor}</div>
+      <div class="col-codigo">${info.idade ? info.idade + ' anos · ' : ''}${info.unidade_dispensadora || ''}</div>
+    </div>`;
+
+  document.getElementById('reqListaItens').innerHTML = dados.itens.map((it, idx) => {
+    const aut = it.autonomia_atual;
+    let badge = '<span style="color:var(--cinza-texto); font-size:12px;">sem dado de estoque</span>';
+    if (aut !== null && aut !== undefined) {
+      const cls = aut <= 0 ? 'cancelado' : (aut <= 2 ? 'atrasado' : 'finalizado');
+      badge = `<span class="etiqueta-status ${cls}">estoque: ${fmtNumero(it.estoque_atual)} · autonomia ${fmtNumero(aut)} m</span>`;
+    }
+    return `
+      <label class="req-item" style="display:grid; grid-template-columns:24px 1fr 110px; gap:10px; align-items:center; padding:9px 6px; border-bottom:1px solid #ece8db; cursor:pointer;">
+        <input type="checkbox" class="req-check" data-idx="${idx}" style="width:auto;">
+        <div>
+          <div style="font-size:13px;">${it.descricao_item || '—'}</div>
+          <div class="col-codigo">${it.codigo_item || ''}${it.cod_siafisico ? ' · SIAF ' + it.cod_siafisico : ''}</div>
+          <div style="margin-top:3px;">${badge}</div>
+        </div>
+        <div>
+          <input type="number" class="req-qtd" data-idx="${idx}" value="${it.qtde_consumo || ''}" min="0" title="Quantidade" style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px;">
+        </div>
+      </label>`;
+  }).join('');
+
+  document.getElementById('reqMarcarTodos').checked = false;
+  document.querySelectorAll('#reqListaItens .req-check').forEach((c) => c.addEventListener('change', atualizarContadorReq));
+  atualizarContadorReq();
+}
+
+document.getElementById('reqMarcarTodos').addEventListener('change', (ev) => {
+  document.querySelectorAll('#reqListaItens .req-check').forEach((c) => { c.checked = ev.target.checked; });
+  atualizarContadorReq();
+});
+
+function atualizarContadorReq() {
+  const n = document.querySelectorAll('#reqListaItens .req-check:checked').length;
+  document.getElementById('reqContador').textContent = `${n} item(ns) selecionado(s)`;
+}
+
+function coletarItensSelecionados() {
+  const selecionados = [];
+  document.querySelectorAll('#reqListaItens .req-check:checked').forEach((c) => {
+    const idx = Number(c.dataset.idx);
+    const qtd = document.querySelector(`.req-qtd[data-idx="${idx}"]`).value;
+    selecionados.push({ ...reqItensAtuais[idx], quantidade: qtd });
+  });
+  return selecionados;
+}
+
+function gerarRequisicao() {
+  const itens = coletarItensSelecionados();
+  if (itens.length === 0) { alert('Selecione ao menos um medicamento.'); return; }
+
+  const info = reqPacienteAtual;
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const linhas = itens.map((it, i) => `
+    <tr>
+      <td style="text-align:center;">${i + 1}</td>
+      <td>${it.codigo_item || '—'}</td>
+      <td>${it.cod_siafisico || '—'}</td>
+      <td>${it.descricao_item || '—'}</td>
+      <td>${it.categoria || '—'}</td>
+      <td style="text-align:center;"><strong>${it.quantidade || '—'}</strong></td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Requisição de Compra - ${info.autor}</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:32px;}
+      h1{font-size:18px;margin:0 0 2px;}
+      .sub{color:#666;font-size:12px;margin:0 0 18px;}
+      .box{border:1px solid #ccc;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;}
+      table{width:100%;border-collapse:collapse;font-size:12.5px;}
+      th,td{border:1px solid #bbb;padding:6px 8px;text-align:left;vertical-align:top;}
+      th{background:#eee;}
+      .assin{margin-top:48px;display:flex;justify-content:space-around;}
+      .assin div{border-top:1px solid #000;width:240px;text-align:center;padding-top:6px;font-size:12px;}
+      .barra{margin-bottom:18px;}
+      @media print{.no-print{display:none;}}
+      button{padding:8px 16px;font-size:14px;cursor:pointer;}
+    </style></head><body>
+    <div class="barra no-print">
+      <button onclick="window.print()">🖨 Imprimir / Salvar PDF</button>
+    </div>
+    <h1>REQUISIÇÃO DE COMPRA</h1>
+    <p class="sub">Unidade Tenente Pena (UDTP) · Emitida em ${hoje}</p>
+    <div class="box">
+      <strong>Paciente:</strong> ${info.autor}${info.idade ? ' &nbsp;|&nbsp; <strong>Idade:</strong> ' + info.idade : ''}<br>
+      <strong>Unidade:</strong> ${info.unidade_dispensadora || '—'}${info.procurador_estado ? ' &nbsp;|&nbsp; <strong>Procurador:</strong> ' + info.procurador_estado : ''}
+    </div>
+    <table>
+      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>Descrição do Item</th><th>Categoria</th><th style="width:90px;">Quantidade</th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>
+    <div class="assin">
+      <div>Responsável pela requisição</div>
+      <div>Autorização</div>
+    </div>
+    </body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { alert('Permita pop-ups para abrir a requisição.'); return; }
+  win.document.write(html);
+  win.document.close();
+}
+
 // -------------------- Evolução de Estoque (série histórica) --------------------
 let serieEvolucaoAtual = null;
 let debounceEvolucao;

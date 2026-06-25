@@ -574,6 +574,7 @@
             <h2>Listagem de Autores</h2>
             <p id="subtituloAutores">Requerentes das ações judiciais e seus itens de demanda</p>
           </div>
+          <button class="botao-primario" id="botaoAbrirRequisicao" type="button">🛒 Requisição de Compra</button>
         </div>
 
         <div class="grade-resumo" id="grideResumoAutores"></div>
@@ -946,6 +947,35 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=6"></script>
+  <div class="fundo-modal" id="modalRequisicao" hidden>
+    <div class="modal" style="max-width:860px;">
+      <h3>🛒 Requisição de Compra</h3>
+      <p class="descricao-item">Selecione o paciente e marque os medicamentos para aquisição.</p>
+
+      <div id="reqEtapaPaciente">
+        <input type="text" id="reqInputPaciente" placeholder="Buscar paciente por nome, processo ou protocolo…" style="width:100%; padding:9px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
+        <div id="reqResultadosPaciente" style="margin-top:10px; max-height:320px; overflow-y:auto;"></div>
+      </div>
+
+      <div id="reqEtapaItens" hidden>
+        <div id="reqPacienteCabecalho" style="margin-bottom:12px;"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="reqMarcarTodos"> Marcar todos
+          </label>
+          <span id="reqContador" style="font-size:12.5px; color:var(--cinza-texto);">0 itens selecionados</span>
+        </div>
+        <div id="reqListaItens" style="max-height:380px; overflow-y:auto;"></div>
+      </div>
+
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="reqVoltar" hidden>← Trocar paciente</button>
+        <button type="button" class="botao-secundario" id="botaoFecharRequisicao">Fechar</button>
+        <button type="button" class="botao-primario" id="botaoGerarRequisicao" hidden>Gerar requisição →</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js?v=7"></script>
 </body>
 </html>

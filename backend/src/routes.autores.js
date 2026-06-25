@@ -181,5 +181,44 @@ router.post('/importar/confirmar', exigirPerfil('admin'), upload.single('arquivo
   }
 });
 
+// ---------- Requisição de compra: busca de pacientes (autores distintos) ----------
+router.get('/pacientes', (req, res) => {
+  const { q } = req.query;
+  if (!q || q.trim().length < 2) return res.json({ pacientes: [] });
+  const like = `%${q.trim()}%`;
+  const pacientes = db.prepare(`
+    SELECT autor, COUNT(*) AS qtde_itens, MAX(processo) AS processo
+    FROM autores_itens
+    WHERE autor LIKE ? OR processo LIKE ? OR protocolo LIKE ?
+    GROUP BY autor
+    ORDER BY autor COLLATE NOCASE
+    LIMIT 30
+  `).all(like, like, like);
+  res.json({ pacientes });
+});
+
+// ---------- Requisição de compra: itens de um paciente + situação de estoque ----------
+router.get('/paciente', (req, res) => {
+  const { autor } = req.query;
+  if (!autor) return res.status(400).json({ erro: 'Informe o autor.' });
+
+  const escTP = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
+  const itens = db.prepare(`
+    SELECT a.id_demanda, a.processo, a.protocolo, a.codigo_item, a.cod_siafisico,
+           a.descricao_item, a.qtde_consumo, a.periodicidade, a.prazo, a.status_item, a.categoria,
+           (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
+           (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual
+    FROM autores_itens a
+    WHERE a.autor = ?
+    ORDER BY a.descricao_item
+  `).all(autor);
+
+  const info = db.prepare(
+    'SELECT autor, idade, dt_nascimento, unidade_dispensadora, procurador_estado FROM autores_itens WHERE autor = ? LIMIT 1'
+  ).get(autor) || { autor };
+
+  res.json({ info, itens });
+});
+
 module.exports = router;
 module.exports.importarAutoresDeBuffer = importarAutoresDeBuffer;
