@@ -426,6 +426,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaEstoque:not([hidden])),
 .conteudo:has(> #paginaEstoqueGeral:not([hidden])),
 .conteudo:has(> #paginaHistorico:not([hidden])),
+.conteudo:has(> #paginaAutores:not([hidden])),
 .conteudo:has(> #paginaValidades:not([hidden])) {
   max-width: none;
 }

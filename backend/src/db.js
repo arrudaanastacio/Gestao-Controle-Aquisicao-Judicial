@@ -138,6 +138,52 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_estoque_codigo ON estoque_itens(codigo_i
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoque_data ON estoque_itens(data_referencia);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoque_importacao ON estoque_itens(importacao_id);`);
 
+// Listagem de Autores (requerentes das ações judiciais) — cada linha é um
+// autor x item da demanda. É substituída por completo a cada importação.
+db.exec(`
+CREATE TABLE IF NOT EXISTS autores_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT,
+  unidade_dispensadora TEXT,
+  unidade_organizacional TEXT,
+  id_demanda TEXT,
+  autor TEXT,
+  idade TEXT,
+  dt_nascimento TEXT,
+  data_cadastro TEXT,
+  protocolo TEXT,
+  processo TEXT,
+  status_demanda TEXT,
+  tipo_demanda TEXT,
+  porta_entrada TEXT,
+  codigo_item TEXT,
+  id_item TEXT,
+  data_inclusao_od TEXT,
+  descricao_item TEXT,
+  qtde_consumo TEXT,
+  status_item TEXT,
+  data_inativacao_item TEXT,
+  cobranca_judicial TEXT,
+  servicos_medicos TEXT,
+  saude_mental TEXT,
+  dispensacoes TEXT,
+  periodicidade TEXT,
+  prazo TEXT,
+  dispensacoes_autorizadas TEXT,
+  intercambiaveis TEXT,
+  outras_demandas TEXT,
+  importados TEXT,
+  categoria TEXT,
+  data_ultima_dispensacao TEXT,
+  data_ultimo_retorno TEXT,
+  procurador_estado TEXT,
+  cod_siafisico TEXT
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_autor ON autores_itens(autor);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_codigo ON autores_itens(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_unidade ON autores_itens(unidade_dispensadora);`);
+
 // Configurações gerais do sistema (ex: limiar de autonomia para alerta de estoque baixo)
 db.exec(`
 CREATE TABLE IF NOT EXISTS configuracoes (

@@ -174,6 +174,7 @@ const ICONES_NAV = {
   busca: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-3.5-3.5"/>',
   historico: '<path d="M4 12a8 8 0 1 0 2-5.3"/><path d="M4 4v3h3"/><path d="M12 8v4l3 2"/>',
   evolucao: '<path d="M4 19h16"/><path d="M4 19V5"/><path d="M7 15l4-5 3 3 5-7"/>',
+  autores: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   elenco: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   alertas: '<path d="M6 9a6 6 0 1 1 12 0c0 4 2 5 2 5H4s2-1 2-5"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   importadores: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
@@ -216,6 +217,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaValidades').hidden = pagina !== 'validades';
   document.getElementById('paginaHistorico').hidden = pagina !== 'historico';
   document.getElementById('paginaEvolucao').hidden = pagina !== 'evolucao';
+  document.getElementById('paginaAutores').hidden = pagina !== 'autores';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
   document.getElementById('paginaAlertas').hidden = pagina !== 'alertas';
@@ -230,6 +232,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'validades') await carregarValidades();
     if (pagina === 'historico') await carregarHistorico();
     if (pagina === 'evolucao') iniciarEvolucao();
+    if (pagina === 'autores') await carregarAutores();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
   } catch (e) {
@@ -1687,6 +1690,102 @@ async function compararHistorico() {
 
   document.getElementById('textoContagemComparar').textContent =
     `${dados.total} item(ns) comparados entre ${formatarRef(ref1)} (coleta ${formatarData(dados.dataColeta1)}) e ${formatarRef(ref2)} (coleta ${formatarData(dados.dataColeta2)})`;
+}
+
+// -------------------- Listagem de Autores --------------------
+const estadoAutores = { pagina: 1, pageSize: 50, total: 0, filtrosCarregados: false };
+
+let debounceBuscaAutores;
+document.getElementById('filtroBuscaAutores').addEventListener('input', () => {
+  clearTimeout(debounceBuscaAutores);
+  debounceBuscaAutores = setTimeout(() => { estadoAutores.pagina = 1; carregarTabelaAutores(); }, 350);
+});
+['filtroUnidadeAutores', 'filtroStatusDemandaAutores', 'filtroStatusItemAutores', 'filtroCategoriaAutores'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => { estadoAutores.pagina = 1; carregarTabelaAutores(); });
+});
+document.getElementById('botaoLimparFiltrosAutores').addEventListener('click', () => {
+  document.getElementById('filtroBuscaAutores').value = '';
+  ['filtroUnidadeAutores', 'filtroStatusDemandaAutores', 'filtroStatusItemAutores', 'filtroCategoriaAutores']
+    .forEach((id) => { document.getElementById(id).value = ''; });
+  estadoAutores.pagina = 1; carregarTabelaAutores();
+});
+document.getElementById('botaoAnteriorAutores').addEventListener('click', () => {
+  if (estadoAutores.pagina > 1) { estadoAutores.pagina--; carregarTabelaAutores(); }
+});
+document.getElementById('botaoProximoAutores').addEventListener('click', () => {
+  estadoAutores.pagina++; carregarTabelaAutores();
+});
+
+async function carregarAutores() {
+  if (!estadoAutores.filtrosCarregados) {
+    try {
+      const f = await api('/autores/filtros');
+      const preencher = (id, valores, rotulo) => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = `<option value="">${rotulo}</option>` +
+          valores.map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+      };
+      preencher('filtroUnidadeAutores', f.unidade, 'Unidade: todas');
+      preencher('filtroStatusDemandaAutores', f.status_demanda, 'Status da demanda: todos');
+      preencher('filtroStatusItemAutores', f.status_item, 'Status do item: todos');
+      preencher('filtroCategoriaAutores', f.categoria, 'Categoria: todas');
+      estadoAutores.filtrosCarregados = true;
+    } catch (e) { /* segue sem filtros */ }
+  }
+  carregarTabelaAutores();
+}
+
+async function carregarTabelaAutores() {
+  const params = new URLSearchParams({ page: estadoAutores.pagina, pageSize: estadoAutores.pageSize });
+  const q = document.getElementById('filtroBuscaAutores').value.trim();
+  if (q) params.set('q', q);
+  const mapa = {
+    unidade: 'filtroUnidadeAutores', status_demanda: 'filtroStatusDemandaAutores',
+    status_item: 'filtroStatusItemAutores', categoria: 'filtroCategoriaAutores',
+  };
+  for (const [param, id] of Object.entries(mapa)) {
+    const v = document.getElementById(id).value;
+    if (v) params.set(param, v);
+  }
+
+  const dados = await api(`/autores?${params.toString()}`);
+  estadoAutores.total = dados.total;
+
+  // Cards de resumo
+  document.getElementById('grideResumoAutores').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAutores)}</div><div class="rotulo">Autores (distintos)</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${q || params.has('unidade') ? ' filtradas' : ''}</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo</div></div>
+  `;
+
+  const corpo = document.getElementById('corpoTabelaAutores');
+  const vazio = document.getElementById('estadoVazioAutores');
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((a) => `
+      <tr>
+        <td>${a.autor || '—'}</td>
+        <td>${a.idade || '—'}</td>
+        <td class="col-codigo">${a.processo || '—'}</td>
+        <td>${a.status_demanda || '—'}</td>
+        <td class="col-codigo">${a.codigo_item || '—'}</td>
+        <td>${a.descricao_item || '—'}</td>
+        <td>${a.qtde_consumo || '—'}</td>
+        <td>${a.status_item || '—'}</td>
+        <td>${a.categoria || '—'}</td>
+        <td class="col-data">${a.data_ultima_dispensacao || '—'}</td>
+        <td>${a.procurador_estado || '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoAutores').textContent =
+    `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} linha(s)`;
+  document.getElementById('botaoAnteriorAutores').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoAutores').disabled = dados.page >= totalPaginas;
 }
 
 // -------------------- Evolução de Estoque (série histórica) --------------------

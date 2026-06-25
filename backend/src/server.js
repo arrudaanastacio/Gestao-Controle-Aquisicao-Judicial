@@ -12,6 +12,7 @@ const elencoRoutes = require('./routes.elenco');
 const importarSolicitacoesRoutes = require('./routes.importarSolicitacoes');
 const alertasRoutes = require('./routes.alertas');
 const estoqueRoutes = require('./routes.estoque');
+const autoresRoutes = require('./routes.autores');
 const configRoutes = require('./routes.config');
 
 const app = express();
@@ -29,6 +30,7 @@ app.use('/api/elenco', elencoRoutes);
 app.use('/api/importar-solicitacoes', importarSolicitacoesRoutes);
 app.use('/api/alertas', alertasRoutes);
 app.use('/api/estoque', estoqueRoutes);
+app.use('/api/autores', autoresRoutes);
 app.use('/api/config', configRoutes);
 
 // Serve o frontend estático (build simples, sem framework)
@@ -38,7 +40,9 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor rodando em http://0.0.0.0:${PORT}`);
   console.log('Acesse pela rede local usando o IP deste computador, ex: http://192.168.x.x:' + PORT);
 
-  // Importação automática do estoque ao detectar atualização do arquivo CSV
+  // Importação automática ao detectar atualização dos arquivos CSV
   const { iniciarVigiaEstoque } = require('./vigiaEstoque');
   iniciarVigiaEstoque();
+  const { iniciarVigiaAutores } = require('./vigiaAutores');
+  iniciarVigiaAutores();
 });

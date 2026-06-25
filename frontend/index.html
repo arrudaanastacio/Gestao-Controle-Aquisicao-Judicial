@@ -43,6 +43,13 @@
           <p class="nav-sub nav-sub-vazio">Demais Unidades <span>(em breve)</span></p>
         </div>
 
+        <div class="nav-grupo">
+          <p class="nav-grupo-titulo">👤 Autores</p>
+          <p class="nav-sub">Tenente Pena</p>
+          <a href="#" data-pagina="autores">Listagem de Autores</a>
+          <p class="nav-sub nav-sub-vazio">Demais Unidades <span>(em breve)</span></p>
+        </div>
+
         <div class="nav-grupo" id="grupoMonitoramento">
           <p class="nav-grupo-titulo">⚠️ Monitoramento</p>
           <p class="nav-sub">Tenente Pena</p>
@@ -561,6 +568,57 @@
         </div>
       </section>
 
+      <section id="paginaAutores" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Listagem de Autores</h2>
+            <p id="subtituloAutores">Requerentes das ações judiciais e seus itens de demanda</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoAutores"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaAutores" placeholder="Buscar por autor, processo, protocolo, medicamento ou código…" style="min-width:320px;">
+          <select id="filtroUnidadeAutores"><option value="">Unidade: todas</option></select>
+          <select id="filtroStatusDemandaAutores"><option value="">Status da demanda: todos</option></select>
+          <select id="filtroStatusItemAutores"><option value="">Status do item: todos</option></select>
+          <select id="filtroCategoriaAutores"><option value="">Categoria: todas</option></select>
+          <button id="botaoLimparFiltrosAutores" class="botao-secundario" type="button">Limpar</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Autor</th>
+                  <th>Idade</th>
+                  <th>Processo</th>
+                  <th>Status da Demanda</th>
+                  <th>Cód. Item</th>
+                  <th>Descrição do Item</th>
+                  <th>Qtde Consumo</th>
+                  <th>Status do Item</th>
+                  <th>Categoria</th>
+                  <th>Últ. Dispensação</th>
+                  <th>Procurador do Estado</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaAutores"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioAutores" hidden>Nenhum registro encontrado com estes filtros.</div>
+          <div class="paginacao">
+            <span id="textoPaginacaoAutores">—</span>
+            <div class="botoes">
+              <button id="botaoAnteriorAutores">← Anterior</button>
+              <button id="botaoProximoAutores">Próximo →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="paginaElenco" hidden>
         <div class="cabecalho-pagina">
           <div>
@@ -886,6 +944,6 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=4"></script>
+  <script src="/js/app.js?v=5"></script>
 </body>
 </html>
