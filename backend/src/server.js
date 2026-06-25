@@ -37,4 +37,8 @@ app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor rodando em http://0.0.0.0:${PORT}`);
   console.log('Acesse pela rede local usando o IP deste computador, ex: http://192.168.x.x:' + PORT);
+
+  // Importação automática do estoque ao detectar atualização do arquivo CSV
+  const { iniciarVigiaEstoque } = require('./vigiaEstoque');
+  iniciarVigiaEstoque();
 });

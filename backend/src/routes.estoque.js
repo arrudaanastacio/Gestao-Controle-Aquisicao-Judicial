@@ -179,20 +179,16 @@ router.post('/importar/previa', exigirPerfil('admin'), upload.single('arquivo'),
   });
 });
 
-// ---------- Confirma a importação diária ----------
-router.post('/importar/confirmar', exigirPerfil('admin'), upload.single('arquivo'), (req, res) => {
-  if (!req.file) return res.status(400).json({ erro: 'Envie o arquivo .xlsx do relatório de estoque.' });
-
-  let resultado;
-  try {
-    resultado = processarEstoque(req.file.buffer);
-  } catch (e) {
-    return res.status(400).json({ erro: e.message });
-  }
-
+// Importa o estoque a partir de um buffer de arquivo (xlsx/csv) e grava tudo:
+// substitui a foto do dia, gera alertas, arquiva histórico (01/15) e limpa.
+// Usada tanto pela rota de importação quanto pelo vigia de arquivo automático.
+function importarEstoqueDeBuffer(buffer, opcoes = {}) {
+  const resultado = processarEstoque(buffer);
   const { linhas } = resultado;
-  // Data de referência: usa a informada pelo usuário, ou a detectada, ou hoje
-  const dataReferencia = (req.body.data_referencia || resultado.dataReferencia || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const dataReferencia = (opcoes.dataReferencia || resultado.dataReferencia || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const nomeArquivo = opcoes.nomeArquivo || 'estoque';
+  const usuarioEmail = opcoes.usuarioEmail || 'sistema';
+  const usuarioId = opcoes.usuarioId ?? null;
 
   // Se já houver importação nesta data, substitui (refaz a foto do dia)
   const existente = db.prepare('SELECT id FROM estoque_importacoes WHERE data_referencia = ?').get(dataReferencia);
@@ -203,7 +199,7 @@ router.post('/importar/confirmar', exigirPerfil('admin'), upload.single('arquivo
 
   const infoImp = db.prepare(
     'INSERT INTO estoque_importacoes (data_referencia, nome_arquivo, usuario_email, total_itens) VALUES (?, ?, ?, ?)'
-  ).run(dataReferencia, req.file.originalname, req.usuario.email, linhas.length);
+  ).run(dataReferencia, nomeArquivo, usuarioEmail, linhas.length);
   const importacaoId = infoImp.lastInsertRowid;
 
   const campos = ['importacao_id', 'data_referencia', 'codigo_item', 'id_item_origem', 'descricao',
@@ -254,11 +250,27 @@ router.post('/importar/confirmar', exigirPerfil('admin'), upload.single('arquivo
   };
 
   db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
-    .run('estoque', req.file.originalname, req.usuario.email, JSON.stringify(resumo));
+    .run('estoque', nomeArquivo, usuarioEmail, JSON.stringify(resumo));
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, dados_depois) VALUES (?, ?, ?, ?, ?)')
-    .run(req.usuario.id, req.usuario.email, 'importar_estoque', 'estoque_itens', JSON.stringify(resumo));
+    .run(usuarioId, usuarioEmail, 'importar_estoque', 'estoque_itens', JSON.stringify(resumo));
 
-  res.json(resumo);
+  return resumo;
+}
+
+// ---------- Confirma a importação diária ----------
+router.post('/importar/confirmar', exigirPerfil('admin'), upload.single('arquivo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ erro: 'Envie o arquivo .xlsx do relatório de estoque.' });
+  try {
+    const resumo = importarEstoqueDeBuffer(req.file.buffer, {
+      dataReferencia: req.body.data_referencia,
+      nomeArquivo: req.file.originalname,
+      usuarioEmail: req.usuario.email,
+      usuarioId: req.usuario.id,
+    });
+    res.json(resumo);
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
 });
 
 // Gera os alertas de estoque para uma data de referência.
@@ -667,3 +679,4 @@ router.get('/item/:codigo', (req, res) => {
 });
 
 module.exports = router;
+module.exports.importarEstoqueDeBuffer = importarEstoqueDeBuffer;
