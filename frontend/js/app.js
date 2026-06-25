@@ -1911,7 +1911,8 @@ function gerarRequisicao() {
 
   const info = reqPacienteAtual;
   const sei = document.getElementById('reqSEI').value.trim();
-  const hoje = new Date().toLocaleDateString('pt-BR');
+  const hoje = new Date().toLocaleString('pt-BR');
+  const operador = estado.usuario || {};
   const linhas = itens.map((it, i) => `
     <tr>
       <td style="text-align:center;">${i + 1}</td>
@@ -1945,14 +1946,15 @@ function gerarRequisicao() {
     <div class="box">
       ${sei ? '<strong>Nº SEI:</strong> ' + sei + '<br>' : ''}
       <strong>Paciente:</strong> ${info.autor}${info.idade ? ' &nbsp;|&nbsp; <strong>Idade:</strong> ' + info.idade : ''}<br>
-      <strong>Unidade:</strong> ${info.unidade_dispensadora || '—'}${info.procurador_estado ? ' &nbsp;|&nbsp; <strong>Procurador:</strong> ' + info.procurador_estado : ''}
+      <strong>Unidade:</strong> ${info.unidade_dispensadora || '—'}${info.procurador_estado ? ' &nbsp;|&nbsp; <strong>Procurador:</strong> ' + info.procurador_estado : ''}<br>
+      <strong>Operador:</strong> ${operador.nome || '—'} &nbsp;|&nbsp; <strong>Login:</strong> ${operador.email || '—'}
     </div>
     <table>
       <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>Descrição do Item</th><th>Categoria</th><th style="width:90px;">Quantidade</th></tr></thead>
       <tbody>${linhas}</tbody>
     </table>
     <div class="assin">
-      <div>Responsável pela requisição</div>
+      <div>${operador.nome || ''}<br>Responsável pela requisição</div>
       <div>Autorização</div>
     </div>
     </body></html>`;
