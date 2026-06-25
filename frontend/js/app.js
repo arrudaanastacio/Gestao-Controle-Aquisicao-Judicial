@@ -175,6 +175,7 @@ const ICONES_NAV = {
   historico: '<path d="M4 12a8 8 0 1 0 2-5.3"/><path d="M4 4v3h3"/><path d="M12 8v4l3 2"/>',
   evolucao: '<path d="M4 19h16"/><path d="M4 19V5"/><path d="M7 15l4-5 3 3 5-7"/>',
   autores: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  relatorioReq: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M8 11h8M8 15h8M8 19h5"/>',
   elenco: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   alertas: '<path d="M6 9a6 6 0 1 1 12 0c0 4 2 5 2 5H4s2-1 2-5"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   importadores: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
@@ -218,6 +219,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaHistorico').hidden = pagina !== 'historico';
   document.getElementById('paginaEvolucao').hidden = pagina !== 'evolucao';
   document.getElementById('paginaAutores').hidden = pagina !== 'autores';
+  document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
   document.getElementById('paginaAlertas').hidden = pagina !== 'alertas';
@@ -233,6 +235,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'historico') await carregarHistorico();
     if (pagina === 'evolucao') iniciarEvolucao();
     if (pagina === 'autores') await carregarAutores();
+    if (pagina === 'relatorioReq') await carregarRelatorioReq();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
   } catch (e) {
@@ -1905,15 +1908,9 @@ function coletarItensSelecionados() {
   return selecionados;
 }
 
-function gerarRequisicao() {
-  const itens = coletarItensSelecionados();
-  if (itens.length === 0) { alert('Selecione ao menos um medicamento.'); return; }
-
-  const info = reqPacienteAtual;
-  const sei = document.getElementById('reqSEI').value.trim();
-  const hoje = new Date().toLocaleString('pt-BR');
-  const operador = estado.usuario || {};
-  const linhas = itens.map((it, i) => `
+// Monta o HTML do documento da requisição (reutilizado ao gerar e ao reabrir)
+function montarDocumentoRequisicao(d) {
+  const linhas = d.itens.map((it, i) => `
     <tr>
       <td style="text-align:center;">${i + 1}</td>
       <td>${it.codigo_item || '—'}</td>
@@ -1923,10 +1920,11 @@ function gerarRequisicao() {
       <td style="text-align:center;"><strong>${it.quantidade || '—'}</strong></td>
     </tr>`).join('');
 
-  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Requisição de Compra - ${info.autor}</title>
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${d.codigoControle || 'Requisição'} - ${d.autor}</title>
     <style>
       body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:32px;}
       h1{font-size:18px;margin:0 0 2px;}
+      .id{display:inline-block;background:#1f4c3c;color:#fff;font-size:13px;font-weight:bold;padding:3px 10px;border-radius:5px;margin-bottom:8px;}
       .sub{color:#666;font-size:12px;margin:0 0 18px;}
       .box{border:1px solid #ccc;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;}
       table{width:100%;border-collapse:collapse;font-size:12.5px;}
@@ -1938,31 +1936,170 @@ function gerarRequisicao() {
       @media print{.no-print{display:none;}}
       button{padding:8px 16px;font-size:14px;cursor:pointer;}
     </style></head><body>
-    <div class="barra no-print">
-      <button onclick="window.print()">🖨 Imprimir / Salvar PDF</button>
-    </div>
+    <div class="barra no-print"><button onclick="window.print()">🖨 Imprimir / Salvar PDF</button></div>
+    ${d.codigoControle ? `<div class="id">Nº de controle: ${d.codigoControle}</div><br>` : ''}
     <h1>REQUISIÇÃO DE COMPRA</h1>
-    <p class="sub">Unidade Tenente Pena (UDTP) · Emitida em ${hoje}${sei ? ' · SEI Nº ' + sei : ''}</p>
+    <p class="sub">Unidade Tenente Pena (UDTP) · Emitida em ${d.dataHora}${d.sei ? ' · SEI Nº ' + d.sei : ''}</p>
     <div class="box">
-      ${sei ? '<strong>Nº SEI:</strong> ' + sei + '<br>' : ''}
-      <strong>Paciente:</strong> ${info.autor}${info.idade ? ' &nbsp;|&nbsp; <strong>Idade:</strong> ' + info.idade : ''}<br>
-      <strong>Unidade:</strong> ${info.unidade_dispensadora || '—'}${info.procurador_estado ? ' &nbsp;|&nbsp; <strong>Procurador:</strong> ' + info.procurador_estado : ''}<br>
-      <strong>Operador:</strong> ${operador.nome || '—'} &nbsp;|&nbsp; <strong>Login:</strong> ${operador.email || '—'}
+      ${d.sei ? '<strong>Nº SEI:</strong> ' + d.sei + '<br>' : ''}
+      <strong>Paciente:</strong> ${d.autor}${d.idade ? ' &nbsp;|&nbsp; <strong>Idade:</strong> ' + d.idade : ''}<br>
+      <strong>Unidade:</strong> ${d.unidade || '—'}${d.procurador ? ' &nbsp;|&nbsp; <strong>Procurador:</strong> ' + d.procurador : ''}<br>
+      <strong>Operador:</strong> ${d.operadorNome || '—'} &nbsp;|&nbsp; <strong>Login:</strong> ${d.operadorEmail || '—'}
     </div>
     <table>
       <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>Descrição do Item</th><th>Categoria</th><th style="width:90px;">Quantidade</th></tr></thead>
       <tbody>${linhas}</tbody>
     </table>
     <div class="assin">
-      <div>${operador.nome || ''}<br>Responsável pela requisição</div>
+      <div>${d.operadorNome || ''}<br>Responsável pela requisição</div>
       <div>Autorização</div>
     </div>
     </body></html>`;
+}
 
+function abrirDocumento(html) {
   const win = window.open('', '_blank');
   if (!win) { alert('Permita pop-ups para abrir a requisição.'); return; }
   win.document.write(html);
   win.document.close();
+}
+
+async function gerarRequisicao() {
+  const itens = coletarItensSelecionados();
+  if (itens.length === 0) { alert('Selecione ao menos um medicamento.'); return; }
+
+  const info = reqPacienteAtual;
+  const sei = document.getElementById('reqSEI').value.trim();
+  const operador = estado.usuario || {};
+  const botao = document.getElementById('botaoGerarRequisicao');
+  botao.disabled = true;
+
+  try {
+    // Salva a requisição e obtém o ID de controle
+    const salvo = await api('/autores/requisicoes', {
+      method: 'POST',
+      body: JSON.stringify({
+        autor: info.autor, idade: info.idade, unidade: info.unidade_dispensadora,
+        procurador: info.procurador_estado, sei,
+        itens: itens.map((it) => ({
+          codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico,
+          descricao_item: it.descricao_item, categoria: it.categoria, quantidade: it.quantidade,
+        })),
+      }),
+    });
+
+    const html = montarDocumentoRequisicao({
+      codigoControle: salvo.codigo_controle,
+      autor: info.autor, idade: info.idade, unidade: info.unidade_dispensadora,
+      procurador: info.procurador_estado, sei,
+      operadorNome: operador.nome, operadorEmail: operador.email,
+      dataHora: new Date().toLocaleString('pt-BR'),
+      itens,
+    });
+    abrirDocumento(html);
+    modalRequisicao.hidden = true;
+  } catch (e) {
+    alert('Erro ao gerar a requisição: ' + e.message);
+  } finally {
+    botao.disabled = false;
+  }
+}
+
+// Reabre/imprime uma requisição salva (a partir do Relatório Primeiro Atendimento)
+async function reabrirRequisicao(id) {
+  const dados = await api(`/autores/requisicoes/${id}`);
+  const r = dados.requisicao;
+  const html = montarDocumentoRequisicao({
+    codigoControle: r.codigo_controle,
+    autor: r.autor, idade: r.idade, unidade: r.unidade, procurador: r.procurador, sei: r.sei,
+    operadorNome: r.operador_nome, operadorEmail: r.operador_email,
+    dataHora: formatarDataHora(r.criado_em),
+    itens: dados.itens,
+  });
+  abrirDocumento(html);
+}
+
+function formatarDataHora(iso) {
+  if (!iso) return '—';
+  // iso vem como "AAAA-MM-DD HH:MM:SS" (datetime do SQLite, UTC)
+  const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if (!m) return iso;
+  return `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`;
+}
+
+// -------------------- Relatório Primeiro Atendimento (requisições salvas) --------------------
+const estadoRelReq = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+
+let debounceRelReq;
+['reqFiltroPaciente', 'reqFiltroSEI', 'reqFiltroCodigo', 'reqFiltroDescricao'].forEach((id) => {
+  document.getElementById(id).addEventListener('input', () => {
+    clearTimeout(debounceRelReq);
+    debounceRelReq = setTimeout(() => { estadoRelReq.pagina = 1; carregarTabelaRelReq(); }, 350);
+  });
+});
+document.getElementById('reqFiltroCategoria').addEventListener('change', () => { estadoRelReq.pagina = 1; carregarTabelaRelReq(); });
+document.getElementById('reqLimparFiltros').addEventListener('click', () => {
+  ['reqFiltroPaciente', 'reqFiltroSEI', 'reqFiltroCodigo', 'reqFiltroDescricao'].forEach((id) => { document.getElementById(id).value = ''; });
+  document.getElementById('reqFiltroCategoria').value = '';
+  estadoRelReq.pagina = 1; carregarTabelaRelReq();
+});
+document.getElementById('reqAnterior').addEventListener('click', () => {
+  if (estadoRelReq.pagina > 1) { estadoRelReq.pagina--; carregarTabelaRelReq(); }
+});
+document.getElementById('reqProximo').addEventListener('click', () => { estadoRelReq.pagina++; carregarTabelaRelReq(); });
+
+async function carregarRelatorioReq() {
+  if (!estadoRelReq.filtrosCarregados) {
+    try {
+      const { categorias } = await api('/autores/requisicoes/categorias');
+      document.getElementById('reqFiltroCategoria').innerHTML =
+        '<option value="">Categoria: todas</option>' +
+        categorias.map((c) => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('');
+      estadoRelReq.filtrosCarregados = true;
+    } catch (e) { /* segue */ }
+  }
+  carregarTabelaRelReq();
+}
+
+async function carregarTabelaRelReq() {
+  const params = new URLSearchParams({ page: estadoRelReq.pagina, pageSize: estadoRelReq.pageSize });
+  const set = (param, id) => { const v = document.getElementById(id).value.trim(); if (v) params.set(param, v); };
+  set('paciente', 'reqFiltroPaciente');
+  set('sei', 'reqFiltroSEI');
+  set('codigo_item', 'reqFiltroCodigo');
+  set('descricao', 'reqFiltroDescricao');
+  const cat = document.getElementById('reqFiltroCategoria').value;
+  if (cat) params.set('categoria', cat);
+
+  const dados = await api(`/autores/requisicoes?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaRelatorioReq');
+  const vazio = document.getElementById('estadoVazioRelatorioReq');
+
+  if (dados.requisicoes.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.requisicoes.map((r) => `
+      <tr>
+        <td class="col-codigo"><strong>${r.codigo_controle || ('#' + r.id)}</strong></td>
+        <td class="col-data">${formatarDataHora(r.criado_em)}</td>
+        <td>${r.autor || '—'}</td>
+        <td class="col-codigo">${r.sei || '—'}</td>
+        <td>${fmtNumero(r.total_itens)}</td>
+        <td>${r.operador_nome || '—'}</td>
+        <td><button class="botao-editar" data-id="${r.id}">Abrir / Imprimir</button></td>
+      </tr>
+    `).join('');
+    corpo.querySelectorAll('button[data-id]').forEach((b) => {
+      b.addEventListener('click', () => reabrirRequisicao(b.dataset.id));
+    });
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoRelatorioReq').textContent =
+    `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} requisição(ões)`;
+  document.getElementById('reqAnterior').disabled = dados.page <= 1;
+  document.getElementById('reqProximo').disabled = dados.page >= totalPaginas;
 }
 
 // -------------------- Evolução de Estoque (série histórica) --------------------

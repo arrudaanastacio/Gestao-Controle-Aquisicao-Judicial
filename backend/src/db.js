@@ -184,6 +184,36 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_autor ON autores_itens(autor);`)
 db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_codigo ON autores_itens(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_unidade ON autores_itens(unidade_dispensadora);`);
 
+// Requisições de compra geradas (Relatório Primeiro Atendimento)
+db.exec(`
+CREATE TABLE IF NOT EXISTS requisicoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_controle TEXT,
+  autor TEXT,
+  idade TEXT,
+  unidade TEXT,
+  procurador TEXT,
+  sei TEXT,
+  operador_nome TEXT,
+  operador_email TEXT,
+  total_itens INTEGER,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`
+CREATE TABLE IF NOT EXISTS requisicao_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  requisicao_id INTEGER NOT NULL,
+  codigo_item TEXT,
+  cod_siafisico TEXT,
+  descricao_item TEXT,
+  categoria TEXT,
+  quantidade TEXT,
+  FOREIGN KEY (requisicao_id) REFERENCES requisicoes(id)
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_reqitens_req ON requisicao_itens(requisicao_id);`);
+
 // Configurações gerais do sistema (ex: limiar de autonomia para alerta de estoque baixo)
 db.exec(`
 CREATE TABLE IF NOT EXISTS configuracoes (

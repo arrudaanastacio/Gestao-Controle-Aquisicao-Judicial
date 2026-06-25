@@ -220,5 +220,83 @@ router.get('/paciente', (req, res) => {
   res.json({ info, itens });
 });
 
+// ---------- Requisições: salvar (gera ID de controle) ----------
+router.post('/requisicoes', (req, res) => {
+  const { autor, idade, unidade, procurador, sei, itens } = req.body || {};
+  if (!autor || !Array.isArray(itens) || itens.length === 0) {
+    return res.status(400).json({ erro: 'Informe o paciente e ao menos um item.' });
+  }
+
+  const info = db.prepare(`
+    INSERT INTO requisicoes (autor, idade, unidade, procurador, sei, operador_nome, operador_email, total_itens)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(autor, idade || null, unidade || null, procurador || null, sei || null,
+    req.usuario.nome, req.usuario.email, itens.length);
+
+  const id = info.lastInsertRowid;
+  const ano = new Date().getFullYear();
+  const codigoControle = `REQ-${ano}-${String(id).padStart(5, '0')}`;
+  db.prepare('UPDATE requisicoes SET codigo_controle = ? WHERE id = ?').run(codigoControle, id);
+
+  const stmt = db.prepare(`
+    INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  for (const it of itens) {
+    stmt.run(id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''));
+  }
+
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'gerar_requisicao', 'requisicoes', id, JSON.stringify({ codigoControle, autor, sei, total: itens.length }));
+
+  res.status(201).json({ id, codigo_controle: codigoControle });
+});
+
+// ---------- Requisições: listar com filtros (Relatório Primeiro Atendimento) ----------
+router.get('/requisicoes', (req, res) => {
+  const { paciente, sei, codigo_item, descricao, categoria, page = 1, pageSize = 50 } = req.query;
+  const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
+  const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
+
+  const cond = [];
+  const params = [];
+  if (paciente) { cond.push('r.autor LIKE ?'); params.push(`%${paciente}%`); }
+  if (sei) { cond.push('r.sei LIKE ?'); params.push(`%${sei}%`); }
+  // filtros por item: a requisição precisa conter um item que casa
+  const itemCond = [];
+  const itemParams = [];
+  if (codigo_item) { itemCond.push('ri.codigo_item LIKE ?'); itemParams.push(`%${codigo_item}%`); }
+  if (descricao) { itemCond.push('ri.descricao_item LIKE ?'); itemParams.push(`%${descricao}%`); }
+  if (categoria) { itemCond.push('ri.categoria = ?'); itemParams.push(categoria); }
+  if (itemCond.length) {
+    cond.push(`EXISTS (SELECT 1 FROM requisicao_itens ri WHERE ri.requisicao_id = r.id AND ${itemCond.join(' AND ')})`);
+    params.push(...itemParams);
+  }
+  const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+
+  const total = db.prepare(`SELECT COUNT(*) c FROM requisicoes r ${where}`).get(...params).c;
+  const requisicoes = db.prepare(`
+    SELECT r.* FROM requisicoes r ${where} ORDER BY r.id DESC LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
+
+  res.json({ total, requisicoes, page: Number(page), pageSize: limit });
+});
+
+// ---------- Requisições: categorias distintas (para o filtro) ----------
+router.get('/requisicoes/categorias', (req, res) => {
+  const cats = db.prepare(
+    "SELECT DISTINCT categoria v FROM requisicao_itens WHERE categoria IS NOT NULL AND categoria <> '' ORDER BY v"
+  ).all().map((r) => r.v);
+  res.json({ categorias: cats });
+});
+
+// ---------- Requisições: detalhe (cabeçalho + itens) para reabrir/imprimir ----------
+router.get('/requisicoes/:id', (req, res) => {
+  const r = db.prepare('SELECT * FROM requisicoes WHERE id = ?').get(req.params.id);
+  if (!r) return res.status(404).json({ erro: 'Requisição não encontrada.' });
+  const itens = db.prepare('SELECT * FROM requisicao_itens WHERE requisicao_id = ? ORDER BY id').all(r.id);
+  res.json({ requisicao: r, itens });
+});
+
 module.exports = router;
 module.exports.importarAutoresDeBuffer = importarAutoresDeBuffer;
