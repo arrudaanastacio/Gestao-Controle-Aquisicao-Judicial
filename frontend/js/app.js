@@ -1814,6 +1814,8 @@ function voltarParaBuscaPaciente() {
   document.getElementById('botaoGerarRequisicao').hidden = true;
   document.getElementById('reqInputPaciente').value = '';
   document.getElementById('reqResultadosPaciente').innerHTML = '';
+  const campoSei = document.getElementById('reqSEI');
+  if (campoSei) campoSei.value = '';
   document.getElementById('reqInputPaciente').focus();
 }
 
@@ -1908,6 +1910,7 @@ function gerarRequisicao() {
   if (itens.length === 0) { alert('Selecione ao menos um medicamento.'); return; }
 
   const info = reqPacienteAtual;
+  const sei = document.getElementById('reqSEI').value.trim();
   const hoje = new Date().toLocaleDateString('pt-BR');
   const linhas = itens.map((it, i) => `
     <tr>
@@ -1938,8 +1941,9 @@ function gerarRequisicao() {
       <button onclick="window.print()">🖨 Imprimir / Salvar PDF</button>
     </div>
     <h1>REQUISIÇÃO DE COMPRA</h1>
-    <p class="sub">Unidade Tenente Pena (UDTP) · Emitida em ${hoje}</p>
+    <p class="sub">Unidade Tenente Pena (UDTP) · Emitida em ${hoje}${sei ? ' · SEI Nº ' + sei : ''}</p>
     <div class="box">
+      ${sei ? '<strong>Nº SEI:</strong> ' + sei + '<br>' : ''}
       <strong>Paciente:</strong> ${info.autor}${info.idade ? ' &nbsp;|&nbsp; <strong>Idade:</strong> ' + info.idade : ''}<br>
       <strong>Unidade:</strong> ${info.unidade_dispensadora || '—'}${info.procurador_estado ? ' &nbsp;|&nbsp; <strong>Procurador:</strong> ' + info.procurador_estado : ''}
     </div>
