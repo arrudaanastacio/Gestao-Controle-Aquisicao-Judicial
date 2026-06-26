@@ -13,6 +13,7 @@ const importarSolicitacoesRoutes = require('./routes.importarSolicitacoes');
 const alertasRoutes = require('./routes.alertas');
 const estoqueRoutes = require('./routes.estoque');
 const autoresRoutes = require('./routes.autores');
+const relatorioItensRoutes = require('./routes.relatorioItens');
 const configRoutes = require('./routes.config');
 
 const app = express();
@@ -31,6 +32,7 @@ app.use('/api/importar-solicitacoes', importarSolicitacoesRoutes);
 app.use('/api/alertas', alertasRoutes);
 app.use('/api/estoque', estoqueRoutes);
 app.use('/api/autores', autoresRoutes);
+app.use('/api/relatorio-itens', relatorioItensRoutes);
 app.use('/api/config', configRoutes);
 
 // Serve o frontend estático (build simples, sem framework)
@@ -45,4 +47,6 @@ app.listen(PORT, '0.0.0.0', () => {
   iniciarVigiaEstoque();
   const { iniciarVigiaAutores } = require('./vigiaAutores');
   iniciarVigiaAutores();
+  const { iniciarVigiaRelatorioItens } = require('./vigiaRelatorioItens');
+  iniciarVigiaRelatorioItens();
 });

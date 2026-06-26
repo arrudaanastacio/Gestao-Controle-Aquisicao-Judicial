@@ -124,7 +124,6 @@ async function carregarUsuario() {
 
   if (usuario.perfil === 'admin') {
     document.getElementById('linkUsuarios').hidden = false;
-    document.getElementById('linkElenco').hidden = false;
     document.getElementById('linkImportadores').hidden = false;
     document.getElementById('linkAlertas').hidden = false;
     document.getElementById('botaoNovaSolicitacao').hidden = false;
@@ -176,6 +175,7 @@ const ICONES_NAV = {
   evolucao: '<path d="M4 19h16"/><path d="M4 19V5"/><path d="M7 15l4-5 3 3 5-7"/>',
   autores: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   relatorioReq: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M8 11h8M8 15h8M8 19h5"/>',
+  relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   elenco: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   alertas: '<path d="M6 9a6 6 0 1 1 12 0c0 4 2 5 2 5H4s2-1 2-5"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   importadores: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
@@ -220,6 +220,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaEvolucao').hidden = pagina !== 'evolucao';
   document.getElementById('paginaAutores').hidden = pagina !== 'autores';
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
+  document.getElementById('paginaRelatorioItens').hidden = pagina !== 'relatorioItens';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
   document.getElementById('paginaAlertas').hidden = pagina !== 'alertas';
@@ -236,6 +237,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'evolucao') iniciarEvolucao();
     if (pagina === 'autores') await carregarAutores();
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
+    if (pagina === 'relatorioItens') await carregarRelatorioItens();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
   } catch (e) {
@@ -1791,6 +1793,87 @@ async function carregarTabelaAutores() {
     `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} linha(s)`;
   document.getElementById('botaoAnteriorAutores').disabled = dados.page <= 1;
   document.getElementById('botaoProximoAutores').disabled = dados.page >= totalPaginas;
+}
+
+// -------------------- Relatório de Itens (catálogo) --------------------
+const estadoRelItens = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+
+let debounceRelItens;
+document.getElementById('riFiltroBusca').addEventListener('input', () => {
+  clearTimeout(debounceRelItens);
+  debounceRelItens = setTimeout(() => { estadoRelItens.pagina = 1; carregarTabelaRelItens(); }, 350);
+});
+['riFiltroCategoria', 'riFiltroTipo', 'riFiltroGrupo', 'riFiltroSituacao', 'riFiltroJudicial'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => { estadoRelItens.pagina = 1; carregarTabelaRelItens(); });
+});
+document.getElementById('riLimparFiltros').addEventListener('click', () => {
+  document.getElementById('riFiltroBusca').value = '';
+  ['riFiltroCategoria', 'riFiltroTipo', 'riFiltroGrupo', 'riFiltroSituacao', 'riFiltroJudicial'].forEach((id) => { document.getElementById(id).value = ''; });
+  estadoRelItens.pagina = 1; carregarTabelaRelItens();
+});
+document.getElementById('riAnterior').addEventListener('click', () => { if (estadoRelItens.pagina > 1) { estadoRelItens.pagina--; carregarTabelaRelItens(); } });
+document.getElementById('riProximo').addEventListener('click', () => { estadoRelItens.pagina++; carregarTabelaRelItens(); });
+
+async function carregarRelatorioItens() {
+  if (!estadoRelItens.filtrosCarregados) {
+    try {
+      const f = await api('/relatorio-itens/filtros');
+      const preencher = (id, valores, rotulo) => {
+        document.getElementById(id).innerHTML = `<option value="">${rotulo}</option>` +
+          valores.map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+      };
+      preencher('riFiltroCategoria', f.categoria, 'Categoria: todas');
+      preencher('riFiltroTipo', f.tipo_item, 'Tipo item: todos');
+      preencher('riFiltroGrupo', f.grupo, 'Grupo: todos');
+      preencher('riFiltroSituacao', f.situacao, 'Situação: todas');
+      preencher('riFiltroJudicial', f.judicial, 'Judicial: todos');
+      estadoRelItens.filtrosCarregados = true;
+    } catch (e) { /* segue */ }
+  }
+  carregarTabelaRelItens();
+}
+
+async function carregarTabelaRelItens() {
+  const params = new URLSearchParams({ page: estadoRelItens.pagina, pageSize: estadoRelItens.pageSize });
+  const q = document.getElementById('riFiltroBusca').value.trim();
+  if (q) params.set('q', q);
+  const mapa = { categoria: 'riFiltroCategoria', tipo_item: 'riFiltroTipo', grupo: 'riFiltroGrupo', situacao: 'riFiltroSituacao', judicial: 'riFiltroJudicial' };
+  for (const [param, id] of Object.entries(mapa)) { const v = document.getElementById(id).value; if (v) params.set(param, v); }
+
+  const dados = await api(`/relatorio-itens?${params.toString()}`);
+
+  document.getElementById('grideResumoRelItens').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Itens${q ? ' filtrados' : ' no catálogo'}</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo</div></div>
+  `;
+
+  const corpo = document.getElementById('corpoTabelaRelItens');
+  const vazio = document.getElementById('estadoVazioRelItens');
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((i) => `
+      <tr>
+        <td class="col-codigo">${i.codigo || '—'}</td>
+        <td class="col-codigo">${i.siafisico || '—'}</td>
+        <td>${i.descricao_item || '—'}</td>
+        <td>${i.categoria || '—'}</td>
+        <td>${i.tipo_item || '—'}</td>
+        <td>${i.grupo || '—'}</td>
+        <td>${i.marca || '—'}</td>
+        <td>${i.valor_medio_unitario || '—'}</td>
+        <td>${i.situacao || '—'}</td>
+        <td>${i.judicial || '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoRelItens').textContent =
+    `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} item(ns)`;
+  document.getElementById('riAnterior').disabled = dados.page <= 1;
+  document.getElementById('riProximo').disabled = dados.page >= totalPaginas;
 }
 
 // -------------------- Requisição de Compra (construtor) --------------------

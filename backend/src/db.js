@@ -227,6 +227,46 @@ if (!colunasReqItens.includes('status_atendimento')) db.exec("ALTER TABLE requis
 if (!colunasReqItens.includes('telegrama_enviado')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN telegrama_enviado TEXT NOT NULL DEFAULT 'Não'");
 if (!colunasReqItens.includes('data_envio')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN data_envio TEXT");
 
+// Relatório de Itens (catálogo completo) — substitui Consulta/Catálogo.
+// Substituído por completo a cada importação.
+db.exec(`
+CREATE TABLE IF NOT EXISTS relatorio_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT,
+  pro_id TEXT,
+  situacao TEXT,
+  usuario TEXT,
+  categoria TEXT,
+  codigo TEXT,
+  siafisico TEXT,
+  catmat TEXT,
+  descricao_item TEXT,
+  valor_medio_unitario TEXT,
+  item TEXT,
+  especificacao TEXT,
+  apresentacao TEXT,
+  marca TEXT,
+  importado TEXT,
+  tipo_item TEXT,
+  grupo TEXT,
+  programa TEXT,
+  grupo_af TEXT,
+  intercambiavel TEXT,
+  observacoes TEXT,
+  outras_demandas TEXT,
+  oncologico TEXT,
+  termolabil TEXT,
+  antimicrobiano TEXT,
+  portaria34498 TEXT,
+  grande_volume TEXT,
+  comissao_farmacologia TEXT,
+  judicial TEXT,
+  jefaz TEXT
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_relitens_codigo ON relatorio_itens(codigo);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_relitens_descricao ON relatorio_itens(descricao_item);`);
+
 // Configurações gerais do sistema (ex: limiar de autonomia para alerta de estoque baixo)
 db.exec(`
 CREATE TABLE IF NOT EXISTS configuracoes (

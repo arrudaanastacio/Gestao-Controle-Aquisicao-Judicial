@@ -36,10 +36,9 @@
         <div class="nav-grupo">
           <p class="nav-grupo-titulo">🔍 Consultas</p>
           <p class="nav-sub">Tenente Pena</p>
-          <a href="#" data-pagina="busca">Consulta de Medicamentos</a>
+          <a href="#" data-pagina="relatorioItens">Relatório de Itens</a>
           <a href="#" data-pagina="historico">Histórico de Estoque</a>
           <a href="#" data-pagina="evolucao">Evolução de Estoque</a>
-          <a href="#" data-pagina="elenco" id="linkElenco" hidden>Catálogo de Medicamentos</a>
           <p class="nav-sub nav-sub-vazio">Demais Unidades <span>(em breve)</span></p>
         </div>
 
@@ -673,6 +672,57 @@
         </div>
       </section>
 
+      <section id="paginaRelatorioItens" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Relatório de Itens</h2>
+            <p id="subtituloRelatorioItens">Catálogo completo dos itens</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoRelItens"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="riFiltroBusca" placeholder="Buscar por descrição, código, SIAFÍSICO, CATMAT ou marca…" style="min-width:320px;">
+          <select id="riFiltroCategoria"><option value="">Categoria: todas</option></select>
+          <select id="riFiltroTipo"><option value="">Tipo item: todos</option></select>
+          <select id="riFiltroGrupo"><option value="">Grupo: todos</option></select>
+          <select id="riFiltroSituacao"><option value="">Situação: todas</option></select>
+          <select id="riFiltroJudicial"><option value="">Judicial: todos</option></select>
+          <button id="riLimparFiltros" class="botao-secundario" type="button">Limpar</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>SIAFÍSICO</th>
+                  <th>Descrição do Item</th>
+                  <th>Categoria</th>
+                  <th>Tipo Item</th>
+                  <th>Grupo</th>
+                  <th>Marca</th>
+                  <th>Valor Médio</th>
+                  <th>Situação</th>
+                  <th>Judicial</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaRelItens"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioRelItens" hidden>Nenhum item encontrado com estes filtros.</div>
+          <div class="paginacao">
+            <span id="textoPaginacaoRelItens">—</span>
+            <div class="botoes">
+              <button id="riAnterior">← Anterior</button>
+              <button id="riProximo">Próximo →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="paginaElenco" hidden>
         <div class="cabecalho-pagina">
           <div>
@@ -1031,6 +1081,6 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=12"></script>
+  <script src="/js/app.js?v=13"></script>
 </body>
 </html>
