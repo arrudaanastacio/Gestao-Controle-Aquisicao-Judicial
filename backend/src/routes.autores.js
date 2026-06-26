@@ -64,9 +64,10 @@ function texto(v) {
 
 // Lê o CSV/planilha de autores e devolve as linhas mapeadas
 function processarAutores(buffer) {
-  const wb = XLSX.read(buffer, { type: 'buffer', cellDates: false });
+  // raw:true preserva texto original (datas, números BR) sem o SheetJS converter
+  const wb = XLSX.read(buffer, { type: 'buffer', raw: true });
   const sheet = wb.Sheets[wb.SheetNames[0]];
-  const brutas = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+  const brutas = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: false });
 
   // acha a linha de cabeçalho (contém "autor" e "processo")
   let hc = -1;

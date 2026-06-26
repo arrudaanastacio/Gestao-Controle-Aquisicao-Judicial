@@ -75,19 +75,30 @@ function texto(v) {
   return l === null ? null : String(l).trim();
 }
 
+// Converte número no formato brasileiro: ponto = separador de milhar,
+// vírgula = decimal. Ex.: "5,48" -> 5.48 ; "3.092.580" -> 3092580 ; "7,1572" -> 7.1572
 function numero(v) {
   const l = limpar(v);
   if (l === null) return null;
-  const n = typeof l === 'number' ? l : parseFloat(String(l).replace(',', '.'));
+  if (typeof l === 'number') return l;
+  let s = String(l).trim();
+  if (s.includes(',')) {
+    s = s.replace(/\./g, '').replace(',', '.'); // remove milhares, vírgula vira ponto
+  } else {
+    s = s.replace(/\./g, ''); // sem vírgula: pontos são separador de milhar
+  }
+  const n = parseFloat(s);
   return Number.isFinite(n) ? n : null;
 }
 
 // Lê o relatório de estoque e retorna {linhas, dataReferencia, nomeAba}
 function processarEstoque(buffer) {
-  const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+  // raw:true preserva os valores como texto (evita o SheetJS interpretar
+  // "5,48" como 548 — vírgula como milhar no padrão americano)
+  const wb = XLSX.read(buffer, { type: 'buffer', raw: true });
   const nomeAba = wb.SheetNames[0];
   const sheet = wb.Sheets[nomeAba];
-  const linhasBrutas = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+  const linhasBrutas = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: false });
 
   // Localiza a linha de cabeçalho (a que contém "Código" e "Descrição do Item")
   let linhaCabecalho = -1;
