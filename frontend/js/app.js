@@ -1796,6 +1796,8 @@ async function carregarTabelaAutores() {
 // -------------------- Requisição de Compra (construtor) --------------------
 let reqPacienteAtual = null;
 let reqItensAtuais = [];
+let reqModo = 'novo';      // 'novo' ou 'editar'
+let reqEditId = null;      // id da requisição em edição
 
 const modalRequisicao = document.getElementById('modalRequisicao');
 document.getElementById('botaoAbrirRequisicao').addEventListener('click', abrirRequisicao);
@@ -1804,8 +1806,51 @@ document.getElementById('reqVoltar').addEventListener('click', voltarParaBuscaPa
 document.getElementById('botaoGerarRequisicao').addEventListener('click', gerarRequisicao);
 
 function abrirRequisicao() {
+  reqModo = 'novo';
+  reqEditId = null;
   modalRequisicao.hidden = false;
+  document.getElementById('botaoGerarRequisicao').textContent = 'Gerar requisição →';
   voltarParaBuscaPaciente();
+}
+
+// Abre o construtor já com a requisição salva carregada, para edição
+async function editarRequisicao(id) {
+  const dados = await api(`/autores/requisicoes/${id}`);
+  const r = dados.requisicao;
+  reqModo = 'editar';
+  reqEditId = id;
+  modalRequisicao.hidden = false;
+  document.getElementById('reqEtapaPaciente').hidden = true;
+
+  await selecionarPaciente(r.autor);
+
+  // Pré-preenche SEI e marca os itens que estavam na requisição
+  document.getElementById('reqSEI').value = r.sei || '';
+  const salvos = {};
+  dados.itens.forEach((it) => { salvos[it.codigo_item] = it.quantidade; });
+  document.querySelectorAll('#reqListaItens .req-check').forEach((c) => {
+    const idx = Number(c.dataset.idx);
+    const it = reqItensAtuais[idx];
+    if (it && Object.prototype.hasOwnProperty.call(salvos, it.codigo_item)) {
+      c.checked = true;
+      const campoQtd = document.querySelector(`.req-qtd[data-idx="${idx}"]`);
+      if (campoQtd) campoQtd.value = salvos[it.codigo_item];
+    }
+  });
+  atualizarContadorReq();
+
+  document.getElementById('reqVoltar').hidden = true; // paciente fixo na edição
+  document.getElementById('botaoGerarRequisicao').textContent = `Salvar alterações (${r.codigo_controle})`;
+}
+
+async function cancelarRequisicao(id) {
+  if (!confirm('Cancelar esta requisição? Ela continua no histórico, marcada como Cancelada.')) return;
+  try {
+    await api(`/autores/requisicoes/${id}/cancelar`, { method: 'PUT' });
+    carregarTabelaRelReq();
+  } catch (e) {
+    alert('Erro ao cancelar: ' + e.message);
+  }
 }
 
 function voltarParaBuscaPaciente() {
@@ -1974,19 +2019,27 @@ async function gerarRequisicao() {
   const botao = document.getElementById('botaoGerarRequisicao');
   botao.disabled = true;
 
+  const corpoItens = itens.map((it) => ({
+    codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico,
+    descricao_item: it.descricao_item, categoria: it.categoria, quantidade: it.quantidade,
+  }));
+
   try {
-    // Salva a requisição e obtém o ID de controle
-    const salvo = await api('/autores/requisicoes', {
-      method: 'POST',
-      body: JSON.stringify({
-        autor: info.autor, idade: info.idade, unidade: info.unidade_dispensadora,
-        procurador: info.procurador_estado, sei,
-        itens: itens.map((it) => ({
-          codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico,
-          descricao_item: it.descricao_item, categoria: it.categoria, quantidade: it.quantidade,
-        })),
-      }),
-    });
+    let salvo;
+    if (reqModo === 'editar') {
+      salvo = await api(`/autores/requisicoes/${reqEditId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ sei, itens: corpoItens }),
+      });
+    } else {
+      salvo = await api('/autores/requisicoes', {
+        method: 'POST',
+        body: JSON.stringify({
+          autor: info.autor, idade: info.idade, unidade: info.unidade_dispensadora,
+          procurador: info.procurador_estado, sei, itens: corpoItens,
+        }),
+      });
+    }
 
     const html = montarDocumentoRequisicao({
       codigoControle: salvo.codigo_controle,
@@ -1998,6 +2051,8 @@ async function gerarRequisicao() {
     });
     abrirDocumento(html);
     modalRequisicao.hidden = true;
+    // Se o relatório estiver aberto, atualiza a lista
+    if (estado.paginaAtual === 'relatorioReq') carregarTabelaRelReq();
   } catch (e) {
     alert('Erro ao gerar a requisição: ' + e.message);
   } finally {
@@ -2079,20 +2134,33 @@ async function carregarTabelaRelReq() {
     corpo.innerHTML = ''; vazio.hidden = false;
   } else {
     vazio.hidden = true;
-    corpo.innerHTML = dados.requisicoes.map((r) => `
-      <tr>
-        <td class="col-codigo"><strong>${r.codigo_controle || ('#' + r.id)}</strong></td>
-        <td class="col-data">${formatarDataHora(r.criado_em)}</td>
-        <td>${r.autor || '—'}</td>
-        <td class="col-codigo">${r.sei || '—'}</td>
-        <td>${fmtNumero(r.total_itens)}</td>
-        <td>${r.operador_nome || '—'}</td>
-        <td><button class="botao-editar" data-id="${r.id}">Abrir / Imprimir</button></td>
-      </tr>
-    `).join('');
-    corpo.querySelectorAll('button[data-id]').forEach((b) => {
-      b.addEventListener('click', () => reabrirRequisicao(b.dataset.id));
-    });
+    corpo.innerHTML = dados.requisicoes.map((r) => {
+      const cancelada = r.status === 'Cancelada';
+      const statusTag = cancelada
+        ? '<span class="etiqueta-status cancelado">Cancelada</span>'
+        : '<span class="etiqueta-status finalizado">Ativa</span>';
+      const acoesEdicao = cancelada
+        ? `<span style="font-size:11px; color:var(--cinza-texto);">cancelada em ${formatarDataHora(r.cancelado_em)}</span>`
+        : `<button class="botao-secundario" data-editar="${r.id}">Editar</button>
+           <button class="botao-secundario" data-cancelar="${r.id}" style="color:var(--vermelho); border-color:var(--vermelho);">Cancelar</button>`;
+      return `
+        <tr${cancelada ? ' style="opacity:0.65;"' : ''}>
+          <td class="col-codigo"><strong>${r.codigo_controle || ('#' + r.id)}</strong></td>
+          <td class="col-data">${formatarDataHora(r.criado_em)}</td>
+          <td>${r.autor || '—'}</td>
+          <td class="col-codigo">${r.sei || '—'}</td>
+          <td>${fmtNumero(r.total_itens)}</td>
+          <td>${statusTag}</td>
+          <td>${r.operador_nome || '—'}</td>
+          <td style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="botao-editar" data-abrir="${r.id}">Abrir / Imprimir</button>
+            ${acoesEdicao}
+          </td>
+        </tr>`;
+    }).join('');
+    corpo.querySelectorAll('button[data-abrir]').forEach((b) => b.addEventListener('click', () => reabrirRequisicao(b.dataset.abrir)));
+    corpo.querySelectorAll('button[data-editar]').forEach((b) => b.addEventListener('click', () => editarRequisicao(b.dataset.editar)));
+    corpo.querySelectorAll('button[data-cancelar]').forEach((b) => b.addEventListener('click', () => cancelarRequisicao(b.dataset.cancelar)));
   }
 
   const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);

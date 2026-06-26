@@ -290,6 +290,50 @@ router.get('/requisicoes/categorias', (req, res) => {
   res.json({ categorias: cats });
 });
 
+// ---------- Requisições: editar (atualiza SEI e itens; mantém ID de controle) ----------
+router.put('/requisicoes/:id', (req, res) => {
+  const r = db.prepare('SELECT * FROM requisicoes WHERE id = ?').get(req.params.id);
+  if (!r) return res.status(404).json({ erro: 'Requisição não encontrada.' });
+  if (r.status === 'Cancelada') return res.status(400).json({ erro: 'Requisição cancelada não pode ser editada.' });
+
+  const { sei, itens } = req.body || {};
+  if (!Array.isArray(itens) || itens.length === 0) {
+    return res.status(400).json({ erro: 'Informe ao menos um item.' });
+  }
+
+  db.prepare("UPDATE requisicoes SET sei = ?, total_itens = ?, atualizado_em = datetime('now') WHERE id = ?")
+    .run(sei || null, itens.length, r.id);
+
+  db.prepare('DELETE FROM requisicao_itens WHERE requisicao_id = ?').run(r.id);
+  const stmt = db.prepare(`
+    INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  for (const it of itens) {
+    stmt.run(r.id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''));
+  }
+
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'editar_requisicao', 'requisicoes', r.id, JSON.stringify({ sei, total: itens.length }));
+
+  res.json({ id: r.id, codigo_controle: r.codigo_controle });
+});
+
+// ---------- Requisições: cancelar (mantém o histórico) ----------
+router.put('/requisicoes/:id/cancelar', (req, res) => {
+  const r = db.prepare('SELECT * FROM requisicoes WHERE id = ?').get(req.params.id);
+  if (!r) return res.status(404).json({ erro: 'Requisição não encontrada.' });
+  if (r.status === 'Cancelada') return res.status(400).json({ erro: 'Requisição já está cancelada.' });
+
+  db.prepare("UPDATE requisicoes SET status = 'Cancelada', cancelado_em = datetime('now'), cancelado_por = ? WHERE id = ?")
+    .run(req.usuario.email, r.id);
+
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_antes) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'cancelar_requisicao', 'requisicoes', r.id, JSON.stringify({ codigo_controle: r.codigo_controle }));
+
+  res.json({ ok: true });
+});
+
 // ---------- Requisições: detalhe (cabeçalho + itens) para reabrir/imprimir ----------
 router.get('/requisicoes/:id', (req, res) => {
   const r = db.prepare('SELECT * FROM requisicoes WHERE id = ?').get(req.params.id);

@@ -214,6 +214,13 @@ CREATE TABLE IF NOT EXISTS requisicao_itens (
 `);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_reqitens_req ON requisicao_itens(requisicao_id);`);
 
+// Status/cancelamento da requisição (cancelar mantém o histórico)
+const colunasReq = db.prepare("PRAGMA table_info(requisicoes)").all().map((c) => c.name);
+if (!colunasReq.includes('status')) db.exec("ALTER TABLE requisicoes ADD COLUMN status TEXT NOT NULL DEFAULT 'Ativa'");
+if (!colunasReq.includes('atualizado_em')) db.exec("ALTER TABLE requisicoes ADD COLUMN atualizado_em TEXT");
+if (!colunasReq.includes('cancelado_em')) db.exec("ALTER TABLE requisicoes ADD COLUMN cancelado_em TEXT");
+if (!colunasReq.includes('cancelado_por')) db.exec("ALTER TABLE requisicoes ADD COLUMN cancelado_por TEXT");
+
 // Configurações gerais do sistema (ex: limiar de autonomia para alerta de estoque baixo)
 db.exec(`
 CREATE TABLE IF NOT EXISTS configuracoes (
