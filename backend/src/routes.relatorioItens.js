@@ -107,7 +107,7 @@ function importarRelatorioItensDeBuffer(buffer, opcoes = {}) {
 
 // ---------- Listagem com filtros e paginação ----------
 router.get('/', (req, res) => {
-  const { q, categoria, tipo_item, grupo, situacao, judicial, page = 1, pageSize = 50 } = req.query;
+  const { q, categoria, tipo_item, grupo, situacao, judicial, importado, outras_demandas, page = 1, pageSize = 50 } = req.query;
   const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
   const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
 
@@ -123,6 +123,8 @@ router.get('/', (req, res) => {
   if (grupo) { cond.push('grupo = ?'); params.push(grupo); }
   if (situacao) { cond.push('situacao = ?'); params.push(situacao); }
   if (judicial) { cond.push('judicial = ?'); params.push(judicial); }
+  if (importado) { cond.push('importado = ?'); params.push(importado); }
+  if (outras_demandas) { cond.push('outras_demandas = ?'); params.push(outras_demandas); }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
 
   const total = db.prepare(`SELECT COUNT(*) c FROM relatorio_itens ${where}`).get(...params).c;
@@ -142,9 +144,8 @@ router.get('/filtros', (req, res) => {
   res.json({
     categoria: distintos('categoria'),
     tipo_item: distintos('tipo_item'),
-    grupo: distintos('grupo'),
-    situacao: distintos('situacao'),
-    judicial: distintos('judicial'),
+    importado: distintos('importado'),
+    outras_demandas: distintos('outras_demandas'),
   });
 });
 

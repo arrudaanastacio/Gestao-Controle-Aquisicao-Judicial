@@ -1803,12 +1803,12 @@ document.getElementById('riFiltroBusca').addEventListener('input', () => {
   clearTimeout(debounceRelItens);
   debounceRelItens = setTimeout(() => { estadoRelItens.pagina = 1; carregarTabelaRelItens(); }, 350);
 });
-['riFiltroCategoria', 'riFiltroTipo', 'riFiltroGrupo', 'riFiltroSituacao', 'riFiltroJudicial'].forEach((id) => {
+['riFiltroCategoria', 'riFiltroTipo', 'riFiltroImportado', 'riFiltroOutrasDemandas'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => { estadoRelItens.pagina = 1; carregarTabelaRelItens(); });
 });
 document.getElementById('riLimparFiltros').addEventListener('click', () => {
   document.getElementById('riFiltroBusca').value = '';
-  ['riFiltroCategoria', 'riFiltroTipo', 'riFiltroGrupo', 'riFiltroSituacao', 'riFiltroJudicial'].forEach((id) => { document.getElementById(id).value = ''; });
+  ['riFiltroCategoria', 'riFiltroTipo', 'riFiltroImportado', 'riFiltroOutrasDemandas'].forEach((id) => { document.getElementById(id).value = ''; });
   estadoRelItens.pagina = 1; carregarTabelaRelItens();
 });
 document.getElementById('riAnterior').addEventListener('click', () => { if (estadoRelItens.pagina > 1) { estadoRelItens.pagina--; carregarTabelaRelItens(); } });
@@ -1824,9 +1824,8 @@ async function carregarRelatorioItens() {
       };
       preencher('riFiltroCategoria', f.categoria, 'Categoria: todas');
       preencher('riFiltroTipo', f.tipo_item, 'Tipo item: todos');
-      preencher('riFiltroGrupo', f.grupo, 'Grupo: todos');
-      preencher('riFiltroSituacao', f.situacao, 'Situação: todas');
-      preencher('riFiltroJudicial', f.judicial, 'Judicial: todos');
+      preencher('riFiltroImportado', f.importado, 'Importado: todos');
+      preencher('riFiltroOutrasDemandas', f.outras_demandas, 'Outras demandas: todas');
       estadoRelItens.filtrosCarregados = true;
     } catch (e) { /* segue */ }
   }
@@ -1837,7 +1836,7 @@ async function carregarTabelaRelItens() {
   const params = new URLSearchParams({ page: estadoRelItens.pagina, pageSize: estadoRelItens.pageSize });
   const q = document.getElementById('riFiltroBusca').value.trim();
   if (q) params.set('q', q);
-  const mapa = { categoria: 'riFiltroCategoria', tipo_item: 'riFiltroTipo', grupo: 'riFiltroGrupo', situacao: 'riFiltroSituacao', judicial: 'riFiltroJudicial' };
+  const mapa = { categoria: 'riFiltroCategoria', tipo_item: 'riFiltroTipo', importado: 'riFiltroImportado', outras_demandas: 'riFiltroOutrasDemandas' };
   for (const [param, id] of Object.entries(mapa)) { const v = document.getElementById(id).value; if (v) params.set(param, v); }
 
   const dados = await api(`/relatorio-itens?${params.toString()}`);
@@ -1856,15 +1855,14 @@ async function carregarTabelaRelItens() {
     corpo.innerHTML = dados.itens.map((i) => `
       <tr>
         <td class="col-codigo">${i.codigo || '—'}</td>
+        <td class="col-codigo">${i.catmat || '—'}</td>
         <td class="col-codigo">${i.siafisico || '—'}</td>
         <td>${i.descricao_item || '—'}</td>
         <td>${i.categoria || '—'}</td>
+        <td>${i.apresentacao || '—'}</td>
+        <td>${i.importado || '—'}</td>
         <td>${i.tipo_item || '—'}</td>
-        <td>${i.grupo || '—'}</td>
-        <td>${i.marca || '—'}</td>
-        <td>${i.valor_medio_unitario || '—'}</td>
-        <td>${i.situacao || '—'}</td>
-        <td>${i.judicial || '—'}</td>
+        <td>${i.outras_demandas || '—'}</td>
       </tr>
     `).join('');
   }

@@ -686,9 +686,8 @@
           <input type="text" id="riFiltroBusca" placeholder="Buscar por descrição, código, SIAFÍSICO, CATMAT ou marca…" style="min-width:320px;">
           <select id="riFiltroCategoria"><option value="">Categoria: todas</option></select>
           <select id="riFiltroTipo"><option value="">Tipo item: todos</option></select>
-          <select id="riFiltroGrupo"><option value="">Grupo: todos</option></select>
-          <select id="riFiltroSituacao"><option value="">Situação: todas</option></select>
-          <select id="riFiltroJudicial"><option value="">Judicial: todos</option></select>
+          <select id="riFiltroImportado"><option value="">Importado: todos</option></select>
+          <select id="riFiltroOutrasDemandas"><option value="">Outras demandas: todas</option></select>
           <button id="riLimparFiltros" class="botao-secundario" type="button">Limpar</button>
         </div>
 
@@ -698,15 +697,14 @@
               <thead>
                 <tr>
                   <th>Código</th>
+                  <th>CATMAT</th>
                   <th>SIAFÍSICO</th>
                   <th>Descrição do Item</th>
                   <th>Categoria</th>
+                  <th>Apresentação</th>
+                  <th>Importado</th>
                   <th>Tipo Item</th>
-                  <th>Grupo</th>
-                  <th>Marca</th>
-                  <th>Valor Médio</th>
-                  <th>Situação</th>
-                  <th>Judicial</th>
+                  <th>Outras Demandas</th>
                 </tr>
               </thead>
               <tbody id="corpoTabelaRelItens"></tbody>
@@ -1081,6 +1079,6 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=13"></script>
+  <script src="/js/app.js?v=14"></script>
 </body>
 </html>
