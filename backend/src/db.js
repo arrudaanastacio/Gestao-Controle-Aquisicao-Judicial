@@ -226,6 +226,7 @@ const colunasReqItens = db.prepare("PRAGMA table_info(requisicao_itens)").all().
 if (!colunasReqItens.includes('status_atendimento')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN status_atendimento TEXT NOT NULL DEFAULT 'Solicitado'");
 if (!colunasReqItens.includes('telegrama_enviado')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN telegrama_enviado TEXT NOT NULL DEFAULT 'Não'");
 if (!colunasReqItens.includes('data_envio')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN data_envio TEXT");
+if (!colunasReqItens.includes('requisicao_gsnet')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN requisicao_gsnet TEXT");
 
 // Relatório de Itens (catálogo completo) — substitui Consulta/Catálogo.
 // Substituído por completo a cada importação.

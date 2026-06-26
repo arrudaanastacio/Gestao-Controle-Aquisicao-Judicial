@@ -2241,6 +2241,9 @@ async function carregarTabelaRelReq() {
             <select class="req-at-status">${opc(['Solicitado', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select>
           </td>
           <td>
+            <input type="text" class="req-at-gsnet" value="${(it.requisicao_gsnet || '').replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;">
+          </td>
+          <td>
             <select class="req-at-tel">${opc(['Não', 'Sim'], it.telegrama_enviado)}</select>
           </td>
           <td>
@@ -2255,7 +2258,7 @@ async function carregarTabelaRelReq() {
     });
     // Salvar ao alterar qualquer controle da linha
     corpo.querySelectorAll('tr[data-id]').forEach((tr) => {
-      tr.querySelectorAll('.req-at-status, .req-at-tel, .req-at-data').forEach((ctrl) => {
+      tr.querySelectorAll('.req-at-status, .req-at-tel, .req-at-data, .req-at-gsnet').forEach((ctrl) => {
         ctrl.addEventListener('change', () => salvarAtendimentoItem(tr));
       });
     });
@@ -2274,6 +2277,7 @@ async function salvarAtendimentoItem(tr) {
     status_atendimento: tr.querySelector('.req-at-status').value,
     telegrama_enviado: tr.querySelector('.req-at-tel').value,
     data_envio: tr.querySelector('.req-at-data').value || null,
+    requisicao_gsnet: tr.querySelector('.req-at-gsnet').value.trim() || null,
   };
   try {
     await api(`/autores/requisicoes/item/${id}`, { method: 'PUT', body: JSON.stringify(corpo) });
