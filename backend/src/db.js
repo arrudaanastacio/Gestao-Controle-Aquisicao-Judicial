@@ -221,6 +221,12 @@ if (!colunasReq.includes('atualizado_em')) db.exec("ALTER TABLE requisicoes ADD 
 if (!colunasReq.includes('cancelado_em')) db.exec("ALTER TABLE requisicoes ADD COLUMN cancelado_em TEXT");
 if (!colunasReq.includes('cancelado_por')) db.exec("ALTER TABLE requisicoes ADD COLUMN cancelado_por TEXT");
 
+// Fluxo de atendimento por item da requisição (editável pelos usuários)
+const colunasReqItens = db.prepare("PRAGMA table_info(requisicao_itens)").all().map((c) => c.name);
+if (!colunasReqItens.includes('status_atendimento')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN status_atendimento TEXT NOT NULL DEFAULT 'Solicitado'");
+if (!colunasReqItens.includes('telegrama_enviado')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN telegrama_enviado TEXT NOT NULL DEFAULT 'Não'");
+if (!colunasReqItens.includes('data_envio')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN data_envio TEXT");
+
 // Configurações gerais do sistema (ex: limiar de autonomia para alerta de estoque baixo)
 db.exec(`
 CREATE TABLE IF NOT EXISTS configuracoes (

@@ -282,6 +282,60 @@ router.get('/requisicoes', (req, res) => {
   res.json({ total, requisicoes, page: Number(page), pageSize: limit });
 });
 
+// ---------- Requisições: itens (visão por item + situação de estoque) ----------
+router.get('/requisicoes/itens', (req, res) => {
+  const { paciente, sei, codigo_item, descricao, categoria, page = 1, pageSize = 50 } = req.query;
+  const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
+  const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
+
+  const cond = [];
+  const params = [];
+  if (paciente) { cond.push('r.autor LIKE ?'); params.push(`%${paciente}%`); }
+  if (sei) { cond.push('r.sei LIKE ?'); params.push(`%${sei}%`); }
+  if (codigo_item) { cond.push('ri.codigo_item LIKE ?'); params.push(`%${codigo_item}%`); }
+  if (descricao) { cond.push('ri.descricao_item LIKE ?'); params.push(`%${descricao}%`); }
+  if (categoria) { cond.push('ri.categoria = ?'); params.push(categoria); }
+  const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+
+  const escTP = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
+  const total = db.prepare(`SELECT COUNT(*) c FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id ${where}`).get(...params).c;
+  const itens = db.prepare(`
+    SELECT ri.id, ri.requisicao_id, r.codigo_controle, r.autor, r.sei,
+           ri.codigo_item, ri.descricao_item, ri.categoria,
+           COALESCE((SELECT e.siafisico FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1), ri.cod_siafisico) AS siafisico,
+           (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
+           (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual,
+           ri.quantidade, ri.status_atendimento, ri.telegrama_enviado, ri.data_envio
+    FROM requisicao_itens ri
+    JOIN requisicoes r ON r.id = ri.requisicao_id
+    ${where}
+    ORDER BY r.id DESC, ri.id
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
+
+  res.json({ total, itens, page: Number(page), pageSize: limit });
+});
+
+// ---------- Requisições: atualizar o atendimento de um item ----------
+router.put('/requisicoes/item/:id', (req, res) => {
+  const item = db.prepare('SELECT * FROM requisicao_itens WHERE id = ?').get(req.params.id);
+  if (!item) return res.status(404).json({ erro: 'Item não encontrado.' });
+
+  const { status_atendimento, telegrama_enviado, data_envio } = req.body || {};
+  const status = status_atendimento ?? item.status_atendimento;
+  const telegrama = telegrama_enviado ?? item.telegrama_enviado;
+  const dataEnvio = data_envio !== undefined ? (data_envio || null) : item.data_envio;
+
+  db.prepare('UPDATE requisicao_itens SET status_atendimento = ?, telegrama_enviado = ?, data_envio = ? WHERE id = ?')
+    .run(status, telegrama, dataEnvio, item.id);
+
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'atualizar_atendimento_item', 'requisicao_itens', item.id,
+      JSON.stringify({ status_atendimento: status, telegrama_enviado: telegrama, data_envio: dataEnvio }));
+
+  res.json({ ok: true });
+});
+
 // ---------- Requisições: categorias distintas (para o filtro) ----------
 router.get('/requisicoes/categorias', (req, res) => {
   const cats = db.prepare(

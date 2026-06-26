@@ -2126,48 +2126,81 @@ async function carregarTabelaRelReq() {
   const cat = document.getElementById('reqFiltroCategoria').value;
   if (cat) params.set('categoria', cat);
 
-  const dados = await api(`/autores/requisicoes?${params.toString()}`);
+  const dados = await api(`/autores/requisicoes/itens?${params.toString()}`);
   const corpo = document.getElementById('corpoTabelaRelatorioReq');
   const vazio = document.getElementById('estadoVazioRelatorioReq');
 
-  if (dados.requisicoes.length === 0) {
+  const opc = (lista, atual) => lista.map((o) =>
+    `<option value="${o}" ${o === atual ? 'selected' : ''}>${o}</option>`).join('');
+
+  if (dados.itens.length === 0) {
     corpo.innerHTML = ''; vazio.hidden = false;
   } else {
     vazio.hidden = true;
-    corpo.innerHTML = dados.requisicoes.map((r) => {
-      const cancelada = r.status === 'Cancelada';
-      const statusTag = cancelada
-        ? '<span class="etiqueta-status cancelado">Cancelada</span>'
-        : '<span class="etiqueta-status finalizado">Ativa</span>';
-      const acoesEdicao = cancelada
-        ? `<span style="font-size:11px; color:var(--cinza-texto);">cancelada em ${formatarDataHora(r.cancelado_em)}</span>`
-        : `<button class="botao-secundario" data-editar="${r.id}">Editar</button>
-           <button class="botao-secundario" data-cancelar="${r.id}" style="color:var(--vermelho); border-color:var(--vermelho);">Cancelar</button>`;
+    corpo.innerHTML = dados.itens.map((it) => {
+      const aut = it.autonomia_atual;
+      let stEstoque = '<span style="color:var(--cinza-texto); font-size:12px;">—</span>';
+      if (aut !== null && aut !== undefined) {
+        stEstoque = Number(aut) < 2
+          ? '<span class="etiqueta-status cancelado">Aguardar</span>'
+          : '<span class="etiqueta-status finalizado">Chamar</span>';
+      }
       return `
-        <tr${cancelada ? ' style="opacity:0.65;"' : ''}>
-          <td class="col-codigo"><strong>${r.codigo_controle || ('#' + r.id)}</strong></td>
-          <td class="col-data">${formatarDataHora(r.criado_em)}</td>
-          <td>${r.autor || '—'}</td>
-          <td class="col-codigo">${r.sei || '—'}</td>
-          <td>${fmtNumero(r.total_itens)}</td>
-          <td>${statusTag}</td>
-          <td>${r.operador_nome || '—'}</td>
-          <td style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button class="botao-editar" data-abrir="${r.id}">Abrir / Imprimir</button>
-            ${acoesEdicao}
+        <tr data-id="${it.id}">
+          <td class="col-codigo"><a href="#" class="req-abrir-doc" data-req="${it.requisicao_id}"><strong>${it.codigo_controle || ('#' + it.requisicao_id)}</strong></a></td>
+          <td>${it.autor || '—'}</td>
+          <td class="col-codigo">${it.sei || '—'}</td>
+          <td class="col-codigo">${it.codigo_item || '—'}</td>
+          <td>${it.descricao_item || '—'}</td>
+          <td class="col-codigo">${it.siafisico || '—'}</td>
+          <td>${fmtNumero(it.estoque_atual)}</td>
+          <td>${aut === null || aut === undefined ? '—' : fmtNumero(aut) + ' m'}</td>
+          <td>${stEstoque}</td>
+          <td>
+            <select class="req-at-status">${opc(['Solicitado', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select>
+          </td>
+          <td>
+            <select class="req-at-tel">${opc(['Não', 'Sim'], it.telegrama_enviado)}</select>
+          </td>
+          <td>
+            <input type="date" class="req-at-data" value="${it.data_envio || ''}">
           </td>
         </tr>`;
     }).join('');
-    corpo.querySelectorAll('button[data-abrir]').forEach((b) => b.addEventListener('click', () => reabrirRequisicao(b.dataset.abrir)));
-    corpo.querySelectorAll('button[data-editar]').forEach((b) => b.addEventListener('click', () => editarRequisicao(b.dataset.editar)));
-    corpo.querySelectorAll('button[data-cancelar]').forEach((b) => b.addEventListener('click', () => cancelarRequisicao(b.dataset.cancelar)));
+
+    // Abrir documento ao clicar no nº de controle
+    corpo.querySelectorAll('.req-abrir-doc').forEach((a) => {
+      a.addEventListener('click', (ev) => { ev.preventDefault(); reabrirRequisicao(a.dataset.req); });
+    });
+    // Salvar ao alterar qualquer controle da linha
+    corpo.querySelectorAll('tr[data-id]').forEach((tr) => {
+      tr.querySelectorAll('.req-at-status, .req-at-tel, .req-at-data').forEach((ctrl) => {
+        ctrl.addEventListener('change', () => salvarAtendimentoItem(tr));
+      });
+    });
   }
 
   const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
   document.getElementById('textoPaginacaoRelatorioReq').textContent =
-    `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} requisição(ões)`;
+    `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} item(ns)`;
   document.getElementById('reqAnterior').disabled = dados.page <= 1;
   document.getElementById('reqProximo').disabled = dados.page >= totalPaginas;
+}
+
+async function salvarAtendimentoItem(tr) {
+  const id = tr.dataset.id;
+  const corpo = {
+    status_atendimento: tr.querySelector('.req-at-status').value,
+    telegrama_enviado: tr.querySelector('.req-at-tel').value,
+    data_envio: tr.querySelector('.req-at-data').value || null,
+  };
+  try {
+    await api(`/autores/requisicoes/item/${id}`, { method: 'PUT', body: JSON.stringify(corpo) });
+    tr.style.background = '#eaf5ee';
+    setTimeout(() => { tr.style.background = ''; }, 600);
+  } catch (e) {
+    alert('Erro ao salvar: ' + e.message);
+  }
 }
 
 // -------------------- Evolução de Estoque (série histórica) --------------------
