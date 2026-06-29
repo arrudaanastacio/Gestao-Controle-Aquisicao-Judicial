@@ -46,6 +46,7 @@
           <p class="nav-grupo-titulo">👤 Autores</p>
           <p class="nav-sub">Tenente Pena</p>
           <a href="#" data-pagina="autores">Listagem de Autores</a>
+          <a href="#" data-pagina="comparativoAutores">Comparativo de Autores</a>
           <a href="#" data-pagina="relatorioReq">Relatório Primeiro Atendimento</a>
           <p class="nav-sub nav-sub-vazio">Demais Unidades <span>(em breve)</span></p>
         </div>
@@ -622,6 +623,40 @@
         </div>
       </section>
 
+      <section id="paginaComparativoAutores" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Comparativo de Autores</h2>
+            <p>Compara a versão anterior da Listagem de Autores com a atual</p>
+          </div>
+        </div>
+
+        <div id="avisoSemComparativo" class="estado-vazio" hidden>
+          Ainda não há uma versão anterior para comparar. O comparativo fica disponível a partir da próxima atualização do arquivo de autores.
+        </div>
+
+        <div id="conteudoComparativo" hidden>
+          <div class="grade-resumo" id="grideKpiComparativo"></div>
+
+          <div class="filtros-faixa" id="abasComparativo" style="margin:18px 0 14px;">
+            <button type="button" class="chip-faixa ativo" data-aba="novos">Pacientes Novos</button>
+            <button type="button" class="chip-faixa" data-aba="encerrados">Não aparecem mais</button>
+            <button type="button" class="chip-faixa" data-aba="alteracoes">Alterações</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table id="tabelaComparativo">
+                <thead id="cabecalhoComparativo"></thead>
+                <tbody id="corpoComparativo"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="vazioComparativo" hidden>Nenhum registro nesta aba.</div>
+            <div class="paginacao"><span id="contagemComparativo">—</span></div>
+          </div>
+        </div>
+      </section>
+
       <section id="paginaRelatorioReq" hidden>
         <div class="cabecalho-pagina">
           <div>
@@ -1080,6 +1115,6 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=15"></script>
+  <script src="/js/app.js?v=16"></script>
 </body>
 </html>

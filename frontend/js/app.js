@@ -174,6 +174,7 @@ const ICONES_NAV = {
   historico: '<path d="M4 12a8 8 0 1 0 2-5.3"/><path d="M4 4v3h3"/><path d="M12 8v4l3 2"/>',
   evolucao: '<path d="M4 19h16"/><path d="M4 19V5"/><path d="M7 15l4-5 3 3 5-7"/>',
   autores: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  comparativoAutores: '<path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/>',
   relatorioReq: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M8 11h8M8 15h8M8 19h5"/>',
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   elenco: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
@@ -219,6 +220,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaHistorico').hidden = pagina !== 'historico';
   document.getElementById('paginaEvolucao').hidden = pagina !== 'evolucao';
   document.getElementById('paginaAutores').hidden = pagina !== 'autores';
+  document.getElementById('paginaComparativoAutores').hidden = pagina !== 'comparativoAutores';
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
   document.getElementById('paginaRelatorioItens').hidden = pagina !== 'relatorioItens';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
@@ -236,6 +238,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'historico') await carregarHistorico();
     if (pagina === 'evolucao') iniciarEvolucao();
     if (pagina === 'autores') await carregarAutores();
+    if (pagina === 'comparativoAutores') await carregarComparativo();
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
     if (pagina === 'relatorioItens') await carregarRelatorioItens();
     if (pagina === 'alertas') await carregarAlertas();
@@ -1872,6 +1875,84 @@ async function carregarTabelaRelItens() {
     `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} item(ns)`;
   document.getElementById('riAnterior').disabled = dados.page <= 1;
   document.getElementById('riProximo').disabled = dados.page >= totalPaginas;
+}
+
+// -------------------- Comparativo de Autores (anterior × atual) --------------------
+let dadosComparativo = null;
+
+document.querySelectorAll('#abasComparativo .chip-faixa').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#abasComparativo .chip-faixa').forEach((b) => b.classList.toggle('ativo', b === btn));
+    renderAbaComparativo(btn.dataset.aba);
+  });
+});
+
+async function carregarComparativo() {
+  const dados = await api('/autores/comparacao');
+  dadosComparativo = dados;
+
+  if (!dados.temAnterior) {
+    document.getElementById('avisoSemComparativo').hidden = false;
+    document.getElementById('conteudoComparativo').hidden = true;
+    return;
+  }
+  document.getElementById('avisoSemComparativo').hidden = true;
+  document.getElementById('conteudoComparativo').hidden = false;
+
+  const diffTotal = dados.totalAtual - dados.totalAnterior;
+  const sinalTotal = (diffTotal > 0 ? '+' : '') + fmtNumero(diffTotal);
+  document.getElementById('grideKpiComparativo').innerHTML = `
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${formatarData(dados.anterior)}</div><div class="rotulo">Arquivo anterior</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${formatarData(dados.atual)}</div><div class="rotulo">Arquivo atual</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAnterior)}</div><div class="rotulo">Total anterior</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAtual)}</div><div class="rotulo">Total atual (${sinalTotal})</div></div>
+    <div class="cartao-resumo"><div class="numero" style="color:var(--selo);">${fmtNumero(dados.novos.length)}</div><div class="rotulo">Novos pacientes</div></div>
+    <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(dados.encerrados.length)}</div><div class="rotulo">Pacientes encerrados</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.alteracoes.length)}</div><div class="rotulo">Alterações</div></div>
+  `;
+
+  // atualiza rótulos das abas com contagens
+  const ab = document.querySelectorAll('#abasComparativo .chip-faixa');
+  ab[0].textContent = `Pacientes Novos (${dados.novos.length})`;
+  ab[1].textContent = `Não aparecem mais (${dados.encerrados.length})`;
+  ab[2].textContent = `Alterações (${dados.alteracoes.length})`;
+  ab.forEach((b, i) => b.classList.toggle('ativo', i === 0));
+
+  renderAbaComparativo('novos');
+}
+
+function renderAbaComparativo(aba) {
+  if (!dadosComparativo) return;
+  const cabecalho = document.getElementById('cabecalhoComparativo');
+  const corpo = document.getElementById('corpoComparativo');
+  const vazio = document.getElementById('vazioComparativo');
+
+  let cols = [];
+  let linhas = [];
+  if (aba === 'novos') {
+    cols = ['Autor', 'Processo', 'Item', 'Cadastro'];
+    linhas = dadosComparativo.novos.map((n) => [n.autor, n.processo || '—', n.item, n.cadastro]);
+  } else if (aba === 'encerrados') {
+    cols = ['Autor', 'Processo', 'Último Item'];
+    linhas = dadosComparativo.encerrados.map((e) => [e.autor, e.processo || '—', e.ultimo_item]);
+  } else {
+    cols = ['Autor', 'Alteração', 'Detalhe'];
+    linhas = dadosComparativo.alteracoes.map((a) => {
+      const cls = a.alteracao === 'Novo medicamento' ? 'finalizado' : (a.alteracao === 'Item removido' ? 'cancelado' : 'planejamento');
+      return [a.autor, `<span class="etiqueta-status ${cls}">${a.alteracao}</span>`, a.detalhe];
+    });
+  }
+
+  cabecalho.innerHTML = '<tr>' + cols.map((c) => `<th>${c}</th>`).join('') + '</tr>';
+  if (linhas.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = linhas.slice(0, 2000).map((l) =>
+      '<tr>' + l.map((celula, i) => i === 0 ? `<td>${celula}</td>` : `<td>${celula}</td>`).join('') + '</tr>'
+    ).join('');
+  }
+  document.getElementById('contagemComparativo').textContent = `${fmtNumero(linhas.length)} registro(s)`;
 }
 
 // -------------------- Requisição de Compra (construtor) --------------------

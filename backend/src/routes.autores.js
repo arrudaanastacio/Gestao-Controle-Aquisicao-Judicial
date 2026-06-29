@@ -102,7 +102,8 @@ function importarAutoresDeBuffer(buffer, opcoes = {}) {
   const usuarioEmail = opcoes.usuarioEmail || 'sistema';
   const usuarioId = opcoes.usuarioId ?? null;
 
-  db.exec('DELETE FROM autores_itens');
+  // Substitui a versão da mesma data (se reimportar no mesmo dia)
+  db.prepare('DELETE FROM autores_itens WHERE data_referencia = ?').run(dataReferencia);
 
   const cols = ['data_referencia', ...CAMPOS];
   const stmt = db.prepare(
@@ -112,8 +113,15 @@ function importarAutoresDeBuffer(buffer, opcoes = {}) {
     stmt.run(dataReferencia, ...CAMPOS.map((c) => l[c]));
   }
 
-  // contagens úteis
-  const totalAutores = db.prepare('SELECT COUNT(DISTINCT autor) c FROM autores_itens').get().c;
+  // Mantém só as 2 versões mais recentes (atual + anterior, para o comparativo)
+  const datas = db.prepare('SELECT DISTINCT data_referencia FROM autores_itens WHERE data_referencia IS NOT NULL ORDER BY data_referencia DESC').all().map((r) => r.data_referencia);
+  if (datas.length > 2) {
+    const manter = datas.slice(0, 2);
+    db.prepare(`DELETE FROM autores_itens WHERE data_referencia NOT IN (${manter.map(() => '?').join(',')})`).run(...manter);
+  }
+
+  // contagens úteis (só da versão atual)
+  const totalAutores = db.prepare('SELECT COUNT(DISTINCT autor) c FROM autores_itens WHERE data_referencia = ?').get(dataReferencia).c;
   const resumo = { dataReferencia, totalLinhas: linhas.length, totalAutores };
 
   db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
@@ -130,7 +138,8 @@ router.get('/', (req, res) => {
   const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
   const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
 
-  const cond = [];
+  // Sempre a versão mais recente
+  const cond = ['data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)'];
   const params = [];
   if (q) {
     cond.push('(autor LIKE ? OR processo LIKE ? OR protocolo LIKE ? OR descricao_item LIKE ? OR codigo_item LIKE ?)');
@@ -141,15 +150,15 @@ router.get('/', (req, res) => {
   if (status_demanda) { cond.push('status_demanda = ?'); params.push(status_demanda); }
   if (status_item) { cond.push('status_item = ?'); params.push(status_item); }
   if (categoria) { cond.push('categoria = ?'); params.push(categoria); }
-  const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+  const where = `WHERE ${cond.join(' AND ')}`;
 
   const total = db.prepare(`SELECT COUNT(*) c FROM autores_itens ${where}`).get(...params).c;
   const itens = db.prepare(
     `SELECT * FROM autores_itens ${where} ORDER BY autor COLLATE NOCASE, descricao_item LIMIT ? OFFSET ?`
   ).all(...params, limit, offset);
 
-  const dataRef = db.prepare('SELECT data_referencia FROM autores_itens LIMIT 1').get()?.data_referencia || null;
-  const totalAutores = db.prepare('SELECT COUNT(DISTINCT autor) c FROM autores_itens').get().c;
+  const dataRef = db.prepare('SELECT MAX(data_referencia) v FROM autores_itens').get()?.v || null;
+  const totalAutores = db.prepare('SELECT COUNT(DISTINCT autor) c FROM autores_itens WHERE data_referencia = ?').get(dataRef).c;
 
   res.json({ total, totalAutores, dataReferencia: dataRef, itens, page: Number(page), pageSize: limit });
 });
@@ -157,7 +166,7 @@ router.get('/', (req, res) => {
 // ---------- Valores distintos para os filtros ----------
 router.get('/filtros', (req, res) => {
   const distintos = (col) => db.prepare(
-    `SELECT DISTINCT ${col} v FROM autores_itens WHERE ${col} IS NOT NULL AND ${col} <> '' ORDER BY v`
+    `SELECT DISTINCT ${col} v FROM autores_itens WHERE data_referencia = (SELECT MAX(data_referencia) FROM autores_itens) AND ${col} IS NOT NULL AND ${col} <> '' ORDER BY v`
   ).all().map((r) => r.v);
   res.json({
     unidade: distintos('unidade_dispensadora'),
@@ -190,7 +199,8 @@ router.get('/pacientes', (req, res) => {
   const pacientes = db.prepare(`
     SELECT autor, COUNT(*) AS qtde_itens, MAX(processo) AS processo
     FROM autores_itens
-    WHERE autor LIKE ? OR processo LIKE ? OR protocolo LIKE ?
+    WHERE data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
+      AND (autor LIKE ? OR processo LIKE ? OR protocolo LIKE ?)
     GROUP BY autor
     ORDER BY autor COLLATE NOCASE
     LIMIT 30
@@ -210,12 +220,12 @@ router.get('/paciente', (req, res) => {
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
            (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual
     FROM autores_itens a
-    WHERE a.autor = ?
+    WHERE a.autor = ? AND a.data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
     ORDER BY a.descricao_item
   `).all(autor);
 
   const info = db.prepare(
-    'SELECT autor, idade, dt_nascimento, unidade_dispensadora, procurador_estado FROM autores_itens WHERE autor = ? LIMIT 1'
+    'SELECT autor, idade, dt_nascimento, unidade_dispensadora, procurador_estado FROM autores_itens WHERE autor = ? AND data_referencia = (SELECT MAX(data_referencia) FROM autores_itens) LIMIT 1'
   ).get(autor) || { autor };
 
   res.json({ info, itens });
@@ -396,6 +406,103 @@ router.get('/requisicoes/:id', (req, res) => {
   if (!r) return res.status(404).json({ erro: 'Requisição não encontrada.' });
   const itens = db.prepare('SELECT * FROM requisicao_itens WHERE requisicao_id = ? ORDER BY id').all(r.id);
   res.json({ requisicao: r, itens });
+});
+
+// ---------- Comparação entre a versão anterior e a atual ----------
+router.get('/comparacao', (req, res) => {
+  const datas = db.prepare(
+    'SELECT DISTINCT data_referencia FROM autores_itens WHERE data_referencia IS NOT NULL ORDER BY data_referencia DESC LIMIT 2'
+  ).all().map((r) => r.data_referencia);
+
+  if (datas.length < 2) {
+    return res.json({ temAnterior: false, atual: datas[0] || null });
+  }
+
+  const atual = datas[0];
+  const anterior = datas[1];
+
+  const carregar = (data) => db.prepare(
+    'SELECT autor, processo, codigo_item, descricao_item, data_cadastro, status_demanda, status_item FROM autores_itens WHERE data_referencia = ?'
+  ).all(data);
+
+  const linhasAtual = carregar(atual);
+  const linhasAnt = carregar(anterior);
+
+  // Agrupa por autor
+  const porAutor = (linhas) => {
+    const m = new Map();
+    for (const l of linhas) {
+      if (!m.has(l.autor)) m.set(l.autor, { autor: l.autor, processo: l.processo, itens: new Map(), linhas: [] });
+      const g = m.get(l.autor);
+      g.linhas.push(l);
+      if (l.codigo_item) g.itens.set(l.codigo_item, l);
+    }
+    return m;
+  };
+  const mapAtual = porAutor(linhasAtual);
+  const mapAnt = porAutor(linhasAnt);
+
+  // Novos pacientes (no atual, não no anterior)
+  const novos = [];
+  for (const [autor, g] of mapAtual) {
+    if (!mapAnt.has(autor)) {
+      const primeiro = g.linhas[0] || {};
+      novos.push({ autor, processo: g.processo, item: primeiro.descricao_item || '—', cadastro: primeiro.data_cadastro || '—', qtde_itens: g.linhas.length });
+    }
+  }
+
+  // Pacientes encerrados (no anterior, não no atual)
+  const encerrados = [];
+  for (const [autor, g] of mapAnt) {
+    if (!mapAtual.has(autor)) {
+      const ultimo = g.linhas[g.linhas.length - 1] || {};
+      encerrados.push({ autor, processo: g.processo, ultimo_item: ultimo.descricao_item || '—' });
+    }
+  }
+
+  // Alterações (autores em ambos, com diferença de itens/status)
+  const alteracoes = [];
+  for (const [autor, gA] of mapAtual) {
+    const gP = mapAnt.get(autor);
+    if (!gP) continue;
+    // itens novos
+    for (const [cod, it] of gA.itens) {
+      if (!gP.itens.has(cod)) alteracoes.push({ autor, alteracao: 'Novo medicamento', detalhe: it.descricao_item || cod });
+    }
+    // itens removidos
+    for (const [cod, it] of gP.itens) {
+      if (!gA.itens.has(cod)) alteracoes.push({ autor, alteracao: 'Item removido', detalhe: it.descricao_item || cod });
+    }
+    // status alterado (mesmo item, status diferente)
+    for (const [cod, itA] of gA.itens) {
+      const itP = gP.itens.get(cod);
+      if (!itP) continue;
+      const mudouDemanda = (itA.status_demanda || '') !== (itP.status_demanda || '');
+      const mudouItem = (itA.status_item || '') !== (itP.status_item || '');
+      if (mudouDemanda || mudouItem) {
+        const partes = [];
+        if (mudouDemanda) partes.push(`demanda: "${itP.status_demanda || '—'}" → "${itA.status_demanda || '—'}"`);
+        if (mudouItem) partes.push(`item: "${itP.status_item || '—'}" → "${itA.status_item || '—'}"`);
+        alteracoes.push({ autor, alteracao: 'Status alterado', detalhe: `${it_desc(itA)} — ${partes.join('; ')}` });
+      }
+    }
+  }
+  function it_desc(it) { return it.descricao_item || it.codigo_item || '—'; }
+
+  novos.sort((a, b) => a.autor.localeCompare(b.autor));
+  encerrados.sort((a, b) => a.autor.localeCompare(b.autor));
+  alteracoes.sort((a, b) => a.autor.localeCompare(b.autor));
+
+  res.json({
+    temAnterior: true,
+    anterior,
+    atual,
+    totalAnterior: mapAnt.size,
+    totalAtual: mapAtual.size,
+    novos,
+    encerrados,
+    alteracoes,
+  });
 });
 
 module.exports = router;
