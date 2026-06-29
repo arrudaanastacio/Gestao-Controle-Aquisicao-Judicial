@@ -23,3 +23,5 @@ desktop.ini
 
 # Estado interno dos vigias
 backend/data/_vigia_estado.json
+backend/_log.txt
+backend/_err.txt
