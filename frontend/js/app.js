@@ -1879,6 +1879,7 @@ async function carregarTabelaRelItens() {
 
 // -------------------- Comparativo de Autores (anterior × atual) --------------------
 let dadosComparativo = null;
+let abaComparativoAtiva = 'novos';
 
 document.querySelectorAll('#abasComparativo .chip-faixa').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -1927,6 +1928,7 @@ function renderAbaComparativo(aba) {
   const corpo = document.getElementById('corpoComparativo');
   const vazio = document.getElementById('vazioComparativo');
 
+  abaComparativoAtiva = aba;
   // Filtros e KPIs dinâmicos só aparecem na aba Alterações
   const ehAlteracoes = aba === 'alteracoes';
   document.getElementById('filtrosAlteracoes').hidden = !ehAlteracoes;
@@ -1988,6 +1990,52 @@ function renderAbaComparativo(aba) {
 // Filtros da aba Alterações re-renderizam a aba
 ['filtroTipoAlteracao', 'filtroCategoriaAlteracao'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => renderAbaComparativo('alteracoes'));
+});
+
+// Monta {cols, linhas} em TEXTO PURO da aba (para exportar)
+function dadosTextoComparativo(aba) {
+  if (!dadosComparativo) return { cols: [], linhas: [] };
+  if (aba === 'novos') {
+    return {
+      cols: ['ID Demanda', 'Autor', 'Protocolo', 'Processo', 'Tipo da Demanda', 'Cód. Item', 'Descrição do Item', 'Qtde de Consumo'],
+      linhas: dadosComparativo.novos.map((n) => [n.id_demanda, n.autor, n.protocolo, n.processo, n.tipo_demanda, n.codigo_item, n.descricao_item, n.qtde_consumo]),
+    };
+  }
+  if (aba === 'encerrados') {
+    return {
+      cols: ['Autor', 'Processo', 'Último Item'],
+      linhas: dadosComparativo.encerrados.map((e) => [e.autor, e.processo || '—', e.ultimo_item]),
+    };
+  }
+  // alterações (respeita os filtros atuais)
+  const fTipo = document.getElementById('filtroTipoAlteracao').value;
+  const fCat = document.getElementById('filtroCategoriaAlteracao').value;
+  const filtradas = dadosComparativo.alteracoes
+    .filter((a) => !fCat || a.categoria === fCat)
+    .filter((a) => !fTipo || a.alteracao === fTipo);
+  return {
+    cols: ['Autor', 'Protocolo', 'Cód. Item', 'Categoria', 'Qtde Consumo', 'Alteração', 'Detalhe'],
+    linhas: filtradas.map((a) => [a.autor, a.protocolo, a.codigo_item, a.categoria, a.qtde_consumo, a.alteracao, a.detalhe]),
+  };
+}
+
+document.getElementById('botaoExportarComparativo').addEventListener('click', () => {
+  const aba = abaComparativoAtiva;
+  const { cols, linhas } = dadosTextoComparativo(aba);
+  if (linhas.length === 0) { alert('Não há registros para exportar nesta aba.'); return; }
+
+  const campo = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = '﻿' + [cols.map(campo).join(';'), ...linhas.map((l) => l.map(campo).join(';'))].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const nomeAba = { novos: 'pacientes-novos', encerrados: 'pacientes-inativos', alteracoes: 'alteracoes' }[aba] || aba;
+  a.href = url;
+  a.download = `comparativo_${nomeAba}_${dadosComparativo.atual || ''}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 });
 
 // -------------------- Requisição de Compra (construtor) --------------------
