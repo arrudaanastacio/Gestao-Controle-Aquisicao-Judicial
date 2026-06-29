@@ -1940,10 +1940,10 @@ function renderAbaComparativo(aba) {
     cols = ['Autor', 'Processo', 'Último Item'];
     linhas = dadosComparativo.encerrados.map((e) => [e.autor, e.processo || '—', e.ultimo_item]);
   } else {
-    cols = ['Autor', 'Cód. Item', 'Alteração', 'Detalhe'];
+    cols = ['Autor', 'Protocolo', 'Cód. Item', 'Alteração', 'Detalhe'];
     linhas = dadosComparativo.alteracoes.map((a) => {
       const cls = a.alteracao === 'Novo medicamento' ? 'finalizado' : (a.alteracao === 'Item removido' ? 'cancelado' : 'planejamento');
-      return [a.autor, `<span class="col-codigo">${a.codigo_item || '—'}</span>`, `<span class="etiqueta-status ${cls}">${a.alteracao}</span>`, a.detalhe];
+      return [a.autor, `<span class="col-codigo">${a.protocolo || '—'}</span>`, `<span class="col-codigo">${a.codigo_item || '—'}</span>`, `<span class="etiqueta-status ${cls}">${a.alteracao}</span>`, a.detalhe];
     });
   }
 
