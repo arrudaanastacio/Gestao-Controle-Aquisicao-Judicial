@@ -422,7 +422,9 @@ router.get('/comparacao', (req, res) => {
   const anterior = datas[1];
 
   const carregar = (data) => db.prepare(
-    'SELECT autor, processo, codigo_item, descricao_item, data_cadastro, status_demanda, status_item FROM autores_itens WHERE data_referencia = ?'
+    `SELECT id_demanda, autor, protocolo, processo, tipo_demanda, codigo_item, descricao_item,
+            qtde_consumo, data_cadastro, status_demanda, status_item
+     FROM autores_itens WHERE data_referencia = ?`
   ).all(data);
 
   const linhasAtual = carregar(atual);
@@ -442,14 +444,27 @@ router.get('/comparacao', (req, res) => {
   const mapAtual = porAutor(linhasAtual);
   const mapAnt = porAutor(linhasAnt);
 
-  // Novos pacientes (no atual, não no anterior)
+  // Novos pacientes (no atual, não no anterior) — detalhado por item
   const novos = [];
+  const novosAutores = [];
   for (const [autor, g] of mapAtual) {
     if (!mapAnt.has(autor)) {
-      const primeiro = g.linhas[0] || {};
-      novos.push({ autor, processo: g.processo, item: primeiro.descricao_item || '—', cadastro: primeiro.data_cadastro || '—', qtde_itens: g.linhas.length });
+      novosAutores.push(autor);
+      for (const l of g.linhas) {
+        novos.push({
+          id_demanda: l.id_demanda || '—',
+          autor: l.autor,
+          protocolo: l.protocolo || '—',
+          processo: l.processo || '—',
+          tipo_demanda: l.tipo_demanda || '—',
+          codigo_item: l.codigo_item || '—',
+          descricao_item: l.descricao_item || '—',
+          qtde_consumo: l.qtde_consumo || '—',
+        });
+      }
     }
   }
+  const totalNovosPacientes = novosAutores.length;
 
   // Pacientes encerrados (no anterior, não no atual)
   const encerrados = [];
@@ -499,6 +514,7 @@ router.get('/comparacao', (req, res) => {
     atual,
     totalAnterior: mapAnt.size,
     totalAtual: mapAtual.size,
+    totalNovosPacientes,
     novos,
     encerrados,
     alteracoes,

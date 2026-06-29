@@ -1906,14 +1906,14 @@ async function carregarComparativo() {
     <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${formatarData(dados.atual)}</div><div class="rotulo">Arquivo atual</div></div>
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAnterior)}</div><div class="rotulo">Total anterior</div></div>
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAtual)}</div><div class="rotulo">Total atual (${sinalTotal})</div></div>
-    <div class="cartao-resumo"><div class="numero" style="color:var(--selo);">${fmtNumero(dados.novos.length)}</div><div class="rotulo">Novos pacientes</div></div>
+    <div class="cartao-resumo"><div class="numero" style="color:var(--selo);">${fmtNumero(dados.totalNovosPacientes ?? dados.novos.length)}</div><div class="rotulo">Novos pacientes</div></div>
     <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(dados.encerrados.length)}</div><div class="rotulo">Pacientes encerrados</div></div>
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.alteracoes.length)}</div><div class="rotulo">Alterações</div></div>
   `;
 
   // atualiza rótulos das abas com contagens
   const ab = document.querySelectorAll('#abasComparativo .chip-faixa');
-  ab[0].textContent = `Pacientes Novos (${dados.novos.length})`;
+  ab[0].textContent = `Pacientes Novos (${dados.totalNovosPacientes ?? dados.novos.length})`;
   ab[1].textContent = `Não aparecem mais (${dados.encerrados.length})`;
   ab[2].textContent = `Alterações (${dados.alteracoes.length})`;
   ab.forEach((b, i) => b.classList.toggle('ativo', i === 0));
@@ -1930,8 +1930,12 @@ function renderAbaComparativo(aba) {
   let cols = [];
   let linhas = [];
   if (aba === 'novos') {
-    cols = ['Autor', 'Processo', 'Item', 'Cadastro'];
-    linhas = dadosComparativo.novos.map((n) => [n.autor, n.processo || '—', n.item, n.cadastro]);
+    cols = ['ID Demanda', 'Autor', 'Protocolo', 'Processo', 'Tipo da Demanda', 'Cód. Item', 'Descrição do Item', 'Qtde de Consumo'];
+    linhas = dadosComparativo.novos.map((n) => [
+      `<span class="col-codigo">${n.id_demanda}</span>`, n.autor,
+      `<span class="col-codigo">${n.protocolo}</span>`, `<span class="col-codigo">${n.processo}</span>`,
+      n.tipo_demanda, `<span class="col-codigo">${n.codigo_item}</span>`, n.descricao_item, n.qtde_consumo,
+    ]);
   } else if (aba === 'encerrados') {
     cols = ['Autor', 'Processo', 'Último Item'];
     linhas = dadosComparativo.encerrados.map((e) => [e.autor, e.processo || '—', e.ultimo_item]);
