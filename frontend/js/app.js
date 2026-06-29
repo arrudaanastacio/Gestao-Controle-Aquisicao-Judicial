@@ -1927,6 +1927,11 @@ function renderAbaComparativo(aba) {
   const corpo = document.getElementById('corpoComparativo');
   const vazio = document.getElementById('vazioComparativo');
 
+  // Filtros e KPIs dinâmicos só aparecem na aba Alterações
+  const ehAlteracoes = aba === 'alteracoes';
+  document.getElementById('filtrosAlteracoes').hidden = !ehAlteracoes;
+  document.getElementById('kpiAlteracoes').hidden = !ehAlteracoes;
+
   let cols = [];
   let linhas = [];
   if (aba === 'novos') {
@@ -1940,10 +1945,31 @@ function renderAbaComparativo(aba) {
     cols = ['Autor', 'Processo', 'Último Item'];
     linhas = dadosComparativo.encerrados.map((e) => [e.autor, e.processo || '—', e.ultimo_item]);
   } else {
-    cols = ['Autor', 'Protocolo', 'Cód. Item', 'Alteração', 'Detalhe'];
-    linhas = dadosComparativo.alteracoes.map((a) => {
+    // popula o filtro de categoria (1ª vez)
+    const selCat = document.getElementById('filtroCategoriaAlteracao');
+    if (selCat.options.length <= 1) {
+      const cats = [...new Set(dadosComparativo.alteracoes.map((a) => a.categoria).filter((c) => c && c !== '—'))].sort();
+      selCat.innerHTML = '<option value="">Categoria: todas</option>' + cats.map((c) => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('');
+    }
+
+    const fTipo = document.getElementById('filtroTipoAlteracao').value;
+    const fCat = selCat.value;
+    // base filtrada só por categoria (para os KPIs por tipo)
+    const baseCat = dadosComparativo.alteracoes.filter((a) => !fCat || a.categoria === fCat);
+    const conta = (t) => baseCat.filter((a) => a.alteracao === t).length;
+    document.getElementById('kpiAlteracoes').innerHTML = `
+      <div class="cartao-resumo"><div class="numero">${fmtNumero(baseCat.length)}</div><div class="rotulo">Total de alterações</div></div>
+      <div class="cartao-resumo"><div class="numero" style="color:var(--selo);">${fmtNumero(conta('Novo medicamento'))}</div><div class="rotulo">Novo medicamento</div></div>
+      <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(conta('Item removido'))}</div><div class="rotulo">Item removido</div></div>
+      <div class="cartao-resumo"><div class="numero">${fmtNumero(conta('Status alterado'))}</div><div class="rotulo">Status alterado</div></div>
+    `;
+
+    const filtradas = baseCat.filter((a) => !fTipo || a.alteracao === fTipo);
+    cols = ['Autor', 'Protocolo', 'Cód. Item', 'Categoria', 'Qtde Consumo', 'Alteração', 'Detalhe'];
+    linhas = filtradas.map((a) => {
       const cls = a.alteracao === 'Novo medicamento' ? 'finalizado' : (a.alteracao === 'Item removido' ? 'cancelado' : 'planejamento');
-      return [a.autor, `<span class="col-codigo">${a.protocolo || '—'}</span>`, `<span class="col-codigo">${a.codigo_item || '—'}</span>`, `<span class="etiqueta-status ${cls}">${a.alteracao}</span>`, a.detalhe];
+      return [a.autor, `<span class="col-codigo">${a.protocolo || '—'}</span>`, `<span class="col-codigo">${a.codigo_item || '—'}</span>`,
+        a.categoria || '—', a.qtde_consumo || '—', `<span class="etiqueta-status ${cls}">${a.alteracao}</span>`, a.detalhe];
     });
   }
 
@@ -1953,11 +1979,16 @@ function renderAbaComparativo(aba) {
   } else {
     vazio.hidden = true;
     corpo.innerHTML = linhas.slice(0, 2000).map((l) =>
-      '<tr>' + l.map((celula, i) => i === 0 ? `<td>${celula}</td>` : `<td>${celula}</td>`).join('') + '</tr>'
+      '<tr>' + l.map((celula) => `<td>${celula}</td>`).join('') + '</tr>'
     ).join('');
   }
   document.getElementById('contagemComparativo').textContent = `${fmtNumero(linhas.length)} registro(s)`;
 }
+
+// Filtros da aba Alterações re-renderizam a aba
+['filtroTipoAlteracao', 'filtroCategoriaAlteracao'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => renderAbaComparativo('alteracoes'));
+});
 
 // -------------------- Requisição de Compra (construtor) --------------------
 let reqPacienteAtual = null;

@@ -644,6 +644,18 @@
             <button type="button" class="chip-faixa" data-aba="alteracoes">Alterações</button>
           </div>
 
+          <div class="barra-filtros" id="filtrosAlteracoes" hidden>
+            <select id="filtroTipoAlteracao">
+              <option value="">Tipo de alteração: todas</option>
+              <option value="Novo medicamento">Novo medicamento</option>
+              <option value="Item removido">Item removido</option>
+              <option value="Status alterado">Status alterado</option>
+            </select>
+            <select id="filtroCategoriaAlteracao"><option value="">Categoria: todas</option></select>
+          </div>
+
+          <div class="grade-resumo" id="kpiAlteracoes" hidden style="margin-bottom:14px;"></div>
+
           <div class="tabela-wrap">
             <div class="tabela-rolavel-x">
               <table id="tabelaComparativo">
@@ -1115,6 +1127,6 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=20"></script>
+  <script src="/js/app.js?v=21"></script>
 </body>
 </html>

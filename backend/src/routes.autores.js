@@ -423,7 +423,7 @@ router.get('/comparacao', (req, res) => {
 
   const carregar = (data) => db.prepare(
     `SELECT id_demanda, autor, protocolo, processo, tipo_demanda, codigo_item, descricao_item,
-            qtde_consumo, data_cadastro, status_demanda, status_item
+            qtde_consumo, categoria, data_cadastro, status_demanda, status_item
      FROM autores_itens WHERE data_referencia = ?`
   ).all(data);
 
@@ -482,11 +482,11 @@ router.get('/comparacao', (req, res) => {
     if (!gP) continue;
     // itens novos
     for (const [cod, it] of gA.itens) {
-      if (!gP.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, alteracao: 'Novo medicamento', detalhe: it.descricao_item || cod });
+      if (!gP.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', qtde_consumo: it.qtde_consumo || '—', alteracao: 'Novo medicamento', detalhe: it.descricao_item || cod });
     }
     // itens removidos
     for (const [cod, it] of gP.itens) {
-      if (!gA.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, alteracao: 'Item removido', detalhe: it.descricao_item || cod });
+      if (!gA.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', qtde_consumo: it.qtde_consumo || '—', alteracao: 'Item removido', detalhe: it.descricao_item || cod });
     }
     // status alterado (mesmo item, status diferente)
     for (const [cod, itA] of gA.itens) {
@@ -498,7 +498,7 @@ router.get('/comparacao', (req, res) => {
         const partes = [];
         if (mudouDemanda) partes.push(`demanda: "${itP.status_demanda || '—'}" → "${itA.status_demanda || '—'}"`);
         if (mudouItem) partes.push(`item: "${itP.status_item || '—'}" → "${itA.status_item || '—'}"`);
-        alteracoes.push({ autor, protocolo: itA.protocolo || '—', codigo_item: cod, alteracao: 'Status alterado', detalhe: `${it_desc(itA)} — ${partes.join('; ')}` });
+        alteracoes.push({ autor, protocolo: itA.protocolo || '—', codigo_item: cod, categoria: itA.categoria || '—', qtde_consumo: itA.qtde_consumo || '—', alteracao: 'Status alterado', detalhe: `${it_desc(itA)} — ${partes.join('; ')}` });
       }
     }
   }
