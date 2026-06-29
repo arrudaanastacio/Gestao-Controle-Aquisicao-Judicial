@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { importarAutoresDeBuffer } = require('./routes.autores');
+const { lerAssinatura, salvarAssinatura } = require('./vigiaEstado');
 
 const CAMINHO_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\RELATÓRIO DE COMPRAS\\2026\\MEDICAMENTO\\MACRO\\Listagem de Autores.csv';
 const CAMINHO = process.env.CAMINHO_AUTORES_CSV || CAMINHO_PADRAO;
@@ -38,6 +39,7 @@ function tentarImportar(motivo) {
       usuarioEmail: 'auto-importador',
     });
     ultimaAssinatura = assinatura(st2);
+    salvarAssinatura('autores', ultimaAssinatura);
     console.log(`[VIGIA AUTORES] ${motivo}: ${resumo.totalLinhas} linhas / ${resumo.totalAutores} autores (ref ${resumo.dataReferencia}).`);
   } catch (e) {
     console.error('[VIGIA AUTORES] Falha ao importar:', e.message);
@@ -51,11 +53,10 @@ function iniciarVigiaAutores() {
     console.log('[VIGIA AUTORES] Desativado (AUTO_IMPORTAR_AUTORES=false).');
     return;
   }
-  try { ultimaAssinatura = assinatura(fs.statSync(CAMINHO)); }
-  catch { ultimaAssinatura = null; }
-
+  ultimaAssinatura = lerAssinatura('autores');
   fs.watchFile(CAMINHO, { interval: INTERVALO }, () => tentarImportar('Arquivo atualizado'));
   console.log('[VIGIA AUTORES] Monitorando atualizações em:', CAMINHO);
+  tentarImportar('Verificação ao iniciar');
 }
 
 module.exports = { iniciarVigiaAutores };

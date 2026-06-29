@@ -20,3 +20,6 @@ backend/data/export/
 Thumbs.db
 desktop.ini
 *.log
+
+# Estado interno dos vigias
+backend/data/_vigia_estado.json

@@ -5,6 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { importarEstoqueDeBuffer } = require('./routes.estoque');
+const { lerAssinatura, salvarAssinatura } = require('./vigiaEstado');
 
 const CAMINHO_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\RELATÓRIO DE COMPRAS\\2026\\MEDICAMENTO\\MACRO\\itens em estoque.csv';
 const CAMINHO = process.env.CAMINHO_ESTOQUE_CSV || CAMINHO_PADRAO;
@@ -45,6 +46,7 @@ function tentarImportar(motivo) {
       usuarioEmail: 'auto-importador',
     });
     ultimaAssinatura = assinatura(st2);
+    salvarAssinatura('estoque', ultimaAssinatura);
     const hist = resumo.arquivadoComoHistorico ? ` | ARQUIVADO histórico ref ${resumo.arquivadoComoHistorico}` : '';
     console.log(`[VIGIA ESTOQUE] ${motivo}: ${resumo.totalItens} itens importados (ref ${resumo.dataReferencia})${hist}.`);
   } catch (e) {
@@ -60,14 +62,13 @@ function iniciarVigiaEstoque() {
     return;
   }
 
-  // No arranque, registra a assinatura atual SEM importar — só importa em
-  // mudanças futuras do arquivo (evita reimportar a cada reinício do sistema).
-  try { ultimaAssinatura = assinatura(fs.statSync(CAMINHO)); }
-  catch { ultimaAssinatura = null; }
-
+  // Recupera a assinatura do último arquivo já importado. Se o arquivo atual
+  // estiver diferente (ex.: atualizado com o sistema desligado), importa agora.
+  ultimaAssinatura = lerAssinatura('estoque');
   fs.watchFile(CAMINHO, { interval: INTERVALO }, () => tentarImportar('Arquivo atualizado'));
   console.log('[VIGIA ESTOQUE] Monitorando atualizações em:', CAMINHO);
   console.log(`[VIGIA ESTOQUE] Verificação a cada ${Math.round(INTERVALO / 1000)}s. Importa sozinho quando o arquivo mudar.`);
+  tentarImportar('Verificação ao iniciar');
 }
 
 module.exports = { iniciarVigiaEstoque };
