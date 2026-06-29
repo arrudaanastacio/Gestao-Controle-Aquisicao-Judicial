@@ -1914,7 +1914,7 @@ async function carregarComparativo() {
   // atualiza rótulos das abas com contagens
   const ab = document.querySelectorAll('#abasComparativo .chip-faixa');
   ab[0].textContent = `Pacientes Novos (${dados.totalNovosPacientes ?? dados.novos.length})`;
-  ab[1].textContent = `Não aparecem mais (${dados.encerrados.length})`;
+  ab[1].textContent = `Pacientes Inativos (${dados.encerrados.length})`;
   ab[2].textContent = `Alterações (${dados.alteracoes.length})`;
   ab.forEach((b, i) => b.classList.toggle('ativo', i === 0));
 
