@@ -7,7 +7,9 @@
     "start": "node src/server.js",
     "criar-admin": "node src/seedAdmin.js",
     "exportar-banco": "node src/exportarBanco.js",
-    "backup-nuvem": "node src/backupNuvem.js"
+    "backup-nuvem": "node src/backupNuvem.js",
+    "backup": "node src/backupDb.js",
+    "backup-google": "node src/backupGoogleDrive.js"
   },
   "keywords": [],
   "author": "",
