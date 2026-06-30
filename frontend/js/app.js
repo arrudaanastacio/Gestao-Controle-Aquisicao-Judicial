@@ -2159,23 +2159,62 @@ async function selecionarPaciente(autor) {
       const cls = aut <= 0 ? 'cancelado' : (aut <= 2 ? 'atrasado' : 'finalizado');
       badge = `<span class="etiqueta-status ${cls}">estoque: ${fmtNumero(it.estoque_atual)} · autonomia ${fmtNumero(aut)} m</span>`;
     }
+    const chip = (rotulo, valor) => (valor !== null && valor !== undefined && String(valor).trim() !== '')
+      ? `<span style="display:inline-block; background:#f0ece0; border:1px solid #e2dcc9; border-radius:4px; padding:1px 7px; margin:2px 4px 0 0; font-size:11px;"><strong>${rotulo}:</strong> ${valor}</span>`
+      : '';
+    const detalhes = [
+      chip('Tipo de demanda', it.tipo_demanda),
+      chip('Qtde de consumo', it.qtde_consumo),
+      chip('Prazo', it.prazo),
+      chip('Periodicidade', it.periodicidade),
+      chip('Dispensações autorizadas', it.dispensacoes_autorizadas),
+    ].join('');
+    const consumoNum = parseNumeroReq(it.qtde_consumo);
     return `
-      <label class="req-item" style="display:grid; grid-template-columns:24px 1fr 110px; gap:10px; align-items:center; padding:9px 6px; border-bottom:1px solid #ece8db; cursor:pointer;">
+      <label class="req-item" style="display:grid; grid-template-columns:24px 1fr 95px 110px; gap:10px; align-items:center; padding:9px 6px; border-bottom:1px solid #ece8db; cursor:pointer;">
         <input type="checkbox" class="req-check" data-idx="${idx}" style="width:auto;">
         <div>
           <div style="font-size:13px;">${it.descricao_item || '—'}</div>
           <div class="col-codigo">${it.codigo_item || ''}${it.cod_siafisico ? ' · SIAF ' + it.cod_siafisico : ''}</div>
+          ${detalhes ? `<div style="margin-top:3px;">${detalhes}</div>` : ''}
           <div style="margin-top:3px;">${badge}</div>
         </div>
         <div>
-          <input type="number" class="req-qtd" data-idx="${idx}" value="${it.qtde_consumo || ''}" min="0" title="Quantidade" style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px;">
+          <label style="font-size:10px; color:var(--cinza-texto); display:block;">Autonomia de compra</label>
+          <input type="number" class="req-autonomia" data-idx="${idx}" data-consumo="${consumoNum}" value="1" min="0" step="1" style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px;">
+        </div>
+        <div>
+          <label style="font-size:10px; color:var(--cinza-texto); display:block;">Qtde de Aquisição</label>
+          <input type="number" class="req-qtd" data-idx="${idx}" value="${consumoNum}" readonly title="Consumo × Autonomia de compra" style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px; background:#f3f1e8; font-weight:600;">
         </div>
       </label>`;
   }).join('');
 
   document.getElementById('reqMarcarTodos').checked = false;
   document.querySelectorAll('#reqListaItens .req-check').forEach((c) => c.addEventListener('change', atualizarContadorReq));
+  // Recalcular a quantidade de aquisição quando a autonomia de compra mudar
+  document.querySelectorAll('#reqListaItens .req-autonomia').forEach((inp) => {
+    inp.addEventListener('input', () => recalcularAquisicao(inp));
+  });
   atualizarContadorReq();
+}
+
+// Converte texto numérico em PT-BR (ex.: "5", "5,00", "1.234,5") para número
+function parseNumeroReq(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  let s = String(v).trim();
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+// Qtde de Aquisição = Qtde de Consumo × Autonomia de compra
+function recalcularAquisicao(inpAutonomia) {
+  const idx = inpAutonomia.dataset.idx;
+  const consumo = parseNumeroReq(inpAutonomia.dataset.consumo);
+  const autonomia = parseNumeroReq(inpAutonomia.value);
+  const campoQtd = document.querySelector(`.req-qtd[data-idx="${idx}"]`);
+  if (campoQtd) campoQtd.value = +(consumo * autonomia).toFixed(2);
 }
 
 document.getElementById('reqMarcarTodos').addEventListener('change', (ev) => {
@@ -2193,7 +2232,8 @@ function coletarItensSelecionados() {
   document.querySelectorAll('#reqListaItens .req-check:checked').forEach((c) => {
     const idx = Number(c.dataset.idx);
     const qtd = document.querySelector(`.req-qtd[data-idx="${idx}"]`).value;
-    selecionados.push({ ...reqItensAtuais[idx], quantidade: qtd });
+    const autonomiaCompra = document.querySelector(`.req-autonomia[data-idx="${idx}"]`).value;
+    selecionados.push({ ...reqItensAtuais[idx], quantidade: qtd, autonomia_compra: autonomiaCompra });
   });
   return selecionados;
 }
@@ -2205,8 +2245,13 @@ function montarDocumentoRequisicao(d) {
       <td style="text-align:center;">${i + 1}</td>
       <td>${it.codigo_item || '—'}</td>
       <td>${it.cod_siafisico || '—'}</td>
+      <td>${it.catmat || '—'}</td>
       <td>${it.descricao_item || '—'}</td>
-      <td>${it.categoria || '—'}</td>
+      <td>${it.tipo_demanda || '—'}</td>
+      <td style="text-align:center;">${it.qtde_consumo || '—'}</td>
+      <td style="text-align:center;">${it.prazo || '—'}</td>
+      <td>${it.periodicidade || '—'}</td>
+      <td style="text-align:center;">${it.dispensacoes_autorizadas || '—'}</td>
       <td style="text-align:center;"><strong>${it.quantidade || '—'}</strong></td>
     </tr>`).join('');
 
@@ -2232,12 +2277,13 @@ function montarDocumentoRequisicao(d) {
     <p class="sub">Unidade Tenente Pena (UDTP) · Emitida em ${d.dataHora}${d.sei ? ' · SEI Nº ' + d.sei : ''}</p>
     <div class="box">
       ${d.sei ? '<strong>Nº SEI:</strong> ' + d.sei + '<br>' : ''}
-      <strong>Paciente:</strong> ${d.autor}${d.idade ? ' &nbsp;|&nbsp; <strong>Idade:</strong> ' + d.idade : ''}<br>
+      <strong>Paciente:</strong> ${d.autor}<br>
+      <strong>Protocolo:</strong> ${d.protocolo || '—'} &nbsp;|&nbsp; <strong>Processo:</strong> ${d.processo || '—'} &nbsp;|&nbsp; <strong>Tipo de demanda:</strong> ${d.tipo_demanda || '—'}<br>
       <strong>Unidade:</strong> ${d.unidade || '—'}${d.procurador ? ' &nbsp;|&nbsp; <strong>Procurador:</strong> ' + d.procurador : ''}<br>
       <strong>Operador:</strong> ${d.operadorNome || '—'} &nbsp;|&nbsp; <strong>Login:</strong> ${d.operadorEmail || '—'}
     </div>
     <table>
-      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>Descrição do Item</th><th>Categoria</th><th style="width:90px;">Quantidade</th></tr></thead>
+      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th>Tipo de Demanda</th><th>Qtde Consumo</th><th>Prazo</th><th>Periodicidade</th><th>Disp. Autorizadas</th><th style="width:90px;">Quantidade de Aquisição</th></tr></thead>
       <tbody>${linhas}</tbody>
     </table>
     <div class="assin">
@@ -2259,7 +2305,13 @@ async function gerarRequisicao() {
   if (itens.length === 0) { alert('Selecione ao menos um medicamento.'); return; }
 
   const info = reqPacienteAtual;
-  const sei = document.getElementById('reqSEI').value.trim();
+  const campoSei = document.getElementById('reqSEI');
+  const sei = campoSei.value.trim();
+  if (!sei) {
+    alert('Informe o Nº do SEI para gerar a requisição.');
+    campoSei.focus();
+    return;
+  }
   const operador = estado.usuario || {};
   const botao = document.getElementById('botaoGerarRequisicao');
   botao.disabled = true;
@@ -2267,6 +2319,9 @@ async function gerarRequisicao() {
   const corpoItens = itens.map((it) => ({
     codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico,
     descricao_item: it.descricao_item, categoria: it.categoria, quantidade: it.quantidade,
+    tipo_demanda: it.tipo_demanda, qtde_consumo: it.qtde_consumo, prazo: it.prazo,
+    periodicidade: it.periodicidade, dispensacoes_autorizadas: it.dispensacoes_autorizadas,
+    autonomia_compra: it.autonomia_compra, catmat: it.catmat,
   }));
 
   try {
@@ -2274,7 +2329,10 @@ async function gerarRequisicao() {
     if (reqModo === 'editar') {
       salvo = await api(`/autores/requisicoes/${reqEditId}`, {
         method: 'PUT',
-        body: JSON.stringify({ sei, itens: corpoItens }),
+        body: JSON.stringify({
+          sei, itens: corpoItens,
+          protocolo: info.protocolo, processo: info.processo, tipo_demanda: info.tipo_demanda,
+        }),
       });
     } else {
       salvo = await api('/autores/requisicoes', {
@@ -2282,14 +2340,16 @@ async function gerarRequisicao() {
         body: JSON.stringify({
           autor: info.autor, idade: info.idade, unidade: info.unidade_dispensadora,
           procurador: info.procurador_estado, sei, itens: corpoItens,
+          protocolo: info.protocolo, processo: info.processo, tipo_demanda: info.tipo_demanda,
         }),
       });
     }
 
     const html = montarDocumentoRequisicao({
       codigoControle: salvo.codigo_controle,
-      autor: info.autor, idade: info.idade, unidade: info.unidade_dispensadora,
+      autor: info.autor, unidade: info.unidade_dispensadora,
       procurador: info.procurador_estado, sei,
+      protocolo: info.protocolo, processo: info.processo, tipo_demanda: info.tipo_demanda,
       operadorNome: operador.nome, operadorEmail: operador.email,
       dataHora: new Date().toLocaleString('pt-BR'),
       itens,
@@ -2311,7 +2371,8 @@ async function reabrirRequisicao(id) {
   const r = dados.requisicao;
   const html = montarDocumentoRequisicao({
     codigoControle: r.codigo_controle,
-    autor: r.autor, idade: r.idade, unidade: r.unidade, procurador: r.procurador, sei: r.sei,
+    autor: r.autor, unidade: r.unidade, procurador: r.procurador, sei: r.sei,
+    protocolo: r.protocolo, processo: r.processo, tipo_demanda: r.tipo_demanda,
     operadorNome: r.operador_nome, operadorEmail: r.operador_email,
     dataHora: formatarDataHora(r.criado_em),
     itens: dados.itens,
@@ -2378,6 +2439,15 @@ async function carregarTabelaRelReq() {
   const opc = (lista, atual) => lista.map((o) =>
     `<option value="${o}" ${o === atual ? 'selected' : ''}>${o}</option>`).join('');
 
+  const ehAdmin = estado.usuario && estado.usuario.perfil === 'admin';
+  const fmtDataHora = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return iso;
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+
   if (dados.itens.length === 0) {
     corpo.innerHTML = ''; vazio.hidden = false;
   } else {
@@ -2389,6 +2459,19 @@ async function carregarTabelaRelReq() {
         stEstoque = Number(aut) < 2
           ? '<span class="etiqueta-status cancelado">Aguardar</span>'
           : '<span class="etiqueta-status finalizado">Chamar</span>';
+      }
+      const enviado = it.telegrama_enviado === 'Sim';
+      const bloqueado = enviado && !ehAdmin;
+      const dis = bloqueado ? 'disabled' : '';
+      let detalhes = '';
+      if (enviado && it.telegrama_enviado_por) {
+        detalhes = `
+            <div style="margin-top:4px;">
+              <a href="#" class="req-det" style="font-size:11px;">Exibir detalhes</a>
+              <div class="req-det-info" hidden style="font-size:11px; color:var(--cinza-texto); margin-top:2px;">
+                Enviado por <strong>${it.telegrama_enviado_por}</strong>${it.telegrama_enviado_em ? ' em ' + fmtDataHora(it.telegrama_enviado_em) : ''}
+              </div>
+            </div>`;
       }
       return `
         <tr data-id="${it.id}">
@@ -2402,16 +2485,17 @@ async function carregarTabelaRelReq() {
           <td>${aut === null || aut === undefined ? '—' : fmtNumero(aut) + ' m'}</td>
           <td>${stEstoque}</td>
           <td>
-            <select class="req-at-status">${opc(['Solicitado', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select>
+            <select class="req-at-status" ${dis}>${opc(['Solicitado', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select>
           </td>
           <td>
-            <input type="text" class="req-at-gsnet" value="${(it.requisicao_gsnet || '').replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;">
+            <input type="text" class="req-at-gsnet" value="${(it.requisicao_gsnet || '').replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;" ${dis}>
           </td>
           <td>
-            <select class="req-at-tel">${opc(['Não', 'Sim'], it.telegrama_enviado)}</select>
+            <select class="req-at-tel" ${dis}>${opc(['Não', 'Sim'], it.telegrama_enviado)}</select>
+            ${detalhes}
           </td>
           <td>
-            <input type="date" class="req-at-data" value="${it.data_envio || ''}">
+            <input type="date" class="req-at-data" value="${it.data_envio || ''}" ${dis}>
           </td>
         </tr>`;
     }).join('');
@@ -2420,8 +2504,28 @@ async function carregarTabelaRelReq() {
     corpo.querySelectorAll('.req-abrir-doc').forEach((a) => {
       a.addEventListener('click', (ev) => { ev.preventDefault(); reabrirRequisicao(a.dataset.req); });
     });
+    // Exibir/ocultar detalhes de quem enviou o telegrama
+    corpo.querySelectorAll('.req-det').forEach((a) => {
+      a.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const info = a.parentElement.querySelector('.req-det-info');
+        const mostrar = info.hidden;
+        info.hidden = !mostrar;
+        a.textContent = mostrar ? 'Ocultar detalhes' : 'Exibir detalhes';
+      });
+    });
     // Salvar ao alterar qualquer controle da linha
     corpo.querySelectorAll('tr[data-id]').forEach((tr) => {
+      const selTel = tr.querySelector('.req-at-tel');
+      const selStatus = tr.querySelector('.req-at-status');
+      const inpData = tr.querySelector('.req-at-data');
+      // Ao marcar "Sim": finaliza e preenche a data de hoje automaticamente
+      selTel.addEventListener('change', () => {
+        if (selTel.value === 'Sim') {
+          selStatus.value = 'Finalizado';
+          if (!inpData.value) inpData.value = new Date().toISOString().slice(0, 10);
+        }
+      });
       tr.querySelectorAll('.req-at-status, .req-at-tel, .req-at-data, .req-at-gsnet').forEach((ctrl) => {
         ctrl.addEventListener('change', () => salvarAtendimentoItem(tr));
       });
@@ -2443,12 +2547,19 @@ async function salvarAtendimentoItem(tr) {
     data_envio: tr.querySelector('.req-at-data').value || null,
     requisicao_gsnet: tr.querySelector('.req-at-gsnet').value.trim() || null,
   };
+  const eraSim = tr.querySelector('.req-det') !== null; // já estava enviado
   try {
     await api(`/autores/requisicoes/item/${id}`, { method: 'PUT', body: JSON.stringify(corpo) });
     tr.style.background = '#eaf5ee';
-    setTimeout(() => { tr.style.background = ''; }, 600);
+    // Se virou "Sim" (ou um admin desfez), recarrega para aplicar trava e detalhes
+    if (corpo.telegrama_enviado === 'Sim' || eraSim) {
+      setTimeout(() => carregarTabelaRelReq(), 400);
+    } else {
+      setTimeout(() => { tr.style.background = ''; }, 600);
+    }
   } catch (e) {
     alert('Erro ao salvar: ' + e.message);
+    carregarTabelaRelReq(); // desfaz a alteração visual recarregando do servidor
   }
 }
 

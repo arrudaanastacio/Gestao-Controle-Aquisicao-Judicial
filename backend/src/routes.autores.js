@@ -217,6 +217,8 @@ router.get('/paciente', (req, res) => {
   const itens = db.prepare(`
     SELECT a.id_demanda, a.processo, a.protocolo, a.codigo_item, a.cod_siafisico,
            a.descricao_item, a.qtde_consumo, a.periodicidade, a.prazo, a.status_item, a.categoria,
+           a.tipo_demanda, a.dispensacoes_autorizadas,
+           (SELECT ri.catmat FROM relatorio_itens ri WHERE ri.codigo = a.codigo_item AND ri.catmat IS NOT NULL AND ri.catmat <> '' ORDER BY ri.data_referencia DESC LIMIT 1) AS catmat,
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
            (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual
     FROM autores_itens a
@@ -225,7 +227,7 @@ router.get('/paciente', (req, res) => {
   `).all(autor);
 
   const info = db.prepare(
-    'SELECT autor, idade, dt_nascimento, unidade_dispensadora, procurador_estado FROM autores_itens WHERE autor = ? AND data_referencia = (SELECT MAX(data_referencia) FROM autores_itens) LIMIT 1'
+    'SELECT autor, idade, dt_nascimento, unidade_dispensadora, procurador_estado, protocolo, processo, tipo_demanda FROM autores_itens WHERE autor = ? AND data_referencia = (SELECT MAX(data_referencia) FROM autores_itens) LIMIT 1'
   ).get(autor) || { autor };
 
   res.json({ info, itens });
@@ -233,16 +235,16 @@ router.get('/paciente', (req, res) => {
 
 // ---------- Requisições: salvar (gera ID de controle) ----------
 router.post('/requisicoes', (req, res) => {
-  const { autor, idade, unidade, procurador, sei, itens } = req.body || {};
+  const { autor, idade, unidade, procurador, sei, itens, protocolo, processo, tipo_demanda } = req.body || {};
   if (!autor || !Array.isArray(itens) || itens.length === 0) {
     return res.status(400).json({ erro: 'Informe o paciente e ao menos um item.' });
   }
 
   const info = db.prepare(`
-    INSERT INTO requisicoes (autor, idade, unidade, procurador, sei, operador_nome, operador_email, total_itens)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO requisicoes (autor, idade, unidade, procurador, sei, operador_nome, operador_email, total_itens, protocolo, processo, tipo_demanda)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(autor, idade || null, unidade || null, procurador || null, sei || null,
-    req.usuario.nome, req.usuario.email, itens.length);
+    req.usuario.nome, req.usuario.email, itens.length, protocolo || null, processo || null, tipo_demanda || null);
 
   const id = info.lastInsertRowid;
   const ano = new Date().getFullYear();
@@ -250,11 +252,14 @@ router.post('/requisicoes', (req, res) => {
   db.prepare('UPDATE requisicoes SET codigo_controle = ? WHERE id = ?').run(codigoControle, id);
 
   const stmt = db.prepare(`
-    INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
+                                  tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const it of itens) {
-    stmt.run(id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''));
+    stmt.run(id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''),
+      it.tipo_demanda || null, it.qtde_consumo != null ? String(it.qtde_consumo) : null, it.prazo || null, it.periodicidade || null, it.dispensacoes_autorizadas || null,
+      it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null);
   }
 
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
@@ -316,7 +321,8 @@ router.get('/requisicoes/itens', (req, res) => {
            COALESCE((SELECT e.siafisico FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1), ri.cod_siafisico) AS siafisico,
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
            (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual,
-           ri.quantidade, ri.status_atendimento, ri.telegrama_enviado, ri.data_envio, ri.requisicao_gsnet
+           ri.quantidade, ri.status_atendimento, ri.telegrama_enviado, ri.data_envio, ri.requisicao_gsnet,
+           ri.telegrama_enviado_por, ri.telegrama_enviado_em
     FROM requisicao_itens ri
     JOIN requisicoes r ON r.id = ri.requisicao_id
     ${where}
@@ -332,18 +338,45 @@ router.put('/requisicoes/item/:id', (req, res) => {
   const item = db.prepare('SELECT * FROM requisicao_itens WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ erro: 'Item não encontrado.' });
 
-  const { status_atendimento, telegrama_enviado, data_envio, requisicao_gsnet } = req.body || {};
-  const status = status_atendimento ?? item.status_atendimento;
-  const telegrama = telegrama_enviado ?? item.telegrama_enviado;
-  const dataEnvio = data_envio !== undefined ? (data_envio || null) : item.data_envio;
-  const gsnet = requisicao_gsnet !== undefined ? (requisicao_gsnet || null) : item.requisicao_gsnet;
+  const eAdmin = req.usuario.perfil === 'admin';
+  const jaEnviado = item.telegrama_enviado === 'Sim';
 
-  db.prepare('UPDATE requisicao_itens SET status_atendimento = ?, telegrama_enviado = ?, data_envio = ?, requisicao_gsnet = ? WHERE id = ?')
-    .run(status, telegrama, dataEnvio, gsnet, item.id);
+  // Trava: depois que o telegrama foi marcado como "Sim", só um admin pode
+  // mexer no item (corrigir um telegrama enviado por engano).
+  if (jaEnviado && !eAdmin) {
+    return res.status(403).json({ erro: 'Telegrama já enviado. Apenas um administrador pode alterar este item.' });
+  }
+
+  const { status_atendimento, telegrama_enviado, data_envio, requisicao_gsnet } = req.body || {};
+  let status = status_atendimento ?? item.status_atendimento;
+  const telegrama = telegrama_enviado ?? item.telegrama_enviado;
+  let dataEnvio = data_envio !== undefined ? (data_envio || null) : item.data_envio;
+  const gsnet = requisicao_gsnet !== undefined ? (requisicao_gsnet || null) : item.requisicao_gsnet;
+  let enviadoPor = item.telegrama_enviado_por;
+  let enviadoEm = item.telegrama_enviado_em;
+
+  const agora = new Date();
+  const hojeISO = agora.toISOString().slice(0, 10);
+
+  if (telegrama === 'Sim' && !jaEnviado) {
+    // Acabou de enviar o telegrama: finaliza, data de hoje e registra quem foi.
+    status = 'Finalizado';
+    if (!dataEnvio) dataEnvio = hojeISO;
+    enviadoPor = req.usuario.nome || req.usuario.email;
+    enviadoEm = agora.toISOString();
+  } else if (telegrama !== 'Sim' && jaEnviado) {
+    // Admin desfazendo um telegrama enviado por engano: limpa o registro.
+    dataEnvio = data_envio !== undefined ? (data_envio || null) : null;
+    enviadoPor = null;
+    enviadoEm = null;
+  }
+
+  db.prepare('UPDATE requisicao_itens SET status_atendimento = ?, telegrama_enviado = ?, data_envio = ?, requisicao_gsnet = ?, telegrama_enviado_por = ?, telegrama_enviado_em = ? WHERE id = ?')
+    .run(status, telegrama, dataEnvio, gsnet, enviadoPor, enviadoEm, item.id);
 
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
     .run(req.usuario.id, req.usuario.email, 'atualizar_atendimento_item', 'requisicao_itens', item.id,
-      JSON.stringify({ status_atendimento: status, telegrama_enviado: telegrama, data_envio: dataEnvio }));
+      JSON.stringify({ status_atendimento: status, telegrama_enviado: telegrama, data_envio: dataEnvio, telegrama_enviado_por: enviadoPor }));
 
   res.json({ ok: true });
 });
@@ -362,21 +395,24 @@ router.put('/requisicoes/:id', (req, res) => {
   if (!r) return res.status(404).json({ erro: 'Requisição não encontrada.' });
   if (r.status === 'Cancelada') return res.status(400).json({ erro: 'Requisição cancelada não pode ser editada.' });
 
-  const { sei, itens } = req.body || {};
+  const { sei, itens, protocolo, processo, tipo_demanda } = req.body || {};
   if (!Array.isArray(itens) || itens.length === 0) {
     return res.status(400).json({ erro: 'Informe ao menos um item.' });
   }
 
-  db.prepare("UPDATE requisicoes SET sei = ?, total_itens = ?, atualizado_em = datetime('now') WHERE id = ?")
-    .run(sei || null, itens.length, r.id);
+  db.prepare("UPDATE requisicoes SET sei = ?, total_itens = ?, protocolo = ?, processo = ?, tipo_demanda = ?, atualizado_em = datetime('now') WHERE id = ?")
+    .run(sei || null, itens.length, protocolo ?? r.protocolo, processo ?? r.processo, tipo_demanda ?? r.tipo_demanda, r.id);
 
   db.prepare('DELETE FROM requisicao_itens WHERE requisicao_id = ?').run(r.id);
   const stmt = db.prepare(`
-    INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
+                                  tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const it of itens) {
-    stmt.run(r.id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''));
+    stmt.run(r.id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''),
+      it.tipo_demanda || null, it.qtde_consumo != null ? String(it.qtde_consumo) : null, it.prazo || null, it.periodicidade || null, it.dispensacoes_autorizadas || null,
+      it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null);
   }
 
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')

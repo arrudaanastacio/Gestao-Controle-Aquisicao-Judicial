@@ -220,6 +220,9 @@ if (!colunasReq.includes('status')) db.exec("ALTER TABLE requisicoes ADD COLUMN 
 if (!colunasReq.includes('atualizado_em')) db.exec("ALTER TABLE requisicoes ADD COLUMN atualizado_em TEXT");
 if (!colunasReq.includes('cancelado_em')) db.exec("ALTER TABLE requisicoes ADD COLUMN cancelado_em TEXT");
 if (!colunasReq.includes('cancelado_por')) db.exec("ALTER TABLE requisicoes ADD COLUMN cancelado_por TEXT");
+if (!colunasReq.includes('protocolo')) db.exec("ALTER TABLE requisicoes ADD COLUMN protocolo TEXT");
+if (!colunasReq.includes('processo')) db.exec("ALTER TABLE requisicoes ADD COLUMN processo TEXT");
+if (!colunasReq.includes('tipo_demanda')) db.exec("ALTER TABLE requisicoes ADD COLUMN tipo_demanda TEXT");
 
 // Fluxo de atendimento por item da requisição (editável pelos usuários)
 const colunasReqItens = db.prepare("PRAGMA table_info(requisicao_itens)").all().map((c) => c.name);
@@ -227,6 +230,15 @@ if (!colunasReqItens.includes('status_atendimento')) db.exec("ALTER TABLE requis
 if (!colunasReqItens.includes('telegrama_enviado')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN telegrama_enviado TEXT NOT NULL DEFAULT 'Não'");
 if (!colunasReqItens.includes('data_envio')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN data_envio TEXT");
 if (!colunasReqItens.includes('requisicao_gsnet')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN requisicao_gsnet TEXT");
+if (!colunasReqItens.includes('telegrama_enviado_por')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN telegrama_enviado_por TEXT");
+if (!colunasReqItens.includes('telegrama_enviado_em')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN telegrama_enviado_em TEXT");
+if (!colunasReqItens.includes('tipo_demanda')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN tipo_demanda TEXT");
+if (!colunasReqItens.includes('qtde_consumo')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN qtde_consumo TEXT");
+if (!colunasReqItens.includes('prazo')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN prazo TEXT");
+if (!colunasReqItens.includes('periodicidade')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN periodicidade TEXT");
+if (!colunasReqItens.includes('dispensacoes_autorizadas')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN dispensacoes_autorizadas TEXT");
+if (!colunasReqItens.includes('autonomia_compra')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN autonomia_compra TEXT");
+if (!colunasReqItens.includes('catmat')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN catmat TEXT");
 
 // Relatório de Itens (catálogo completo) — substitui Consulta/Catálogo.
 // Substituído por completo a cada importação.
