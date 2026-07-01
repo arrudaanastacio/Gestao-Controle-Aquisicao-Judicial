@@ -5,7 +5,7 @@ const db = require('./db');
 const { autenticar, exigirPerfil } = require('./auth');
 
 const router = express.Router();
-router.use(autenticar, exigirPerfil('admin'));
+router.use(autenticar);
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
 

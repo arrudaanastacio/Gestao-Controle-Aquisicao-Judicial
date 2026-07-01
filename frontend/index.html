@@ -1075,6 +1075,23 @@
     </div>
   </div>
 
+  <div class="fundo-modal" id="modalPermissoes" hidden>
+    <div class="modal" style="max-width:720px;">
+      <h3 id="tituloModalPermissoes">Permissões</h3>
+      <p class="descricao-item">Marque o que este usuário pode fazer em cada módulo. O traço (—) significa que a ação não existe naquele módulo.</p>
+      <div style="overflow-x:auto;">
+        <table class="tabela" style="text-align:center;">
+          <thead><tr id="cabecalhoPermissoes"></tr></thead>
+          <tbody id="corpoPermissoes"></tbody>
+        </table>
+      </div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="botaoCancelarPermissoes">Cancelar</button>
+        <button type="button" class="botao-primario" id="botaoSalvarPermissoes">Salvar permissões</button>
+      </div>
+    </div>
+  </div>
+
   <div class="fundo-modal" id="modalEstoqueItem" hidden>
     <div class="modal" style="max-width:640px;">
       <h3 id="tituloModalEstoque">Detalhe do item</h3>
@@ -1130,6 +1147,6 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=28"></script>
+  <script src="/js/app.js?v=30"></script>
 </body>
 </html>

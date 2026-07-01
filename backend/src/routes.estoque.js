@@ -166,7 +166,7 @@ function processarEstoque(buffer) {
 }
 
 // ---------- Prévia da importação (não grava) ----------
-router.post('/importar/previa', exigirPerfil('admin'), upload.single('arquivo'), (req, res) => {
+router.post('/importar/previa', upload.single('arquivo'), (req, res) => {
   if (!req.file) return res.status(400).json({ erro: 'Envie o arquivo .xlsx do relatório de estoque.' });
 
   let resultado;
@@ -269,7 +269,7 @@ function importarEstoqueDeBuffer(buffer, opcoes = {}) {
 }
 
 // ---------- Confirma a importação diária ----------
-router.post('/importar/confirmar', exigirPerfil('admin'), upload.single('arquivo'), (req, res) => {
+router.post('/importar/confirmar', upload.single('arquivo'), (req, res) => {
   if (!req.file) return res.status(400).json({ erro: 'Envie o arquivo .xlsx do relatório de estoque.' });
   try {
     const resumo = importarEstoqueDeBuffer(req.file.buffer, {

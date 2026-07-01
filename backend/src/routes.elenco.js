@@ -51,7 +51,7 @@ function limpar(v) {
 }
 
 // ---------- Pré-visualização do elenco a importar (não grava nada ainda) ----------
-router.post('/previa', exigirPerfil('admin'), upload.single('arquivo'), (req, res) => {
+router.post('/previa', upload.single('arquivo'), (req, res) => {
   if (!req.file) return res.status(400).json({ erro: 'Envie um arquivo .xlsx ou .xlsm.' });
 
   let linhasPlanilha;
@@ -129,7 +129,7 @@ router.post('/previa', exigirPerfil('admin'), upload.single('arquivo'), (req, re
 });
 
 // ---------- Confirma e grava a importação do elenco ----------
-router.post('/confirmar', exigirPerfil('admin'), upload.single('arquivo'), (req, res) => {
+router.post('/confirmar', upload.single('arquivo'), (req, res) => {
   if (!req.file) return res.status(400).json({ erro: 'Envie um arquivo .xlsx ou .xlsm.' });
 
   let linhasPlanilha;
@@ -235,7 +235,7 @@ router.get('/buscar', (req, res) => {
 });
 
 // ---------- Edição manual de um item do elenco (siafísico, descrição, CATMAT) ----------
-router.put('/:codigo', exigirPerfil('admin'), (req, res) => {
+router.put('/:codigo', (req, res) => {
   const { codigo } = req.params;
   const atual = db.prepare('SELECT * FROM itens WHERE codigo_item = ?').get(codigo);
   if (!atual) return res.status(404).json({ erro: 'Item não encontrado.' });

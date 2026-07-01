@@ -137,8 +137,8 @@ router.get('/:id', (req, res) => {
   res.json({ solicitacao: item });
 });
 
-// A partir daqui, somente admin pode escrever
-router.use(exigirPerfil('admin'));
+// A escrita (inserir/editar/excluir) é controlada pela permissão do módulo
+// "compras" (ver server.js / exigirModulo). Admin sempre pode.
 
 const CAMPOS_EDITAVEIS = [
   'tipo', 'modalidade_compra', 'n_oficio', 'qtde_solicitada', 'data_solicitacao',

@@ -293,4 +293,47 @@ if (!cfg) {
   db.prepare("INSERT INTO configuracoes (chave, valor) VALUES ('autonomia_minima_meses', '2')").run();
 }
 
+// Permissões por usuário e por módulo (controle fino de acesso).
+// Cada coluna é 1 (pode) ou 0 (não pode). O perfil 'admin' NÃO usa esta tabela:
+// ele é super-usuário e sempre pode tudo (ver auth.js / exigirModulo).
+db.exec(`
+CREATE TABLE IF NOT EXISTS permissoes (
+  usuario_id INTEGER NOT NULL,
+  modulo TEXT NOT NULL,
+  visualizar INTEGER NOT NULL DEFAULT 0,
+  inserir INTEGER NOT NULL DEFAULT 0,
+  editar INTEGER NOT NULL DEFAULT 0,
+  excluir INTEGER NOT NULL DEFAULT 0,
+  exportar INTEGER NOT NULL DEFAULT 0,
+  importar INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (usuario_id, modulo),
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+);
+`);
+
+// Interruptor mestre do módulo: se habilitado=0, o usuário não enxerga nem usa
+// o módulo (bloqueia tudo, independente das ações). Padrão 1 (habilitado).
+const colunasPerm = db.prepare("PRAGMA table_info(permissoes)").all().map((c) => c.name);
+if (!colunasPerm.includes('habilitado')) {
+  db.exec('ALTER TABLE permissoes ADD COLUMN habilitado INTEGER NOT NULL DEFAULT 1');
+}
+
+// Garante que todo usuário NÃO-admin tenha uma linha por módulo. Por padrão só
+// "visualizar" vem ligado (resto 0) — assim ninguém perde o acesso de leitura
+// que já tinha, e o admin libera o resto na tela. INSERT OR IGNORE preserva o
+// que o admin já configurou (não sobrescreve).
+const { MODULO_CHAVES } = require('./permissoes');
+function garantirPermissoesPadrao() {
+  const usuarios = db.prepare("SELECT id, perfil FROM usuarios WHERE ativo = 1").all();
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO permissoes (usuario_id, modulo, visualizar) VALUES (?, ?, 1)'
+  );
+  for (const u of usuarios) {
+    if (u.perfil === 'admin') continue;
+    for (const modulo of MODULO_CHAVES) insert.run(u.id, modulo);
+  }
+}
+garantirPermissoesPadrao();
+
 module.exports = db;
+module.exports.garantirPermissoesPadrao = garantirPermissoesPadrao;

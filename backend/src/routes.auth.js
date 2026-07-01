@@ -41,7 +41,27 @@ router.post('/logout', (req, res) => {
 });
 
 router.get('/me', autenticar, (req, res) => {
-  res.json({ usuario: req.usuario });
+  // Junta as permissões por módulo para o frontend decidir o que mostrar.
+  // Admin é super-usuário: marcamos tudo como permitido.
+  const { MODULOS, ACOES } = require('./permissoes');
+  const permissoes = {};
+  const habilitado = {};
+  if (req.usuario.perfil === 'admin') {
+    for (const m of MODULOS) {
+      permissoes[m.chave] = {};
+      for (const a of ACOES) permissoes[m.chave][a] = true;
+      habilitado[m.chave] = true;
+    }
+  } else {
+    const linhas = db.prepare('SELECT * FROM permissoes WHERE usuario_id = ?').all(req.usuario.id);
+    for (const m of MODULOS) {
+      const l = linhas.find((x) => x.modulo === m.chave) || {};
+      habilitado[m.chave] = l.habilitado === 1;
+      permissoes[m.chave] = {};
+      for (const a of ACOES) permissoes[m.chave][a] = l[a] === 1;
+    }
+  }
+  res.json({ usuario: { ...req.usuario, permissoes, habilitado } });
 });
 
 module.exports = router;

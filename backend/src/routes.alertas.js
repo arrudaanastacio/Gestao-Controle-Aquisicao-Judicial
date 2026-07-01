@@ -18,7 +18,7 @@ router.get('/', (req, res) => {
   res.json({ alertas, totalAbertos });
 });
 
-router.put('/:id/resolver', exigirPerfil('admin'), (req, res) => {
+router.put('/:id/resolver', (req, res) => {
   const { id } = req.params;
   const atual = db.prepare('SELECT * FROM alertas WHERE id = ?').get(id);
   if (!atual) return res.status(404).json({ erro: 'Alerta não encontrado.' });

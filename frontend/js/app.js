@@ -130,10 +130,53 @@ async function carregarUsuario() {
     atualizarBadgeAlertas();
     carregarConfigLimiar();
   } else {
-    document.getElementById('avisoSomenteLeitura').hidden = false;
-    // Perfil de consulta não vê os grupos que só têm itens administrativos
-    document.getElementById('grupoMonitoramento').hidden = true;
+    // Administração (usuários/importação) continua só para admin
     document.getElementById('grupoAdministracao').hidden = true;
+    // Mostra o aviso de leitura só se o usuário não tiver NENHuma permissão de escrita
+    document.getElementById('avisoSomenteLeitura').hidden = temAlgumaEscrita();
+    aplicarPermissoesNav();
+  }
+}
+
+// Verdadeiro se o usuário pode fazer a ação no módulo. Admin pode tudo.
+function temPermissao(modulo, acao) {
+  const u = estado.usuario;
+  if (!u) return false;
+  if (u.perfil === 'admin') return true;
+  // Módulo desabilitado bloqueia tudo, independente das ações.
+  if (u.habilitado && u.habilitado[modulo] === false) return false;
+  return !!(u.permissoes && u.permissoes[modulo] && u.permissoes[modulo][acao]);
+}
+
+// Algum poder de escrita em qualquer módulo? (para decidir o aviso de leitura)
+function temAlgumaEscrita() {
+  const p = estado.usuario && estado.usuario.permissoes;
+  if (!p) return false;
+  return Object.values(p).some((m) =>
+    ['inserir', 'editar', 'excluir', 'importar'].some((a) => m[a]));
+}
+
+// Esconde da navegação os módulos que o usuário não pode nem visualizar.
+function aplicarPermissoesNav() {
+  // Cada link de página é mapeado para o módulo que o controla.
+  const mapa = {
+    solicitacoes: 'compras', relatorio: 'compras',
+    estoque: 'estoque', validades: 'estoque', estoqueGeral: 'estoque',
+    historico: 'estoque', evolucao: 'estoque',
+    relatorioItens: 'relatorioItens',
+    autores: 'autores', comparativoAutores: 'autores', relatorioReq: 'autores',
+    alertas: 'alertas',
+  };
+  for (const [pagina, modulo] of Object.entries(mapa)) {
+    const link = document.querySelector(`[data-pagina="${pagina}"]`);
+    if (link) link.hidden = !temPermissao(modulo, 'visualizar');
+  }
+  // Grupo de Monitoramento só aparece se puder ver Alertas
+  const grupoMon = document.getElementById('grupoMonitoramento');
+  if (grupoMon) grupoMon.hidden = !temPermissao('alertas', 'visualizar');
+  if (temPermissao('alertas', 'visualizar')) {
+    document.getElementById('linkAlertas').hidden = false;
+    atualizarBadgeAlertas();
   }
 }
 
@@ -2856,14 +2899,109 @@ async function carregarUsuarios() {
       <td class="col-codigo">${u.email}</td>
       <td><span class="etiqueta-status ${u.perfil === 'admin' ? 'finalizado' : 'andamento'}">${u.perfil === 'admin' ? 'Admin' : 'Consulta'}</span></td>
       <td><span class="etiqueta-status ${u.ativo ? 'finalizado' : 'cancelado'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td>
-      <td><button class="botao-editar" data-id="${u.id}">Editar</button></td>
+      <td>
+        <button class="botao-editar" data-id="${u.id}">Editar</button>
+        ${u.perfil === 'admin'
+          ? '<span class="texto-secundario" style="margin-left:6px;">(pode tudo)</span>'
+          : `<button class="botao-secundario" data-perm="${u.id}" data-nome="${u.nome}" style="margin-left:6px;">Permissões</button>`}
+      </td>
     </tr>
   `).join('');
 
   corpo.querySelectorAll('.botao-editar').forEach((btn) => {
     btn.addEventListener('click', () => abrirModalUsuario(usuarios.find((u) => u.id === Number(btn.dataset.id))));
   });
+  corpo.querySelectorAll('[data-perm]').forEach((btn) => {
+    btn.addEventListener('click', () => abrirModalPermissoes(Number(btn.dataset.perm), btn.dataset.nome));
+  });
 }
+
+// -------------------- Permissões por módulo --------------------
+const modalPermissoes = document.getElementById('modalPermissoes');
+let idUsuarioPermissoes = null;
+
+async function abrirModalPermissoes(usuarioId, nome) {
+  idUsuarioPermissoes = usuarioId;
+  document.getElementById('tituloModalPermissoes').textContent = 'Permissões de ' + nome;
+  const corpo = document.getElementById('corpoPermissoes');
+  corpo.innerHTML = '<tr><td colspan="7">Carregando…</td></tr>';
+  modalPermissoes.hidden = false;
+
+  let modulos, acoes, acoesRotulo, permissoes, habilitado;
+  try {
+    const [reg, perm] = await Promise.all([
+      api('/usuarios/modulos'),
+      api(`/usuarios/${usuarioId}/permissoes`),
+    ]);
+    ({ modulos, acoes, acoesRotulo } = reg);
+    ({ permissoes, habilitado } = perm);
+  } catch (e) {
+    corpo.innerHTML = `<tr><td colspan="8" style="color:#c0392b;">Não consegui carregar a grade.<br>${e.message}<br><br>Provável causa: o servidor precisa ser <b>reiniciado</b> (feche e abra o "3 - iniciar-sistema.bat").</td></tr>`;
+    return;
+  }
+
+  // Cabeçalho: Módulo | Habilitado | (ações)
+  document.getElementById('cabecalhoPermissoes').innerHTML =
+    '<th style="text-align:left;">Módulo</th>' +
+    '<th>Habilitado</th>' +
+    acoes.map((a) => `<th>${acoesRotulo[a]}</th>`).join('');
+
+  corpo.innerHTML = modulos.map((m) => {
+    const ligado = habilitado && habilitado[m.chave];
+    const celulas = acoes.map((a) => {
+      if (!m.acoes.includes(a)) return '<td style="color:#bbb;">—</td>';
+      const marcado = permissoes[m.chave] && permissoes[m.chave][a] ? 'checked' : '';
+      const desab = ligado ? '' : 'disabled';
+      return `<td><input type="checkbox" data-modulo="${m.chave}" data-acao="${a}" ${marcado} ${desab}></td>`;
+    }).join('');
+    return `<tr data-linha="${m.chave}">
+      <td style="text-align:left;">${m.rotulo}</td>
+      <td><input type="checkbox" class="chk-habilitado" data-hab="${m.chave}" ${ligado ? 'checked' : ''}></td>
+      ${celulas}
+    </tr>`;
+  }).join('');
+
+  // Quando o interruptor mestre muda, liga/desliga as caixinhas de ação da linha.
+  corpo.querySelectorAll('.chk-habilitado').forEach((chk) => {
+    chk.addEventListener('change', () => {
+      const linha = corpo.querySelector(`tr[data-linha="${chk.dataset.hab}"]`);
+      linha.querySelectorAll('input[data-acao]').forEach((c) => {
+        c.disabled = !chk.checked;
+        if (!chk.checked) c.checked = false;
+      });
+      linha.style.opacity = chk.checked ? '1' : '0.5';
+    });
+    // aplica o estado visual inicial
+    if (!chk.checked) {
+      corpo.querySelector(`tr[data-linha="${chk.dataset.hab}"]`).style.opacity = '0.5';
+    }
+  });
+}
+
+document.getElementById('botaoCancelarPermissoes').addEventListener('click', () => { modalPermissoes.hidden = true; });
+
+document.getElementById('botaoSalvarPermissoes').addEventListener('click', async () => {
+  const permissoes = {};
+  const habilitado = {};
+  modalPermissoes.querySelectorAll('input[data-acao]').forEach((c) => {
+    const mod = c.dataset.modulo;
+    permissoes[mod] = permissoes[mod] || {};
+    permissoes[mod][c.dataset.acao] = c.checked;
+  });
+  modalPermissoes.querySelectorAll('input[data-hab]').forEach((c) => {
+    habilitado[c.dataset.hab] = c.checked;
+  });
+  try {
+    await api(`/usuarios/${idUsuarioPermissoes}/permissoes`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissoes, habilitado }),
+    });
+    modalPermissoes.hidden = true;
+    alert('Permissões salvas! O usuário verá a mudança no próximo login (ou ao recarregar a página dele).');
+  } catch (e) {
+    alert(e.message);
+  }
+});
 
 const modalUsuario = document.getElementById('modalUsuario');
 const formUsuario = document.getElementById('formUsuario');

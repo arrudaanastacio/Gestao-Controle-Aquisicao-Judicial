@@ -150,7 +150,7 @@ router.get('/filtros', (req, res) => {
 });
 
 // ---------- Importação manual ----------
-router.post('/importar/confirmar', exigirPerfil('admin'), upload.single('arquivo'), (req, res) => {
+router.post('/importar/confirmar', upload.single('arquivo'), (req, res) => {
   if (!req.file) return res.status(400).json({ erro: 'Envie o arquivo .csv do Relatório de Itens.' });
   try {
     const resumo = importarRelatorioItensDeBuffer(req.file.buffer, {
