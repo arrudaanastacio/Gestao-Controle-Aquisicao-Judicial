@@ -2890,6 +2890,21 @@ async function carregarAlertas() {
 }
 
 // -------------------- Usuários --------------------
+// Mostra "Online" se o usuário teve atividade nos últimos 5 minutos;
+// caso contrário, "visto há X" (min/horas/dias) ou "nunca acessou".
+function textoAtividade(ultimoAcesso) {
+  if (!ultimoAcesso) return '<span style="color:#999;">nunca acessou</span>';
+  const t = new Date(ultimoAcesso).getTime();
+  if (isNaN(t)) return '<span style="color:#999;">—</span>';
+  const min = Math.floor((Date.now() - t) / 60000);
+  if (min < 5) return '<span style="color:#1a7f37;font-weight:600;">🟢 Online</span>';
+  let quando;
+  if (min < 60) quando = `há ${min} min`;
+  else if (min < 1440) quando = `há ${Math.floor(min / 60)} h`;
+  else quando = `há ${Math.floor(min / 1440)} d`;
+  return `<span style="color:#777;">🔘 visto ${quando}</span>`;
+}
+
 async function carregarUsuarios() {
   const { usuarios } = await api('/usuarios');
   const corpo = document.getElementById('corpoTabelaUsuarios');
@@ -2899,6 +2914,7 @@ async function carregarUsuarios() {
       <td class="col-codigo">${u.email}</td>
       <td><span class="etiqueta-status ${u.perfil === 'admin' ? 'finalizado' : 'andamento'}">${u.perfil === 'admin' ? 'Admin' : 'Consulta'}</span></td>
       <td><span class="etiqueta-status ${u.ativo ? 'finalizado' : 'cancelado'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td>
+      <td>${textoAtividade(u.ultimo_acesso)}</td>
       <td>
         <button class="botao-editar" data-id="${u.id}">Editar</button>
         ${u.perfil === 'admin'
