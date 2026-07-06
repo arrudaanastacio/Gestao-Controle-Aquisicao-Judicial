@@ -600,7 +600,7 @@ thead th {
   background: #f2efe6;
 }
 /* Mantém o destaque da linha sob hover também na coluna congelada */
-.tabela-rolavel-x tbody tr:hover td:first-child { background: #fbfaf3; }
+.tabela-rolavel-x tbody tr:hover td:first-child { background: #e9f2ee; }
 
 /* Contêiner com rolagem própria + cabeçalho fixo (usado na tabela de estoque).
    A altura máxima cria a área rolável; o thead "gruda" no topo ao rolar. */
@@ -920,22 +920,10 @@ tbody tr:hover { background: #fbfaf3; }
    ===================================================================== */
 #paginaAutores table, #paginaAutoresGeral table { border-collapse: collapse; }
 
-/* Cabeçalho fixo ao rolar a página */
-#paginaAutores thead th, #paginaAutoresGeral thead th {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  background: #eef1e3;
-  color: var(--tinta-suave);
-  box-shadow: inset 0 -1px 0 var(--linha);
-  white-space: nowrap;
-}
-
-/* Linhas zebradas + destaque no hover */
-#paginaAutores tbody tr:nth-child(even),
-#paginaAutoresGeral tbody tr:nth-child(even) { background: rgba(31, 92, 82, 0.035); }
-#paginaAutores tbody tr:hover,
-#paginaAutoresGeral tbody tr:hover { background: rgba(31, 92, 82, 0.09); }
+/* PADRÃO para TODAS as tabelas grandes (roláveis): linhas zebradas + destaque
+   no hover. Deixa Estoque, Relatório, Atas etc. consistentes com Autores. */
+.tabela-rolavel-x tbody tr:nth-child(even) { background: rgba(31, 92, 82, 0.035); }
+.tabela-rolavel-x tbody tr:hover { background: rgba(31, 92, 82, 0.09); }
 
 /* Nome do autor em destaque; unidade discreta */
 #paginaAutores .col-autor, #paginaAutoresGeral .col-autor {
