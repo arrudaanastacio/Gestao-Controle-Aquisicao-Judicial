@@ -111,6 +111,31 @@ function rotuloStatus(status, dataPrevisao) {
   return status || 'Em andamento';
 }
 
+// -------- Etiquetas de apresentação da Listagem de Autores --------
+function celVazia() { return '<span class="cel-vazia">—</span>'; }
+
+// Status da demanda: quase sempre "Demanda Ativa - <sub>". Mostra o sub-status
+// (o texto completo fica no title/tooltip) com um ponto verde quando ativa.
+function etStatusDemanda(v) {
+  if (!v) return celVazia();
+  const sub = v.includes(' - ') ? v.split(' - ').slice(1).join(' - ') : v;
+  const ok = /ativ|atendimento/i.test(v);
+  return `<span class="et-status ${ok ? 'ok' : 'neutra'}" title="${v.replace(/"/g, '')}">${sub}</span>`;
+}
+
+// Tipo da demanda e Categoria: etiquetas neutras diferenciadas por um ponto de cor.
+function tagClassif(v, mapa) {
+  if (!v) return celVazia();
+  const cls = mapa[v] || 'out';
+  return `<span class="tag-clsf ${cls}">${v}</span>`;
+}
+function tagTipoDemanda(v) {
+  return tagClassif(v, { 'Judicial': 'jud', 'Comissão de Farmacologia': 'com', 'Jefaz': 'jef' });
+}
+function tagCategoria(v) {
+  return tagClassif(v, { 'Medicamentos': 'med', 'Materiais': 'mat', 'Nutrição': 'nut', 'Procedimentos': 'proc', 'Outros Itens': 'out' });
+}
+
 // -------------------- Autenticação / shell --------------------
 async function carregarUsuario() {
   const { usuario } = await api('/auth/me');
@@ -1825,19 +1850,19 @@ async function carregarTabelaAutores() {
     vazio.hidden = true;
     corpo.innerHTML = dados.itens.map((a) => `
       <tr>
-        <td>${a.autor || '—'}</td>
+        <td class="col-autor">${a.autor || '—'}</td>
         <td class="col-codigo">${a.id_demanda || '—'}</td>
         <td class="col-codigo">${a.protocolo || '—'}</td>
         <td class="col-codigo">${a.processo || '—'}</td>
-        <td>${a.status_demanda || '—'}</td>
-        <td>${a.tipo_demanda || '—'}</td>
+        <td>${etStatusDemanda(a.status_demanda)}</td>
+        <td>${tagTipoDemanda(a.tipo_demanda)}</td>
         <td class="col-codigo">${a.codigo_item || '—'}</td>
         <td class="col-codigo">${a.cod_siafisico || '—'}</td>
-        <td>${a.descricao_item || '—'}</td>
-        <td>${a.qtde_consumo || '—'}</td>
-        <td>${a.prazo || '—'}</td>
-        <td>${a.periodicidade || '—'}</td>
-        <td>${a.categoria || '—'}</td>
+        <td>${a.descricao_item || celVazia()}</td>
+        <td class="col-num">${a.qtde_consumo || '—'}</td>
+        <td>${a.prazo || celVazia()}</td>
+        <td>${a.periodicidade || celVazia()}</td>
+        <td>${tagCategoria(a.categoria)}</td>
       </tr>
     `).join('');
   }
@@ -1923,20 +1948,20 @@ async function carregarTabelaAutoresGeral() {
     vazio.hidden = true;
     corpo.innerHTML = dados.itens.map((a) => `
       <tr>
-        <td>${a.autor || '—'}</td>
-        <td>${a.unidade_dispensadora || '—'}</td>
+        <td class="col-autor">${a.autor || '—'}</td>
+        <td class="col-unidade">${a.unidade_dispensadora || celVazia()}</td>
         <td class="col-codigo">${a.id_demanda || '—'}</td>
         <td class="col-codigo">${a.protocolo || '—'}</td>
         <td class="col-codigo">${a.processo || '—'}</td>
-        <td>${a.status_demanda || '—'}</td>
-        <td>${a.tipo_demanda || '—'}</td>
+        <td>${etStatusDemanda(a.status_demanda)}</td>
+        <td>${tagTipoDemanda(a.tipo_demanda)}</td>
         <td class="col-codigo">${a.codigo_item || '—'}</td>
         <td class="col-codigo">${a.cod_siafisico || '—'}</td>
-        <td>${a.descricao_item || '—'}</td>
-        <td>${a.qtde_consumo || '—'}</td>
-        <td>${a.prazo || '—'}</td>
-        <td>${a.periodicidade || '—'}</td>
-        <td>${a.categoria || '—'}</td>
+        <td>${a.descricao_item || celVazia()}</td>
+        <td class="col-num">${a.qtde_consumo || '—'}</td>
+        <td>${a.prazo || celVazia()}</td>
+        <td>${a.periodicidade || celVazia()}</td>
+        <td>${tagCategoria(a.categoria)}</td>
       </tr>
     `).join('');
   }

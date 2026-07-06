@@ -912,3 +912,65 @@ tbody tr:hover { background: #fbfaf3; }
   .conteudo { padding: 20px; }
   .grade-form { grid-template-columns: 1fr; }
 }
+
+/* =====================================================================
+   Apresentação das Listagens de Autores (telas Tenente Pena e Demais
+   Unidades). Escopo restrito a essas duas telas para não afetar as demais.
+   ===================================================================== */
+#paginaAutores table, #paginaAutoresGeral table { border-collapse: collapse; }
+
+/* Cabeçalho fixo ao rolar a página */
+#paginaAutores thead th, #paginaAutoresGeral thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #eef1e3;
+  color: var(--tinta-suave);
+  box-shadow: inset 0 -1px 0 var(--linha);
+  white-space: nowrap;
+}
+
+/* Linhas zebradas + destaque no hover */
+#paginaAutores tbody tr:nth-child(even),
+#paginaAutoresGeral tbody tr:nth-child(even) { background: rgba(31, 92, 82, 0.035); }
+#paginaAutores tbody tr:hover,
+#paginaAutoresGeral tbody tr:hover { background: rgba(31, 92, 82, 0.09); }
+
+/* Nome do autor em destaque; unidade discreta */
+#paginaAutores .col-autor, #paginaAutoresGeral .col-autor {
+  font-weight: 600; color: var(--tinta); white-space: nowrap;
+}
+#paginaAutoresGeral .col-unidade { color: var(--cinza-texto); font-size: 12.5px; }
+
+/* Quantidade alinhada à direita, números alinhados */
+#paginaAutores .col-num, #paginaAutoresGeral .col-num {
+  text-align: right; font-family: var(--fonte-mono); font-variant-numeric: tabular-nums;
+}
+
+/* Célula vazia discreta */
+.cel-vazia { color: #b9b3a2; }
+
+/* Etiqueta de status da demanda (ponto + texto) */
+.et-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; padding: 3px 9px; border-radius: 20px; white-space: nowrap;
+}
+.et-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.et-status.ok { background: var(--verde-ok-fundo); color: var(--verde-ok); }
+.et-status.neutra { background: #eef1e3; color: var(--tinta-suave); }
+
+/* Etiquetas de tipo/categoria: chip neutro com ponto colorido por classe */
+.tag-clsf {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; padding: 3px 9px; border-radius: 5px; white-space: nowrap;
+  background: #f0efe8; color: var(--tinta-suave); border: 1px solid var(--linha);
+}
+.tag-clsf::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #aaa; }
+.tag-clsf.med::before  { background: var(--verde-ok); }
+.tag-clsf.mat::before  { background: var(--ambar); }
+.tag-clsf.nut::before  { background: #b5651d; }
+.tag-clsf.proc::before { background: #3a6ea5; }
+.tag-clsf.jud::before  { background: #3a6ea5; }
+.tag-clsf.com::before  { background: #7a5aa0; }
+.tag-clsf.jef::before  { background: #888; }
+.tag-clsf.out::before  { background: #b9b3a2; }
