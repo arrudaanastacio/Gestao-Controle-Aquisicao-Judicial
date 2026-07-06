@@ -1858,7 +1858,7 @@ async function carregarTabelaAutores() {
         <td>${tagTipoDemanda(a.tipo_demanda)}</td>
         <td class="col-codigo">${a.codigo_item || '—'}</td>
         <td class="col-codigo">${a.cod_siafisico || '—'}</td>
-        <td>${a.descricao_item || celVazia()}</td>
+        <td class="col-desc" title="${(a.descricao_item || '').replace(/"/g, '')}">${a.descricao_item || celVazia()}</td>
         <td class="col-num">${a.qtde_consumo || '—'}</td>
         <td>${a.prazo || celVazia()}</td>
         <td>${a.periodicidade || celVazia()}</td>
@@ -1957,7 +1957,7 @@ async function carregarTabelaAutoresGeral() {
         <td>${tagTipoDemanda(a.tipo_demanda)}</td>
         <td class="col-codigo">${a.codigo_item || '—'}</td>
         <td class="col-codigo">${a.cod_siafisico || '—'}</td>
-        <td>${a.descricao_item || celVazia()}</td>
+        <td class="col-desc" title="${(a.descricao_item || '').replace(/"/g, '')}">${a.descricao_item || celVazia()}</td>
         <td class="col-num">${a.qtde_consumo || '—'}</td>
         <td>${a.prazo || celVazia()}</td>
         <td>${a.periodicidade || celVazia()}</td>
