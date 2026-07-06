@@ -9,7 +9,8 @@
     "exportar-banco": "node src/exportarBanco.js",
     "backup-nuvem": "node src/backupNuvem.js",
     "backup": "node src/backupDb.js",
-    "backup-google": "node src/backupGoogleDrive.js"
+    "backup-google": "node src/backupGoogleDrive.js",
+    "extrair-atas": "node scripts/extrairAtasSiscoa.js"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +22,8 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
+    "oracledb": "^7.0.0",
+    "playwright": "^1.61.1",
     "xlsx": "^0.18.5"
   }
 }

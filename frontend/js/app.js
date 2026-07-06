@@ -5,6 +5,7 @@ const estado = {
   solicitacoes: { pagina: 1, pageSize: 20, total: 0, filtros: {} },
   estoque: { pagina: 1, pageSize: 30, total: 0, data: null },
   validades: { data: null, janela: '' },
+  atas: { pagina: 1, pageSize: 50, total: 0, janela: '' },
   itensCache: [],
 };
 
@@ -164,7 +165,8 @@ function aplicarPermissoesNav() {
     estoque: 'estoque', validades: 'estoque', estoqueGeral: 'estoque',
     historico: 'estoque', evolucao: 'estoque',
     relatorioItens: 'relatorioItens',
-    autores: 'autores', comparativoAutores: 'autores', relatorioReq: 'autores',
+    autores: 'autores', autoresGeral: 'autores', comparativoAutores: 'autores', relatorioReq: 'autores',
+    atas: 'atas',
     alertas: 'alertas',
   };
   for (const [pagina, modulo] of Object.entries(mapa)) {
@@ -217,10 +219,12 @@ const ICONES_NAV = {
   historico: '<path d="M4 12a8 8 0 1 0 2-5.3"/><path d="M4 4v3h3"/><path d="M12 8v4l3 2"/>',
   evolucao: '<path d="M4 19h16"/><path d="M4 19V5"/><path d="M7 15l4-5 3 3 5-7"/>',
   autores: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  autoresGeral: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   comparativoAutores: '<path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/>',
   relatorioReq: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M8 11h8M8 15h8M8 19h5"/>',
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   elenco: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  atas: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/><path d="M15 19l2 2 3-3"/>',
   alertas: '<path d="M6 9a6 6 0 1 1 12 0c0 4 2 5 2 5H4s2-1 2-5"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   importadores: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
   usuarios: '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 6a3 3 0 0 1 0 6M21 20a6 6 0 0 0-5-5.9"/>',
@@ -263,8 +267,10 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaHistorico').hidden = pagina !== 'historico';
   document.getElementById('paginaEvolucao').hidden = pagina !== 'evolucao';
   document.getElementById('paginaAutores').hidden = pagina !== 'autores';
+  document.getElementById('paginaAutoresGeral').hidden = pagina !== 'autoresGeral';
   document.getElementById('paginaComparativoAutores').hidden = pagina !== 'comparativoAutores';
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
+  document.getElementById('paginaAtas').hidden = pagina !== 'atas';
   document.getElementById('paginaRelatorioItens').hidden = pagina !== 'relatorioItens';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
@@ -281,8 +287,10 @@ async function mudarPagina(pagina) {
     if (pagina === 'historico') await carregarHistorico();
     if (pagina === 'evolucao') iniciarEvolucao();
     if (pagina === 'autores') await carregarAutores();
+    if (pagina === 'autoresGeral') await carregarAutoresGeral();
     if (pagina === 'comparativoAutores') await carregarComparativo();
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
+    if (pagina === 'atas') await carregarAtas();
     if (pagina === 'relatorioItens') await carregarRelatorioItens();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
@@ -1841,6 +1849,105 @@ async function carregarTabelaAutores() {
   document.getElementById('botaoProximoAutores').disabled = dados.page >= totalPaginas;
 }
 
+// -------------------- Listagem de Autores — Demais Unidades --------------------
+const estadoAutoresGeral = { pagina: 1, pageSize: 50, total: 0, filtrosCarregados: false };
+
+let debounceBuscaAutoresGeral;
+document.getElementById('filtroBuscaAutoresGeral').addEventListener('input', () => {
+  clearTimeout(debounceBuscaAutoresGeral);
+  debounceBuscaAutoresGeral = setTimeout(() => { estadoAutoresGeral.pagina = 1; carregarTabelaAutoresGeral(); }, 350);
+});
+['filtroUnidadeAutoresGeral', 'filtroStatusDemandaAutoresGeral', 'filtroStatusItemAutoresGeral', 'filtroCategoriaAutoresGeral'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => { estadoAutoresGeral.pagina = 1; carregarTabelaAutoresGeral(); });
+});
+document.getElementById('botaoLimparFiltrosAutoresGeral').addEventListener('click', () => {
+  document.getElementById('filtroBuscaAutoresGeral').value = '';
+  ['filtroUnidadeAutoresGeral', 'filtroStatusDemandaAutoresGeral', 'filtroStatusItemAutoresGeral', 'filtroCategoriaAutoresGeral']
+    .forEach((id) => { document.getElementById(id).value = ''; });
+  estadoAutoresGeral.pagina = 1; carregarTabelaAutoresGeral();
+});
+document.getElementById('botaoAnteriorAutoresGeral').addEventListener('click', () => {
+  if (estadoAutoresGeral.pagina > 1) { estadoAutoresGeral.pagina--; carregarTabelaAutoresGeral(); }
+});
+document.getElementById('botaoProximoAutoresGeral').addEventListener('click', () => {
+  estadoAutoresGeral.pagina++; carregarTabelaAutoresGeral();
+});
+
+async function carregarAutoresGeral() {
+  if (!estadoAutoresGeral.filtrosCarregados) {
+    try {
+      const f = await api('/autores/filtros?escopoUnidade=geral');
+      const preencher = (id, valores, rotulo) => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = `<option value="">${rotulo}</option>` +
+          valores.map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+      };
+      preencher('filtroUnidadeAutoresGeral', f.unidade, 'Unidade: todas');
+      preencher('filtroStatusDemandaAutoresGeral', f.status_demanda, 'Status da demanda: todos');
+      preencher('filtroStatusItemAutoresGeral', f.status_item, 'Status do item: todos');
+      preencher('filtroCategoriaAutoresGeral', f.categoria, 'Categoria: todas');
+      estadoAutoresGeral.filtrosCarregados = true;
+    } catch (e) { /* segue sem filtros */ }
+  }
+  carregarTabelaAutoresGeral();
+}
+
+async function carregarTabelaAutoresGeral() {
+  const params = new URLSearchParams({ page: estadoAutoresGeral.pagina, pageSize: estadoAutoresGeral.pageSize });
+  params.set('escopoUnidade', 'geral');
+  const q = document.getElementById('filtroBuscaAutoresGeral').value.trim();
+  if (q) params.set('q', q);
+  const mapa = {
+    unidade: 'filtroUnidadeAutoresGeral', status_demanda: 'filtroStatusDemandaAutoresGeral',
+    status_item: 'filtroStatusItemAutoresGeral', categoria: 'filtroCategoriaAutoresGeral',
+  };
+  for (const [param, id] of Object.entries(mapa)) {
+    const v = document.getElementById(id).value;
+    if (v) params.set(param, v);
+  }
+
+  const dados = await api(`/autores?${params.toString()}`);
+  estadoAutoresGeral.total = dados.total;
+
+  document.getElementById('grideResumoAutoresGeral').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAutores)}</div><div class="rotulo">Autores (distintos)</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${q || params.has('unidade') ? ' filtradas' : ''}</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo</div></div>
+  `;
+
+  const corpo = document.getElementById('corpoTabelaAutoresGeral');
+  const vazio = document.getElementById('estadoVazioAutoresGeral');
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((a) => `
+      <tr>
+        <td>${a.autor || '—'}</td>
+        <td>${a.unidade_dispensadora || '—'}</td>
+        <td class="col-codigo">${a.id_demanda || '—'}</td>
+        <td class="col-codigo">${a.protocolo || '—'}</td>
+        <td class="col-codigo">${a.processo || '—'}</td>
+        <td>${a.status_demanda || '—'}</td>
+        <td>${a.tipo_demanda || '—'}</td>
+        <td class="col-codigo">${a.codigo_item || '—'}</td>
+        <td class="col-codigo">${a.cod_siafisico || '—'}</td>
+        <td>${a.descricao_item || '—'}</td>
+        <td>${a.qtde_consumo || '—'}</td>
+        <td>${a.prazo || '—'}</td>
+        <td>${a.periodicidade || '—'}</td>
+        <td>${a.categoria || '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoAutoresGeral').textContent =
+    `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} linha(s)`;
+  document.getElementById('botaoAnteriorAutoresGeral').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoAutoresGeral').disabled = dados.page >= totalPaginas;
+}
+
 // -------------------- Relatório de Itens (catálogo) --------------------
 const estadoRelItens = { pagina: 1, pageSize: 50, filtrosCarregados: false };
 
@@ -3052,6 +3159,150 @@ formUsuario.addEventListener('submit', async (ev) => {
     alert(e.message);
   }
 });
+
+// -------------------- Atas de Registro de Preço (SISCOA) --------------------
+// Classifica o vencimento (data ISO "AAAA-MM-DD"): 'vencido', 'proximo' (<=90 dias) ou ''.
+function classeVencimentoAta(iso) {
+  if (!iso) return '';
+  const data = new Date(iso);
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const dias = Math.floor((data - hoje) / (1000 * 60 * 60 * 24));
+  if (dias < 0) return 'vencido';
+  if (dias <= 90) return 'proximo';
+  return '';
+}
+
+let itensAtasCarregados = new Map(); // cache local dos itens da página atual, para abrir o modal sem nova chamada
+
+let debounceBuscaAtas;
+document.getElementById('filtroBuscaAtas').addEventListener('input', () => {
+  clearTimeout(debounceBuscaAtas);
+  debounceBuscaAtas = setTimeout(() => { estado.atas.pagina = 1; carregarAtas(); }, 350);
+});
+document.getElementById('filtroJanelaAtas').addEventListener('change', () => {
+  estado.atas.pagina = 1; carregarAtas();
+});
+document.getElementById('botaoLimparFiltrosAtas').addEventListener('click', () => {
+  document.getElementById('filtroBuscaAtas').value = '';
+  document.getElementById('filtroJanelaAtas').value = '';
+  estado.atas.pagina = 1; carregarAtas();
+});
+document.getElementById('botaoAnteriorAtas').addEventListener('click', () => {
+  if (estado.atas.pagina > 1) { estado.atas.pagina--; carregarAtas(); }
+});
+document.getElementById('botaoProximoAtas').addEventListener('click', () => {
+  estado.atas.pagina++; carregarAtas();
+});
+
+async function carregarAtas() {
+  const params = new URLSearchParams({ page: estado.atas.pagina, pageSize: estado.atas.pageSize });
+  const q = document.getElementById('filtroBuscaAtas').value.trim();
+  if (q) params.set('q', q);
+  const janela = document.getElementById('filtroJanelaAtas').value;
+  if (janela) params.set('janela', janela);
+
+  const dados = await api(`/atas?${params.toString()}`);
+  estado.atas.total = dados.total;
+
+  const subtitulo = document.getElementById('subtituloAtas');
+  subtitulo.textContent = dados.dataReferencia
+    ? `Extraído automaticamente do SISCOA — dados de ${formatarData(dados.dataReferencia)}`
+    : 'Ainda não há Atas importadas.';
+
+  const grade = document.getElementById('grideResumoAtas');
+  if (dados.resumo) {
+    const r = dados.resumo;
+    grade.innerHTML = `
+      <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d30)}</div><div class="rotulo">Até 30 dias</div></div>
+      <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d60)}</div><div class="rotulo">31 a 60 dias</div></div>
+      <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d90)}</div><div class="rotulo">61 a 90 dias</div></div>
+      <div class="cartao-resumo"><div class="numero">${fmtNumero(r.mais90)}</div><div class="rotulo">Mais de 90 dias</div></div>
+    `;
+  } else {
+    grade.innerHTML = '';
+  }
+
+  const corpo = document.getElementById('corpoTabelaAtas');
+  const vazio = document.getElementById('estadoVazioAtas');
+  itensAtasCarregados = new Map(dados.itens.map((a) => [String(a.id), a]));
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = '';
+    vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    const escapar = (s) => String(s ?? '').replace(/"/g, '&quot;');
+    corpo.innerHTML = dados.itens.map((a) => {
+      const clsV = classeVencimentoAta(a.vencimento);
+      const tagV = clsV === 'vencido' ? 'cancelado' : clsV === 'proximo' ? 'atrasado' : 'finalizado';
+      const valorFmt = a.ultimo_valor_publicado != null
+        ? 'R$ ' + Number(a.ultimo_valor_publicado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+        : '—';
+      return `
+        <tr>
+          <td>
+            <span class="celula-truncada" style="display:block; max-width:340px;" title="${escapar(a.descricao)}">${a.descricao || '—'}</span>
+            <span class="col-codigo">${a.ata || '—'} · item ${a.item || '—'}</span>
+          </td>
+          <td class="celula-truncada" title="${escapar(a.nome_comercial)}">${a.nome_comercial || '—'}</td>
+          <td class="col-codigo">${a.siafisico || '—'}</td>
+          <td>${valorFmt}</td>
+          <td class="col-data"><span class="etiqueta-status ${tagV}">${formatarData(a.vencimento)}</span></td>
+          <td><button class="botao-editar" data-id="${a.id}">Ver</button></td>
+        </tr>
+      `;
+    }).join('');
+
+    corpo.querySelectorAll('button[data-id]').forEach((btn) => {
+      btn.addEventListener('click', () => abrirDetalheAta(btn.dataset.id));
+    });
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / estado.atas.pageSize), 1);
+  document.getElementById('textoPaginacaoAtas').textContent =
+    `${dados.total} resultado${dados.total === 1 ? '' : 's'} · página ${dados.page} de ${totalPaginas}`;
+  document.getElementById('botaoAnteriorAtas').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoAtas').disabled = dados.page >= totalPaginas;
+}
+
+document.getElementById('botaoFecharModalAta').addEventListener('click', () => {
+  document.getElementById('modalAtaItem').hidden = true;
+});
+
+function abrirDetalheAta(id) {
+  const a = itensAtasCarregados.get(String(id));
+  if (!a) return;
+
+  document.getElementById('tituloModalAta').textContent = a.descricao || a.nome_comercial || '—';
+  document.getElementById('codigoModalAta').textContent = `Ata ${a.ata || '—'} · Item ${a.item || '—'} · Siafísico ${a.siafisico || '—'}`;
+
+  const valorFmt = a.ultimo_valor_publicado != null
+    ? 'R$ ' + Number(a.ultimo_valor_publicado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+    : '—';
+  const clsV = classeVencimentoAta(a.vencimento);
+  const tagV = clsV === 'vencido' ? 'cancelado' : clsV === 'proximo' ? 'atrasado' : 'finalizado';
+
+  const linha = (rotulo, valor) => `
+    <div style="display:flex; justify-content:space-between; gap:14px; padding:7px 0; border-bottom:1px solid var(--linha); font-size:13px;">
+      <span style="color:var(--cinza-texto);">${rotulo}</span>
+      <span style="text-align:right;">${valor ?? '—'}</span>
+    </div>`;
+
+  document.getElementById('conteudoModalAta').innerHTML = `
+    <div class="grade-resumo" style="grid-template-columns: repeat(3, 1fr); margin-bottom:18px;">
+      <div class="cartao-resumo"><div class="numero" style="font-size:20px;">${valorFmt}</div><div class="rotulo">Valor publicado</div></div>
+      <div class="cartao-resumo"><div class="numero" style="font-size:20px;">${formatarData(a.data_publicacao)}</div><div class="rotulo">Data de publicação</div></div>
+      <div class="cartao-resumo"><div class="numero"><span class="etiqueta-status ${tagV}" style="font-size:14px;">${formatarData(a.vencimento)}</span></div><div class="rotulo">Vencimento</div></div>
+    </div>
+    ${linha('Nome Comercial', a.nome_comercial)}
+    ${linha('Unidade de Fornecimento', a.unidade_fornecimento)}
+    ${linha('Embalagem Primária', a.embalagem_primaria)}
+    ${linha('Embalagem Secundária', a.embalagem_secundaria)}
+    ${linha('Detentor do Registro', a.detentor_registro)}
+    ${linha('OC', a.oc)}
+  `;
+
+  document.getElementById('modalAtaItem').hidden = false;
+}
 
 // -------------------- Inicialização --------------------
 (async function iniciar() {

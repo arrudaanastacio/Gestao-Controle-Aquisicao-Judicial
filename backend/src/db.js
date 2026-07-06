@@ -184,6 +184,33 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_autor ON autores_itens(autor);`)
 db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_codigo ON autores_itens(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_unidade ON autores_itens(unidade_dispensadora);`);
 
+// Atas de Registro de Preço (SISCOA) — cada linha é um item registrado numa
+// Ata. Guarda só as 2 fotos mais recentes (mesmo padrão de autores_itens),
+// já que o relatório sempre traz o que está vigente no momento da extração.
+db.exec(`
+CREATE TABLE IF NOT EXISTS atas_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT,
+  ata TEXT,
+  oc TEXT,
+  item TEXT,
+  siafisico TEXT,
+  descricao TEXT,
+  unidade_fornecimento TEXT,
+  nome_comercial TEXT,
+  apresentacao TEXT,
+  detentor_registro TEXT,
+  ultimo_valor_publicado REAL,
+  data_publicacao TEXT,
+  vencimento TEXT,
+  embalagem_primaria TEXT,
+  embalagem_secundaria TEXT
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_atas_siafisico ON atas_itens(siafisico);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_atas_data ON atas_itens(data_referencia);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_atas_vencimento ON atas_itens(vencimento);`);
+
 // Requisições de compra geradas (Relatório Primeiro Atendimento)
 db.exec(`
 CREATE TABLE IF NOT EXISTS requisicoes (

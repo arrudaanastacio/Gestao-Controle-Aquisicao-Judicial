@@ -14,6 +14,7 @@ const alertasRoutes = require('./routes.alertas');
 const estoqueRoutes = require('./routes.estoque');
 const autoresRoutes = require('./routes.autores');
 const relatorioItensRoutes = require('./routes.relatorioItens');
+const atasRoutes = require('./routes.atas');
 const configRoutes = require('./routes.config');
 const { autenticar, exigirModulo } = require('./auth');
 
@@ -39,6 +40,7 @@ app.use('/api/alertas', autenticar, exigirModulo('alertas'), alertasRoutes);
 app.use('/api/estoque', autenticar, exigirModulo('estoque'), estoqueRoutes);
 app.use('/api/autores', autenticar, exigirModulo('autores'), autoresRoutes);
 app.use('/api/relatorio-itens', autenticar, exigirModulo('relatorioItens'), relatorioItensRoutes);
+app.use('/api/atas', autenticar, exigirModulo('atas'), atasRoutes);
 
 // Serve o frontend estático (build simples, sem framework)
 app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
@@ -54,4 +56,6 @@ app.listen(PORT, '0.0.0.0', () => {
   iniciarVigiaAutores();
   const { iniciarVigiaRelatorioItens } = require('./vigiaRelatorioItens');
   iniciarVigiaRelatorioItens();
+  const { iniciarVigiaAtas } = require('./vigiaAtas');
+  iniciarVigiaAtas();
 });

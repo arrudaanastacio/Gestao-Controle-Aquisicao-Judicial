@@ -141,6 +141,12 @@ router.get('/', (req, res) => {
   // Sempre a versão mais recente
   const cond = ['data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)'];
   const params = [];
+
+  // "Demais Unidades": exclui a Tenente Pena do resultado
+  if (req.query.escopoUnidade === 'geral') {
+    cond.push("unidade_dispensadora NOT LIKE '%Tenente Pena%'");
+  }
+
   if (q) {
     cond.push('(autor LIKE ? OR processo LIKE ? OR protocolo LIKE ? OR descricao_item LIKE ? OR codigo_item LIKE ?)');
     const like = `%${q}%`;
@@ -165,8 +171,10 @@ router.get('/', (req, res) => {
 
 // ---------- Valores distintos para os filtros ----------
 router.get('/filtros', (req, res) => {
+  const escopoGeral = req.query.escopoUnidade === 'geral';
+  const filtroUnidade = escopoGeral ? "AND unidade_dispensadora NOT LIKE '%Tenente Pena%'" : '';
   const distintos = (col) => db.prepare(
-    `SELECT DISTINCT ${col} v FROM autores_itens WHERE data_referencia = (SELECT MAX(data_referencia) FROM autores_itens) AND ${col} IS NOT NULL AND ${col} <> '' ORDER BY v`
+    `SELECT DISTINCT ${col} v FROM autores_itens WHERE data_referencia = (SELECT MAX(data_referencia) FROM autores_itens) ${filtroUnidade} AND ${col} IS NOT NULL AND ${col} <> '' ORDER BY v`
   ).all().map((r) => r.v);
   res.json({
     unidade: distintos('unidade_dispensadora'),

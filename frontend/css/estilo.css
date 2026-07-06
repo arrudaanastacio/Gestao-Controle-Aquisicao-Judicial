@@ -430,7 +430,8 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaComparativoAutores:not([hidden])),
 .conteudo:has(> #paginaRelatorioReq:not([hidden])),
 .conteudo:has(> #paginaRelatorioItens:not([hidden])),
-.conteudo:has(> #paginaValidades:not([hidden])) {
+.conteudo:has(> #paginaValidades:not([hidden])),
+.conteudo:has(> #paginaAtas:not([hidden])) {
   max-width: none;
 }
 
@@ -562,6 +563,17 @@ thead th {
 }
 /* Coluna de descrição com largura controlada para não esticar a linha */
 .tabela-rolavel-x td:nth-child(3) { min-width: 200px; max-width: 280px; }
+
+/* Célula com texto longo (ex.: descrição de Ata): corta numa linha só,
+   com "…" no fim; o texto completo aparece ao passar o mouse (title). */
+.celula-truncada {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Na tabela de Atas a 3ª coluna é Siafísico, não descrição — desfaz a regra acima */
+#paginaAtas .tabela-rolavel-x td:nth-child(3) { min-width: 0; max-width: none; }
 
 /* Cabeçalho fixo no topo ao rolar verticalmente */
 .tabela-rolavel-x thead th {

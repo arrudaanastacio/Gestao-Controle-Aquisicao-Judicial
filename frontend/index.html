@@ -43,12 +43,18 @@
         </div>
 
         <div class="nav-grupo">
+          <p class="nav-grupo-titulo">📋 Atas (SISCOA)</p>
+          <a href="#" data-pagina="atas">Atas de Registro de Preço</a>
+        </div>
+
+        <div class="nav-grupo">
           <p class="nav-grupo-titulo">👤 Autores</p>
           <p class="nav-sub">Tenente Pena</p>
           <a href="#" data-pagina="autores">Listagem de Autores</a>
           <a href="#" data-pagina="comparativoAutores">Comparativo de Autores</a>
           <a href="#" data-pagina="relatorioReq">Relatório Primeiro Atendimento</a>
-          <p class="nav-sub nav-sub-vazio">Demais Unidades <span>(em breve)</span></p>
+          <p class="nav-sub">Demais Unidades</p>
+          <a href="#" data-pagina="autoresGeral">Listagem de Autores</a>
         </div>
 
         <div class="nav-grupo" id="grupoMonitoramento">
@@ -623,6 +629,60 @@
         </div>
       </section>
 
+      <section id="paginaAutoresGeral" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Listagem de Autores — Demais Unidades</h2>
+            <p id="subtituloAutoresGeral">Requerentes das ações judiciais das demais unidades (exceto Tenente Pena)</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoAutoresGeral"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaAutoresGeral" placeholder="Buscar por autor, processo, protocolo, medicamento ou código…" style="min-width:320px;">
+          <select id="filtroUnidadeAutoresGeral" style="max-width:220px; text-overflow:ellipsis;"><option value="">Unidade: todas</option></select>
+          <select id="filtroStatusDemandaAutoresGeral"><option value="">Status da demanda: todos</option></select>
+          <select id="filtroStatusItemAutoresGeral"><option value="">Status do item: todos</option></select>
+          <select id="filtroCategoriaAutoresGeral"><option value="">Categoria: todas</option></select>
+          <button id="botaoLimparFiltrosAutoresGeral" class="botao-secundario" type="button">Limpar</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Autor</th>
+                  <th>Unidade dispensadora</th>
+                  <th>ID Demanda</th>
+                  <th>Protocolo</th>
+                  <th>Processo</th>
+                  <th>Status da Demanda</th>
+                  <th>Tipo da Demanda</th>
+                  <th>Cód. Item</th>
+                  <th>Cód. SIAFÍSICO</th>
+                  <th>Descrição do Item</th>
+                  <th>Qtde de Consumo</th>
+                  <th>Prazo</th>
+                  <th>Periodicidade</th>
+                  <th>Categoria</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaAutoresGeral"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioAutoresGeral" hidden>Nenhum registro encontrado com estes filtros.</div>
+          <div class="paginacao">
+            <span id="textoPaginacaoAutoresGeral">—</span>
+            <div class="botoes">
+              <button id="botaoAnteriorAutoresGeral">← Anterior</button>
+              <button id="botaoProximoAutoresGeral">Próximo →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="paginaComparativoAutores" hidden>
         <div class="cabecalho-pagina">
           <div>
@@ -667,6 +727,55 @@
             <div class="paginacao">
               <span id="contagemComparativo">—</span>
               <button id="botaoExportarComparativo" class="botao-primario" type="button">📊 Exportar Excel</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaAtas" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Atas de Registro de Preço</h2>
+            <p id="subtituloAtas">Extraído automaticamente do SISCOA — dados vigentes na última importação</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoAtas"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaAtas" placeholder="Buscar por descrição, Ata, Siafísico, Nome Comercial ou fornecedor…" style="min-width:320px;">
+          <select id="filtroJanelaAtas">
+            <option value="">Vencimento: todos</option>
+            <option value="d30">Até 30 dias</option>
+            <option value="d60">31 a 60 dias</option>
+            <option value="d90">61 a 90 dias</option>
+            <option value="mais90">Mais de 90 dias</option>
+          </select>
+          <button id="botaoLimparFiltrosAtas" class="botao-secundario" type="button">Limpar</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Medicamento</th>
+                  <th>Nome Comercial</th>
+                  <th>Siafísico</th>
+                  <th>Valor Publicado</th>
+                  <th>Vencimento</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaAtas"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioAtas" hidden>Nenhuma Ata encontrada com estes filtros.</div>
+          <div class="paginacao">
+            <span id="textoPaginacaoAtas">—</span>
+            <div class="botoes">
+              <button id="botaoAnteriorAtas">← Anterior</button>
+              <button id="botaoProximoAtas">Próximo →</button>
             </div>
           </div>
         </div>
@@ -1103,6 +1212,17 @@
     </div>
   </div>
 
+  <div class="fundo-modal" id="modalAtaItem" hidden>
+    <div class="modal" style="max-width:640px;">
+      <h3 id="tituloModalAta">Detalhe da Ata</h3>
+      <p class="descricao-item" id="codigoModalAta"></p>
+      <div id="conteudoModalAta"></div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="botaoFecharModalAta">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="fundo-modal" id="modalValidadeItem" hidden>
     <div class="modal" style="max-width:680px;">
       <h3 id="tituloModalValidade">Detalhe do item</h3>
@@ -1147,6 +1267,6 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=30"></script>
+  <script src="/js/app.js?v=31"></script>
 </body>
 </html>
