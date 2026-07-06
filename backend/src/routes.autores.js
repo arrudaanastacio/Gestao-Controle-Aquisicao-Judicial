@@ -133,40 +133,69 @@ function importarAutoresDeBuffer(buffer, opcoes = {}) {
 }
 
 // ---------- Listagem com filtros e paginação ----------
-router.get('/', (req, res) => {
-  const { q, unidade, status_demanda, status_item, categoria, page = 1, pageSize = 50 } = req.query;
-  const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
-  const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
-
-  // Sempre a versão mais recente
+// Monta o WHERE (escopo + filtros) usado na listagem, no KPI e na exportação —
+// assim o card de resumo SEMPRE bate com a tabela filtrada.
+function montarFiltroAutores(query) {
   const cond = ['data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)'];
   const params = [];
-
-  // "Demais Unidades": exclui a Tenente Pena do resultado
-  if (req.query.escopoUnidade === 'geral') {
+  if (query.escopoUnidade === 'geral') {
     cond.push("unidade_dispensadora NOT LIKE '%Tenente Pena%'");
   }
-
-  if (q) {
+  if (query.q) {
     cond.push('(autor LIKE ? OR processo LIKE ? OR protocolo LIKE ? OR descricao_item LIKE ? OR codigo_item LIKE ?)');
-    const like = `%${q}%`;
+    const like = `%${query.q}%`;
     params.push(like, like, like, like, like);
   }
-  if (unidade) { cond.push('unidade_dispensadora = ?'); params.push(unidade); }
-  if (status_demanda) { cond.push('status_demanda = ?'); params.push(status_demanda); }
-  if (status_item) { cond.push('status_item = ?'); params.push(status_item); }
-  if (categoria) { cond.push('categoria = ?'); params.push(categoria); }
-  const where = `WHERE ${cond.join(' AND ')}`;
+  if (query.unidade) { cond.push('unidade_dispensadora = ?'); params.push(query.unidade); }
+  if (query.status_demanda) { cond.push('status_demanda = ?'); params.push(query.status_demanda); }
+  if (query.status_item) { cond.push('status_item = ?'); params.push(query.status_item); }
+  if (query.categoria) { cond.push('categoria = ?'); params.push(query.categoria); }
+  return { where: `WHERE ${cond.join(' AND ')}`, params };
+}
+
+router.get('/', (req, res) => {
+  const { page = 1, pageSize = 50 } = req.query;
+  const limit = Math.min(parseInt(pageSize, 10) || 50, 300);
+  const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
+
+  const { where, params } = montarFiltroAutores(req.query);
 
   const total = db.prepare(`SELECT COUNT(*) c FROM autores_itens ${where}`).get(...params).c;
+  // KPI de autores distintos AGORA respeita escopo + filtros (bate com a tabela)
+  const totalAutores = db.prepare(`SELECT COUNT(DISTINCT autor) c FROM autores_itens ${where}`).get(...params).c;
   const itens = db.prepare(
     `SELECT * FROM autores_itens ${where} ORDER BY autor COLLATE NOCASE, descricao_item LIMIT ? OFFSET ?`
   ).all(...params, limit, offset);
 
   const dataRef = db.prepare('SELECT MAX(data_referencia) v FROM autores_itens').get()?.v || null;
-  const totalAutores = db.prepare('SELECT COUNT(DISTINCT autor) c FROM autores_itens WHERE data_referencia = ?').get(dataRef).c;
 
   res.json({ total, totalAutores, dataReferencia: dataRef, itens, page: Number(page), pageSize: limit });
+});
+
+// Exportação CSV (abre no Excel) respeitando escopo + filtros atuais.
+router.get('/exportar', (req, res) => {
+  const { where, params } = montarFiltroAutores(req.query);
+  const linhas = db.prepare(
+    `SELECT * FROM autores_itens ${where} ORDER BY autor COLLATE NOCASE, descricao_item`
+  ).all(...params);
+
+  const cols = [
+    ['autor', 'Autor'], ['unidade_dispensadora', 'Unidade Dispensadora'],
+    ['id_demanda', 'ID Demanda'], ['protocolo', 'Protocolo'], ['processo', 'Processo'],
+    ['status_demanda', 'Status da Demanda'], ['tipo_demanda', 'Tipo da Demanda'],
+    ['codigo_item', 'Cód. Item'], ['cod_siafisico', 'Cód. SIAFÍSICO'],
+    ['descricao_item', 'Descrição do Item'], ['qtde_consumo', 'Qtde de Consumo'],
+    ['prazo', 'Prazo'], ['periodicidade', 'Periodicidade'], ['categoria', 'Categoria'],
+  ];
+  const esc = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const header = cols.map((c) => esc(c[1])).join(';');
+  const corpo = linhas.map((l) => cols.map((c) => esc(l[c[0]])).join(';')).join('\r\n');
+  const csv = '﻿' + header + '\r\n' + corpo;
+
+  const escopo = req.query.escopoUnidade === 'geral' ? 'demais_unidades' : 'tenente_pena';
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="autores_${escopo}.csv"`);
+  res.send(csv);
 });
 
 // ---------- Valores distintos para os filtros ----------

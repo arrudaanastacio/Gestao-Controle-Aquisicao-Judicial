@@ -1777,7 +1777,7 @@ async function compararHistorico() {
 }
 
 // -------------------- Listagem de Autores --------------------
-const estadoAutores = { pagina: 1, pageSize: 50, total: 0, filtrosCarregados: false };
+const estadoAutores = { pagina: 1, pageSize: 150, total: 0, filtrosCarregados: false };
 
 let debounceBuscaAutores;
 document.getElementById('filtroBuscaAutores').addEventListener('input', () => {
@@ -1875,7 +1875,7 @@ async function carregarTabelaAutores() {
 }
 
 // -------------------- Listagem de Autores — Demais Unidades --------------------
-const estadoAutoresGeral = { pagina: 1, pageSize: 50, total: 0, filtrosCarregados: false };
+const estadoAutoresGeral = { pagina: 1, pageSize: 150, total: 0, filtrosCarregados: false };
 
 let debounceBuscaAutoresGeral;
 document.getElementById('filtroBuscaAutoresGeral').addEventListener('input', () => {
@@ -1897,6 +1897,26 @@ document.getElementById('botaoAnteriorAutoresGeral').addEventListener('click', (
 document.getElementById('botaoProximoAutoresGeral').addEventListener('click', () => {
   estadoAutoresGeral.pagina++; carregarTabelaAutoresGeral();
 });
+
+// Exportação Excel (CSV) das listagens de Autores, respeitando os filtros atuais.
+function exportarAutores(escopoGeral) {
+  const suf = escopoGeral ? 'AutoresGeral' : 'Autores';
+  const params = new URLSearchParams();
+  if (escopoGeral) params.set('escopoUnidade', 'geral');
+  const q = document.getElementById('filtroBusca' + suf).value.trim();
+  if (q) params.set('q', q);
+  const mapa = {
+    unidade: 'filtroUnidade' + suf, status_demanda: 'filtroStatusDemanda' + suf,
+    status_item: 'filtroStatusItem' + suf, categoria: 'filtroCategoria' + suf,
+  };
+  for (const [param, id] of Object.entries(mapa)) {
+    const el = document.getElementById(id);
+    if (el && el.value) params.set(param, el.value);
+  }
+  window.location.href = '/api/autores/exportar?' + params.toString();
+}
+document.getElementById('botaoExportarAutores').addEventListener('click', () => exportarAutores(false));
+document.getElementById('botaoExportarAutoresGeral').addEventListener('click', () => exportarAutores(true));
 
 async function carregarAutoresGeral() {
   if (!estadoAutoresGeral.filtrosCarregados) {
