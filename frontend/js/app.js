@@ -1803,7 +1803,7 @@ document.getElementById('botaoProximoAutores').addEventListener('click', () => {
 async function carregarAutores() {
   if (!estadoAutores.filtrosCarregados) {
     try {
-      const f = await api('/autores/filtros');
+      const f = await api('/autores/filtros?escopoUnidade=udtp');
       const preencher = (id, valores, rotulo) => {
         const sel = document.getElementById(id);
         sel.innerHTML = `<option value="">${rotulo}</option>` +
@@ -1821,6 +1821,7 @@ async function carregarAutores() {
 
 async function carregarTabelaAutores() {
   const params = new URLSearchParams({ page: estadoAutores.pagina, pageSize: estadoAutores.pageSize });
+  params.set('escopoUnidade', 'udtp'); // principal: só a Tenente Pena
   const q = document.getElementById('filtroBuscaAutores').value.trim();
   if (q) params.set('q', q);
   const mapa = {
@@ -1902,7 +1903,7 @@ document.getElementById('botaoProximoAutoresGeral').addEventListener('click', ()
 function exportarAutores(escopoGeral) {
   const suf = escopoGeral ? 'AutoresGeral' : 'Autores';
   const params = new URLSearchParams();
-  if (escopoGeral) params.set('escopoUnidade', 'geral');
+  params.set('escopoUnidade', escopoGeral ? 'geral' : 'udtp');
   const q = document.getElementById('filtroBusca' + suf).value.trim();
   if (q) params.set('q', q);
   const mapa = {

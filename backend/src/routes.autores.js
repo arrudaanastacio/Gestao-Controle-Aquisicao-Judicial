@@ -140,6 +140,9 @@ function montarFiltroAutores(query) {
   const params = [];
   if (query.escopoUnidade === 'geral') {
     cond.push("unidade_dispensadora NOT LIKE '%Tenente Pena%'");
+  } else if (query.escopoUnidade === 'udtp') {
+    // Listagem principal: SOMENTE a Tenente Pena (ex.: "UD 01 - Tenente Pena")
+    cond.push("unidade_dispensadora LIKE '%Tenente Pena%'");
   }
   if (query.q) {
     cond.push('(autor LIKE ? OR processo LIKE ? OR protocolo LIKE ? OR descricao_item LIKE ? OR codigo_item LIKE ?)');
@@ -200,8 +203,9 @@ router.get('/exportar', (req, res) => {
 
 // ---------- Valores distintos para os filtros ----------
 router.get('/filtros', (req, res) => {
-  const escopoGeral = req.query.escopoUnidade === 'geral';
-  const filtroUnidade = escopoGeral ? "AND unidade_dispensadora NOT LIKE '%Tenente Pena%'" : '';
+  const esc = req.query.escopoUnidade;
+  const filtroUnidade = esc === 'geral' ? "AND unidade_dispensadora NOT LIKE '%Tenente Pena%'"
+    : esc === 'udtp' ? "AND unidade_dispensadora LIKE '%Tenente Pena%'" : '';
   const distintos = (col) => db.prepare(
     `SELECT DISTINCT ${col} v FROM autores_itens WHERE data_referencia = (SELECT MAX(data_referencia) FROM autores_itens) ${filtroUnidade} AND ${col} IS NOT NULL AND ${col} <> '' ORDER BY v`
   ).all().map((r) => r.v);
