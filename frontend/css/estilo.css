@@ -1001,20 +1001,26 @@ body.tem-faixa-ambiente { padding-top: 30px; }
   text-align: center;
 }
 
-/* Descrição do item: no máximo 2 linhas com reticências (texto completo no
-   tooltip). Evita que uma descrição longa estique a linha inteira e desperdice
-   espaço vertical no relatório de Autores. */
+/* Desfaz a regra genérica de largura da 3ª coluna (feita para outra tabela,
+   onde a 3ª coluna é descrição). Nas telas de Autores a 3ª coluna é curta. */
+#paginaAutores .tabela-rolavel-x td:nth-child(3),
+#paginaAutoresGeral .tabela-rolavel-x td:nth-child(3) { min-width: 0; max-width: none; }
+
+/* Colunas curtas não quebram (mantém as linhas baixas) */
+#paginaAutores tbody td, #paginaAutoresGeral tbody td { white-space: nowrap; }
+
+/* Descrição do item: PUXA o espaço que sobra (a tabela preenche a largura
+   toda, sem vazio à direita), com um mínimo para não amassar. No máximo 3
+   linhas com reticências; o texto completo aparece no tooltip. */
 #paginaAutores .col-desc, #paginaAutoresGeral .col-desc {
-  min-width: 240px;
-  max-width: 340px;
+  width: 100%;
+  min-width: 300px;
+  max-width: none;
   white-space: normal;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
   line-height: 1.35;
 }
-/* Colunas curtas não quebram (mantém as linhas baixas) */
-#paginaAutores tbody td, #paginaAutoresGeral tbody td { white-space: nowrap; }
-#paginaAutores .col-desc, #paginaAutoresGeral .col-desc { white-space: normal; }
