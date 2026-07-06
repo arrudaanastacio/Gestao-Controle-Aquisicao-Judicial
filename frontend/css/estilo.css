@@ -427,6 +427,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaEstoqueGeral:not([hidden])),
 .conteudo:has(> #paginaHistorico:not([hidden])),
 .conteudo:has(> #paginaAutores:not([hidden])),
+.conteudo:has(> #paginaAutoresGeral:not([hidden])),
 .conteudo:has(> #paginaComparativoAutores:not([hidden])),
 .conteudo:has(> #paginaRelatorioReq:not([hidden])),
 .conteudo:has(> #paginaRelatorioItens:not([hidden])),
@@ -1013,9 +1014,8 @@ body.tem-faixa-ambiente { padding-top: 30px; }
    toda, sem vazio à direita), com um mínimo para não amassar. No máximo 3
    linhas com reticências; o texto completo aparece no tooltip. */
 #paginaAutores .col-desc, #paginaAutoresGeral .col-desc {
-  width: 100%;
   min-width: 300px;
-  max-width: none;
+  max-width: 480px;
   white-space: normal;
   display: -webkit-box;
   -webkit-line-clamp: 3;
