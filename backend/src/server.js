@@ -2,6 +2,13 @@ require('dotenv').config();
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const fs = require('fs');
+
+// Versão do sistema: lida do arquivo VERSION na raiz do projeto.
+let VERSAO = '—';
+try {
+  VERSAO = fs.readFileSync(path.join(__dirname, '..', '..', 'VERSION'), 'utf8').trim() || '—';
+} catch (_) {}
 
 const authRoutes = require('./routes.auth');
 const usuariosRoutes = require('./routes.usuarios');
@@ -23,6 +30,13 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(cookieParser());
+
+// Informa o ambiente (produção/homologação) e a versão. Público de propósito:
+// o frontend usa para mostrar o selo "HOMOLOGAÇÃO" mesmo na tela de login.
+// Em produção (NODE_ENV=production) a faixa não aparece.
+app.get('/api/ambiente', (req, res) => {
+  res.json({ ambiente: process.env.NODE_ENV || 'producao', versao: VERSAO });
+});
 
 // Rotas sem trava de módulo (autenticação/admin tratada dentro do próprio arquivo)
 app.use('/api/auth', authRoutes);
@@ -46,6 +60,7 @@ app.use('/api/atas', autenticar, exigirModulo('atas'), atasRoutes);
 app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
 
 app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Sistema v${VERSAO} — ambiente: ${process.env.NODE_ENV || 'producao'}`);
   console.log(`Servidor rodando em http://0.0.0.0:${PORT}`);
   console.log('Acesse pela rede local usando o IP deste computador, ex: http://192.168.x.x:' + PORT);
 

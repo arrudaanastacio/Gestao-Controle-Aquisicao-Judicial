@@ -35,6 +35,20 @@
   </div>
 
   <script>
+    // Faixa "HOMOLOGAÇÃO": só acende quando o servidor está em NODE_ENV=homologacao.
+    (function () {
+      fetch('/api/ambiente').then(function (r) { return r.json(); }).then(function (d) {
+        if (!d || d.ambiente !== 'homologacao') return;
+        var f = document.createElement('div');
+        f.id = 'faixaAmbiente';
+        f.textContent = '⚠ AMBIENTE DE HOMOLOGAÇÃO (TESTE) v' + (d.versao || '—') + ' — porta 3001 · nada aqui afeta a produção';
+        document.body.appendChild(f);
+        document.body.classList.add('tem-faixa-ambiente');
+      }).catch(function () {});
+    })();
+  </script>
+
+  <script>
     (function () {
       var botao = document.getElementById('botaoEntrar');
       var campoEmail = document.getElementById('email');

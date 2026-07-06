@@ -82,6 +82,7 @@
           <svg class="icone-sair" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
           <span class="rotulo-sair">Sair</span>
         </button>
+        <div class="rodape-versao" id="rodapeVersao" title="Versão do sistema">v—</div>
       </div>
     </aside>
 
@@ -1267,6 +1268,22 @@
     </div>
   </div>
 
+  <script>
+    // Faixa "HOMOLOGAÇÃO" + selo de versão (só acende com NODE_ENV=homologacao).
+    (function () {
+      fetch('/api/ambiente').then(function (r) { return r.json(); }).then(function (d) {
+        if (!d) return;
+        var elVer = document.getElementById('rodapeVersao');
+        if (elVer) elVer.textContent = 'v' + (d.versao || '—');
+        if (d.ambiente !== 'homologacao') return;
+        var f = document.createElement('div');
+        f.id = 'faixaAmbiente';
+        f.textContent = '⚠ AMBIENTE DE HOMOLOGAÇÃO (TESTE) v' + (d.versao || '—') + ' — porta 3001 · nada aqui afeta a produção';
+        document.body.appendChild(f);
+        document.body.classList.add('tem-faixa-ambiente');
+      }).catch(function () {});
+    })();
+  </script>
   <script src="/js/app.js?v=32"></script>
 </body>
 </html>
