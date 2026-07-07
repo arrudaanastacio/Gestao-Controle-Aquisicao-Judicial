@@ -9,12 +9,19 @@ const oracledb = require('oracledb');
 // Retorna cada linha como objeto { COLUNA: valor } em vez de array posicional
 oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
 
-// String de conexão (IP/porta/serviço) vem do .env — NUNCA fica no código,
+// Dados de conexão (host/porta/serviço) vêm do .env — NUNCA ficam no código,
 // para não expor a infraestrutura interna em repositório público.
-const CONNECT_STRING = process.env.ORA_CONNECT_STRING;
-if (!CONNECT_STRING) {
-  throw new Error('Defina ORA_CONNECT_STRING no backend/.env (veja backend/.env.oracle.example).');
+// Monta a string de conexão a partir de ORACLE_HOST/ORACLE_PORT/ORACLE_SERVICE.
+const ORACLE_HOST = process.env.ORACLE_HOST;
+const ORACLE_PORT = process.env.ORACLE_PORT || '1521';
+const ORACLE_SERVICE = process.env.ORACLE_SERVICE;
+if (!ORACLE_HOST || !ORACLE_SERVICE) {
+  throw new Error('Defina ORACLE_HOST e ORACLE_SERVICE no backend/.env (veja backend/.env.oracle.example).');
 }
+const CONNECT_STRING =
+  `(DESCRIPTION=(CONNECT_TIMEOUT=10)(RETRY_COUNT=3)` +
+  `(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=${ORACLE_HOST})(PORT=${ORACLE_PORT})))` +
+  `(CONNECT_DATA=(SERVICE_NAME=${ORACLE_SERVICE})(SERVER=DEDICATED)))`;
 
 let pool = null;
 
@@ -22,8 +29,8 @@ let pool = null;
 async function iniciarPool() {
   if (pool) return pool;
   pool = await oracledb.createPool({
-    user: process.env.ORA_USER,
-    password: process.env.ORA_PASSWORD,
+    user: process.env.ORACLE_USER,
+    password: process.env.ORACLE_PASSWORD,
     connectString: CONNECT_STRING,
     poolMin: 1,
     poolMax: 4,

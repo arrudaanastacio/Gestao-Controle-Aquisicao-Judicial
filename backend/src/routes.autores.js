@@ -95,9 +95,16 @@ function processarAutores(buffer) {
   return linhas;
 }
 
-// Importa (substitui toda a listagem) a partir de um buffer
+// Importa (substitui toda a listagem) a partir de um buffer de CSV/planilha
 function importarAutoresDeBuffer(buffer, opcoes = {}) {
   const linhas = processarAutores(buffer);
+  return importarAutoresDeLinhas(linhas, opcoes);
+}
+
+// Importa (substitui toda a listagem) a partir de linhas já mapeadas
+// (objetos com as chaves de CAMPOS). Usado tanto pelo CSV quanto pelo
+// atualizador via Oracle. Toda a lógica de gravação vive aqui.
+function importarAutoresDeLinhas(linhas, opcoes = {}) {
   const dataReferencia = (opcoes.dataReferencia || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const usuarioEmail = opcoes.usuarioEmail || 'sistema';
   const usuarioId = opcoes.usuarioId ?? null;
@@ -110,7 +117,8 @@ function importarAutoresDeBuffer(buffer, opcoes = {}) {
     `INSERT INTO autores_itens (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`
   );
   for (const l of linhas) {
-    stmt.run(dataReferencia, ...CAMPOS.map((c) => l[c]));
+    // undefined não pode ser vinculado no SQLite; normaliza para null.
+    stmt.run(dataReferencia, ...CAMPOS.map((c) => (l[c] === undefined ? null : l[c])));
   }
 
   // Mantém só as 2 versões mais recentes (atual + anterior, para o comparativo)
@@ -230,6 +238,48 @@ router.post('/importar/confirmar', upload.single('arquivo'), (req, res) => {
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
+});
+
+// ---------- Atualização via Oracle (SCODES) ----------
+// Estado em memória do processo (dura enquanto o servidor estiver de pé).
+const estadoOracle = { rodando: false, inicio: null, ultimoResumo: null, ultimoErro: null };
+
+// Dispara a atualização em segundo plano (não espera terminar). Usado tanto
+// pelo botão (rota abaixo) quanto pelo agendador diário. Devolve
+// { iniciado: bool, jaRodando: bool }. A trava impede duas ao mesmo tempo.
+function iniciarAtualizacaoOracle(opcoes = {}) {
+  if (estadoOracle.rodando) return { iniciado: false, jaRodando: true };
+  const { atualizarAutoresViaOracle } = require('../oracle/sync-demandas');
+  estadoOracle.rodando = true;
+  estadoOracle.inicio = new Date().toISOString();
+  estadoOracle.ultimoErro = null;
+
+  atualizarAutoresViaOracle(opcoes)
+    .then((resumo) => {
+      estadoOracle.ultimoResumo = { ...resumo, fim: new Date().toISOString() };
+      console.log(`[SYNC AUTORES] Concluido via Oracle: ${resumo.totalLinhas} linhas / ${resumo.totalAutores} autores em ${Math.round((resumo.duracaoMs || 0) / 1000)}s.`);
+    })
+    .catch((e) => {
+      estadoOracle.ultimoErro = e.message;
+      console.error('[SYNC AUTORES] Falha via Oracle:', e.message);
+    })
+    .finally(() => { estadoOracle.rodando = false; });
+
+  return { iniciado: true, jaRodando: false };
+}
+
+// Botão "Atualizar via Oracle": dispara e responde na hora (não prende ~9 min).
+router.post('/atualizar-oracle', exigirPerfil('admin'), (req, res) => {
+  const r = iniciarAtualizacaoOracle({ usuarioEmail: req.usuario.email, usuarioId: req.usuario.id });
+  if (!r.iniciado) {
+    return res.status(409).json({ erro: 'Já existe uma atualização via Oracle em andamento.', ...estadoOracle });
+  }
+  res.json({ iniciado: true, inicio: estadoOracle.inicio });
+});
+
+// A tela consulta este status a cada poucos segundos para saber quando terminou.
+router.get('/atualizar-oracle/status', (req, res) => {
+  res.json(estadoOracle);
 });
 
 // ---------- Requisição de compra: busca de pacientes (autores distintos) ----------
@@ -600,3 +650,6 @@ router.get('/comparacao', (req, res) => {
 
 module.exports = router;
 module.exports.importarAutoresDeBuffer = importarAutoresDeBuffer;
+module.exports.importarAutoresDeLinhas = importarAutoresDeLinhas;
+module.exports.CAMPOS = CAMPOS;
+module.exports.iniciarAtualizacaoOracle = iniciarAtualizacaoOracle;

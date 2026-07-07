@@ -514,6 +514,8 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   border-radius: 4px;
 }
 .botao-secundario:hover { border-color: var(--selo); color: var(--selo-escuro); }
+.botao-secundario:disabled { opacity: .55; cursor: not-allowed; }
+.status-oracle { font-size: 13px; font-weight: 600; align-self: center; }
 
 .botao-primario {
   background: var(--selo);

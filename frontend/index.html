@@ -595,6 +595,8 @@
           <select id="filtroCategoriaAutores"><option value="">Categoria: todas</option></select>
           <button id="botaoLimparFiltrosAutores" class="botao-secundario" type="button">Limpar</button>
           <button id="botaoExportarAutores" class="botao-secundario" type="button">📊 Exportar Excel</button>
+          <button id="botaoAtualizarOracle" class="botao-secundario" type="button" hidden title="Puxa a listagem de todas as unidades direto do Oracle (SCODES). Demora alguns minutos.">🔄 Atualizar via Oracle</button>
+          <span id="statusOracleAutores" class="status-oracle" hidden></span>
         </div>
 
         <div class="tabela-wrap">
@@ -1286,6 +1288,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=35"></script>
+  <script src="/js/app.js?v=36"></script>
 </body>
 </html>

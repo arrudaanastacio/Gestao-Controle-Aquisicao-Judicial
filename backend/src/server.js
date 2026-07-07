@@ -73,4 +73,8 @@ app.listen(PORT, '0.0.0.0', () => {
   iniciarVigiaRelatorioItens();
   const { iniciarVigiaAtas } = require('./vigiaAtas');
   iniciarVigiaAtas();
+
+  // Atualização automática diária da Listagem de Autores direto do Oracle (SCODES)
+  const { iniciarAgendadorAutores } = require('./agendadorAutores');
+  iniciarAgendadorAutores();
 });

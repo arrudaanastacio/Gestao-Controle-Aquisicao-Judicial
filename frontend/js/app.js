@@ -153,6 +153,8 @@ async function carregarUsuario() {
     document.getElementById('linkImportadores').hidden = false;
     document.getElementById('linkAlertas').hidden = false;
     document.getElementById('botaoNovaSolicitacao').hidden = false;
+    document.getElementById('botaoAtualizarOracle').hidden = false;
+    verificarStatusOracle(); // retoma acompanhamento se já houver atualização em curso
     atualizarBadgeAlertas();
     carregarConfigLimiar();
   } else {
@@ -1918,6 +1920,65 @@ function exportarAutores(escopoGeral) {
 }
 document.getElementById('botaoExportarAutores').addEventListener('click', () => exportarAutores(false));
 document.getElementById('botaoExportarAutoresGeral').addEventListener('click', () => exportarAutores(true));
+
+// ---------- Atualizar Listagem de Autores direto do Oracle (SCODES) ----------
+let timerStatusOracle = null;
+function mostrarStatusOracle(texto, cor) {
+  const el = document.getElementById('statusOracleAutores');
+  el.textContent = texto;
+  el.style.color = cor || '';
+  el.hidden = !texto;
+}
+async function verificarStatusOracle() {
+  try {
+    const r = await fetch('/api/autores/atualizar-oracle/status');
+    const s = await r.json();
+    const botao = document.getElementById('botaoAtualizarOracle');
+    if (s.rodando) {
+      botao.disabled = true;
+      // Se a página foi recarregada no meio da atualização, religa o timer.
+      if (!timerStatusOracle) timerStatusOracle = setInterval(verificarStatusOracle, 5000);
+      const min = s.inicio ? Math.floor((Date.now() - new Date(s.inicio)) / 60000) : 0;
+      mostrarStatusOracle(`⏳ Atualizando via Oracle… (${min} min) — pode continuar usando o sistema.`, '#8a6d00');
+    } else {
+      botao.disabled = false;
+      if (timerStatusOracle) { clearInterval(timerStatusOracle); timerStatusOracle = null; }
+      if (s.ultimoErro) {
+        mostrarStatusOracle('❌ Falha na última atualização: ' + s.ultimoErro, '#b00020');
+      } else if (s.ultimoResumo) {
+        const seg = Math.round((s.ultimoResumo.duracaoMs || 0) / 1000);
+        mostrarStatusOracle(`✅ Atualizado: ${s.ultimoResumo.totalLinhas} linhas / ${s.ultimoResumo.totalAutores} autores (${seg}s). Recarregue a tabela.`, '#1f5c52');
+        // Recarrega as listagens com os dados novos
+        estadoAutores.pagina = 1;
+        carregarTabelaAutores();
+      } else {
+        mostrarStatusOracle('', '');
+      }
+    }
+  } catch (_) { /* silencioso */ }
+}
+document.getElementById('botaoAtualizarOracle').addEventListener('click', async () => {
+  if (!confirm('Atualizar a Listagem de Autores puxando TODAS as unidades direto do Oracle (SCODES)?\n\nIsso leva alguns minutos e roda em segundo plano — você pode continuar usando o sistema normalmente.')) return;
+  const botao = document.getElementById('botaoAtualizarOracle');
+  botao.disabled = true;
+  mostrarStatusOracle('⏳ Iniciando…', '#8a6d00');
+  try {
+    const r = await fetch('/api/autores/atualizar-oracle', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) {
+      mostrarStatusOracle('❌ ' + (d.erro || 'Não foi possível iniciar.'), '#b00020');
+      botao.disabled = false;
+      return;
+    }
+    // Passa a acompanhar o status a cada 5s
+    if (timerStatusOracle) clearInterval(timerStatusOracle);
+    timerStatusOracle = setInterval(verificarStatusOracle, 5000);
+    verificarStatusOracle();
+  } catch (e) {
+    mostrarStatusOracle('❌ Erro de rede ao iniciar.', '#b00020');
+    botao.disabled = false;
+  }
+});
 
 async function carregarAutoresGeral() {
   if (!estadoAutoresGeral.filtrosCarregados) {
