@@ -20,6 +20,13 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 `);
 
+// Última atividade do usuário (para mostrar quem está "online" no painel).
+// Atualizada a cada requisição autenticada (ver auth.js / autenticar).
+const colunasUsuarios = db.prepare("PRAGMA table_info(usuarios)").all().map((c) => c.name);
+if (!colunasUsuarios.includes('ultimo_acesso')) {
+  db.exec('ALTER TABLE usuarios ADD COLUMN ultimo_acesso TEXT');
+}
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS itens (
   codigo_item TEXT PRIMARY KEY,
