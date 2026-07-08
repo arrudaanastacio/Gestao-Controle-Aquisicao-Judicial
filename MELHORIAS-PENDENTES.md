@@ -7,6 +7,7 @@
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
 | 1 | Estoque x Pacientes — modal de detalhe do item em Estoque Tenente Pena agora mostra os pacientes vinculados (nome, protocolo, qtde. consumo, prazo, periodicidade, data de retirada, próxima data de retorno) | `83edd72` | 08/07/2026 | Pendente |
+| 3 | Estoque Outras Demandas — nova tela cruzando GSNET + IBL (operador logístico) com o código SCODES, incluindo comparativo de saldo entre os dois sistemas | `6264bbd` | 08/07/2026 | Pendente |
 
 ## Publicadas recentemente
 
