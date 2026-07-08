@@ -3467,6 +3467,30 @@ function abrirDetalheAta(id) {
 }
 
 // -------------------- Inicialização --------------------
+// Verifica se a última sincronização automática via Oracle (Estoque ou
+// Autores) falhou e, se sim, mostra um aviso no topo para o admin.
+async function verificarFalhasOracle() {
+  if (estado.usuario.perfil !== 'admin') return;
+  const banner = document.getElementById('bannerAlertaOracle');
+  try {
+    const [estoque, autores] = await Promise.all([
+      api('/estoque/atualizar-oracle/status'),
+      api('/autores/atualizar-oracle/status'),
+    ]);
+    const falhas = [];
+    if (estoque && estoque.ultimoErro) falhas.push(`Estoque: ${estoque.ultimoErro}`);
+    if (autores && autores.ultimoErro) falhas.push(`Listagem de Autores: ${autores.ultimoErro}`);
+    if (falhas.length) {
+      banner.textContent = `⚠️ A última sincronização automática via Oracle falhou. ${falhas.join(' | ')}`;
+      banner.hidden = false;
+    } else {
+      banner.hidden = true;
+    }
+  } catch (_) {
+    // Silencioso: não travar o carregamento do app por causa do banner.
+  }
+}
+
 (async function iniciar() {
   try {
     await carregarUsuario();
@@ -3474,6 +3498,7 @@ function abrirDetalheAta(id) {
     document.getElementById('telaCarregando').hidden = true;
     document.querySelector('.app-shell').hidden = false;
     await mudarPagina('painel');
+    verificarFalhasOracle();
   } catch (e) {
     // carregarUsuario já redireciona para login em caso de 401.
     // Para qualquer outro erro (ex: servidor indisponível), redireciona também.

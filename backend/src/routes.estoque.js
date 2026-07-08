@@ -318,6 +318,7 @@ function executarAtualizacaoEstoqueOracle(opcoes = {}) {
     .catch((e) => {
       estadoOracleEstoque.ultimoErro = e.message;
       console.error('[SYNC ESTOQUE] Falha via Oracle:', e.message);
+      require('./emailAlerta').enviarAlertaFalhaSincronizacao('Estoque', e.message);
       throw e;
     })
     .finally(() => { estadoOracleEstoque.rodando = false; });

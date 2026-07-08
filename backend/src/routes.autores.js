@@ -262,6 +262,7 @@ function executarAtualizacaoOracle(opcoes = {}) {
     .catch((e) => {
       estadoOracle.ultimoErro = e.message;
       console.error('[SYNC AUTORES] Falha via Oracle:', e.message);
+      require('./emailAlerta').enviarAlertaFalhaSincronizacao('Listagem de Autores', e.message);
       throw e;
     })
     .finally(() => { estadoOracle.rodando = false; });
