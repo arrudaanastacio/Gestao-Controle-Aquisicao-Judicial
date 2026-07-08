@@ -370,6 +370,8 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 }
 .nav-sub-vazio { opacity: 0.5; }
 .nav-sub-vazio span { font-style: italic; text-transform: none; letter-spacing: 0; }
+.nav-em-breve { opacity: 0.5; cursor: default; pointer-events: none; }
+.nav-em-breve span { font-style: italic; font-size: 0.85em; }
 
 .badge-alerta {
   display: inline-block;

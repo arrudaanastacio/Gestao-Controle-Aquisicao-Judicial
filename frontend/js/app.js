@@ -155,6 +155,8 @@ async function carregarUsuario() {
     document.getElementById('botaoNovaSolicitacao').hidden = false;
     document.getElementById('botaoAtualizarOracle').hidden = false;
     verificarStatusOracle(); // retoma acompanhamento se já houver atualização em curso
+    document.getElementById('botaoAtualizarOracleEstoque').hidden = false;
+    verificarStatusOracleEstoque();
     atualizarBadgeAlertas();
     carregarConfigLimiar();
   } else {
@@ -200,9 +202,6 @@ function aplicarPermissoesNav() {
     const link = document.querySelector(`[data-pagina="${pagina}"]`);
     if (link) link.hidden = !temPermissao(modulo, 'visualizar');
   }
-  // Grupo de Monitoramento só aparece se puder ver Alertas
-  const grupoMon = document.getElementById('grupoMonitoramento');
-  if (grupoMon) grupoMon.hidden = !temPermissao('alertas', 'visualizar');
   if (temPermissao('alertas', 'visualizar')) {
     document.getElementById('linkAlertas').hidden = false;
     atualizarBadgeAlertas();
@@ -1976,6 +1975,62 @@ document.getElementById('botaoAtualizarOracle').addEventListener('click', async 
     verificarStatusOracle();
   } catch (e) {
     mostrarStatusOracle('❌ Erro de rede ao iniciar.', '#b00020');
+    botao.disabled = false;
+  }
+});
+
+// ---------- Atualizar Estoque direto do Oracle (SCODES) ----------
+let timerStatusOracleEstoque = null;
+function mostrarStatusOracleEstoque(texto, cor) {
+  const el = document.getElementById('statusOracleEstoque');
+  el.textContent = texto;
+  el.style.color = cor || '';
+  el.hidden = !texto;
+}
+async function verificarStatusOracleEstoque() {
+  try {
+    const r = await fetch('/api/estoque/atualizar-oracle/status');
+    const s = await r.json();
+    const botao = document.getElementById('botaoAtualizarOracleEstoque');
+    if (s.rodando) {
+      botao.disabled = true;
+      if (!timerStatusOracleEstoque) timerStatusOracleEstoque = setInterval(verificarStatusOracleEstoque, 5000);
+      const min = s.inicio ? Math.floor((Date.now() - new Date(s.inicio)) / 60000) : 0;
+      mostrarStatusOracleEstoque(`⏳ Atualizando via Oracle… (${min} min) — pode continuar usando o sistema.`, '#8a6d00');
+    } else {
+      botao.disabled = false;
+      if (timerStatusOracleEstoque) { clearInterval(timerStatusOracleEstoque); timerStatusOracleEstoque = null; }
+      if (s.ultimoErro) {
+        mostrarStatusOracleEstoque('❌ Falha na última atualização: ' + s.ultimoErro, '#b00020');
+      } else if (s.ultimoResumo) {
+        const seg = Math.round((s.ultimoResumo.duracaoMs || 0) / 1000);
+        mostrarStatusOracleEstoque(`✅ Atualizado: ${s.ultimoResumo.totalItens} itens (${seg}s). Recarregue a tela.`, '#1f5c52');
+        estado.estoque.data = null; // força usar a data mais recente
+        carregarEstoque();
+      } else {
+        mostrarStatusOracleEstoque('', '');
+      }
+    }
+  } catch (_) { /* silencioso */ }
+}
+document.getElementById('botaoAtualizarOracleEstoque').addEventListener('click', async () => {
+  if (!confirm('Atualizar o Estoque puxando TODAS as unidades direto do Oracle (SCODES)?\n\nLeva alguns minutos e roda em segundo plano — você pode continuar usando o sistema normalmente.')) return;
+  const botao = document.getElementById('botaoAtualizarOracleEstoque');
+  botao.disabled = true;
+  mostrarStatusOracleEstoque('⏳ Iniciando…', '#8a6d00');
+  try {
+    const r = await fetch('/api/estoque/atualizar-oracle', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) {
+      mostrarStatusOracleEstoque('❌ ' + (d.erro || 'Não foi possível iniciar.'), '#b00020');
+      botao.disabled = false;
+      return;
+    }
+    if (timerStatusOracleEstoque) clearInterval(timerStatusOracleEstoque);
+    timerStatusOracleEstoque = setInterval(verificarStatusOracleEstoque, 5000);
+    verificarStatusOracleEstoque();
+  } catch (e) {
+    mostrarStatusOracleEstoque('❌ Erro de rede ao iniciar.', '#b00020');
     botao.disabled = false;
   }
 });
