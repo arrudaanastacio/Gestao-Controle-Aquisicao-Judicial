@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "backend",
+      "name": "homologacao",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "cd backend && set PORT=3001 && node src/server.js"],
+      "runtimeArgs": ["/c", "C:\\Compras Judiciais - TESTE\\iniciar-preview.bat"],
       "port": 3001
     }
   ]
