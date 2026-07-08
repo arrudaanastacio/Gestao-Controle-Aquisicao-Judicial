@@ -7,6 +7,7 @@
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
 | 1 | Estoque x Pacientes — modal de detalhe do item em Estoque Tenente Pena agora mostra os pacientes vinculados (nome, protocolo, qtde. consumo, prazo, periodicidade, data de retirada, próxima data de retorno) | `83edd72` | 08/07/2026 | Pendente |
+| 2 | Filtro de Demanda (Com/Sem demanda) nas telas Estoque Tenente Pena e Itens em Estoque Geral | `5697f4b` | 08/07/2026 | Pendente |
 
 ---
 
