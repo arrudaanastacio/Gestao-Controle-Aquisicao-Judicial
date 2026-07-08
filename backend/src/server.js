@@ -22,6 +22,7 @@ const estoqueRoutes = require('./routes.estoque');
 const autoresRoutes = require('./routes.autores');
 const relatorioItensRoutes = require('./routes.relatorioItens');
 const atasRoutes = require('./routes.atas');
+const estoqueODRoutes = require('./routes.estoqueOD');
 const configRoutes = require('./routes.config');
 const { autenticar, exigirModulo } = require('./auth');
 
@@ -55,6 +56,7 @@ app.use('/api/estoque', autenticar, exigirModulo('estoque'), estoqueRoutes);
 app.use('/api/autores', autenticar, exigirModulo('autores'), autoresRoutes);
 app.use('/api/relatorio-itens', autenticar, exigirModulo('relatorioItens'), relatorioItensRoutes);
 app.use('/api/atas', autenticar, exigirModulo('atas'), atasRoutes);
+app.use('/api/estoque-od', autenticar, exigirModulo('estoque'), estoqueODRoutes);
 
 // Serve o frontend estático (build simples, sem framework)
 app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
@@ -73,6 +75,8 @@ app.listen(PORT, '0.0.0.0', () => {
   iniciarVigiaRelatorioItens();
   const { iniciarVigiaAtas } = require('./vigiaAtas');
   iniciarVigiaAtas();
+  const { iniciarVigiaEstoqueOD } = require('./vigiaEstoqueOD');
+  iniciarVigiaEstoqueOD();
 
   // Atualização automática diária via Oracle (SCODES): Estoque primeiro,
   // Autores em seguida (encadeado, nunca ao mesmo tempo).

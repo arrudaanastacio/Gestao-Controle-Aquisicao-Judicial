@@ -25,3 +25,6 @@ desktop.ini
 backend/data/_vigia_estado.json
 backend/_log.txt
 backend/_err.txt
+
+# Script auxiliar só para a ferramenta de preview do Claude Code
+iniciar-preview.bat

@@ -42,6 +42,7 @@
           <a href="#" class="nav-em-breve" title="Em breve">Aquisição em Andamento OD <span>(em breve)</span></a>
           <a href="#" data-pagina="estoqueGeral">Itens em Estoque Geral</a>
           <a href="#" data-pagina="autoresGeral">Listagem de Autores Demais Unidades</a>
+          <a href="#" data-pagina="estoqueOD">Estoque Outras Demandas</a>
         </div>
 
         <div class="nav-grupo">
@@ -401,6 +402,77 @@
               <div class="botoes">
                 <button id="botaoAnteriorEstoqueGeral">← Anterior</button>
                 <button id="botaoProximoEstoqueGeral">Próximo →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaEstoqueOD" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Estoque Outras Demandas</h2>
+            <p id="subtituloEstoqueOD">Posição de estoque no operador logístico (GSNET + IBL), cruzada com o código SCODES</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <select id="seletorDataEstoqueOD" title="Data do estoque"></select>
+            <button id="botaoImportarEstoqueOD" class="botao-secundario" type="button" hidden title="Relê os arquivos da pasta de rede (GSNET, IBL e o cadastro de correspondência).">🔄 Importar agora</button>
+            <span id="statusImportarEstoqueOD" class="status-oracle" hidden></span>
+          </div>
+        </div>
+
+        <div id="avisoSemEstoqueOD" class="estado-vazio" hidden>
+          Nenhum estoque de outras demandas importado ainda. Use o botão "Importar agora" (admin) para puxar os arquivos da pasta de rede.
+        </div>
+
+        <div id="conteudoEstoqueOD" hidden>
+          <div class="grade-resumo" id="grideResumoEstoqueOD"></div>
+
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaEstoqueOD" placeholder="Buscar por medicamento, código SCODES, código SKU ou lote…">
+            <select id="filtroComparativoEstoqueOD">
+              <option value="">Comparativo: todos</option>
+              <option value="Bate">Bate</option>
+              <option value="Diverge">Diverge</option>
+              <option value="Sem correspondência">Sem correspondência</option>
+            </select>
+            <select id="filtroStatusEstoqueOD"><option value="">Status estoque: todos</option></select>
+            <button id="botaoLimparFiltrosEstoqueOD" class="botao-secundario" type="button">Limpar filtros</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Código SCODES</th>
+                    <th>Descrição do Item</th>
+                    <th>Código Item (SKU)</th>
+                    <th>Lote</th>
+                    <th>Validade</th>
+                    <th>Embalagem 2ª</th>
+                    <th>Múltiplo Distribuição</th>
+                    <th>Status Estoque</th>
+                    <th>Tipo Bloqueio</th>
+                    <th>Obs. Bloqueio</th>
+                    <th>Qtde Disponível</th>
+                    <th>Qtde Bloqueado</th>
+                    <th>Qtde Reservada</th>
+                    <th>Qtde Total</th>
+                    <th>Saldo Disp. GSNET</th>
+                    <th>Comparativo</th>
+                    <th>Diferença</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaEstoqueOD"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioEstoqueOD" hidden>Nenhum item encontrado com estes filtros.</div>
+            <div class="paginacao">
+              <span id="textoPaginacaoEstoqueOD">—</span>
+              <div class="botoes">
+                <button id="botaoAnteriorEstoqueOD">← Anterior</button>
+                <button id="botaoProximoEstoqueOD">Próximo →</button>
               </div>
             </div>
           </div>
@@ -1287,6 +1359,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=37"></script>
+  <script src="/js/app.js?v=38"></script>
 </body>
 </html>

@@ -157,6 +157,7 @@ async function carregarUsuario() {
     verificarStatusOracle(); // retoma acompanhamento se já houver atualização em curso
     document.getElementById('botaoAtualizarOracleEstoque').hidden = false;
     verificarStatusOracleEstoque();
+    document.getElementById('botaoImportarEstoqueOD').hidden = false;
     atualizarBadgeAlertas();
     carregarConfigLimiar();
   } else {
@@ -191,7 +192,7 @@ function aplicarPermissoesNav() {
   // Cada link de página é mapeado para o módulo que o controla.
   const mapa = {
     solicitacoes: 'compras', relatorio: 'compras',
-    estoque: 'estoque', validades: 'estoque', estoqueGeral: 'estoque',
+    estoque: 'estoque', validades: 'estoque', estoqueGeral: 'estoque', estoqueOD: 'estoque',
     historico: 'estoque', evolucao: 'estoque',
     relatorioItens: 'relatorioItens',
     autores: 'autores', autoresGeral: 'autores', comparativoAutores: 'autores', relatorioReq: 'autores',
@@ -240,6 +241,7 @@ const ICONES_NAV = {
   relatorio: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
   estoque: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
   estoqueGeral: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 13h18"/>',
+  estoqueOD: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 13h18"/><path d="M16 3l4 2v4l-4-2z"/>',
   validades: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M9 3v4M15 3v4M12 12v3l2 1"/>',
   busca: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-3.5-3.5"/>',
   historico: '<path d="M4 12a8 8 0 1 0 2-5.3"/><path d="M4 4v3h3"/><path d="M12 8v4l3 2"/>',
@@ -289,6 +291,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaRelatorio').hidden = pagina !== 'relatorio';
   document.getElementById('paginaEstoque').hidden = pagina !== 'estoque';
   document.getElementById('paginaEstoqueGeral').hidden = pagina !== 'estoqueGeral';
+  document.getElementById('paginaEstoqueOD').hidden = pagina !== 'estoqueOD';
   document.getElementById('paginaValidades').hidden = pagina !== 'validades';
   document.getElementById('paginaHistorico').hidden = pagina !== 'historico';
   document.getElementById('paginaEvolucao').hidden = pagina !== 'evolucao';
@@ -309,6 +312,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'relatorio') await carregarRelatorio();
     if (pagina === 'estoque') await carregarEstoque();
     if (pagina === 'estoqueGeral') await carregarEstoqueGeral();
+    if (pagina === 'estoqueOD') await carregarEstoqueOD();
     if (pagina === 'validades') await carregarValidades();
     if (pagina === 'historico') await carregarHistorico();
     if (pagina === 'evolucao') iniciarEvolucao();
@@ -1364,6 +1368,145 @@ async function carregarTabelaEstoqueGeral() {
   document.getElementById('textoPaginacaoEstoqueGeral').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} itens`;
   document.getElementById('botaoAnteriorEstoqueGeral').disabled = dados.page <= 1;
   document.getElementById('botaoProximoEstoqueGeral').disabled = dados.page >= totalPaginas;
+}
+
+// ==================== Estoque Outras Demandas (GSNET + IBL) ====================
+const estadoEstoqueOD = { pagina: 1, pageSize: 30, data: null };
+
+document.getElementById('filtroBuscaEstoqueOD').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaEstoqueOD);
+  window.__debounceBuscaEstoqueOD = setTimeout(() => { estadoEstoqueOD.pagina = 1; carregarTabelaEstoqueOD(); }, 350);
+});
+document.getElementById('filtroComparativoEstoqueOD').addEventListener('change', () => { estadoEstoqueOD.pagina = 1; carregarTabelaEstoqueOD(); });
+document.getElementById('filtroStatusEstoqueOD').addEventListener('change', () => { estadoEstoqueOD.pagina = 1; carregarTabelaEstoqueOD(); });
+document.getElementById('seletorDataEstoqueOD').addEventListener('change', async (ev) => {
+  estadoEstoqueOD.data = ev.target.value; estadoEstoqueOD.pagina = 1;
+  await carregarFiltrosEstoqueOD(); carregarTabelaEstoqueOD();
+});
+document.getElementById('botaoLimparFiltrosEstoqueOD').addEventListener('click', () => {
+  document.getElementById('filtroBuscaEstoqueOD').value = '';
+  document.getElementById('filtroComparativoEstoqueOD').value = '';
+  document.getElementById('filtroStatusEstoqueOD').value = '';
+  estadoEstoqueOD.pagina = 1;
+  carregarTabelaEstoqueOD();
+});
+document.getElementById('botaoAnteriorEstoqueOD').addEventListener('click', () => {
+  if (estadoEstoqueOD.pagina > 1) { estadoEstoqueOD.pagina--; carregarTabelaEstoqueOD(); }
+});
+document.getElementById('botaoProximoEstoqueOD').addEventListener('click', () => {
+  estadoEstoqueOD.pagina++; carregarTabelaEstoqueOD();
+});
+document.getElementById('botaoImportarEstoqueOD').addEventListener('click', async () => {
+  const botao = document.getElementById('botaoImportarEstoqueOD');
+  const status = document.getElementById('statusImportarEstoqueOD');
+  botao.disabled = true;
+  status.hidden = false;
+  status.textContent = 'Importando…';
+  try {
+    const resumo = await api('/estoque-od/importar-manual', { method: 'POST' });
+    status.textContent = `✓ ${resumo.totalItens} itens (${resumo.totalDivergente} divergentes)`;
+    estadoEstoqueOD.data = null;
+    await carregarEstoqueOD();
+  } catch (e) {
+    status.textContent = '✗ Falha ao importar. Veja se os 3 arquivos estão na pasta de rede.';
+  } finally {
+    botao.disabled = false;
+    setTimeout(() => { status.hidden = true; }, 8000);
+  }
+});
+
+async function carregarFiltrosEstoqueOD() {
+  const params = new URLSearchParams();
+  if (estadoEstoqueOD.data) params.set('data', estadoEstoqueOD.data);
+  let dados;
+  try { dados = await api(`/estoque-od/filtros?${params.toString()}`); } catch (e) { return; }
+  const sel = document.getElementById('filtroStatusEstoqueOD');
+  const valorAtual = sel.value;
+  sel.innerHTML = '<option value="">Status estoque: todos</option>' +
+    (dados.status_estoque || []).map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+  sel.value = valorAtual;
+}
+
+async function carregarEstoqueOD() {
+  const resumo = await api('/estoque-od/resumo');
+  if (!resumo.dataReferencia) {
+    document.getElementById('avisoSemEstoqueOD').hidden = false;
+    document.getElementById('conteudoEstoqueOD').hidden = true;
+    return;
+  }
+  document.getElementById('avisoSemEstoqueOD').hidden = true;
+  document.getElementById('conteudoEstoqueOD').hidden = false;
+
+  const seletor = document.getElementById('seletorDataEstoqueOD');
+  const lista = await api('/estoque-od?pageSize=1');
+  seletor.innerHTML = lista.datasDisponiveis.map((d) => `<option value="${d.data_referencia}">${formatarData(d.data_referencia)} (${d.total_itens} itens)</option>`).join('');
+  if (!estadoEstoqueOD.data) estadoEstoqueOD.data = resumo.dataReferencia;
+  seletor.value = estadoEstoqueOD.data;
+
+  document.getElementById('subtituloEstoqueOD').textContent =
+    `Posição de estoque no operador logístico em ${formatarData(resumo.dataReferencia)}`;
+
+  document.getElementById('grideResumoEstoqueOD').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.totalItens)}</div><div class="rotulo">Linhas (lotes)</div></div>
+    <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(resumo.divergente)}</div><div class="rotulo">Saldo divergente (GSNET x IBL)</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.semCorrespondencia)}</div><div class="rotulo">Sem código SCODES correspondente</div></div>
+  `;
+  await carregarFiltrosEstoqueOD();
+  carregarTabelaEstoqueOD();
+}
+
+async function carregarTabelaEstoqueOD() {
+  const q = document.getElementById('filtroBuscaEstoqueOD').value.trim();
+  const statusComparativo = document.getElementById('filtroComparativoEstoqueOD').value;
+  const statusEstoque = document.getElementById('filtroStatusEstoqueOD').value;
+
+  const params = new URLSearchParams({ page: estadoEstoqueOD.pagina, pageSize: estadoEstoqueOD.pageSize });
+  if (estadoEstoqueOD.data) params.set('data', estadoEstoqueOD.data);
+  if (q) params.set('q', q);
+  if (statusComparativo) params.set('status_comparativo', statusComparativo);
+  if (statusEstoque) params.set('status_estoque', statusEstoque);
+
+  const dados = await api(`/estoque-od?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaEstoqueOD');
+  const vazio = document.getElementById('estadoVazioEstoqueOD');
+
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((it) => {
+      const tagComparativo = it.status_comparativo === 'Bate'
+        ? `<span class="etiqueta-status finalizado">Bate</span>`
+        : it.status_comparativo === 'Diverge'
+          ? `<span class="etiqueta-status cancelado">Diverge</span>`
+          : `<span class="etiqueta-status atrasado">Sem correspondência</span>`;
+      return `
+        <tr>
+          <td class="col-codigo">${it.codigo_item || '—'}</td>
+          <td>${it.descricao || '—'}</td>
+          <td class="col-codigo">${it.codigo_sku || '—'}</td>
+          <td>${it.lote || '—'}</td>
+          <td class="col-data">${it.validade || '—'}</td>
+          <td>${it.embalagem2 || '—'}</td>
+          <td>${fmtNumero(it.multiplo_distribuicao)}</td>
+          <td>${it.status_estoque || '—'}</td>
+          <td>${it.tipo_bloqueio || '—'}</td>
+          <td>${it.obs_bloqueio || '—'}</td>
+          <td>${fmtNumero(it.qtde_disponivel)}</td>
+          <td>${fmtNumero(it.qtde_bloqueado)}</td>
+          <td>${fmtNumero(it.qtde_reservada)}</td>
+          <td>${fmtNumero(it.qtde_total)}</td>
+          <td>${it.saldo_gsnet === null ? '—' : fmtNumero(it.saldo_gsnet)}</td>
+          <td>${tagComparativo}</td>
+          <td>${it.diferenca === null ? '—' : fmtNumero(it.diferenca)}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoEstoqueOD').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} linhas`;
+  document.getElementById('botaoAnteriorEstoqueOD').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoEstoqueOD').disabled = dados.page >= totalPaginas;
 }
 
 async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {

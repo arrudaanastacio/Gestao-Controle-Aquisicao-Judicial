@@ -218,6 +218,46 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_atas_siafisico ON atas_itens(siafisico);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_atas_data ON atas_itens(data_referencia);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_atas_vencimento ON atas_itens(vencimento);`);
 
+// Estoque Outras Demandas (operador logístico: GSNET + IBL) — cada linha é um
+// lote do relatório IBL, enriquecido com o codigo_item SCODES (via planilha de
+// "Cadastro Itens GSNET-IBL") e com o saldo do GSNET para conferência cruzada.
+db.exec(`
+CREATE TABLE IF NOT EXISTS estoque_od_importacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT NOT NULL UNIQUE,
+  total_itens INTEGER,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`
+CREATE TABLE IF NOT EXISTS estoque_od_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  importacao_id INTEGER NOT NULL,
+  data_referencia TEXT NOT NULL,
+  codigo_item TEXT,
+  codigo_sku TEXT,
+  descricao TEXT,
+  lote TEXT,
+  validade TEXT,
+  embalagem2 TEXT,
+  multiplo_distribuicao REAL,
+  status_estoque TEXT,
+  tipo_bloqueio TEXT,
+  obs_bloqueio TEXT,
+  qtde_disponivel REAL,
+  qtde_bloqueado REAL,
+  qtde_reservada REAL,
+  qtde_total REAL,
+  saldo_gsnet REAL,
+  status_comparativo TEXT,
+  diferenca REAL,
+  FOREIGN KEY (importacao_id) REFERENCES estoque_od_importacoes(id)
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_estoqueod_codigo ON estoque_od_itens(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_estoqueod_sku ON estoque_od_itens(codigo_sku);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_estoqueod_data ON estoque_od_itens(data_referencia);`);
+
 // Requisições de compra geradas (Relatório Primeiro Atendimento)
 db.exec(`
 CREATE TABLE IF NOT EXISTS requisicoes (
