@@ -430,7 +430,7 @@ router.get('/filtros', (req, res) => {
 });
 
 router.get('/', (req, res) => {
-  const { data, q, situacao, autonomia, escopoUnidade, page = 1, pageSize = 50,
+  const { data, q, situacao, autonomia, demanda, escopoUnidade, page = 1, pageSize = 50,
     unidade, categoria, controlado, tipo_item, marca, importado, outras_demandas } = req.query;
 
   // Determina a data de referência: a informada, ou a mais recente importada
@@ -472,6 +472,10 @@ router.get('/', (req, res) => {
   if (autonomia && FAIXAS_AUTONOMIA[autonomia]) {
     condicoes.push('e.autonomia IS NOT NULL AND (' + FAIXAS_AUTONOMIA[autonomia] + ')');
   }
+
+  // Filtro por demanda: itens com ou sem demanda cadastrada no relatório.
+  if (demanda === 'com') condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
+  if (demanda === 'sem') condicoes.push('(e.demandas IS NULL OR e.demandas = 0)');
 
   // Filtros por coluna (menus suspensos). Cada um casa pelo valor exato escolhido.
   const filtrosColuna = { categoria, controlado, tipo_item, marca, importado, outras_demandas };

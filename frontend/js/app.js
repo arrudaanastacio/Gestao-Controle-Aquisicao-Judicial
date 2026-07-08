@@ -943,6 +943,9 @@ document.getElementById('filtroSituacaoEstoque').addEventListener('change', () =
 document.getElementById('filtroAutonomiaEstoque').addEventListener('change', () => {
   estado.estoque.pagina = 1; carregarTabelaEstoque();
 });
+document.getElementById('filtroDemandaEstoque').addEventListener('change', () => {
+  estado.estoque.pagina = 1; carregarTabelaEstoque();
+});
 document.getElementById('seletorDataEstoque').addEventListener('change', async (ev) => {
   estado.estoque.data = ev.target.value;
   estado.estoque.pagina = 1;
@@ -962,6 +965,7 @@ document.getElementById('botaoLimparFiltrosEstoque').addEventListener('click', (
   document.getElementById('filtroBuscaEstoque').value = '';
   document.getElementById('filtroSituacaoEstoque').value = '';
   document.getElementById('filtroAutonomiaEstoque').value = '';
+  document.getElementById('filtroDemandaEstoque').value = '';
   ['filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas']
     .forEach((id) => { document.getElementById(id).value = ''; });
   unidadesSelecionadas = [];
@@ -1110,6 +1114,7 @@ async function carregarTabelaEstoque() {
   const q = document.getElementById('filtroBuscaEstoque').value.trim();
   const situacao = document.getElementById('filtroSituacaoEstoque').value;
   const autonomia = document.getElementById('filtroAutonomiaEstoque').value;
+  const demanda = document.getElementById('filtroDemandaEstoque').value;
 
   const params = new URLSearchParams({ page: estado.estoque.pagina, pageSize: estado.estoque.pageSize });
   params.set('escopoUnidade', 'udtp');
@@ -1117,6 +1122,7 @@ async function carregarTabelaEstoque() {
   if (q) params.set('q', q);
   if (situacao) params.set('situacao', situacao);
   if (autonomia) params.set('autonomia', autonomia);
+  if (demanda) params.set('demanda', demanda);
 
   // Filtros por coluna (menus suspensos)
   FILTROS_COLUNA_ESTOQUE.forEach(({ id, coluna }) => {
@@ -1195,6 +1201,7 @@ document.getElementById('filtroBuscaEstoqueGeral').addEventListener('input', () 
 });
 document.getElementById('filtroSituacaoEstoqueGeral').addEventListener('change', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
 document.getElementById('filtroAutonomiaEstoqueGeral').addEventListener('change', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
+document.getElementById('filtroDemandaEstoqueGeral').addEventListener('change', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
 document.getElementById('seletorDataEstoqueGeral').addEventListener('change', async (ev) => {
   estadoEstoqueGeral.data = ev.target.value; estadoEstoqueGeral.pagina = 1;
   await carregarFiltrosEstoqueGeral(); carregarTabelaEstoqueGeral();
@@ -1206,6 +1213,7 @@ document.getElementById('botaoLimparFiltrosEstoqueGeral').addEventListener('clic
   document.getElementById('filtroBuscaEstoqueGeral').value = '';
   document.getElementById('filtroSituacaoEstoqueGeral').value = '';
   document.getElementById('filtroAutonomiaEstoqueGeral').value = '';
+  document.getElementById('filtroDemandaEstoqueGeral').value = '';
   COLS_FILTRO_GERAL.forEach(({ id }) => { document.getElementById(id).value = ''; });
   unidadesSelecionadasGeral = [];
   document.querySelectorAll('#filtroUnidadePainelGeral input[type="checkbox"]').forEach((c) => { c.checked = false; });
@@ -1300,6 +1308,7 @@ async function carregarTabelaEstoqueGeral() {
   const q = document.getElementById('filtroBuscaEstoqueGeral').value.trim();
   const situacao = document.getElementById('filtroSituacaoEstoqueGeral').value;
   const autonomia = document.getElementById('filtroAutonomiaEstoqueGeral').value;
+  const demanda = document.getElementById('filtroDemandaEstoqueGeral').value;
 
   const params = new URLSearchParams({ page: estadoEstoqueGeral.pagina, pageSize: estadoEstoqueGeral.pageSize });
   params.set('escopoUnidade', 'geral');
@@ -1307,6 +1316,7 @@ async function carregarTabelaEstoqueGeral() {
   if (q) params.set('q', q);
   if (situacao) params.set('situacao', situacao);
   if (autonomia) params.set('autonomia', autonomia);
+  if (demanda) params.set('demanda', demanda);
   COLS_FILTRO_GERAL.forEach(({ id, coluna }) => { const v = document.getElementById(id).value; if (v) params.set(coluna, v); });
   if (unidadesSelecionadasGeral.length) params.set('unidade', unidadesSelecionadasGeral.join(','));
 
