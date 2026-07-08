@@ -1433,6 +1433,26 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
     html += '</tbody></table>';
   }
 
+  // Pacientes (Listagem de Autores) cadastrados com este item, na Tenente Pena
+  html += '<h4 style="margin:18px 0 8px; font-size:14px; font-family:var(--fonte-titulo);">Pacientes</h4>';
+  if (!dados.pacientes || dados.pacientes.length === 0) {
+    html += '<p style="color:var(--cinza-texto); font-size:13px;">Nenhum paciente cadastrado com este item na Tenente Pena.</p>';
+  } else {
+    html += `<table style="font-size:12.5px;"><thead><tr><th>Nome</th><th>Protocolo</th><th>Qtde. Consumo</th><th>Prazo</th><th>Periodicidade</th><th>Data de retirada</th><th>Próx. data de retorno</th></tr></thead><tbody>`;
+    html += dados.pacientes.map((p) => `
+      <tr>
+        <td>${p.autor || '—'}</td>
+        <td>${p.protocolo || '—'}</td>
+        <td>${p.qtde_consumo || '—'}</td>
+        <td>${p.prazo || '—'}</td>
+        <td>${p.periodicidade || '—'}</td>
+        <td class="col-data">${p.data_ultima_dispensacao || '—'}</td>
+        <td class="col-data">${p.data_ultimo_retorno || '—'}</td>
+      </tr>
+    `).join('');
+    html += '</tbody></table>';
+  }
+
   // Histórico de estoque (evolução)
   if (dados.historicoEstoque.length > 1) {
     html += '<h4 style="margin:18px 0 8px; font-size:14px; font-family:var(--fonte-titulo);">Evolução do estoque</h4>';

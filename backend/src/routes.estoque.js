@@ -800,7 +800,18 @@ router.get('/item/:codigo', (req, res) => {
 
   const temCompraAberta = compras.some((c) => STATUS_EM_ABERTO.includes(c.status));
 
-  res.json({ codigo, estoqueAtual, historicoEstoque, compras, temCompraAberta });
+  // Pacientes (Listagem de Autores) que têm esse item cadastrado, na Tenente Pena.
+  const pacientes = db.prepare(`
+    SELECT autor, protocolo, qtde_consumo, prazo, periodicidade,
+           data_ultima_dispensacao, data_ultimo_retorno
+    FROM autores_itens
+    WHERE codigo_item = ?
+      AND unidade_dispensadora LIKE '%Tenente Pena%'
+      AND data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
+    ORDER BY autor
+  `).all(codigo);
+
+  res.json({ codigo, estoqueAtual, historicoEstoque, compras, temCompraAberta, pacientes });
 });
 
 module.exports = router;
