@@ -447,7 +447,8 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaRelatorioReq:not([hidden])),
 .conteudo:has(> #paginaRelatorioItens:not([hidden])),
 .conteudo:has(> #paginaValidades:not([hidden])),
-.conteudo:has(> #paginaAtas:not([hidden])) {
+.conteudo:has(> #paginaAtas:not([hidden])),
+.conteudo:has(> #paginaEstoqueOD:not([hidden])) {
   max-width: none;
 }
 
