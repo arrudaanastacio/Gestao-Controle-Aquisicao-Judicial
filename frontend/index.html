@@ -428,51 +428,99 @@
         <div id="conteudoEstoqueOD" hidden>
           <div class="grade-resumo" id="grideResumoEstoqueOD"></div>
 
-          <div class="barra-filtros">
-            <input type="text" id="filtroBuscaEstoqueOD" placeholder="Buscar por medicamento, código SCODES, código SKU ou lote…">
-            <select id="filtroComparativoEstoqueOD">
-              <option value="">Comparativo: todos</option>
-              <option value="Bate">Bate</option>
-              <option value="Diverge">Diverge</option>
-              <option value="Sem correspondência">Sem correspondência</option>
-            </select>
-            <select id="filtroStatusEstoqueOD"><option value="">Status estoque: todos</option></select>
-            <button id="botaoLimparFiltrosEstoqueOD" class="botao-secundario" type="button">Limpar filtros</button>
+          <div class="filtros-faixa" id="abasEstoqueOD" style="margin:18px 0 14px;">
+            <button type="button" class="chip-faixa ativo" data-aba="lotes">Por Lote</button>
+            <button type="button" class="chip-faixa" data-aba="consolidado">Consolidado por Item</button>
           </div>
 
-          <div class="tabela-wrap">
-            <div class="tabela-rolavel-x">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Código SCODES</th>
-                    <th>Descrição do Item</th>
-                    <th>Código Item (SKU)</th>
-                    <th>Lote</th>
-                    <th>Validade</th>
-                    <th>Embalagem 2ª</th>
-                    <th>Múltiplo Distribuição</th>
-                    <th>Status Estoque</th>
-                    <th>Tipo Bloqueio</th>
-                    <th>Obs. Bloqueio</th>
-                    <th>Qtde Disponível</th>
-                    <th>Qtde Bloqueado</th>
-                    <th>Qtde Reservada</th>
-                    <th>Qtde Total</th>
-                    <th>Saldo Disp. GSNET</th>
-                    <th>Comparativo</th>
-                    <th>Diferença</th>
-                  </tr>
-                </thead>
-                <tbody id="corpoTabelaEstoqueOD"></tbody>
-              </table>
+          <div id="abaLotesEstoqueOD">
+            <div class="barra-filtros">
+              <input type="text" id="filtroBuscaEstoqueOD" placeholder="Buscar por medicamento, código SCODES, código SKU ou lote…">
+              <select id="filtroComparativoEstoqueOD">
+                <option value="">Comparativo: todos</option>
+                <option value="Bate">Bate</option>
+                <option value="Diverge">Diverge</option>
+                <option value="Sem correspondência">Sem correspondência</option>
+              </select>
+              <select id="filtroStatusEstoqueOD"><option value="">Status estoque: todos</option></select>
+              <button id="botaoLimparFiltrosEstoqueOD" class="botao-secundario" type="button">Limpar filtros</button>
             </div>
-            <div class="estado-vazio" id="estadoVazioEstoqueOD" hidden>Nenhum item encontrado com estes filtros.</div>
-            <div class="paginacao">
-              <span id="textoPaginacaoEstoqueOD">—</span>
-              <div class="botoes">
-                <button id="botaoAnteriorEstoqueOD">← Anterior</button>
-                <button id="botaoProximoEstoqueOD">Próximo →</button>
+
+            <div class="tabela-wrap">
+              <div class="tabela-rolavel-x">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Código SCODES</th>
+                      <th>Descrição do Item</th>
+                      <th>Código Item (SKU)</th>
+                      <th>Lote</th>
+                      <th>Validade</th>
+                      <th>Embalagem 2ª</th>
+                      <th>Múltiplo Distribuição</th>
+                      <th>Status Estoque</th>
+                      <th>Tipo Bloqueio</th>
+                      <th>Obs. Bloqueio</th>
+                      <th>Qtde Disponível</th>
+                      <th>Qtde Bloqueado</th>
+                      <th>Qtde Reservada</th>
+                      <th>Qtde Total</th>
+                      <th>Saldo Disp. GSNET</th>
+                      <th>Comparativo</th>
+                      <th>Diferença</th>
+                    </tr>
+                  </thead>
+                  <tbody id="corpoTabelaEstoqueOD"></tbody>
+                </table>
+              </div>
+              <div class="estado-vazio" id="estadoVazioEstoqueOD" hidden>Nenhum item encontrado com estes filtros.</div>
+              <div class="paginacao">
+                <span id="textoPaginacaoEstoqueOD">—</span>
+                <div class="botoes">
+                  <button id="botaoAnteriorEstoqueOD">← Anterior</button>
+                  <button id="botaoProximoEstoqueOD">Próximo →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="abaConsolidadoEstoqueOD" hidden>
+            <div class="barra-filtros">
+              <input type="text" id="filtroBuscaEstoqueODConsolidado" placeholder="Buscar por medicamento, código SCODES ou código SKU…">
+              <select id="filtroComparativoEstoqueODConsolidado">
+                <option value="">Comparativo: todos</option>
+                <option value="Bate">Bate</option>
+                <option value="Diverge">Diverge</option>
+                <option value="Sem correspondência">Sem correspondência</option>
+              </select>
+            </div>
+
+            <div class="tabela-wrap">
+              <div class="tabela-rolavel-x">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Código SCODES</th>
+                      <th>Descrição do Item</th>
+                      <th>Código Item (SKU)</th>
+                      <th>Qtde Disponível</th>
+                      <th>Qtde Bloqueado</th>
+                      <th>Saldo Disp. GSNET</th>
+                      <th>Comparativo</th>
+                      <th>Diferença</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="corpoTabelaEstoqueODConsolidado"></tbody>
+                </table>
+              </div>
+              <div class="estado-vazio" id="estadoVazioEstoqueODConsolidado" hidden>Nenhum item encontrado com estes filtros.</div>
+              <div class="paginacao">
+                <span id="textoPaginacaoEstoqueODConsolidado">—</span>
+                <div class="botoes">
+                  <button id="botaoAnteriorEstoqueODConsolidado">← Anterior</button>
+                  <button id="botaoProximoEstoqueODConsolidado">Próximo →</button>
+                </div>
               </div>
             </div>
           </div>
@@ -1288,6 +1336,17 @@
     </div>
   </div>
 
+  <div class="fundo-modal" id="modalEstoqueODItem" hidden>
+    <div class="modal" style="max-width:640px;">
+      <h3 id="tituloModalEstoqueOD">Detalhe do item</h3>
+      <p class="descricao-item" id="codigoModalEstoqueOD"></p>
+      <div id="conteudoModalEstoqueOD"></div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="botaoFecharModalEstoqueOD">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="fundo-modal" id="modalAtaItem" hidden>
     <div class="modal" style="max-width:640px;">
       <h3 id="tituloModalAta">Detalhe da Ata</h3>
@@ -1359,6 +1418,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=39"></script>
+  <script src="/js/app.js?v=40"></script>
 </body>
 </html>

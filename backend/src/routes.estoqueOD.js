@@ -207,6 +207,80 @@ router.get('/', (req, res) => {
   res.json({ dataReferencia: dataRef, total, itens, page: Number(page), pageSize: limit, datasDisponiveis });
 });
 
+// ---------- Consolidado por Código (SKU) — soma as quantidades dos lotes, ----------
+// mas NUNCA soma o Saldo Disp. GSNET (é um valor por item, não por lote —
+// somar geraria contagem duplicada, uma vez por lote).
+router.get('/consolidado', (req, res) => {
+  const { data, q, status_comparativo, page = 1, pageSize = 50 } = req.query;
+
+  let dataRef = data;
+  if (!dataRef) {
+    const ultima = db.prepare('SELECT data_referencia FROM estoque_od_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+    if (!ultima) return res.json({ dataReferencia: null, itens: [], total: 0, datasDisponiveis: [] });
+    dataRef = ultima.data_referencia;
+  }
+
+  const condicoes = ['data_referencia = ?'];
+  const params = [dataRef];
+  if (q) {
+    condicoes.push('(descricao LIKE ? OR codigo_item LIKE ? OR codigo_sku LIKE ?)');
+    const like = `%${q}%`;
+    params.push(like, like, like);
+  }
+  if (status_comparativo) { condicoes.push('status_comparativo = ?'); params.push(status_comparativo); }
+  const where = `WHERE ${condicoes.join(' AND ')}`;
+
+  const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
+  const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
+
+  const total = db.prepare(`SELECT COUNT(DISTINCT codigo_sku) c FROM estoque_od_itens ${where}`).get(...params).c;
+  const itens = db.prepare(`
+    SELECT
+      codigo_sku,
+      MAX(codigo_item) AS codigo_item,
+      MAX(descricao) AS descricao,
+      SUM(qtde_disponivel) AS qtde_disponivel,
+      SUM(qtde_bloqueado) AS qtde_bloqueado,
+      SUM(qtde_reservada) AS qtde_reservada,
+      SUM(qtde_total) AS qtde_total,
+      MAX(saldo_gsnet) AS saldo_gsnet,
+      MAX(status_comparativo) AS status_comparativo,
+      MAX(diferenca) AS diferenca,
+      COUNT(*) AS total_lotes
+    FROM estoque_od_itens
+    ${where}
+    GROUP BY codigo_sku
+    ORDER BY descricao COLLATE NOCASE ASC
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
+
+  res.json({ dataReferencia: dataRef, total, itens, page: Number(page), pageSize: limit });
+});
+
+// ---------- Detalhe de um item (todos os lotes) ----------
+router.get('/item/:sku', (req, res) => {
+  const { sku } = req.params;
+  const { data } = req.query;
+  let dataRef = data;
+  if (!dataRef) {
+    const ultima = db.prepare('SELECT data_referencia FROM estoque_od_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+    if (!ultima) return res.json({ codigoSku: sku, lotes: [] });
+    dataRef = ultima.data_referencia;
+  }
+  const lotes = db.prepare(`
+    SELECT lote, validade, embalagem2, multiplo_distribuicao, status_estoque, tipo_bloqueio,
+           obs_bloqueio, qtde_disponivel, qtde_bloqueado, qtde_reservada, qtde_total
+    FROM estoque_od_itens
+    WHERE codigo_sku = ? AND data_referencia = ?
+    ORDER BY validade
+  `).all(sku, dataRef);
+  const cabecalho = db.prepare(`
+    SELECT codigo_item, descricao, saldo_gsnet, status_comparativo, diferenca
+    FROM estoque_od_itens WHERE codigo_sku = ? AND data_referencia = ? LIMIT 1
+  `).get(sku, dataRef);
+  res.json({ codigoSku: sku, ...cabecalho, lotes });
+});
+
 // ---------- Resumo (cards) ----------
 router.get('/resumo', (req, res) => {
   const { data } = req.query;

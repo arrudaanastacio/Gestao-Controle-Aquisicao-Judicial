@@ -1509,6 +1509,132 @@ async function carregarTabelaEstoqueOD() {
   document.getElementById('botaoProximoEstoqueOD').disabled = dados.page >= totalPaginas;
 }
 
+// ---- Abas: Por Lote / Consolidado por Item ----
+document.querySelectorAll('#abasEstoqueOD .chip-faixa').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#abasEstoqueOD .chip-faixa').forEach((b) => b.classList.remove('ativo'));
+    btn.classList.add('ativo');
+    const aba = btn.dataset.aba;
+    document.getElementById('abaLotesEstoqueOD').hidden = aba !== 'lotes';
+    document.getElementById('abaConsolidadoEstoqueOD').hidden = aba !== 'consolidado';
+    if (aba === 'consolidado') carregarTabelaEstoqueODConsolidado();
+  });
+});
+
+const estadoEstoqueODConsolidado = { pagina: 1, pageSize: 30 };
+
+document.getElementById('filtroBuscaEstoqueODConsolidado').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaEstoqueODConsolidado);
+  window.__debounceBuscaEstoqueODConsolidado = setTimeout(() => { estadoEstoqueODConsolidado.pagina = 1; carregarTabelaEstoqueODConsolidado(); }, 350);
+});
+document.getElementById('filtroComparativoEstoqueODConsolidado').addEventListener('change', () => { estadoEstoqueODConsolidado.pagina = 1; carregarTabelaEstoqueODConsolidado(); });
+document.getElementById('botaoAnteriorEstoqueODConsolidado').addEventListener('click', () => {
+  if (estadoEstoqueODConsolidado.pagina > 1) { estadoEstoqueODConsolidado.pagina--; carregarTabelaEstoqueODConsolidado(); }
+});
+document.getElementById('botaoProximoEstoqueODConsolidado').addEventListener('click', () => {
+  estadoEstoqueODConsolidado.pagina++; carregarTabelaEstoqueODConsolidado();
+});
+document.getElementById('botaoFecharModalEstoqueOD').addEventListener('click', () => {
+  document.getElementById('modalEstoqueODItem').hidden = true;
+});
+
+async function carregarTabelaEstoqueODConsolidado() {
+  const q = document.getElementById('filtroBuscaEstoqueODConsolidado').value.trim();
+  const statusComparativo = document.getElementById('filtroComparativoEstoqueODConsolidado').value;
+
+  const params = new URLSearchParams({ page: estadoEstoqueODConsolidado.pagina, pageSize: estadoEstoqueODConsolidado.pageSize });
+  if (estadoEstoqueOD.data) params.set('data', estadoEstoqueOD.data);
+  if (q) params.set('q', q);
+  if (statusComparativo) params.set('status_comparativo', statusComparativo);
+
+  const dados = await api(`/estoque-od/consolidado?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaEstoqueODConsolidado');
+  const vazio = document.getElementById('estadoVazioEstoqueODConsolidado');
+
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((it) => {
+      const tagComparativo = it.status_comparativo === 'Bate'
+        ? `<span class="etiqueta-status finalizado">Bate</span>`
+        : it.status_comparativo === 'Diverge'
+          ? `<span class="etiqueta-status cancelado">Diverge</span>`
+          : `<span class="etiqueta-status atrasado">Sem correspondência</span>`;
+      return `
+        <tr>
+          <td class="col-codigo">${it.codigo_item || '—'}</td>
+          <td>${it.descricao || '—'}</td>
+          <td class="col-codigo">${it.codigo_sku || '—'}</td>
+          <td>${fmtNumero(it.qtde_disponivel)}</td>
+          <td>${fmtNumero(it.qtde_bloqueado)}</td>
+          <td>${it.saldo_gsnet === null ? '—' : fmtNumero(it.saldo_gsnet)}</td>
+          <td>${tagComparativo}</td>
+          <td>${it.diferenca === null ? '—' : fmtNumero(it.diferenca)}</td>
+          <td><button class="botao-editar" data-sku="${encodeURIComponent(it.codigo_sku)}">Ver</button></td>
+        </tr>`;
+    }).join('');
+    corpo.querySelectorAll('button[data-sku]').forEach((btn) => {
+      btn.addEventListener('click', () => abrirDetalheEstoqueODItem(btn.dataset.sku));
+    });
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoEstoqueODConsolidado').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} itens`;
+  document.getElementById('botaoAnteriorEstoqueODConsolidado').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoEstoqueODConsolidado').disabled = dados.page >= totalPaginas;
+}
+
+async function abrirDetalheEstoqueODItem(skuEncoded) {
+  const modal = document.getElementById('modalEstoqueODItem');
+  const conteudo = document.getElementById('conteudoModalEstoqueOD');
+  conteudo.innerHTML = '<p style="color:var(--cinza-texto);">Carregando…</p>';
+  modal.hidden = false;
+
+  const params = new URLSearchParams();
+  if (estadoEstoqueOD.data) params.set('data', estadoEstoqueOD.data);
+  const dados = await api(`/estoque-od/item/${skuEncoded}?${params.toString()}`);
+
+  document.getElementById('tituloModalEstoqueOD').textContent = dados.descricao || dados.codigoSku;
+  document.getElementById('codigoModalEstoqueOD').textContent =
+    `SCODES: ${dados.codigo_item || '—'} · SKU: ${dados.codigoSku}`;
+
+  let html = '';
+  if (dados.saldo_gsnet !== null && dados.saldo_gsnet !== undefined) {
+    const tagComparativo = dados.status_comparativo === 'Bate'
+      ? `<span class="etiqueta-status finalizado">Bate</span>`
+      : dados.status_comparativo === 'Diverge'
+        ? `<span class="etiqueta-status cancelado">Diverge</span>`
+        : `<span class="etiqueta-status atrasado">Sem correspondência</span>`;
+    html += `
+      <div class="grade-resumo" style="grid-template-columns: repeat(3, 1fr); margin-bottom:18px;">
+        <div class="cartao-resumo"><div class="numero" style="font-size:22px;">${fmtNumero(dados.saldo_gsnet)}</div><div class="rotulo">Saldo Disp. GSNET</div></div>
+        <div class="cartao-resumo"><div class="numero" style="font-size:22px;">${dados.diferenca === null ? '—' : fmtNumero(dados.diferenca)}</div><div class="rotulo">Diferença</div></div>
+        <div class="cartao-resumo"><div style="margin-top:4px;">${tagComparativo}</div><div class="rotulo">Comparativo</div></div>
+      </div>
+    `;
+  }
+
+  html += '<h4 style="margin:18px 0 8px; font-size:14px; font-family:var(--fonte-titulo);">Lotes</h4>';
+  if (dados.lotes.length === 0) {
+    html += '<p style="color:var(--cinza-texto); font-size:13px;">Sem lotes para este item na data selecionada.</p>';
+  } else {
+    html += `<table style="font-size:12.5px;"><thead><tr><th>Lote</th><th>Validade</th><th>Múltiplo Distribuição</th><th>Disponível</th><th>Bloqueado</th></tr></thead><tbody>`;
+    html += dados.lotes.map((l) => `
+      <tr>
+        <td class="col-codigo">${l.lote || '—'}</td>
+        <td class="col-data">${l.validade || '—'}</td>
+        <td>${fmtNumero(l.multiplo_distribuicao)}</td>
+        <td>${fmtNumero(l.qtde_disponivel)}</td>
+        <td>${fmtNumero(l.qtde_bloqueado)}</td>
+      </tr>
+    `).join('');
+    html += '</tbody></table>';
+  }
+
+  conteudo.innerHTML = html;
+}
+
 async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
   const modal = document.getElementById('modalEstoqueItem');
   const conteudo = document.getElementById('conteudoModalEstoque');
