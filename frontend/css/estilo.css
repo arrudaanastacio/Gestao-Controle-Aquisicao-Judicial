@@ -370,6 +370,21 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 }
 .nav-sub-vazio { opacity: 0.5; }
 .nav-sub-vazio span { font-style: italic; text-transform: none; letter-spacing: 0; }
+.nav-em-breve { opacity: 0.5; cursor: default; pointer-events: none; }
+.nav-em-breve span { font-style: italic; font-size: 0.85em; }
+
+.banner-alerta-oracle {
+  background: #fdecea;
+  border: 1px solid #f5b5ac;
+  color: #8a2c1f;
+  padding: 10px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 .badge-alerta {
   display: inline-block;

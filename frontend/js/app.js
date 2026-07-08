@@ -155,6 +155,8 @@ async function carregarUsuario() {
     document.getElementById('botaoNovaSolicitacao').hidden = false;
     document.getElementById('botaoAtualizarOracle').hidden = false;
     verificarStatusOracle(); // retoma acompanhamento se já houver atualização em curso
+    document.getElementById('botaoAtualizarOracleEstoque').hidden = false;
+    verificarStatusOracleEstoque();
     atualizarBadgeAlertas();
     carregarConfigLimiar();
   } else {
@@ -200,9 +202,6 @@ function aplicarPermissoesNav() {
     const link = document.querySelector(`[data-pagina="${pagina}"]`);
     if (link) link.hidden = !temPermissao(modulo, 'visualizar');
   }
-  // Grupo de Monitoramento só aparece se puder ver Alertas
-  const grupoMon = document.getElementById('grupoMonitoramento');
-  if (grupoMon) grupoMon.hidden = !temPermissao('alertas', 'visualizar');
   if (temPermissao('alertas', 'visualizar')) {
     document.getElementById('linkAlertas').hidden = false;
     atualizarBadgeAlertas();
@@ -1980,6 +1979,62 @@ document.getElementById('botaoAtualizarOracle').addEventListener('click', async 
   }
 });
 
+// ---------- Atualizar Estoque direto do Oracle (SCODES) ----------
+let timerStatusOracleEstoque = null;
+function mostrarStatusOracleEstoque(texto, cor) {
+  const el = document.getElementById('statusOracleEstoque');
+  el.textContent = texto;
+  el.style.color = cor || '';
+  el.hidden = !texto;
+}
+async function verificarStatusOracleEstoque() {
+  try {
+    const r = await fetch('/api/estoque/atualizar-oracle/status');
+    const s = await r.json();
+    const botao = document.getElementById('botaoAtualizarOracleEstoque');
+    if (s.rodando) {
+      botao.disabled = true;
+      if (!timerStatusOracleEstoque) timerStatusOracleEstoque = setInterval(verificarStatusOracleEstoque, 5000);
+      const min = s.inicio ? Math.floor((Date.now() - new Date(s.inicio)) / 60000) : 0;
+      mostrarStatusOracleEstoque(`⏳ Atualizando via Oracle… (${min} min) — pode continuar usando o sistema.`, '#8a6d00');
+    } else {
+      botao.disabled = false;
+      if (timerStatusOracleEstoque) { clearInterval(timerStatusOracleEstoque); timerStatusOracleEstoque = null; }
+      if (s.ultimoErro) {
+        mostrarStatusOracleEstoque('❌ Falha na última atualização: ' + s.ultimoErro, '#b00020');
+      } else if (s.ultimoResumo) {
+        const seg = Math.round((s.ultimoResumo.duracaoMs || 0) / 1000);
+        mostrarStatusOracleEstoque(`✅ Atualizado: ${s.ultimoResumo.totalItens} itens (${seg}s). Recarregue a tela.`, '#1f5c52');
+        estado.estoque.data = null; // força usar a data mais recente
+        carregarEstoque();
+      } else {
+        mostrarStatusOracleEstoque('', '');
+      }
+    }
+  } catch (_) { /* silencioso */ }
+}
+document.getElementById('botaoAtualizarOracleEstoque').addEventListener('click', async () => {
+  if (!confirm('Atualizar o Estoque puxando TODAS as unidades direto do Oracle (SCODES)?\n\nLeva alguns minutos e roda em segundo plano — você pode continuar usando o sistema normalmente.')) return;
+  const botao = document.getElementById('botaoAtualizarOracleEstoque');
+  botao.disabled = true;
+  mostrarStatusOracleEstoque('⏳ Iniciando…', '#8a6d00');
+  try {
+    const r = await fetch('/api/estoque/atualizar-oracle', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) {
+      mostrarStatusOracleEstoque('❌ ' + (d.erro || 'Não foi possível iniciar.'), '#b00020');
+      botao.disabled = false;
+      return;
+    }
+    if (timerStatusOracleEstoque) clearInterval(timerStatusOracleEstoque);
+    timerStatusOracleEstoque = setInterval(verificarStatusOracleEstoque, 5000);
+    verificarStatusOracleEstoque();
+  } catch (e) {
+    mostrarStatusOracleEstoque('❌ Erro de rede ao iniciar.', '#b00020');
+    botao.disabled = false;
+  }
+});
+
 async function carregarAutoresGeral() {
   if (!estadoAutoresGeral.filtrosCarregados) {
     try {
@@ -3104,6 +3159,21 @@ async function carregarAlertas() {
 }
 
 // -------------------- Usuários --------------------
+// Mostra "Online" se o usuário teve atividade nos últimos 5 minutos;
+// caso contrário, "visto há X" (min/horas/dias) ou "nunca acessou".
+function textoAtividade(ultimoAcesso) {
+  if (!ultimoAcesso) return '<span style="color:#999;">nunca acessou</span>';
+  const t = new Date(ultimoAcesso).getTime();
+  if (isNaN(t)) return '<span style="color:#999;">—</span>';
+  const min = Math.floor((Date.now() - t) / 60000);
+  if (min < 5) return '<span style="color:#1a7f37;font-weight:600;">🟢 Online</span>';
+  let quando;
+  if (min < 60) quando = `há ${min} min`;
+  else if (min < 1440) quando = `há ${Math.floor(min / 60)} h`;
+  else quando = `há ${Math.floor(min / 1440)} d`;
+  return `<span style="color:#777;">🔘 visto ${quando}</span>`;
+}
+
 async function carregarUsuarios() {
   const { usuarios } = await api('/usuarios');
   const corpo = document.getElementById('corpoTabelaUsuarios');
@@ -3113,6 +3183,7 @@ async function carregarUsuarios() {
       <td class="col-codigo">${u.email}</td>
       <td><span class="etiqueta-status ${u.perfil === 'admin' ? 'finalizado' : 'andamento'}">${u.perfil === 'admin' ? 'Admin' : 'Consulta'}</span></td>
       <td><span class="etiqueta-status ${u.ativo ? 'finalizado' : 'cancelado'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td>
+      <td>${textoAtividade(u.ultimo_acesso)}</td>
       <td>
         <button class="botao-editar" data-id="${u.id}">Editar</button>
         ${u.perfil === 'admin'
@@ -3412,6 +3483,30 @@ function abrirDetalheAta(id) {
 }
 
 // -------------------- Inicialização --------------------
+// Verifica se a última sincronização automática via Oracle (Estoque ou
+// Autores) falhou e, se sim, mostra um aviso no topo para o admin.
+async function verificarFalhasOracle() {
+  if (estado.usuario.perfil !== 'admin') return;
+  const banner = document.getElementById('bannerAlertaOracle');
+  try {
+    const [estoque, autores] = await Promise.all([
+      api('/estoque/atualizar-oracle/status'),
+      api('/autores/atualizar-oracle/status'),
+    ]);
+    const falhas = [];
+    if (estoque && estoque.ultimoErro) falhas.push(`Estoque: ${estoque.ultimoErro}`);
+    if (autores && autores.ultimoErro) falhas.push(`Listagem de Autores: ${autores.ultimoErro}`);
+    if (falhas.length) {
+      banner.textContent = `⚠️ A última sincronização automática via Oracle falhou. ${falhas.join(' | ')}`;
+      banner.hidden = false;
+    } else {
+      banner.hidden = true;
+    }
+  } catch (_) {
+    // Silencioso: não travar o carregamento do app por causa do banner.
+  }
+}
+
 (async function iniciar() {
   try {
     await carregarUsuario();
@@ -3419,6 +3514,7 @@ function abrirDetalheAta(id) {
     document.getElementById('telaCarregando').hidden = true;
     document.querySelector('.app-shell').hidden = false;
     await mudarPagina('painel');
+    verificarFalhasOracle();
   } catch (e) {
     // carregarUsuario já redireciona para login em caso de 401.
     // Para qualquer outro erro (ex: servidor indisponível), redireciona também.

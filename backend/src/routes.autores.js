@@ -244,27 +244,35 @@ router.post('/importar/confirmar', upload.single('arquivo'), (req, res) => {
 // Estado em memória do processo (dura enquanto o servidor estiver de pé).
 const estadoOracle = { rodando: false, inicio: null, ultimoResumo: null, ultimoErro: null };
 
-// Dispara a atualização em segundo plano (não espera terminar). Usado tanto
-// pelo botão (rota abaixo) quanto pelo agendador diário. Devolve
-// { iniciado: bool, jaRodando: bool }. A trava impede duas ao mesmo tempo.
-function iniciarAtualizacaoOracle(opcoes = {}) {
-  if (estadoOracle.rodando) return { iniciado: false, jaRodando: true };
+// Executa a atualização e ESPERA terminar (devolve a Promise). Usado pelo
+// agendador diário, que dispara Autores só depois que Estoque terminar.
+function executarAtualizacaoOracle(opcoes = {}) {
+  if (estadoOracle.rodando) return Promise.resolve({ pulou: true, motivo: 'já em andamento' });
   const { atualizarAutoresViaOracle } = require('../oracle/sync-demandas');
   estadoOracle.rodando = true;
   estadoOracle.inicio = new Date().toISOString();
   estadoOracle.ultimoErro = null;
 
-  atualizarAutoresViaOracle(opcoes)
+  return atualizarAutoresViaOracle(opcoes)
     .then((resumo) => {
       estadoOracle.ultimoResumo = { ...resumo, fim: new Date().toISOString() };
       console.log(`[SYNC AUTORES] Concluido via Oracle: ${resumo.totalLinhas} linhas / ${resumo.totalAutores} autores em ${Math.round((resumo.duracaoMs || 0) / 1000)}s.`);
+      return resumo;
     })
     .catch((e) => {
       estadoOracle.ultimoErro = e.message;
       console.error('[SYNC AUTORES] Falha via Oracle:', e.message);
+      require('./emailAlerta').enviarAlertaFalhaSincronizacao('Listagem de Autores', e.message);
+      throw e;
     })
     .finally(() => { estadoOracle.rodando = false; });
+}
 
+// Dispara a atualização em segundo plano (não espera terminar). Usado pelo
+// botão (rota abaixo) — não prende a resposta do navegador por ~9-34 min.
+function iniciarAtualizacaoOracle(opcoes = {}) {
+  if (estadoOracle.rodando) return { iniciado: false, jaRodando: true };
+  executarAtualizacaoOracle(opcoes).catch(() => {}); // erro já registrado em estadoOracle
   return { iniciado: true, jaRodando: false };
 }
 
@@ -653,3 +661,4 @@ module.exports.importarAutoresDeBuffer = importarAutoresDeBuffer;
 module.exports.importarAutoresDeLinhas = importarAutoresDeLinhas;
 module.exports.CAMPOS = CAMPOS;
 module.exports.iniciarAtualizacaoOracle = iniciarAtualizacaoOracle;
+module.exports.executarAtualizacaoOracle = executarAtualizacaoOracle;

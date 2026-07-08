@@ -17,6 +17,13 @@ function autenticar(req, res, next) {
   }
   try {
     req.usuario = jwt.verify(token, JWT_SECRET);
+    // Registra a última atividade (para o painel mostrar quem está online).
+    // Em bloco protegido: se falhar, não pode derrubar a autenticação.
+    try {
+      const db = require('./db');
+      db.prepare('UPDATE usuarios SET ultimo_acesso = ? WHERE id = ?')
+        .run(new Date().toISOString(), req.usuario.id);
+    } catch (_) { /* silencioso */ }
     next();
   } catch (e) {
     return res.status(401).json({ erro: 'Sessão expirada ou inválida. Faça login novamente.' });

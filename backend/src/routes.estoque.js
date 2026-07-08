@@ -190,13 +190,22 @@ router.post('/importar/previa', upload.single('arquivo'), (req, res) => {
   });
 });
 
-// Importa o estoque a partir de um buffer de arquivo (xlsx/csv) e grava tudo:
-// substitui a foto do dia, gera alertas, arquiva histórico (01/15) e limpa.
+// Importa o estoque a partir de um buffer de arquivo (xlsx/csv) e grava tudo.
 // Usada tanto pela rota de importação quanto pelo vigia de arquivo automático.
 function importarEstoqueDeBuffer(buffer, opcoes = {}) {
   const resultado = processarEstoque(buffer);
-  const { linhas } = resultado;
-  const dataReferencia = (opcoes.dataReferencia || resultado.dataReferencia || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  return importarEstoqueDeLinhas(resultado.linhas, {
+    dataReferencia: opcoes.dataReferencia || resultado.dataReferencia,
+    ...opcoes,
+  });
+}
+
+// Grava a foto do estoque a partir de linhas já mapeadas (objetos com as
+// chaves de MAPA_CABECALHOS): substitui a foto do dia, gera alertas,
+// arquiva histórico (01/15) e limpa. Usada tanto pelo CSV quanto pelo
+// atualizador via Oracle.
+function importarEstoqueDeLinhas(linhas, opcoes = {}) {
+  const dataReferencia = (opcoes.dataReferencia || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const nomeArquivo = opcoes.nomeArquivo || 'estoque';
   const usuarioEmail = opcoes.usuarioEmail || 'sistema';
   const usuarioId = opcoes.usuarioId ?? null;
@@ -223,11 +232,13 @@ function importarEstoqueDeBuffer(buffer, opcoes = {}) {
   );
 
   for (const l of linhas) {
-    stmt.run(importacaoId, dataReferencia, l.codigo_item, l.id_item_origem, l.descricao,
-      l.siafisico, l.catmat, l.unidade, l.categoria, l.controlado, l.tipo_item, l.marca, l.importado,
-      l.outras_demandas, l.demandas,
-      l.demandas_aj, l.consumo_mensal_total, l.consumo_mensal_aj, l.estoque, l.autonomia,
-      l.custo_unitario, l.valor_medio_unitario, l.lotes);
+    // undefined não pode ser vinculado no SQLite; normaliza para null.
+    const v = (x) => (x === undefined ? null : x);
+    stmt.run(importacaoId, dataReferencia, v(l.codigo_item), v(l.id_item_origem), v(l.descricao),
+      v(l.siafisico), v(l.catmat), v(l.unidade), v(l.categoria), v(l.controlado), v(l.tipo_item), v(l.marca), v(l.importado),
+      v(l.outras_demandas), v(l.demandas),
+      v(l.demandas_aj), v(l.consumo_mensal_total), v(l.consumo_mensal_aj), v(l.estoque), v(l.autonomia),
+      v(l.custo_unitario), v(l.valor_medio_unitario), v(l.lotes));
   }
 
   // Gera alertas a partir desta foto
@@ -282,6 +293,57 @@ router.post('/importar/confirmar', upload.single('arquivo'), (req, res) => {
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
+});
+
+// ---------- Atualização via Oracle (SCODES) ----------
+// Estado em memória do processo (dura enquanto o servidor estiver de pé).
+const estadoOracleEstoque = { rodando: false, inicio: null, ultimoResumo: null, ultimoErro: null };
+
+// Executa a atualização e ESPERA terminar (devolve a Promise). Usado pelo
+// agendador diário, que precisa saber quando terminou para encadear a
+// próxima atualização (Autores) em seguida.
+function executarAtualizacaoEstoqueOracle(opcoes = {}) {
+  if (estadoOracleEstoque.rodando) return Promise.resolve({ pulou: true, motivo: 'já em andamento' });
+  const { atualizarEstoqueViaOracle } = require('../oracle/sync-estoque');
+  estadoOracleEstoque.rodando = true;
+  estadoOracleEstoque.inicio = new Date().toISOString();
+  estadoOracleEstoque.ultimoErro = null;
+
+  return atualizarEstoqueViaOracle(opcoes)
+    .then((resumo) => {
+      estadoOracleEstoque.ultimoResumo = { ...resumo, fim: new Date().toISOString() };
+      console.log(`[SYNC ESTOQUE] Concluido via Oracle: ${resumo.totalItens} itens em ${Math.round((resumo.duracaoMs || 0) / 1000)}s.`);
+      return resumo;
+    })
+    .catch((e) => {
+      estadoOracleEstoque.ultimoErro = e.message;
+      console.error('[SYNC ESTOQUE] Falha via Oracle:', e.message);
+      require('./emailAlerta').enviarAlertaFalhaSincronizacao('Estoque', e.message);
+      throw e;
+    })
+    .finally(() => { estadoOracleEstoque.rodando = false; });
+}
+
+// Dispara a atualização em segundo plano (não espera terminar). Usado pelo
+// botão (rota abaixo) — não trava a resposta do navegador.
+function iniciarAtualizacaoEstoqueOracle(opcoes = {}) {
+  if (estadoOracleEstoque.rodando) return { iniciado: false, jaRodando: true };
+  executarAtualizacaoEstoqueOracle(opcoes).catch(() => {}); // erro já registrado em estadoOracleEstoque
+  return { iniciado: true, jaRodando: false };
+}
+
+// Botão "Atualizar via Oracle": dispara e responde na hora.
+router.post('/atualizar-oracle', exigirPerfil('admin'), (req, res) => {
+  const r = iniciarAtualizacaoEstoqueOracle({ usuarioEmail: req.usuario.email, usuarioId: req.usuario.id });
+  if (!r.iniciado) {
+    return res.status(409).json({ erro: 'Já existe uma atualização via Oracle em andamento.', ...estadoOracleEstoque });
+  }
+  res.json({ iniciado: true, inicio: estadoOracleEstoque.inicio });
+});
+
+// A tela consulta este status a cada poucos segundos para saber quando terminou.
+router.get('/atualizar-oracle/status', (req, res) => {
+  res.json(estadoOracleEstoque);
 });
 
 // Gera os alertas de estoque para uma data de referência.
@@ -743,3 +805,6 @@ router.get('/item/:codigo', (req, res) => {
 
 module.exports = router;
 module.exports.importarEstoqueDeBuffer = importarEstoqueDeBuffer;
+module.exports.importarEstoqueDeLinhas = importarEstoqueDeLinhas;
+module.exports.iniciarAtualizacaoEstoqueOracle = iniciarAtualizacaoEstoqueOracle;
+module.exports.executarAtualizacaoEstoqueOracle = executarAtualizacaoEstoqueOracle;

@@ -10,7 +10,7 @@ router.use(autenticar, exigirPerfil('admin'));
 
 router.get('/', (req, res) => {
   const usuarios = db.prepare(
-    'SELECT id, nome, email, perfil, ativo, criado_em FROM usuarios ORDER BY nome'
+    'SELECT id, nome, email, perfil, ativo, criado_em, ultimo_acesso FROM usuarios ORDER BY nome'
   ).all();
   res.json({ usuarios });
 });
