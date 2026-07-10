@@ -149,22 +149,10 @@ router.post('/previa', upload.single('arquivo'), (req, res) => {
   });
 });
 
-// ---------- Confirma e grava a importação ----------
-router.post('/confirmar', upload.single('arquivo'), (req, res) => {
-  if (!req.file) return res.status(400).json({ erro: 'Envie um arquivo .xlsx ou .xlsm.' });
-
-  const modo = req.body.modo === 'substituir' ? 'substituir' : 'somente_novos';
-  // 'somente_novos': ignora linhas que já existem (mesmo item+ano+mês)
-  // 'substituir': atualiza a linha existente com os dados da planilha
-
-  let resultado;
-  try {
-    resultado = processarPlanilha(req.file.buffer);
-  } catch (e) {
-    return res.status(400).json({ erro: e.message });
-  }
-
-  const { linhasComMovimento, abas } = resultado;
+// Grava no banco as linhas extraídas de uma planilha, no modo indicado.
+// Compartilhado pela rota manual (/confirmar) e pelo vigia automático.
+function gravarImportacao(buffer, modo, nomeArquivo, usuarioEmail, usuarioId = null) {
+  const { linhasComMovimento, abas } = processarPlanilha(buffer);
 
   const stmtBuscaItem = db.prepare('SELECT codigo_item FROM itens WHERE codigo_item = ?');
   const stmtBuscaExistente = db.prepare('SELECT id FROM solicitacoes WHERE codigo_item = ? AND ano = ? AND mes = ?');
@@ -210,12 +198,31 @@ router.post('/confirmar', upload.single('arquivo'), (req, res) => {
   };
 
   db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
-    .run('solicitacoes', req.file.originalname, req.usuario.email, JSON.stringify(resumo));
+    .run('solicitacoes', nomeArquivo, usuarioEmail, JSON.stringify(resumo));
 
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, dados_depois) VALUES (?, ?, ?, ?, ?)')
-    .run(req.usuario.id, req.usuario.email, 'importar_solicitacoes', 'solicitacoes', JSON.stringify(resumo));
+    .run(usuarioId, usuarioEmail, 'importar_solicitacoes', 'solicitacoes', JSON.stringify(resumo));
+
+  return resumo;
+}
+
+// ---------- Confirma e grava a importação ----------
+router.post('/confirmar', upload.single('arquivo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ erro: 'Envie um arquivo .xlsx ou .xlsm.' });
+
+  const modo = req.body.modo === 'substituir' ? 'substituir' : 'somente_novos';
+  // 'somente_novos': ignora linhas que já existem (mesmo item+ano+mês)
+  // 'substituir': atualiza a linha existente com os dados da planilha
+
+  let resumo;
+  try {
+    resumo = gravarImportacao(req.file.buffer, modo, req.file.originalname, req.usuario.email, req.usuario.id);
+  } catch (e) {
+    return res.status(400).json({ erro: e.message });
+  }
 
   res.json(resumo);
 });
 
 module.exports = router;
+module.exports.gravarImportacao = gravarImportacao;

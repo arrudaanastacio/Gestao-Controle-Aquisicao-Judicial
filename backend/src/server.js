@@ -77,6 +77,8 @@ app.listen(PORT, '0.0.0.0', () => {
   iniciarVigiaAtas();
   const { iniciarVigiaEstoqueOD } = require('./vigiaEstoqueOD');
   iniciarVigiaEstoqueOD();
+  const { iniciarVigiaSolicitacoes } = require('./vigiaSolicitacoes');
+  iniciarVigiaSolicitacoes();
 
   // Atualização automática diária via Oracle (SCODES): Estoque primeiro,
   // Autores em seguida (encadeado, nunca ao mesmo tempo).
