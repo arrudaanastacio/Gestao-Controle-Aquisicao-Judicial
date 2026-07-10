@@ -152,16 +152,23 @@ const ORDEM_MES = {
   Julho: 7, Agosto: 8, Setembro: 9, Outubro: 10, Novembro: 11, Dezembro: 12,
 };
 
+// Status considerados "compra em andamento" (ainda não finalizada)
+const STATUS_EM_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+
 router.get('/resumo', (req, res) => {
+  const { emAberto } = req.query;
+  const where = emAberto === 'true'
+    ? `WHERE status IN (${STATUS_EM_ABERTO.map(() => '?').join(',')})`
+    : '';
   const porStatus = db.prepare(`
     SELECT COALESCE(status, 'Em andamento') as status, COUNT(*) as qtde
-    FROM solicitacoes_od GROUP BY status
-  `).all();
+    FROM solicitacoes_od ${where} GROUP BY status
+  `).all(...(emAberto === 'true' ? STATUS_EM_ABERTO : []));
   res.json({ porStatus });
 });
 
 router.get('/', (req, res) => {
-  const { q, status, ano, mes, page = 1, pageSize = 50 } = req.query;
+  const { q, status, ano, mes, emAberto, page = 1, pageSize = 50 } = req.query;
   const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
   const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
 
@@ -173,7 +180,12 @@ router.get('/', (req, res) => {
     const like = `%${q}%`;
     params.push(like, like, like, like, like, like);
   }
-  if (status) { condicoes.push('status = ?'); params.push(status); }
+  if (emAberto === 'true') {
+    condicoes.push(`status IN (${STATUS_EM_ABERTO.map(() => '?').join(',')})`);
+    params.push(...STATUS_EM_ABERTO);
+  } else if (status) {
+    condicoes.push('status = ?'); params.push(status);
+  }
   if (ano) { condicoes.push('ano = ?'); params.push(ano); }
   if (mes) { condicoes.push('mes = ?'); params.push(mes); }
 

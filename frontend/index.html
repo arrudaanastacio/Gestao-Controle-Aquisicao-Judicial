@@ -39,7 +39,7 @@
         <div class="nav-grupo">
           <p class="nav-grupo-titulo">🏢 Outras Demandas</p>
           <a href="#" data-pagina="solicitacoesOD">Relatório de Compras OD</a>
-          <a href="#" class="nav-em-breve" title="Em breve">Aquisição em Andamento OD <span>(em breve)</span></a>
+          <a href="#" data-pagina="aquisicaoODAndamento">Aquisição em Andamento OD</a>
           <a href="#" data-pagina="estoqueGeral">Itens em Estoque Geral</a>
           <a href="#" data-pagina="autoresGeral">Listagem de Autores Demais Unidades</a>
           <a href="#" data-pagina="estoqueOD">Estoque GSNET/IBL</a>
@@ -579,6 +579,60 @@
             <div class="botoes">
               <button id="botaoAnteriorSolicitacoesOD">← Anterior</button>
               <button id="botaoProximoSolicitacoesOD">Próximo →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaAquisicaoODAndamento" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Aquisição em Andamento OD</h2>
+            <p>Solicitações de Outras Demandas com compra ainda não finalizada (Planejamento, Adjucado, Empenhado, Entrega Parcial)</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoAquisicaoODAndamento"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaAquisicaoODAndamento" placeholder="Buscar por medicamento, código, ofício ou empenho…" style="min-width:320px;">
+          <select id="filtroAnoAquisicaoODAndamento"><option value="">Ano: todos</option></select>
+          <select id="filtroMesAquisicaoODAndamento"><option value="">Mês: todos</option></select>
+          <button id="botaoLimparFiltrosAquisicaoODAndamento" class="botao-secundario" type="button">Limpar filtros</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código Item</th>
+                  <th>Descrição</th>
+                  <th>Cód. SIAFÍSICO</th>
+                  <th>Cód. GSNET</th>
+                  <th>Ano</th>
+                  <th>Mês</th>
+                  <th>Tipo</th>
+                  <th>Modalidade</th>
+                  <th>Nº Ofício</th>
+                  <th>Qtde Solicitada</th>
+                  <th>Requisição GSNET</th>
+                  <th>Nº Empenho</th>
+                  <th>Previsão Entrega</th>
+                  <th>Qtde Pendente</th>
+                  <th>Status</th>
+                  <th>Observação</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaAquisicaoODAndamento"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioAquisicaoODAndamento" hidden>Nenhuma solicitação em andamento com estes filtros.</div>
+          <div class="paginacao">
+            <span id="textoPaginacaoAquisicaoODAndamento">—</span>
+            <div class="botoes">
+              <button id="botaoAnteriorAquisicaoODAndamento">← Anterior</button>
+              <button id="botaoProximoAquisicaoODAndamento">Próximo →</button>
             </div>
           </div>
         </div>
@@ -1475,6 +1529,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=41"></script>
+  <script src="/js/app.js?v=42"></script>
 </body>
 </html>

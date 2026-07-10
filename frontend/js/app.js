@@ -191,7 +191,7 @@ function temAlgumaEscrita() {
 function aplicarPermissoesNav() {
   // Cada link de página é mapeado para o módulo que o controla.
   const mapa = {
-    solicitacoes: 'compras', relatorio: 'compras', solicitacoesOD: 'compras',
+    solicitacoes: 'compras', relatorio: 'compras', solicitacoesOD: 'compras', aquisicaoODAndamento: 'compras',
     estoque: 'estoque', validades: 'estoque', estoqueGeral: 'estoque', estoqueOD: 'estoque',
     historico: 'estoque', evolucao: 'estoque',
     relatorioItens: 'relatorioItens',
@@ -243,6 +243,7 @@ const ICONES_NAV = {
   estoqueGeral: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 13h18"/>',
   estoqueOD: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 13h18"/><path d="M16 3l4 2v4l-4-2z"/>',
   solicitacoesOD: '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/><path d="M16 3l4 2v4l-4-2z"/>',
+  aquisicaoODAndamento: '<path d="M4 19h16"/><path d="M4 19V5"/><path d="M7 15l4-5 3 3 5-7"/><path d="M16 3l4 2v4l-4-2z"/>',
   validades: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M9 3v4M15 3v4M12 12v3l2 1"/>',
   busca: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-3.5-3.5"/>',
   historico: '<path d="M4 12a8 8 0 1 0 2-5.3"/><path d="M4 4v3h3"/><path d="M12 8v4l3 2"/>',
@@ -294,6 +295,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaEstoqueGeral').hidden = pagina !== 'estoqueGeral';
   document.getElementById('paginaEstoqueOD').hidden = pagina !== 'estoqueOD';
   document.getElementById('paginaSolicitacoesOD').hidden = pagina !== 'solicitacoesOD';
+  document.getElementById('paginaAquisicaoODAndamento').hidden = pagina !== 'aquisicaoODAndamento';
   document.getElementById('paginaValidades').hidden = pagina !== 'validades';
   document.getElementById('paginaHistorico').hidden = pagina !== 'historico';
   document.getElementById('paginaEvolucao').hidden = pagina !== 'evolucao';
@@ -316,6 +318,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'estoqueGeral') await carregarEstoqueGeral();
     if (pagina === 'estoqueOD') await carregarEstoqueOD();
     if (pagina === 'solicitacoesOD') await carregarSolicitacoesOD();
+    if (pagina === 'aquisicaoODAndamento') await carregarAquisicaoODAndamento();
     if (pagina === 'validades') await carregarValidades();
     if (pagina === 'historico') await carregarHistorico();
     if (pagina === 'evolucao') iniciarEvolucao();
@@ -1746,6 +1749,106 @@ async function carregarTabelaSolicitacoesOD() {
   document.getElementById('textoPaginacaoSolicitacoesOD').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} resultados`;
   document.getElementById('botaoAnteriorSolicitacoesOD').disabled = dados.page <= 1;
   document.getElementById('botaoProximoSolicitacoesOD').disabled = dados.page >= totalPaginas;
+}
+
+// ==================== Aquisição em Andamento OD ====================
+// Visão filtrada do Relatório de Compras OD: só status em aberto
+// (Planejamento, Adjucado, Empenhado, Entrega Parcial). Dados vêm do mesmo
+// vigia automático de solicitacoes_od — não tem importação própria.
+const estadoAquisicaoODAndamento = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+
+document.getElementById('filtroBuscaAquisicaoODAndamento').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaAquisicaoODAndamento);
+  window.__debounceBuscaAquisicaoODAndamento = setTimeout(() => { estadoAquisicaoODAndamento.pagina = 1; carregarTabelaAquisicaoODAndamento(); }, 350);
+});
+document.getElementById('filtroAnoAquisicaoODAndamento').addEventListener('change', () => { estadoAquisicaoODAndamento.pagina = 1; carregarTabelaAquisicaoODAndamento(); });
+document.getElementById('filtroMesAquisicaoODAndamento').addEventListener('change', () => { estadoAquisicaoODAndamento.pagina = 1; carregarTabelaAquisicaoODAndamento(); });
+document.getElementById('botaoLimparFiltrosAquisicaoODAndamento').addEventListener('click', () => {
+  document.getElementById('filtroBuscaAquisicaoODAndamento').value = '';
+  document.getElementById('filtroAnoAquisicaoODAndamento').value = '';
+  document.getElementById('filtroMesAquisicaoODAndamento').value = '';
+  estadoAquisicaoODAndamento.pagina = 1;
+  carregarTabelaAquisicaoODAndamento();
+});
+document.getElementById('botaoAnteriorAquisicaoODAndamento').addEventListener('click', () => {
+  if (estadoAquisicaoODAndamento.pagina > 1) { estadoAquisicaoODAndamento.pagina--; carregarTabelaAquisicaoODAndamento(); }
+});
+document.getElementById('botaoProximoAquisicaoODAndamento').addEventListener('click', () => {
+  estadoAquisicaoODAndamento.pagina++; carregarTabelaAquisicaoODAndamento();
+});
+
+async function carregarAquisicaoODAndamento() {
+  const { porStatus } = await api('/solicitacoes-od/resumo?emAberto=true');
+  document.getElementById('grideResumoAquisicaoODAndamento').innerHTML = porStatus
+    .sort((a, b) => b.qtde - a.qtde)
+    .map((l) => `<div class="cartao-resumo"><div class="numero">${l.qtde}</div><div class="rotulo">${l.status}</div></div>`)
+    .join('');
+
+  if (!estadoAquisicaoODAndamento.filtrosCarregados) {
+    const selAno = document.getElementById('filtroAnoAquisicaoODAndamento');
+    const anoAtual = new Date().getFullYear();
+    for (let a = anoAtual + 1; a >= 2025; a--) {
+      const opt = document.createElement('option');
+      opt.value = a; opt.textContent = a;
+      selAno.appendChild(opt);
+    }
+    const selMes = document.getElementById('filtroMesAquisicaoODAndamento');
+    ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+      .forEach((m) => {
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = m;
+        selMes.appendChild(opt);
+      });
+    estadoAquisicaoODAndamento.filtrosCarregados = true;
+  }
+
+  await carregarTabelaAquisicaoODAndamento();
+}
+
+async function carregarTabelaAquisicaoODAndamento() {
+  const q = document.getElementById('filtroBuscaAquisicaoODAndamento').value.trim();
+  const ano = document.getElementById('filtroAnoAquisicaoODAndamento').value;
+  const mes = document.getElementById('filtroMesAquisicaoODAndamento').value;
+
+  const params = new URLSearchParams({ emAberto: 'true', page: estadoAquisicaoODAndamento.pagina, pageSize: estadoAquisicaoODAndamento.pageSize });
+  if (q) params.set('q', q);
+  if (ano) params.set('ano', ano);
+  if (mes) params.set('mes', mes);
+
+  const dados = await api(`/solicitacoes-od?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaAquisicaoODAndamento');
+  const vazio = document.getElementById('estadoVazioAquisicaoODAndamento');
+
+  if (dados.solicitacoes.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.solicitacoes.map((s) => `
+      <tr>
+        <td class="col-codigo">${s.codigo_item || '—'}</td>
+        <td>${s.descricao || '—'}</td>
+        <td class="col-codigo">${s.codigo_siafisico || '—'}</td>
+        <td class="col-codigo">${s.codigo_gsnet || '—'}</td>
+        <td>${s.ano || '—'}</td>
+        <td>${s.mes || '—'}</td>
+        <td>${s.tipo || '—'}</td>
+        <td>${s.modalidade_compra || '—'}</td>
+        <td class="col-codigo">${s.n_oficio || '—'}</td>
+        <td>${valorCelula(s.qtde_solicitada)}</td>
+        <td class="col-codigo">${s.requisicao_gsnet || '—'}</td>
+        <td class="col-codigo">${s.n_empenho || '—'}</td>
+        <td class="col-data">${formatarData(s.data_previsao_entrega)}</td>
+        <td>${valorCelula(s.qtde_pendente)}</td>
+        <td>${s.status || '—'}</td>
+        <td>${s.observacao || '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoAquisicaoODAndamento').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} resultados`;
+  document.getElementById('botaoAnteriorAquisicaoODAndamento').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoAquisicaoODAndamento').disabled = dados.page >= totalPaginas;
 }
 
 async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
