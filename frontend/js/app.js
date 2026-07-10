@@ -191,7 +191,7 @@ function temAlgumaEscrita() {
 function aplicarPermissoesNav() {
   // Cada link de página é mapeado para o módulo que o controla.
   const mapa = {
-    solicitacoes: 'compras', relatorio: 'compras',
+    solicitacoes: 'compras', relatorio: 'compras', solicitacoesOD: 'compras',
     estoque: 'estoque', validades: 'estoque', estoqueGeral: 'estoque', estoqueOD: 'estoque',
     historico: 'estoque', evolucao: 'estoque',
     relatorioItens: 'relatorioItens',
@@ -242,6 +242,7 @@ const ICONES_NAV = {
   estoque: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
   estoqueGeral: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 13h18"/>',
   estoqueOD: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 13h18"/><path d="M16 3l4 2v4l-4-2z"/>',
+  solicitacoesOD: '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/><path d="M16 3l4 2v4l-4-2z"/>',
   validades: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M9 3v4M15 3v4M12 12v3l2 1"/>',
   busca: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-3.5-3.5"/>',
   historico: '<path d="M4 12a8 8 0 1 0 2-5.3"/><path d="M4 4v3h3"/><path d="M12 8v4l3 2"/>',
@@ -292,6 +293,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaEstoque').hidden = pagina !== 'estoque';
   document.getElementById('paginaEstoqueGeral').hidden = pagina !== 'estoqueGeral';
   document.getElementById('paginaEstoqueOD').hidden = pagina !== 'estoqueOD';
+  document.getElementById('paginaSolicitacoesOD').hidden = pagina !== 'solicitacoesOD';
   document.getElementById('paginaValidades').hidden = pagina !== 'validades';
   document.getElementById('paginaHistorico').hidden = pagina !== 'historico';
   document.getElementById('paginaEvolucao').hidden = pagina !== 'evolucao';
@@ -313,6 +315,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'estoque') await carregarEstoque();
     if (pagina === 'estoqueGeral') await carregarEstoqueGeral();
     if (pagina === 'estoqueOD') await carregarEstoqueOD();
+    if (pagina === 'solicitacoesOD') await carregarSolicitacoesOD();
     if (pagina === 'validades') await carregarValidades();
     if (pagina === 'historico') await carregarHistorico();
     if (pagina === 'evolucao') iniciarEvolucao();
@@ -1633,6 +1636,116 @@ async function abrirDetalheEstoqueODItem(skuEncoded) {
   }
 
   conteudo.innerHTML = html;
+}
+
+// ==================== Relatório de Compras OD (Outras Demandas) ====================
+const estadoSolicitacoesOD = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+
+document.getElementById('filtroBuscaSolicitacoesOD').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaSolicitacoesOD);
+  window.__debounceBuscaSolicitacoesOD = setTimeout(() => { estadoSolicitacoesOD.pagina = 1; carregarTabelaSolicitacoesOD(); }, 350);
+});
+document.getElementById('filtroStatusSolicitacoesOD').addEventListener('change', () => { estadoSolicitacoesOD.pagina = 1; carregarTabelaSolicitacoesOD(); });
+document.getElementById('filtroAnoSolicitacoesOD').addEventListener('change', () => { estadoSolicitacoesOD.pagina = 1; carregarTabelaSolicitacoesOD(); });
+document.getElementById('filtroMesSolicitacoesOD').addEventListener('change', () => { estadoSolicitacoesOD.pagina = 1; carregarTabelaSolicitacoesOD(); });
+document.getElementById('botaoLimparFiltrosSolicitacoesOD').addEventListener('click', () => {
+  document.getElementById('filtroBuscaSolicitacoesOD').value = '';
+  document.getElementById('filtroStatusSolicitacoesOD').value = '';
+  document.getElementById('filtroAnoSolicitacoesOD').value = '';
+  document.getElementById('filtroMesSolicitacoesOD').value = '';
+  estadoSolicitacoesOD.pagina = 1;
+  carregarTabelaSolicitacoesOD();
+});
+document.getElementById('botaoAnteriorSolicitacoesOD').addEventListener('click', () => {
+  if (estadoSolicitacoesOD.pagina > 1) { estadoSolicitacoesOD.pagina--; carregarTabelaSolicitacoesOD(); }
+});
+document.getElementById('botaoProximoSolicitacoesOD').addEventListener('click', () => {
+  estadoSolicitacoesOD.pagina++; carregarTabelaSolicitacoesOD();
+});
+
+async function carregarSolicitacoesOD() {
+  const { porStatus } = await api('/solicitacoes-od/resumo');
+  document.getElementById('grideResumoSolicitacoesOD').innerHTML = porStatus
+    .sort((a, b) => b.qtde - a.qtde)
+    .map((l) => `<div class="cartao-resumo"><div class="numero">${l.qtde}</div><div class="rotulo">${l.status}</div></div>`)
+    .join('');
+
+  if (!estadoSolicitacoesOD.filtrosCarregados) {
+    const selStatus = document.getElementById('filtroStatusSolicitacoesOD');
+    selStatus.innerHTML = '<option value="">Status: todos</option>' +
+      porStatus.filter((l) => l.status && l.status !== 'Em andamento')
+        .map((l) => `<option value="${l.status}">${l.status}</option>`).join('');
+
+    const selAno = document.getElementById('filtroAnoSolicitacoesOD');
+    const anoAtual = new Date().getFullYear();
+    for (let a = anoAtual + 1; a >= 2025; a--) {
+      const opt = document.createElement('option');
+      opt.value = a; opt.textContent = a;
+      selAno.appendChild(opt);
+    }
+
+    const selMes = document.getElementById('filtroMesSolicitacoesOD');
+    ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+      .forEach((m) => {
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = m;
+        selMes.appendChild(opt);
+      });
+
+    estadoSolicitacoesOD.filtrosCarregados = true;
+  }
+
+  await carregarTabelaSolicitacoesOD();
+}
+
+async function carregarTabelaSolicitacoesOD() {
+  const q = document.getElementById('filtroBuscaSolicitacoesOD').value.trim();
+  const status = document.getElementById('filtroStatusSolicitacoesOD').value;
+  const ano = document.getElementById('filtroAnoSolicitacoesOD').value;
+  const mes = document.getElementById('filtroMesSolicitacoesOD').value;
+
+  const params = new URLSearchParams({ page: estadoSolicitacoesOD.pagina, pageSize: estadoSolicitacoesOD.pageSize });
+  if (q) params.set('q', q);
+  if (status) params.set('status', status);
+  if (ano) params.set('ano', ano);
+  if (mes) params.set('mes', mes);
+
+  const dados = await api(`/solicitacoes-od?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaSolicitacoesOD');
+  const vazio = document.getElementById('estadoVazioSolicitacoesOD');
+
+  if (dados.solicitacoes.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.solicitacoes.map((s) => `
+      <tr>
+        <td class="col-codigo">${s.codigo_item || '—'}</td>
+        <td>${s.descricao || '—'}</td>
+        <td class="col-codigo">${s.codigo_siafisico || '—'}</td>
+        <td class="col-codigo">${s.codigo_gsnet || '—'}</td>
+        <td>${s.ano || '—'}</td>
+        <td>${s.mes || '—'}</td>
+        <td>${s.tipo || '—'}</td>
+        <td>${s.modalidade_compra || '—'}</td>
+        <td class="col-codigo">${s.n_oficio || '—'}</td>
+        <td>${valorCelula(s.qtde_solicitada)}</td>
+        <td class="col-codigo">${s.requisicao_gsnet || '—'}</td>
+        <td class="col-codigo">${s.n_empenho || '—'}</td>
+        <td class="col-data">${formatarData(s.data_previsao_entrega)}</td>
+        <td class="col-data">${formatarData(s.data_entrega)}</td>
+        <td>${valorCelula(s.qtde_entregue)}</td>
+        <td>${valorCelula(s.qtde_pendente)}</td>
+        <td>${s.status || '—'}</td>
+        <td>${s.observacao || '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoSolicitacoesOD').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} resultados`;
+  document.getElementById('botaoAnteriorSolicitacoesOD').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoSolicitacoesOD').disabled = dados.page >= totalPaginas;
 }
 
 async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {

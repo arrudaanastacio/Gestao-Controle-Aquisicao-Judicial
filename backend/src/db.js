@@ -258,6 +258,36 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_estoqueod_codigo ON estoque_od_itens(cod
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoqueod_sku ON estoque_od_itens(codigo_sku);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoqueod_data ON estoque_od_itens(data_referencia);`);
 
+// Solicitações de compra de Outras Demandas (relatório próprio, separado do
+// Tenente Pena — layout de colunas diferente, mesmo conceito de mês a mês)
+db.exec(`
+CREATE TABLE IF NOT EXISTS solicitacoes_od (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_item TEXT NOT NULL,
+  descricao TEXT,
+  codigo_siafisico TEXT,
+  codigo_gsnet TEXT,
+  ano INTEGER NOT NULL,
+  mes TEXT NOT NULL,
+  tipo TEXT,
+  modalidade_compra TEXT,
+  n_oficio TEXT,
+  qtde_solicitada TEXT,
+  data_solicitacao TEXT,
+  requisicao_gsnet TEXT,
+  n_empenho TEXT,
+  data_previsao_entrega TEXT,
+  data_entrega TEXT,
+  qtde_entregue TEXT,
+  qtde_pendente TEXT,
+  status TEXT,
+  observacao TEXT
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_solod_codigo ON solicitacoes_od(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_solod_anomes ON solicitacoes_od(ano, mes);`);
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_solod_unico ON solicitacoes_od(codigo_item, ano, mes, tipo);`);
+
 // Requisições de compra geradas (Relatório Primeiro Atendimento)
 db.exec(`
 CREATE TABLE IF NOT EXISTS requisicoes (
