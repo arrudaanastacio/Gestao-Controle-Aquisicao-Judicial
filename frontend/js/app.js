@@ -1523,7 +1523,9 @@ document.querySelectorAll('#abasEstoqueOD .chip-faixa').forEach((btn) => {
     const aba = btn.dataset.aba;
     document.getElementById('abaLotesEstoqueOD').hidden = aba !== 'lotes';
     document.getElementById('abaConsolidadoEstoqueOD').hidden = aba !== 'consolidado';
+    document.getElementById('abaValidadesEstoqueOD').hidden = aba !== 'validades';
     if (aba === 'consolidado') carregarTabelaEstoqueODConsolidado();
+    if (aba === 'validades') carregarValidadesEstoqueOD();
   });
 });
 
@@ -1589,6 +1591,71 @@ async function carregarTabelaEstoqueODConsolidado() {
   document.getElementById('textoPaginacaoEstoqueODConsolidado').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} itens`;
   document.getElementById('botaoAnteriorEstoqueODConsolidado').disabled = dados.page <= 1;
   document.getElementById('botaoProximoEstoqueODConsolidado').disabled = dados.page >= totalPaginas;
+}
+
+// ---- Aba: Controle de Validade ----
+const estadoValidadesEstoqueOD = { janela: '' };
+
+document.getElementById('filtroBuscaValidadesEstoqueOD').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaValidadesEstoqueOD);
+  window.__debounceBuscaValidadesEstoqueOD = setTimeout(() => carregarValidadesEstoqueOD(), 350);
+});
+document.querySelectorAll('#filtrosFaixaValidadesEstoqueOD .chip-faixa').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#filtrosFaixaValidadesEstoqueOD .chip-faixa').forEach((b) => b.classList.remove('ativo'));
+    btn.classList.add('ativo');
+    estadoValidadesEstoqueOD.janela = btn.dataset.janela;
+    carregarValidadesEstoqueOD();
+  });
+});
+
+async function carregarValidadesEstoqueOD() {
+  const q = document.getElementById('filtroBuscaValidadesEstoqueOD').value.trim();
+  const params = new URLSearchParams();
+  if (estadoEstoqueOD.data) params.set('data', estadoEstoqueOD.data);
+  if (q) params.set('q', q);
+  if (estadoValidadesEstoqueOD.janela) params.set('janela', estadoValidadesEstoqueOD.janela);
+
+  const dados = await api(`/estoque-od/validades?${params.toString()}`);
+  const r = dados.resumo || { totalLotes: 0, vencido: 0, d30: 0, d60: 0, d90: 0, mais90: 0 };
+
+  document.getElementById('grideKpiValidadesEstoqueOD').innerHTML = `
+    <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(r.vencido)}</div><div class="rotulo">Lotes vencidos</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d30)}</div><div class="rotulo">Vencem em até 30 dias</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d60)}</div><div class="rotulo">31 a 60 dias</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d90)}</div><div class="rotulo">61 a 90 dias</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.mais90)}</div><div class="rotulo">Mais de 90 dias</div></div>
+  `;
+
+  const corpo = document.getElementById('corpoTabelaValidadesEstoqueOD');
+  const vazio = document.getElementById('estadoVazioValidadesEstoqueOD');
+  if (!dados.lotes || dados.lotes.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.lotes.map((l) => {
+      const cls = corFaixaValidade(l.faixa);
+      const diasTxt = l.dias_para_vencer < 0
+        ? `vencido há ${Math.abs(l.dias_para_vencer)} dia(s)`
+        : `${l.dias_para_vencer} dia(s)`;
+      return `
+        <tr>
+          <td class="col-codigo">${l.codigo_item || '—'}</td>
+          <td>${l.descricao || '—'}</td>
+          <td class="col-codigo">${l.codigo_sku || '—'}</td>
+          <td>${l.lote || '—'}</td>
+          <td class="col-data"><span class="etiqueta-status ${cls}">${l.validade}</span></td>
+          <td>${diasTxt}</td>
+          <td>${fmtNumero(l.qtde_disponivel)}</td>
+          <td>${fmtNumero(l.qtde_bloqueado)}</td>
+          <td>${fmtNumero(l.qtde_total)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('textoContagemValidadesEstoqueOD').textContent =
+    `${dados.lotes ? dados.lotes.length : 0} lote(s) exibido(s) · ${fmtNumero(r.totalLotes)} no total`;
 }
 
 async function abrirDetalheEstoqueODItem(skuEncoded) {

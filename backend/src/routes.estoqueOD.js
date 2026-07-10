@@ -310,6 +310,70 @@ router.get('/filtros', (req, res) => {
   res.json({ status_estoque: statusEstoque, status_comparativo: statusComparativo });
 });
 
+// Converte "DD/MM/AAAA" para Date (meia-noite local) ou null.
+function dataDeBR(validadeBR) {
+  if (!validadeBR) return null;
+  const [d, m, a] = validadeBR.split('/').map(Number);
+  if (!d || !m || !a) return null;
+  return new Date(a, m - 1, d);
+}
+
+function faixaVencimento(dias) {
+  if (dias < 0) return 'vencido';
+  if (dias <= 30) return 'd30';
+  if (dias <= 60) return 'd60';
+  if (dias <= 90) return 'd90';
+  return 'mais90';
+}
+
+// ---------- Controle de validade: lotes a vencer, KPIs e filtro por faixa ----------
+router.get('/validades', (req, res) => {
+  const { data, q, janela } = req.query;
+
+  let dataRef = data;
+  if (!dataRef) {
+    const ultima = db.prepare('SELECT data_referencia FROM estoque_od_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+    if (!ultima) return res.json({ dataReferencia: null, resumo: null, lotes: [] });
+    dataRef = ultima.data_referencia;
+  }
+
+  const itens = db.prepare(`
+    SELECT codigo_item, descricao, codigo_sku, lote, validade, qtde_disponivel, qtde_bloqueado, qtde_total
+    FROM estoque_od_itens WHERE data_referencia = ? AND validade IS NOT NULL
+  `).all(dataRef);
+
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const MS_DIA = 1000 * 60 * 60 * 24;
+
+  let linhas = itens.map((it) => {
+    const dataVal = dataDeBR(it.validade);
+    const dias = dataVal ? Math.floor((dataVal - hoje) / MS_DIA) : null;
+    return { ...it, dias_para_vencer: dias, faixa: dias === null ? null : faixaVencimento(dias) };
+  }).filter((l) => l.dias_para_vencer !== null);
+
+  if (q) {
+    const termo = q.toLowerCase();
+    linhas = linhas.filter((ln) =>
+      (ln.descricao || '').toLowerCase().includes(termo) ||
+      (ln.codigo_item || '').toLowerCase().includes(termo) ||
+      (ln.codigo_sku || '').toLowerCase().includes(termo) ||
+      (ln.lote || '').toLowerCase().includes(termo));
+  }
+
+  const FAIXAS = ['vencido', 'd30', 'd60', 'd90', 'mais90'];
+  const resumo = { totalLotes: linhas.length };
+  for (const f of FAIXAS) resumo[f] = 0;
+  for (const ln of linhas) resumo[ln.faixa] += 1;
+
+  if (janela && FAIXAS.includes(janela)) {
+    linhas = linhas.filter((ln) => ln.faixa === janela);
+  }
+
+  linhas.sort((a, b) => a.dias_para_vencer - b.dias_para_vencer);
+
+  res.json({ dataReferencia: dataRef, resumo, lotes: linhas });
+});
+
 // ---------- Importação manual (admin) — relê os 3 arquivos da pasta de rede ----------
 router.post('/importar-manual', exigirPerfil('admin'), (req, res) => {
   try {
