@@ -11,6 +11,7 @@
 | 4 | Importação automática das Solicitações — vigia o arquivo "RELATÓRIO DE COMPRAS TENENTE PENA - Macro.xlsm" e importa sozinho 2x/dia (12h e 19h), atualizando status e inserindo novas solicitações sem upload manual | `b6b31a6` | 10/07/2026 | Pendente |
 | 5 | Relatório de Compras OD — nova tela em Outras Demandas mostrando as solicitações de compra do arquivo "RELATÓRIO DE COMPRAS OUTRAS DEMANDAS - Macro.xlsm", com vigia automático (12h/19h) igual ao item 4 | `80c669c` | 10/07/2026 | Pendente |
 | 6 | Aquisição em Andamento OD — tela filtrada com as solicitações de Outras Demandas ainda não finalizadas (Planejamento, Adjucado, Empenhado, Entrega Parcial), atualiza sozinha junto com o item 5 | `896867b` | 10/07/2026 | Pendente |
+| 7 | Tabela Análise TP — passa a abrir por padrão filtrada em "Em andamento" (Planejamento, Adjucado, Empenhado, Entrega Parcial), refletindo sempre os dados mais recentes do item 4 | `cabce81` | 10/07/2026 | Pendente |
 
 ## Publicadas recentemente
 
