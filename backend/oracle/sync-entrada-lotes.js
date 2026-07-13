@@ -37,9 +37,16 @@ const MAPA_ORACLE = {
   CATEGORIA: 'categoria',
 };
 
+// Formata um Date em hora LOCAL "AAAA-MM-DD HH:MM:SS" (nunca usar
+// toISOString() aqui: ele converte para UTC e desloca 3h a mais no Brasil).
+function dataHoraLocal(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 function valor(v) {
   if (v === undefined || v === null) return null;
-  if (v instanceof Date) return v.toISOString();
+  if (v instanceof Date) return dataHoraLocal(v);
   const t = String(v).trim();
   return t === '' ? null : t;
 }
