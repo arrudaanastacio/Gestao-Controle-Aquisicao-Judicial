@@ -28,7 +28,7 @@ const CAMPOS = [
   'modalidade_compra', 'nota_empenho', 'nota_fiscal', 'documento_transferencia',
   'fabricante', 'codigo_item', 'qtde', 'qtde_acerto', 'valor_unitario', 'valor_total',
   'usuario_login', 'observacao', 'termolabil', 'fornecedor', 'fornecedor_cnpj',
-  'tipo_transferencia', 'lote', 'validade', 'lote_foi_digitado',
+  'tipo_transferencia', 'lote', 'validade', 'lote_foi_digitado', 'categoria',
 ];
 const CAMPOS_NUMERICOS = new Set(['qtde', 'qtde_acerto', 'valor_unitario', 'valor_total']);
 
@@ -67,7 +67,7 @@ router.get('/resumo', (req, res) => {
 });
 
 router.get('/', (req, res) => {
-  const { q, tipoMovimentacao, dataInicio, dataFim, page = 1, pageSize = 50 } = req.query;
+  const { q, tipoMovimentacao, categoria, dataInicio, dataFim, page = 1, pageSize = 50 } = req.query;
   const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
   const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
 
@@ -80,6 +80,7 @@ router.get('/', (req, res) => {
     params.push(like, like, like, like, like, like);
   }
   if (tipoMovimentacao) { condicoes.push('tipo_movimentacao = ?'); params.push(tipoMovimentacao); }
+  if (categoria) { condicoes.push('categoria = ?'); params.push(categoria); }
   if (dataInicio) { condicoes.push('date(data_entrada) >= date(?)'); params.push(dataInicio); }
   if (dataFim) { condicoes.push('date(data_entrada) <= date(?)'); params.push(dataFim); }
 
@@ -97,7 +98,8 @@ router.get('/', (req, res) => {
 
 router.get('/filtros', (req, res) => {
   const tipos = db.prepare('SELECT DISTINCT tipo_movimentacao FROM entrada_lotes_itens WHERE tipo_movimentacao IS NOT NULL ORDER BY tipo_movimentacao').all().map((r) => r.tipo_movimentacao);
-  res.json({ tipos });
+  const categorias = db.prepare('SELECT DISTINCT categoria FROM entrada_lotes_itens WHERE categoria IS NOT NULL ORDER BY categoria').all().map((r) => r.categoria);
+  res.json({ tipos, categorias });
 });
 
 // ---------- Atualização via Oracle (SCODES) ----------

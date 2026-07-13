@@ -323,12 +323,15 @@ CREATE TABLE IF NOT EXISTS entrada_lotes_itens (
   lote TEXT,
   validade TEXT,
   lote_foi_digitado TEXT,
+  categoria TEXT,
   criado_em TEXT DEFAULT (datetime('now'))
 );
 `);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_entlotes_codigo ON entrada_lotes_itens(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_entlotes_data ON entrada_lotes_itens(data_entrada);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_entlotes_unidade ON entrada_lotes_itens(unidade);`);
+const colunasEntLotes = db.prepare("PRAGMA table_info(entrada_lotes_itens)").all().map((c) => c.name);
+if (!colunasEntLotes.includes('categoria')) db.exec("ALTER TABLE entrada_lotes_itens ADD COLUMN categoria TEXT");
 
 // Requisições de compra geradas (Relatório Primeiro Atendimento)
 db.exec(`

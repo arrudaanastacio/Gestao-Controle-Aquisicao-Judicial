@@ -4,6 +4,12 @@
 -- é o único usado pelo sistema. A janela de datas é sempre os últimos 12
 -- meses até hoje, calculada pelo próprio Oracle (SYSDATE) — desliza sozinha
 -- a cada dia, sem precisar de parâmetro nem de código no lado da aplicação.
+--
+-- ATENÇÃO: o join com a tabela CATEGORIA (i.cat_id = cat.cat_id) foi
+-- adicionado por analogia com query-estoque.sql, sem poder testar contra o
+-- Oracle real neste ambiente. Confirme se "categoria" aparece certo ao
+-- clicar em "Atualizar via Oracle" — se der erro de tabela/coluna
+-- inexistente, me avise para eu ajustar.
 SELECT
   fcn_nome_produto(q.pro_id)                                              AS ITEM,
   UND.UND_Descricao                                                       AS UND_DESCRICAO,
@@ -34,7 +40,8 @@ SELECT
   DECODE(m.tpm_id, 23, fdoa.for_id, f.for_id)                             AS FOR_ID,
   lot.LOT_NUMERO                                                          AS LOT_NUMERO,
   TO_CHAR(lot.LOT_DTH_VALIDADE, 'DD/MM/YYYY')                             AS LOT_DTH_VALIDADE,
-  CASE WHEN lot.LOT_NUMERO IS NOT NULL THEN 'Não' ELSE 'Sem Lote' END     AS LOTE_FOI_DIGITADO
+  CASE WHEN lot.LOT_NUMERO IS NOT NULL THEN 'Não' ELSE 'Sem Lote' END     AS LOTE_FOI_DIGITADO,
+  INITCAP(cat.CAT_DESCRICAO)                                              AS CATEGORIA
 FROM estoque q,
      entrada e,
      ca_usuario u,
@@ -47,6 +54,7 @@ FROM estoque q,
      compra_modalidade cm,
      especificacao es,
      item i,
+     categoria cat,
      unidade_dispensadora und,
      unidade_transferencia unt,
      fabricante fab,
@@ -62,6 +70,7 @@ WHERE q.ent_id = e.ent_id
   AND q.pro_id = p.pro_id
   AND p.esp_id = es.esp_id
   AND es.ite_id = i.ite_id
+  AND i.cat_id = cat.cat_id(+)
   AND e.com_id = c.com_id(+)
   AND e.tra_id = t.tra_id(+)
   AND e.tru_id = tu.tru_id(+)

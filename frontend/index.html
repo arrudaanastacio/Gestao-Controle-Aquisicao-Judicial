@@ -702,6 +702,7 @@
           <div class="barra-filtros">
             <input type="text" id="filtroBuscaEntradaLotes" placeholder="Buscar por medicamento, código, lote, fornecedor, empenho ou nota fiscal…" style="min-width:320px;">
             <select id="filtroTipoEntradaLotes"><option value="">Tipo de movimentação: todos</option></select>
+            <select id="filtroCategoriaEntradaLotes"><option value="">Categoria: todas</option></select>
             <input type="date" id="filtroDataInicioEntradaLotes" title="Data inicial">
             <input type="date" id="filtroDataFimEntradaLotes" title="Data final">
             <button id="botaoLimparFiltrosEntradaLotes" class="botao-secundario" type="button">Limpar filtros</button>
@@ -714,6 +715,7 @@
                   <tr>
                     <th>Data Entrada</th>
                     <th>Medicamento</th>
+                    <th>Categoria</th>
                     <th>Código Item</th>
                     <th>Lote</th>
                     <th>Validade</th>
@@ -1634,6 +1636,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=45"></script>
+  <script src="/js/app.js?v=46"></script>
 </body>
 </html>

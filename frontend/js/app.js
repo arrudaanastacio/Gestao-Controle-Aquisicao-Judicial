@@ -4105,11 +4105,13 @@ document.getElementById('filtroBuscaEntradaLotes').addEventListener('input', () 
   window.__debounceBuscaEntradaLotes = setTimeout(() => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); }, 350);
 });
 document.getElementById('filtroTipoEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
+document.getElementById('filtroCategoriaEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
 document.getElementById('filtroDataInicioEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
 document.getElementById('filtroDataFimEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
 document.getElementById('botaoLimparFiltrosEntradaLotes').addEventListener('click', () => {
   document.getElementById('filtroBuscaEntradaLotes').value = '';
   document.getElementById('filtroTipoEntradaLotes').value = '';
+  document.getElementById('filtroCategoriaEntradaLotes').value = '';
   document.getElementById('filtroDataInicioEntradaLotes').value = '';
   document.getElementById('filtroDataFimEntradaLotes').value = '';
   estadoEntradaLotes.pagina = 1;
@@ -4140,10 +4142,13 @@ async function carregarEntradaLotes() {
   `;
 
   if (!estadoEntradaLotes.filtrosCarregados) {
-    const { tipos } = await api('/entrada-lotes/filtros');
-    const sel = document.getElementById('filtroTipoEntradaLotes');
-    sel.innerHTML = '<option value="">Tipo de movimentação: todos</option>' +
+    const { tipos, categorias } = await api('/entrada-lotes/filtros');
+    const selTipo = document.getElementById('filtroTipoEntradaLotes');
+    selTipo.innerHTML = '<option value="">Tipo de movimentação: todos</option>' +
       tipos.map((t) => `<option value="${t.replace(/"/g, '&quot;')}">${t}</option>`).join('');
+    const selCat = document.getElementById('filtroCategoriaEntradaLotes');
+    selCat.innerHTML = '<option value="">Categoria: todas</option>' +
+      categorias.map((c) => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('');
     estadoEntradaLotes.filtrosCarregados = true;
   }
 
@@ -4153,12 +4158,14 @@ async function carregarEntradaLotes() {
 async function carregarTabelaEntradaLotes() {
   const q = document.getElementById('filtroBuscaEntradaLotes').value.trim();
   const tipoMovimentacao = document.getElementById('filtroTipoEntradaLotes').value;
+  const categoria = document.getElementById('filtroCategoriaEntradaLotes').value;
   const dataInicio = document.getElementById('filtroDataInicioEntradaLotes').value;
   const dataFim = document.getElementById('filtroDataFimEntradaLotes').value;
 
   const params = new URLSearchParams({ page: estadoEntradaLotes.pagina, pageSize: estadoEntradaLotes.pageSize });
   if (q) params.set('q', q);
   if (tipoMovimentacao) params.set('tipoMovimentacao', tipoMovimentacao);
+  if (categoria) params.set('categoria', categoria);
   if (dataInicio) params.set('dataInicio', dataInicio);
   if (dataFim) params.set('dataFim', dataFim);
 
@@ -4174,6 +4181,7 @@ async function carregarTabelaEntradaLotes() {
       <tr>
         <td class="col-data">${formatarDataHora(e.data_entrada)}</td>
         <td>${e.item || '—'}</td>
+        <td>${e.categoria || '—'}</td>
         <td class="col-codigo">${e.codigo_item || '—'}</td>
         <td class="col-codigo">${e.lote || '—'}</td>
         <td class="col-data">${e.validade || '—'}</td>

@@ -34,6 +34,7 @@ const MAPA_ORACLE = {
   LOT_NUMERO: 'lote',
   LOT_DTH_VALIDADE: 'validade',
   LOTE_FOI_DIGITADO: 'lote_foi_digitado',
+  CATEGORIA: 'categoria',
 };
 
 function valor(v) {
