@@ -24,6 +24,7 @@ const relatorioItensRoutes = require('./routes.relatorioItens');
 const atasRoutes = require('./routes.atas');
 const estoqueODRoutes = require('./routes.estoqueOD');
 const solicitacoesODRoutes = require('./routes.solicitacoesOD');
+const entradaLotesRoutes = require('./routes.entradaLotes');
 const configRoutes = require('./routes.config');
 const { autenticar, exigirModulo } = require('./auth');
 
@@ -59,6 +60,7 @@ app.use('/api/relatorio-itens', autenticar, exigirModulo('relatorioItens'), rela
 app.use('/api/atas', autenticar, exigirModulo('atas'), atasRoutes);
 app.use('/api/estoque-od', autenticar, exigirModulo('estoque'), estoqueODRoutes);
 app.use('/api/solicitacoes-od', autenticar, exigirModulo('compras'), solicitacoesODRoutes);
+app.use('/api/entrada-lotes', autenticar, exigirModulo('entradaLotes'), entradaLotesRoutes);
 
 // Serve o frontend estático (build simples, sem framework)
 app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));

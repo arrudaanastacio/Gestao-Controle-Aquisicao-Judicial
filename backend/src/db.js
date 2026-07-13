@@ -292,6 +292,44 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_solod_codigo ON solicitacoes_od(codigo_i
 db.exec(`CREATE INDEX IF NOT EXISTS idx_solod_anomes ON solicitacoes_od(ano, mes);`);
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_solod_unico ON solicitacoes_od(codigo_item, ano, mes, tipo);`);
 
+// Movimentações de Entrada com Lotes/Validade (via Oracle/SCODES).
+// Janela dos últimos 12 meses até hoje, recalculada na própria query SQL.
+// A cada sincronização o conteúdo é substituído por completo (não é um
+// histórico próprio — o histórico real é o do Oracle).
+db.exec(`
+CREATE TABLE IF NOT EXISTS entrada_lotes_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  item TEXT,
+  unidade TEXT,
+  data_entrada TEXT,
+  tipo_movimentacao TEXT,
+  unidade_transferencia TEXT,
+  modalidade_compra TEXT,
+  nota_empenho TEXT,
+  nota_fiscal TEXT,
+  documento_transferencia TEXT,
+  fabricante TEXT,
+  codigo_item TEXT,
+  qtde REAL,
+  qtde_acerto REAL,
+  valor_unitario REAL,
+  valor_total REAL,
+  usuario_login TEXT,
+  observacao TEXT,
+  termolabil TEXT,
+  fornecedor TEXT,
+  fornecedor_cnpj TEXT,
+  tipo_transferencia TEXT,
+  lote TEXT,
+  validade TEXT,
+  lote_foi_digitado TEXT,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_entlotes_codigo ON entrada_lotes_itens(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_entlotes_data ON entrada_lotes_itens(data_entrada);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_entlotes_unidade ON entrada_lotes_itens(unidade);`);
+
 // Requisições de compra geradas (Relatório Primeiro Atendimento)
 db.exec(`
 CREATE TABLE IF NOT EXISTS requisicoes (

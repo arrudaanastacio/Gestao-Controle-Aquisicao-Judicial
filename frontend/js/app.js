@@ -158,6 +158,8 @@ async function carregarUsuario() {
     document.getElementById('botaoAtualizarOracleEstoque').hidden = false;
     verificarStatusOracleEstoque();
     document.getElementById('botaoImportarEstoqueOD').hidden = false;
+    document.getElementById('botaoAtualizarEntradaLotes').hidden = false;
+    verificarStatusOracleEntradaLotes();
     atualizarBadgeAlertas();
     carregarConfigLimiar();
   } else {
@@ -197,6 +199,7 @@ function aplicarPermissoesNav() {
     relatorioItens: 'relatorioItens',
     autores: 'autores', autoresGeral: 'autores', comparativoAutores: 'autores', relatorioReq: 'autores',
     atas: 'atas',
+    entradaLotes: 'entradaLotes',
     alertas: 'alertas',
   };
   for (const [pagina, modulo] of Object.entries(mapa)) {
@@ -255,6 +258,7 @@ const ICONES_NAV = {
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   elenco: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   atas: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/><path d="M15 19l2 2 3-3"/>',
+  entradaLotes: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/>',
   alertas: '<path d="M6 9a6 6 0 1 1 12 0c0 4 2 5 2 5H4s2-1 2-5"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   importadores: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
   usuarios: '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 6a3 3 0 0 1 0 6M21 20a6 6 0 0 0-5-5.9"/>',
@@ -304,6 +308,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaComparativoAutores').hidden = pagina !== 'comparativoAutores';
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
   document.getElementById('paginaAtas').hidden = pagina !== 'atas';
+  document.getElementById('paginaEntradaLotes').hidden = pagina !== 'entradaLotes';
   document.getElementById('paginaRelatorioItens').hidden = pagina !== 'relatorioItens';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
@@ -327,6 +332,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'comparativoAutores') await carregarComparativo();
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
     if (pagina === 'atas') await carregarAtas();
+    if (pagina === 'entradaLotes') await carregarEntradaLotes();
     if (pagina === 'relatorioItens') await carregarRelatorioItens();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
@@ -4071,13 +4077,15 @@ async function verificarFalhasOracle() {
   if (estado.usuario.perfil !== 'admin') return;
   const banner = document.getElementById('bannerAlertaOracle');
   try {
-    const [estoque, autores] = await Promise.all([
+    const [estoque, autores, entradaLotes] = await Promise.all([
       api('/estoque/atualizar-oracle/status'),
       api('/autores/atualizar-oracle/status'),
+      api('/entrada-lotes/atualizar-oracle/status'),
     ]);
     const falhas = [];
     if (estoque && estoque.ultimoErro) falhas.push(`Estoque: ${estoque.ultimoErro}`);
     if (autores && autores.ultimoErro) falhas.push(`Listagem de Autores: ${autores.ultimoErro}`);
+    if (entradaLotes && entradaLotes.ultimoErro) falhas.push(`Entrada (lotes): ${entradaLotes.ultimoErro}`);
     if (falhas.length) {
       banner.textContent = `⚠️ A última sincronização automática via Oracle falhou. ${falhas.join(' | ')}`;
       banner.hidden = false;
@@ -4088,6 +4096,161 @@ async function verificarFalhasOracle() {
     // Silencioso: não travar o carregamento do app por causa do banner.
   }
 }
+
+// ==================== Movimentações de Entrada (Lotes/Validade) ====================
+const estadoEntradaLotes = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+
+document.getElementById('filtroBuscaEntradaLotes').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaEntradaLotes);
+  window.__debounceBuscaEntradaLotes = setTimeout(() => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); }, 350);
+});
+document.getElementById('filtroUnidadeEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
+document.getElementById('filtroDataInicioEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
+document.getElementById('filtroDataFimEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
+document.getElementById('botaoLimparFiltrosEntradaLotes').addEventListener('click', () => {
+  document.getElementById('filtroBuscaEntradaLotes').value = '';
+  document.getElementById('filtroUnidadeEntradaLotes').value = '';
+  document.getElementById('filtroDataInicioEntradaLotes').value = '';
+  document.getElementById('filtroDataFimEntradaLotes').value = '';
+  estadoEntradaLotes.pagina = 1;
+  carregarTabelaEntradaLotes();
+});
+document.getElementById('botaoAnteriorEntradaLotes').addEventListener('click', () => {
+  if (estadoEntradaLotes.pagina > 1) { estadoEntradaLotes.pagina--; carregarTabelaEntradaLotes(); }
+});
+document.getElementById('botaoProximoEntradaLotes').addEventListener('click', () => {
+  estadoEntradaLotes.pagina++; carregarTabelaEntradaLotes();
+});
+
+async function carregarEntradaLotes() {
+  const resumo = await api('/entrada-lotes/resumo');
+  if (!resumo.total) {
+    document.getElementById('avisoSemEntradaLotes').hidden = false;
+    document.getElementById('conteudoEntradaLotes').hidden = true;
+    return;
+  }
+  document.getElementById('avisoSemEntradaLotes').hidden = true;
+  document.getElementById('conteudoEntradaLotes').hidden = false;
+
+  document.getElementById('subtituloEntradaLotes').textContent =
+    `${fmtNumero(resumo.total)} movimentações · período ${formatarDataHora(resumo.dataMaisAntiga)} a ${formatarDataHora(resumo.dataMaisRecente)} (últimos 12 meses, via Oracle/SCODES)`;
+
+  document.getElementById('grideResumoEntradaLotes').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.total)}</div><div class="rotulo">Movimentações de Entrada</div></div>
+  `;
+
+  if (!estadoEntradaLotes.filtrosCarregados) {
+    const { unidades } = await api('/entrada-lotes/filtros');
+    const sel = document.getElementById('filtroUnidadeEntradaLotes');
+    sel.innerHTML = '<option value="">Unidade: todas</option>' +
+      unidades.map((u) => `<option value="${u.replace(/"/g, '&quot;')}">${u}</option>`).join('');
+    estadoEntradaLotes.filtrosCarregados = true;
+  }
+
+  await carregarTabelaEntradaLotes();
+}
+
+async function carregarTabelaEntradaLotes() {
+  const q = document.getElementById('filtroBuscaEntradaLotes').value.trim();
+  const unidade = document.getElementById('filtroUnidadeEntradaLotes').value;
+  const dataInicio = document.getElementById('filtroDataInicioEntradaLotes').value;
+  const dataFim = document.getElementById('filtroDataFimEntradaLotes').value;
+
+  const params = new URLSearchParams({ page: estadoEntradaLotes.pagina, pageSize: estadoEntradaLotes.pageSize });
+  if (q) params.set('q', q);
+  if (unidade) params.set('unidade', unidade);
+  if (dataInicio) params.set('dataInicio', dataInicio);
+  if (dataFim) params.set('dataFim', dataFim);
+
+  const dados = await api(`/entrada-lotes?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaEntradaLotes');
+  const vazio = document.getElementById('estadoVazioEntradaLotes');
+
+  if (dados.entradas.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.entradas.map((e) => `
+      <tr>
+        <td class="col-data">${formatarDataHora(e.data_entrada)}</td>
+        <td>${e.unidade || '—'}</td>
+        <td>${e.item || '—'}</td>
+        <td class="col-codigo">${e.codigo_item || '—'}</td>
+        <td class="col-codigo">${e.lote || '—'}</td>
+        <td class="col-data">${e.validade || '—'}</td>
+        <td>${fmtNumero(e.qtde)}</td>
+        <td>${e.fabricante || '—'}</td>
+        <td>${e.fornecedor || '—'}</td>
+        <td>${e.modalidade_compra || '—'}</td>
+        <td class="col-codigo">${e.nota_empenho || '—'}</td>
+        <td class="col-codigo">${e.nota_fiscal || '—'}</td>
+        <td>${e.valor_unitario == null ? '—' : fmtNumero(e.valor_unitario)}</td>
+        <td>${e.valor_total == null ? '—' : fmtNumero(e.valor_total)}</td>
+        <td>${e.tipo_movimentacao || '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoEntradaLotes').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} resultados`;
+  document.getElementById('botaoAnteriorEntradaLotes').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoEntradaLotes').disabled = dados.page >= totalPaginas;
+}
+
+// ---------- Atualizar via Oracle (SCODES) ----------
+let timerStatusOracleEntradaLotes = null;
+function mostrarStatusOracleEntradaLotes(texto, cor) {
+  const el = document.getElementById('statusOracleEntradaLotes');
+  el.textContent = texto;
+  el.style.color = cor || '';
+  el.hidden = !texto;
+}
+async function verificarStatusOracleEntradaLotes() {
+  try {
+    const r = await fetch('/api/entrada-lotes/atualizar-oracle/status');
+    const s = await r.json();
+    const botao = document.getElementById('botaoAtualizarEntradaLotes');
+    if (s.rodando) {
+      botao.disabled = true;
+      if (!timerStatusOracleEntradaLotes) timerStatusOracleEntradaLotes = setInterval(verificarStatusOracleEntradaLotes, 5000);
+      const min = s.inicio ? Math.floor((Date.now() - new Date(s.inicio)) / 60000) : 0;
+      mostrarStatusOracleEntradaLotes(`⏳ Atualizando via Oracle… (${min} min) — pode continuar usando o sistema.`, '#8a6d00');
+    } else {
+      botao.disabled = false;
+      if (timerStatusOracleEntradaLotes) { clearInterval(timerStatusOracleEntradaLotes); timerStatusOracleEntradaLotes = null; }
+      if (s.ultimoErro) {
+        mostrarStatusOracleEntradaLotes('❌ Falha na última atualização: ' + s.ultimoErro, '#b00020');
+      } else if (s.ultimoResumo) {
+        const seg = Math.round((s.ultimoResumo.duracaoMs || 0) / 1000);
+        mostrarStatusOracleEntradaLotes(`✅ Atualizado: ${s.ultimoResumo.totalLinhas} linhas (${seg}s). Recarregue a tabela.`, '#1f5c52');
+        if (estado.paginaAtual === 'entradaLotes') carregarEntradaLotes();
+      } else {
+        mostrarStatusOracleEntradaLotes('', '');
+      }
+    }
+  } catch (_) { /* silencioso */ }
+}
+document.getElementById('botaoAtualizarEntradaLotes').addEventListener('click', async () => {
+  if (!confirm('Atualizar as Movimentações de Entrada (últimos 12 meses) direto do Oracle (SCODES)?\n\nIsso substitui os dados atuais e roda em segundo plano — você pode continuar usando o sistema normalmente.')) return;
+  const botao = document.getElementById('botaoAtualizarEntradaLotes');
+  botao.disabled = true;
+  mostrarStatusOracleEntradaLotes('⏳ Iniciando…', '#8a6d00');
+  try {
+    const r = await fetch('/api/entrada-lotes/atualizar-oracle', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) {
+      mostrarStatusOracleEntradaLotes('❌ ' + (d.erro || 'Não foi possível iniciar.'), '#b00020');
+      botao.disabled = false;
+      return;
+    }
+    if (timerStatusOracleEntradaLotes) clearInterval(timerStatusOracleEntradaLotes);
+    timerStatusOracleEntradaLotes = setInterval(verificarStatusOracleEntradaLotes, 5000);
+    verificarStatusOracleEntradaLotes();
+  } catch (e) {
+    mostrarStatusOracleEntradaLotes('❌ Erro de rede ao iniciar.', '#b00020');
+    botao.disabled = false;
+  }
+});
 
 (async function iniciar() {
   try {

@@ -49,6 +49,7 @@
           <p class="nav-grupo-titulo">🔍 Consultas</p>
           <a href="#" data-pagina="relatorioItens">Relatório de Itens</a>
           <a href="#" data-pagina="atas">Atas de Registro de Preço</a>
+          <a href="#" data-pagina="entradaLotes">Movimentações de Entrada</a>
         </div>
 
         <div class="nav-grupo" id="grupoAdministracao">
@@ -674,6 +675,70 @@
             <div class="botoes">
               <button id="botaoAnteriorAquisicaoODAndamento">← Anterior</button>
               <button id="botaoProximoAquisicaoODAndamento">Próximo →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaEntradaLotes" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Movimentações de Entrada</h2>
+            <p id="subtituloEntradaLotes">Entradas de estoque com lote e validade, dos últimos 12 meses (via Oracle/SCODES)</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button id="botaoAtualizarEntradaLotes" class="botao-secundario" type="button" hidden title="Puxa as movimentações de Entrada dos últimos 12 meses direto do Oracle (SCODES). Pode demorar alguns minutos.">🔄 Atualizar via Oracle</button>
+            <span id="statusOracleEntradaLotes" class="status-oracle" hidden></span>
+          </div>
+        </div>
+
+        <div id="avisoSemEntradaLotes" class="estado-vazio" hidden>
+          Nenhuma movimentação de Entrada importada ainda. Use o botão "Atualizar via Oracle" (admin) para puxar os dados.
+        </div>
+
+        <div id="conteudoEntradaLotes" hidden>
+          <div class="grade-resumo" id="grideResumoEntradaLotes"></div>
+
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaEntradaLotes" placeholder="Buscar por medicamento, código, lote, fornecedor, empenho ou nota fiscal…" style="min-width:320px;">
+            <select id="filtroUnidadeEntradaLotes"><option value="">Unidade: todas</option></select>
+            <input type="date" id="filtroDataInicioEntradaLotes" title="Data inicial">
+            <input type="date" id="filtroDataFimEntradaLotes" title="Data final">
+            <button id="botaoLimparFiltrosEntradaLotes" class="botao-secundario" type="button">Limpar filtros</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data Entrada</th>
+                    <th>Unidade</th>
+                    <th>Medicamento</th>
+                    <th>Código Item</th>
+                    <th>Lote</th>
+                    <th>Validade</th>
+                    <th>Qtde</th>
+                    <th>Fabricante</th>
+                    <th>Fornecedor</th>
+                    <th>Modalidade</th>
+                    <th>Nota Empenho</th>
+                    <th>Nota Fiscal</th>
+                    <th>Valor Unitário</th>
+                    <th>Valor Total</th>
+                    <th>Tipo Movimentação</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaEntradaLotes"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioEntradaLotes" hidden>Nenhuma movimentação encontrada com estes filtros.</div>
+            <div class="paginacao">
+              <span id="textoPaginacaoEntradaLotes">—</span>
+              <div class="botoes">
+                <button id="botaoAnteriorEntradaLotes">← Anterior</button>
+                <button id="botaoProximoEntradaLotes">Próximo →</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1570,6 +1635,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=43"></script>
+  <script src="/js/app.js?v=44"></script>
 </body>
 </html>

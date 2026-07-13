@@ -26,6 +26,7 @@ const MODULOS = [
   { chave: 'autores', rotulo: 'Autores / Requisições', acoes: ['visualizar', 'inserir', 'editar', 'excluir', 'exportar', 'importar'] },
   { chave: 'relatorioItens', rotulo: 'Relatório de Itens', acoes: ['visualizar', 'exportar', 'importar'] },
   { chave: 'atas', rotulo: 'Atas de Registro de Preço (SISCOA)', acoes: ['visualizar', 'exportar', 'importar'] },
+  { chave: 'entradaLotes', rotulo: 'Movimentações de Entrada (Lotes/Validade)', acoes: ['visualizar', 'exportar', 'importar'] },
   { chave: 'alertas', rotulo: 'Alertas', acoes: ['visualizar', 'editar'] },
 ];
 
