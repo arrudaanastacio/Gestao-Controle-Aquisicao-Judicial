@@ -191,13 +191,16 @@ function temAlgumaEscrita() {
 
 // Esconde da navegação os módulos que o usuário não pode nem visualizar.
 function aplicarPermissoesNav() {
-  // Cada link de página é mapeado para o módulo que o controla.
+  // Cada link de página é mapeado para o módulo que o controla — um módulo
+  // por tela (13/07/2026), sem mais telas agrupadas sob o mesmo módulo.
   const mapa = {
-    solicitacoes: 'compras', relatorio: 'compras', solicitacoesOD: 'compras', aquisicaoODAndamento: 'compras',
-    estoque: 'estoque', validades: 'estoque', estoqueGeral: 'estoque', estoqueOD: 'estoque',
-    historico: 'estoque', evolucao: 'estoque',
+    relatorio: 'relatorioComprasTP', solicitacoes: 'tabelaAnaliseTP',
+    solicitacoesOD: 'relatorioComprasOD', aquisicaoODAndamento: 'aquisicaoODAndamento',
+    estoque: 'estoqueTP', validades: 'validadesTP', historico: 'historicoEstoqueTP', evolucao: 'evolucaoEstoqueTP',
+    estoqueGeral: 'estoqueGeral', estoqueOD: 'estoqueOD',
     relatorioItens: 'relatorioItens',
-    autores: 'autores', autoresGeral: 'autores', comparativoAutores: 'autores', relatorioReq: 'autores',
+    autores: 'autoresTP', autoresGeral: 'autoresGeral',
+    comparativoAutores: 'comparativoAutoresTP', relatorioReq: 'relatorioReqTP',
     atas: 'atas',
     entradaLotes: 'entradaLotes',
     alertas: 'alertas',
