@@ -3143,6 +3143,9 @@ document.getElementById('reqMarcarTodos').addEventListener('change', (ev) => {
 function atualizarContadorReq() {
   const n = document.querySelectorAll('#reqListaItens .req-check:checked').length;
   document.getElementById('reqContador').textContent = `${n} item(ns) selecionado(s)`;
+  document.querySelectorAll('#reqListaItens .req-check').forEach((c) => {
+    c.closest('.req-item').classList.toggle('req-item-selecionado', c.checked);
+  });
 }
 
 function coletarItensSelecionados() {

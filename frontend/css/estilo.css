@@ -705,6 +705,8 @@ thead th {
 }
 .req-paciente-card:hover { border-color: var(--selo); background: #fbfaf3; }
 .req-item:hover { background: #fbfaf3; }
+.req-item-selecionado { background: #eaf3ea; border-left: 3px solid var(--selo); }
+.req-item-selecionado:hover { background: #e2eee2; }
 
 /* Chips de filtro por faixa de validade */
 .filtros-faixa { display: flex; gap: 6px; flex-wrap: wrap; }
