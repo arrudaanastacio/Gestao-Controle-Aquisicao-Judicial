@@ -1602,6 +1602,10 @@
           <label style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Nº do SEI <span style="color:#c0392b;">*</span> <span style="font-weight:400; color:var(--cinza-texto);">(obrigatório)</span></label>
           <input type="text" id="reqSEI" placeholder="Ex.: 00103.000123/2026-45" style="width:100%; padding:8px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
         </div>
+        <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer; margin-bottom:10px; background:#f0ece0; border:1px solid #e2dcc9; border-radius:6px; padding:8px 10px;">
+          <input type="checkbox" id="reqApenasRegistro">
+          <span><strong>📋 Apenas registrar</strong> <span style="font-weight:400; color:var(--cinza-texto);">— não informa quantidade de aquisição; os itens ficam só para registro no Relatório de Primeiro Atendimento (a regra de estoque disponível continua valendo normalmente).</span></span>
+        </label>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
           <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
             <input type="checkbox" id="reqMarcarTodos"> Marcar todos
@@ -1635,6 +1639,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=47"></script>
+  <script src="/js/app.js?v=48"></script>
 </body>
 </html>

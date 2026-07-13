@@ -2958,6 +2958,7 @@ function abrirRequisicao() {
   reqEditId = null;
   modalRequisicao.hidden = false;
   document.getElementById('botaoGerarRequisicao').textContent = 'Gerar requisição →';
+  document.getElementById('reqApenasRegistro').checked = false;
   voltarParaBuscaPaciente();
 }
 
@@ -3099,7 +3100,21 @@ async function selecionarPaciente(autor) {
   document.querySelectorAll('#reqListaItens .req-autonomia').forEach((inp) => {
     inp.addEventListener('input', () => recalcularAquisicao(inp));
   });
+  aplicarModoApenasRegistro();
   atualizarContadorReq();
+}
+
+// Modo "Apenas registrar": desliga os campos de Autonomia/Qtde de Aquisição
+// (o item entra no Relatório de Primeiro Atendimento sem quantidade definida;
+// a regra de disponibilidade de estoque continua sendo aplicada normalmente).
+document.getElementById('reqApenasRegistro').addEventListener('change', aplicarModoApenasRegistro);
+
+function aplicarModoApenasRegistro() {
+  const ativo = document.getElementById('reqApenasRegistro').checked;
+  document.querySelectorAll('#reqListaItens .req-autonomia, #reqListaItens .req-qtd').forEach((inp) => {
+    inp.disabled = ativo;
+    inp.style.opacity = ativo ? '0.45' : '1';
+  });
 }
 
 // Converte texto numérico em PT-BR (ex.: "5", "5,00", "1.234,5") para número
@@ -3131,11 +3146,12 @@ function atualizarContadorReq() {
 }
 
 function coletarItensSelecionados() {
+  const apenasRegistro = document.getElementById('reqApenasRegistro').checked;
   const selecionados = [];
   document.querySelectorAll('#reqListaItens .req-check:checked').forEach((c) => {
     const idx = Number(c.dataset.idx);
-    const qtd = document.querySelector(`.req-qtd[data-idx="${idx}"]`).value;
-    const autonomiaCompra = document.querySelector(`.req-autonomia[data-idx="${idx}"]`).value;
+    const qtd = apenasRegistro ? 'Apenas registro' : document.querySelector(`.req-qtd[data-idx="${idx}"]`).value;
+    const autonomiaCompra = apenasRegistro ? '' : document.querySelector(`.req-autonomia[data-idx="${idx}"]`).value;
     selecionados.push({ ...reqItensAtuais[idx], quantidade: qtd, autonomia_compra: autonomiaCompra });
   });
   return selecionados;
