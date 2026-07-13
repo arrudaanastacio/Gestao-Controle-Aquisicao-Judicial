@@ -4181,7 +4181,6 @@ async function carregarTabelaEntradaLotes() {
       <tr>
         <td class="col-data">${formatarDataHora(e.data_entrada)}</td>
         <td>${e.item || '—'}</td>
-        <td>${e.categoria || '—'}</td>
         <td class="col-codigo">${e.codigo_item || '—'}</td>
         <td class="col-codigo">${e.lote || '—'}</td>
         <td class="col-data">${e.validade || '—'}</td>
