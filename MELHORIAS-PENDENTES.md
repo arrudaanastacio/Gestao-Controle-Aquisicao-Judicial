@@ -13,6 +13,7 @@
 | 6 | Aquisição em Andamento OD — tela filtrada com as solicitações de Outras Demandas ainda não finalizadas (Planejamento, Adjucado, Empenhado, Entrega Parcial), atualiza sozinha junto com o item 5 | `896867b` | 10/07/2026 | Pendente |
 | 7 | Tabela Análise TP — passa a abrir por padrão filtrada em "Em andamento" (Planejamento, Adjucado, Empenhado, Entrega Parcial), refletindo sempre os dados mais recentes do item 4 | `cabce81` | 10/07/2026 | Pendente |
 | 8 | Movimentação de Entrada Estoque — tela no menu Tenente Pena puxando via Oracle a query enviada pelo Rafael (só o bloco Entrada, só Unidade Tenente Pena), janela móvel de 12 meses calculada no próprio SQL, ordenada da mais nova para a mais antiga, filtros por tipo de movimentação e categoria, encadeada no agendador diário após Autores. **Ainda falta validar a query contra o Oracle real** — em especial o join com a tabela CATEGORIA, que adicionei por analogia sem poder testar (só testei com dados simulados neste ambiente) | `f2c1803`, `80cfffa`, `8497e78` | 13/07/2026 | Pendente — precisa validar Oracle |
+| 9 | Permissão por tela — cada relatório do menu lateral vira módulo independente na grade de permissões (19 módulos, antes eram 8 agrupados). Admin pode liberar/bloquear cada tela individualmente, mesmo as que dividem a mesma rota (ex.: Estoque TP × Itens em Estoque Geral). Testado ponta a ponta (API + menu) com usuário de teste | `21c7b6e` | 13/07/2026 | Pendente |
 
 ## Publicadas recentemente
 
