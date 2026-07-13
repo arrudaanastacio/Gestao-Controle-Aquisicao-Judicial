@@ -6,6 +6,10 @@ const db = new DatabaseSync(DB_PATH);
 
 db.exec('PRAGMA foreign_keys = ON;');
 db.exec('PRAGMA journal_mode = WAL;');
+// Sem isso, duas escritas simultâneas (ex.: sync via Oracle + um vigia de
+// arquivo) fazem o SQLite falhar na hora com "database is locked" em vez de
+// esperar a outra terminar. 5s é suficiente para as escritas deste sistema.
+db.exec('PRAGMA busy_timeout = 5000;');
 
 // Tabela de usuários (criada se não existir)
 db.exec(`
