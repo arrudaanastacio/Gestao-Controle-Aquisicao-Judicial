@@ -33,6 +33,7 @@
           <a href="#" data-pagina="autores">Listagem de Autores Tenente Pena</a>
           <a href="#" data-pagina="relatorioReq">Relatório de Primeiro Atendimento</a>
           <a href="#" data-pagina="comparativoAutores">Comparativo de Autores</a>
+          <a href="#" data-pagina="entradaLotes">Movimentação de Entrada Estoque</a>
           <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
         </div>
 
@@ -49,7 +50,6 @@
           <p class="nav-grupo-titulo">🔍 Consultas</p>
           <a href="#" data-pagina="relatorioItens">Relatório de Itens</a>
           <a href="#" data-pagina="atas">Atas de Registro de Preço</a>
-          <a href="#" data-pagina="entradaLotes">Movimentações de Entrada</a>
         </div>
 
         <div class="nav-grupo" id="grupoAdministracao">
@@ -683,8 +683,8 @@
       <section id="paginaEntradaLotes" hidden>
         <div class="cabecalho-pagina">
           <div>
-            <h2>Movimentações de Entrada</h2>
-            <p id="subtituloEntradaLotes">Entradas de estoque com lote e validade, dos últimos 12 meses (via Oracle/SCODES)</p>
+            <h2>Movimentação de Entrada Estoque</h2>
+            <p id="subtituloEntradaLotes">Entradas de estoque da Unidade Tenente Pena, com lote e validade, dos últimos 12 meses (via Oracle/SCODES)</p>
           </div>
           <div style="display:flex; gap:10px; align-items:center;">
             <button id="botaoAtualizarEntradaLotes" class="botao-secundario" type="button" hidden title="Puxa as movimentações de Entrada dos últimos 12 meses direto do Oracle (SCODES). Pode demorar alguns minutos.">🔄 Atualizar via Oracle</button>
@@ -701,7 +701,7 @@
 
           <div class="barra-filtros">
             <input type="text" id="filtroBuscaEntradaLotes" placeholder="Buscar por medicamento, código, lote, fornecedor, empenho ou nota fiscal…" style="min-width:320px;">
-            <select id="filtroUnidadeEntradaLotes"><option value="">Unidade: todas</option></select>
+            <select id="filtroTipoEntradaLotes"><option value="">Tipo de movimentação: todos</option></select>
             <input type="date" id="filtroDataInicioEntradaLotes" title="Data inicial">
             <input type="date" id="filtroDataFimEntradaLotes" title="Data final">
             <button id="botaoLimparFiltrosEntradaLotes" class="botao-secundario" type="button">Limpar filtros</button>
@@ -713,7 +713,6 @@
                 <thead>
                   <tr>
                     <th>Data Entrada</th>
-                    <th>Unidade</th>
                     <th>Medicamento</th>
                     <th>Código Item</th>
                     <th>Lote</th>
@@ -1635,6 +1634,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=44"></script>
+  <script src="/js/app.js?v=45"></script>
 </body>
 </html>

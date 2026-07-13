@@ -4097,19 +4097,19 @@ async function verificarFalhasOracle() {
   }
 }
 
-// ==================== Movimentações de Entrada (Lotes/Validade) ====================
+// ==================== Movimentação de Entrada Estoque (Tenente Pena) ====================
 const estadoEntradaLotes = { pagina: 1, pageSize: 50, filtrosCarregados: false };
 
 document.getElementById('filtroBuscaEntradaLotes').addEventListener('input', () => {
   clearTimeout(window.__debounceBuscaEntradaLotes);
   window.__debounceBuscaEntradaLotes = setTimeout(() => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); }, 350);
 });
-document.getElementById('filtroUnidadeEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
+document.getElementById('filtroTipoEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
 document.getElementById('filtroDataInicioEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
 document.getElementById('filtroDataFimEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
 document.getElementById('botaoLimparFiltrosEntradaLotes').addEventListener('click', () => {
   document.getElementById('filtroBuscaEntradaLotes').value = '';
-  document.getElementById('filtroUnidadeEntradaLotes').value = '';
+  document.getElementById('filtroTipoEntradaLotes').value = '';
   document.getElementById('filtroDataInicioEntradaLotes').value = '';
   document.getElementById('filtroDataFimEntradaLotes').value = '';
   estadoEntradaLotes.pagina = 1;
@@ -4140,10 +4140,10 @@ async function carregarEntradaLotes() {
   `;
 
   if (!estadoEntradaLotes.filtrosCarregados) {
-    const { unidades } = await api('/entrada-lotes/filtros');
-    const sel = document.getElementById('filtroUnidadeEntradaLotes');
-    sel.innerHTML = '<option value="">Unidade: todas</option>' +
-      unidades.map((u) => `<option value="${u.replace(/"/g, '&quot;')}">${u}</option>`).join('');
+    const { tipos } = await api('/entrada-lotes/filtros');
+    const sel = document.getElementById('filtroTipoEntradaLotes');
+    sel.innerHTML = '<option value="">Tipo de movimentação: todos</option>' +
+      tipos.map((t) => `<option value="${t.replace(/"/g, '&quot;')}">${t}</option>`).join('');
     estadoEntradaLotes.filtrosCarregados = true;
   }
 
@@ -4152,13 +4152,13 @@ async function carregarEntradaLotes() {
 
 async function carregarTabelaEntradaLotes() {
   const q = document.getElementById('filtroBuscaEntradaLotes').value.trim();
-  const unidade = document.getElementById('filtroUnidadeEntradaLotes').value;
+  const tipoMovimentacao = document.getElementById('filtroTipoEntradaLotes').value;
   const dataInicio = document.getElementById('filtroDataInicioEntradaLotes').value;
   const dataFim = document.getElementById('filtroDataFimEntradaLotes').value;
 
   const params = new URLSearchParams({ page: estadoEntradaLotes.pagina, pageSize: estadoEntradaLotes.pageSize });
   if (q) params.set('q', q);
-  if (unidade) params.set('unidade', unidade);
+  if (tipoMovimentacao) params.set('tipoMovimentacao', tipoMovimentacao);
   if (dataInicio) params.set('dataInicio', dataInicio);
   if (dataFim) params.set('dataFim', dataFim);
 
@@ -4173,7 +4173,6 @@ async function carregarTabelaEntradaLotes() {
     corpo.innerHTML = dados.entradas.map((e) => `
       <tr>
         <td class="col-data">${formatarDataHora(e.data_entrada)}</td>
-        <td>${e.unidade || '—'}</td>
         <td>${e.item || '—'}</td>
         <td class="col-codigo">${e.codigo_item || '—'}</td>
         <td class="col-codigo">${e.lote || '—'}</td>

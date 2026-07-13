@@ -1,9 +1,9 @@
--- Consulta de Movimentações de ENTRADA com Lotes/Validade.
--- Baseada em "SCODES - SQL - Consulta de Movimentações com Lotes Validade.sql"
--- (Rafael, 13/07/2026), reduzida ao bloco de Entrada — é o único usado pelo
--- sistema. A janela de datas é sempre os últimos 12 meses até hoje, calculada
--- pelo próprio Oracle (SYSDATE) — desliza sozinha a cada dia, sem precisar de
--- parâmetro nem de código no lado da aplicação.
+-- Consulta de Movimentações de ENTRADA com Lotes/Validade — só Unidade
+-- Tenente Pena. Baseada em "SCODES - SQL - Consulta de Movimentações com
+-- Lotes Validade.sql" (Rafael, 13/07/2026), reduzida ao bloco de Entrada —
+-- é o único usado pelo sistema. A janela de datas é sempre os últimos 12
+-- meses até hoje, calculada pelo próprio Oracle (SYSDATE) — desliza sozinha
+-- a cada dia, sem precisar de parâmetro nem de código no lado da aplicação.
 SELECT
   fcn_nome_produto(q.pro_id)                                              AS ITEM,
   UND.UND_Descricao                                                       AS UND_DESCRICAO,
@@ -76,7 +76,9 @@ WHERE q.ent_id = e.ent_id
   AND q.EST_ID = estl.EST_ID(+)
   AND estl.LOT_ID = lot.LOT_ID(+)
   AND q.UND_ID = UND.UND_ID
+  -- Só Unidade Tenente Pena (mesmo critério usado no resto do sistema)
+  AND UND.UND_Descricao LIKE '%Tenente Pena%'
   -- Janela móvel: últimos 12 meses até hoje, recalculada a cada execução
   AND ent_dth >= ADD_MONTHS(TRUNC(SYSDATE), -12)
   AND ent_dth < TRUNC(SYSDATE) + 1
-ORDER BY UND_DESCRICAO, ENT_DTH, PRO_CODIGO, LOT_NUMERO
+ORDER BY ENT_DTH DESC, PRO_CODIGO, LOT_NUMERO
