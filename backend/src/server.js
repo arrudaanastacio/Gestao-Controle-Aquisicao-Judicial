@@ -123,4 +123,8 @@ app.listen(PORT, '0.0.0.0', () => {
   // Autores em seguida (encadeado, nunca ao mesmo tempo).
   const { iniciarAgendadorOracleDiario } = require('./agendadorOracleDiario');
   iniciarAgendadorOracleDiario();
+
+  // Backup diário do banco (antes das sincronizações via Oracle, por padrão).
+  const { iniciarBackupDiario } = require('./backupBanco');
+  iniciarBackupDiario();
 });
