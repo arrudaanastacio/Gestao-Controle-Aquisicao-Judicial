@@ -25,6 +25,7 @@ const atasRoutes = require('./routes.atas');
 const estoqueODRoutes = require('./routes.estoqueOD');
 const solicitacoesODRoutes = require('./routes.solicitacoesOD');
 const entradaLotesRoutes = require('./routes.entradaLotes');
+const importacoesInfoRoutes = require('./routes.importacoesInfo');
 const configRoutes = require('./routes.config');
 const { autenticar, exigirModulo, exigirModuloDinamico } = require('./auth');
 
@@ -46,6 +47,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', usuariosRoutes);   // só admin (guarda interna)
 app.use('/api/itens', itensRoutes);         // consulta de apoio do catálogo
 app.use('/api/config', configRoutes);       // leitura aberta, escrita só admin
+app.use('/api/importacoes', autenticar, importacoesInfoRoutes); // só data/hora, sem trava de módulo
 
 // Rotas de dados: travadas por MÓDULO. A ação (ver/inserir/editar/excluir/
 // exportar/importar) é deduzida do método+caminho em auth.js. Admin passa sempre.

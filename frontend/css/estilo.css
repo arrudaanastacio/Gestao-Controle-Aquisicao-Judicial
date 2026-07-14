@@ -467,6 +467,10 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .cabecalho-pagina h2 { font-size: 24px; }
 .cabecalho-pagina p { color: var(--cinza-texto); margin: 4px 0 0; font-size: 13.5px; }
 
+.cabecalho-direita { display: flex; align-items: center; gap: 10px; }
+.atualizado-em { font-size: 12px; color: var(--cinza-texto); white-space: nowrap; }
+.atualizado-em::before { content: '🕒 '; }
+
 /* ---------- CARTÕES DE RESUMO ---------- */
 
 .grade-resumo {

@@ -401,6 +401,7 @@ function preencherAnos() {
 }
 
 async function carregarSolicitacoes() {
+  carregarUltimaAtualizacao('atualizadoSolicitacoes', 'solicitacoes');
   const params = new URLSearchParams();
   if (filtroBusca.value) params.set('q', filtroBusca.value);
   if (filtroStatus.value) params.set('status', filtroStatus.value);
@@ -672,6 +673,7 @@ document.getElementById('botaoLimparFiltrosRelatorio').addEventListener('click',
 });
 
 async function carregarRelatorio() {
+  carregarUltimaAtualizacao('atualizadoRelatorio', 'solicitacoes');
   if (filtroAnoRelatorio.options.length <= 1) {
     const anoAtual = new Date().getFullYear();
     for (let a = anoAtual + 1; a >= 2025; a--) {
@@ -1743,6 +1745,7 @@ document.getElementById('botaoProximoSolicitacoesOD').addEventListener('click', 
 });
 
 async function carregarSolicitacoesOD() {
+  carregarUltimaAtualizacao('atualizadoSolicitacoesOD', 'solicitacoes_od');
   const { porStatus } = await api('/solicitacoes-od/resumo');
   document.getElementById('grideResumoSolicitacoesOD').innerHTML = porStatus
     .sort((a, b) => b.qtde - a.qtde)
@@ -1854,6 +1857,7 @@ document.getElementById('botaoProximoAquisicaoODAndamento').addEventListener('cl
 });
 
 async function carregarAquisicaoODAndamento() {
+  carregarUltimaAtualizacao('atualizadoAquisicaoODAndamento', 'solicitacoes_od');
   const { porStatus } = await api('/solicitacoes-od/resumo?emAberto=true');
   document.getElementById('grideResumoAquisicaoODAndamento').innerHTML = porStatus
     .sort((a, b) => b.qtde - a.qtde)
@@ -3300,6 +3304,20 @@ async function reabrirRequisicao(id) {
     itens: dados.itens,
   });
   abrirDocumento(html);
+}
+
+// Preenche o "Atualizado em" do cabeçalho de uma tela com a data/hora da
+// última importação (manual ou automática, ambas gravam na tabela
+// importacoes) daquele tipo. Falha silenciosa: não deve travar a tela.
+async function carregarUltimaAtualizacao(spanId, tipo) {
+  const span = document.getElementById(spanId);
+  if (!span) return;
+  try {
+    const { criado_em } = await api(`/importacoes/ultima?tipo=${encodeURIComponent(tipo)}`);
+    span.textContent = criado_em ? `Atualizado em ${formatarDataHora(criado_em)}` : '';
+  } catch (_) {
+    span.textContent = '';
+  }
 }
 
 function formatarDataHora(iso) {

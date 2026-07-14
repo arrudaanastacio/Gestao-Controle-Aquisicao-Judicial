@@ -92,7 +92,10 @@
             <h2>Relatório de Compras - Aquisição em Andamento Tenente Pena</h2>
             <p>Consulte o andamento de cada item solicitado</p>
           </div>
-          <button class="botao-primario" id="botaoNovaSolicitacao" hidden>+ Nova solicitação</button>
+          <div class="cabecalho-direita">
+            <span class="atualizado-em" id="atualizadoSolicitacoes"></span>
+            <button class="botao-primario" id="botaoNovaSolicitacao" hidden>+ Nova solicitação</button>
+          </div>
         </div>
 
         <p class="somente-leitura-aviso" id="avisoSomenteLeitura" hidden>
@@ -182,7 +185,8 @@
             <h2>Relatório de Compras Geral</h2>
             <p>Todos os meses reunidos em uma única lista — somente itens com modalidade de compra definida</p>
           </div>
-          <div style="display:flex; gap:10px;">
+          <div style="display:flex; gap:10px; align-items:center;">
+            <span class="atualizado-em" id="atualizadoRelatorio"></span>
             <select id="filtroAnoRelatorio">
               <option value="">Todos os anos</option>
             </select>
@@ -575,6 +579,7 @@
             <h2>Relatório de Compras OD</h2>
             <p>Solicitações de compra de medicamentos de Outras Demandas</p>
           </div>
+          <span class="atualizado-em" id="atualizadoSolicitacoesOD"></span>
         </div>
 
         <div class="grade-resumo" id="grideResumoSolicitacoesOD"></div>
@@ -632,6 +637,7 @@
             <h2>Aquisição em Andamento OD</h2>
             <p>Solicitações de Outras Demandas com compra ainda não finalizada (Planejamento, Adjucado, Empenhado, Entrega Parcial)</p>
           </div>
+          <span class="atualizado-em" id="atualizadoAquisicaoODAndamento"></span>
         </div>
 
         <div class="grade-resumo" id="grideResumoAquisicaoODAndamento"></div>
@@ -1639,6 +1645,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=49"></script>
+  <script src="/js/app.js?v=50"></script>
 </body>
 </html>
