@@ -16,6 +16,7 @@
 | 9 | Permissão por tela — cada relatório do menu lateral vira módulo independente na grade de permissões (19 módulos, antes eram 8 agrupados). Admin pode liberar/bloquear cada tela individualmente, mesmo as que dividem a mesma rota (ex.: Estoque TP × Itens em Estoque Geral). Testado ponta a ponta (API + menu) com usuário de teste | `21c7b6e` | 13/07/2026 | Pendente |
 | 10 | Botão "Apenas registrar" na Requisição de Compra — dispensa a quantidade de aquisição dos itens marcados; eles entram no Relatório de Primeiro Atendimento gravados como "Apenas registro". A regra de disponibilidade de estoque continua igual. Testado ponta a ponta (gerou requisição real, confirmado no banco e na tela do relatório) | `f00fdae` | 13/07/2026 | Pendente |
 | 11 | Destaque visual dos itens marcados no modal de Requisição de Compra — ao selecionar o checkbox, a linha do medicamento muda de cor (fundo verde + borda) para facilitar a identificação | `79a7d63` | 13/07/2026 | Pendente |
+| 12 | "Atualizado em" no canto superior direito do Relatório de Compras TP, Tabela Análise TP, Relatório de Compras OD e Aquisição em Andamento OD — mostra data/hora da última importação (manual ou automática) | `f17df7f` | 14/07/2026 | Pendente |
 
 ## Publicadas recentemente
 
