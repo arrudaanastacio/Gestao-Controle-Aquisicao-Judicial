@@ -11,10 +11,18 @@
 // (AAAA-MM-DD). Mantém só os últimos N dias (BACKUP_RETENCAO_DIAS,
 // padrão 14) — apaga os mais antigos automaticamente.
 //
+// Além da cópia local, se BACKUP_PASTA_DRIVE apontar para uma pasta do
+// Google Drive para Desktop (ex.: "G:\Meu Drive\Backups Compras
+// Judiciais"), o mesmo arquivo é copiado pra lá também — o app do Drive
+// sincroniza sozinho em segundo plano. Se a pasta não existir (Drive
+// fechado/deslogado), só avisa no log e segue — o backup local já
+// aconteceu de qualquer forma.
+//
 // Ligado por padrão. Desligar com AUTO_BACKUP=false no .env.
-//   BACKUP_HORA=5            -> hora do backup (0-23), padrão 5
-//   BACKUP_MINUTO=0          -> minuto do backup (0-59), padrão 0
-//   BACKUP_RETENCAO_DIAS=14  -> quantos dias de backup manter
+//   BACKUP_HORA=5              -> hora do backup (0-23), padrão 5
+//   BACKUP_MINUTO=0            -> minuto do backup (0-59), padrão 0
+//   BACKUP_RETENCAO_DIAS=14    -> quantos dias de backup manter
+//   BACKUP_PASTA_DRIVE=        -> pasta do Google Drive (opcional)
 // =====================================================================
 const fs = require('fs');
 const path = require('path');
@@ -29,24 +37,41 @@ function nomeArquivoHoje() {
   return `medicamentos_judicial_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.db`;
 }
 
-// Apaga backups mais antigos que a retenção configurada.
-function limparBackupsAntigos(dias) {
+// Apaga backups mais antigos que a retenção configurada, numa pasta dada.
+function limparBackupsAntigos(pasta, dias, rotulo) {
   const limiteMs = dias * 24 * 60 * 60 * 1000;
   const agora = Date.now();
   let arquivos;
   try {
-    arquivos = fs.readdirSync(PASTA_BACKUPS);
+    arquivos = fs.readdirSync(pasta);
   } catch {
     return;
   }
   for (const nome of arquivos) {
     if (!nome.endsWith('.db')) continue;
-    const caminho = path.join(PASTA_BACKUPS, nome);
+    const caminho = path.join(pasta, nome);
     const st = fs.statSync(caminho);
     if (agora - st.mtimeMs > limiteMs) {
       fs.unlinkSync(caminho);
-      console.log(`[BACKUP BANCO] Removido backup antigo: ${nome}`);
+      console.log(`[BACKUP BANCO] Removido backup antigo${rotulo ? ' (' + rotulo + ')' : ''}: ${nome}`);
     }
+  }
+}
+
+// Copia o backup do dia também para a pasta do Google Drive (se configurada).
+// Falha silenciosa (só loga aviso): o backup local já é o que garante os
+// dados, o Drive é uma segunda cópia de conveniência.
+function copiarParaDrive(origem, nomeArquivo, retencaoDias) {
+  const pastaDrive = process.env.BACKUP_PASTA_DRIVE;
+  if (!pastaDrive) return;
+  try {
+    fs.mkdirSync(pastaDrive, { recursive: true });
+    const destino = path.join(pastaDrive, nomeArquivo);
+    fs.copyFileSync(origem, destino);
+    console.log(`[BACKUP BANCO] Copiado também para o Google Drive: ${destino}`);
+    limparBackupsAntigos(pastaDrive, retencaoDias, 'Google Drive');
+  } catch (e) {
+    console.warn(`[BACKUP BANCO] Não consegui copiar para o Google Drive (${pastaDrive}): ${e.message}`);
   }
 }
 
@@ -67,7 +92,8 @@ function rodarBackup() {
   console.log(`[BACKUP BANCO] Backup salvo: ${nomeArquivoHoje()} (${tamanhoMB} MB, ${segundos}s).`);
 
   const retencaoDias = Math.max(1, parseInt(process.env.BACKUP_RETENCAO_DIAS, 10) || 14);
-  limparBackupsAntigos(retencaoDias);
+  limparBackupsAntigos(PASTA_BACKUPS, retencaoDias);
+  copiarParaDrive(destino, nomeArquivoHoje(), retencaoDias);
 }
 
 function iniciarBackupDiario() {
