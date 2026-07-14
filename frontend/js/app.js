@@ -160,6 +160,8 @@ async function carregarUsuario() {
     document.getElementById('botaoImportarEstoqueOD').hidden = false;
     document.getElementById('botaoAtualizarEntradaLotes').hidden = false;
     verificarStatusOracleEntradaLotes();
+    document.getElementById('botaoAtualizarRelatorioItens').hidden = false;
+    verificarStatusOracleRelatorioItens();
     atualizarBadgeAlertas();
     carregarConfigLimiar();
   } else {
@@ -2784,6 +2786,61 @@ async function carregarTabelaRelItens() {
   document.getElementById('riProximo').disabled = dados.page >= totalPaginas;
 }
 
+// ---------- Atualizar via Oracle (SCODES) ----------
+let timerStatusOracleRelatorioItens = null;
+function mostrarStatusOracleRelatorioItens(texto, cor) {
+  const el = document.getElementById('statusOracleRelatorioItens');
+  el.textContent = texto;
+  el.style.color = cor || '';
+  el.hidden = !texto;
+}
+async function verificarStatusOracleRelatorioItens() {
+  try {
+    const r = await fetch('/api/relatorio-itens/atualizar-oracle/status');
+    const s = await r.json();
+    const botao = document.getElementById('botaoAtualizarRelatorioItens');
+    if (s.rodando) {
+      botao.disabled = true;
+      if (!timerStatusOracleRelatorioItens) timerStatusOracleRelatorioItens = setInterval(verificarStatusOracleRelatorioItens, 5000);
+      const min = s.inicio ? Math.floor((Date.now() - new Date(s.inicio)) / 60000) : 0;
+      mostrarStatusOracleRelatorioItens(`⏳ Atualizando via Oracle… (${min} min) — pode continuar usando o sistema.`, '#8a6d00');
+    } else {
+      botao.disabled = false;
+      if (timerStatusOracleRelatorioItens) { clearInterval(timerStatusOracleRelatorioItens); timerStatusOracleRelatorioItens = null; }
+      if (s.ultimoErro) {
+        mostrarStatusOracleRelatorioItens('❌ Falha na última atualização: ' + s.ultimoErro, '#b00020');
+      } else if (s.ultimoResumo) {
+        const seg = Math.round((s.ultimoResumo.duracaoMs || 0) / 1000);
+        mostrarStatusOracleRelatorioItens(`✅ Atualizado: ${s.ultimoResumo.totalItens} itens (${seg}s). Recarregue a tabela.`, '#1f5c52');
+        if (estado.paginaAtual === 'relatorioItens') carregarTabelaRelItens();
+      } else {
+        mostrarStatusOracleRelatorioItens('', '');
+      }
+    }
+  } catch (_) { /* silencioso */ }
+}
+document.getElementById('botaoAtualizarRelatorioItens').addEventListener('click', async () => {
+  if (!confirm('Atualizar o catálogo completo (Relatório de Itens) direto do Oracle (SCODES)?\n\nIsso substitui os dados atuais e roda em segundo plano — você pode continuar usando o sistema normalmente.\n\nObs.: "Intercambiável" e "Comissão de Farmacologia" não vêm do Oracle e ficam em branco (só a importação manual por CSV preenche esses dois campos).')) return;
+  const botao = document.getElementById('botaoAtualizarRelatorioItens');
+  botao.disabled = true;
+  mostrarStatusOracleRelatorioItens('⏳ Iniciando…', '#8a6d00');
+  try {
+    const r = await fetch('/api/relatorio-itens/atualizar-oracle', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) {
+      mostrarStatusOracleRelatorioItens('❌ ' + (d.erro || 'Não foi possível iniciar.'), '#b00020');
+      botao.disabled = false;
+      return;
+    }
+    if (timerStatusOracleRelatorioItens) clearInterval(timerStatusOracleRelatorioItens);
+    timerStatusOracleRelatorioItens = setInterval(verificarStatusOracleRelatorioItens, 5000);
+    verificarStatusOracleRelatorioItens();
+  } catch (e) {
+    mostrarStatusOracleRelatorioItens('❌ Erro de rede ao iniciar.', '#b00020');
+    botao.disabled = false;
+  }
+});
+
 // -------------------- Comparativo de Autores (anterior × atual) --------------------
 let dadosComparativo = null;
 let abaComparativoAtiva = 'novos';
@@ -4117,15 +4174,17 @@ async function verificarFalhasOracle() {
   if (estado.usuario.perfil !== 'admin') return;
   const banner = document.getElementById('bannerAlertaOracle');
   try {
-    const [estoque, autores, entradaLotes] = await Promise.all([
+    const [estoque, autores, entradaLotes, relatorioItens] = await Promise.all([
       api('/estoque/atualizar-oracle/status'),
       api('/autores/atualizar-oracle/status'),
       api('/entrada-lotes/atualizar-oracle/status'),
+      api('/relatorio-itens/atualizar-oracle/status'),
     ]);
     const falhas = [];
     if (estoque && estoque.ultimoErro) falhas.push(`Estoque: ${estoque.ultimoErro}`);
     if (autores && autores.ultimoErro) falhas.push(`Listagem de Autores: ${autores.ultimoErro}`);
     if (entradaLotes && entradaLotes.ultimoErro) falhas.push(`Entrada (lotes): ${entradaLotes.ultimoErro}`);
+    if (relatorioItens && relatorioItens.ultimoErro) falhas.push(`Relatório de Itens: ${relatorioItens.ultimoErro}`);
     if (falhas.length) {
       banner.textContent = `⚠️ A última sincronização automática via Oracle falhou. ${falhas.join(' | ')}`;
       banner.hidden = false;

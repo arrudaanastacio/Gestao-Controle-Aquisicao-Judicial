@@ -1185,6 +1185,10 @@
             <h2>Relatório de Itens</h2>
             <p id="subtituloRelatorioItens">Catálogo completo dos itens</p>
           </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button id="botaoAtualizarRelatorioItens" class="botao-secundario" type="button" hidden title="Puxa o catálogo completo direto do Oracle (SCODES). Pode demorar alguns minutos.">🔄 Atualizar via Oracle</button>
+            <span id="statusOracleRelatorioItens" class="status-oracle" hidden></span>
+          </div>
         </div>
 
         <div class="grade-resumo" id="grideResumoRelItens"></div>
@@ -1645,6 +1649,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=50"></script>
+  <script src="/js/app.js?v=51"></script>
 </body>
 </html>
