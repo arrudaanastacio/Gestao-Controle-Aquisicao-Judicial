@@ -19,7 +19,7 @@
 | 12 | "Atualizado em" no canto superior direito do Relatório de Compras TP, Tabela Análise TP, Relatório de Compras OD e Aquisição em Andamento OD — mostra data/hora da última importação (manual ou automática) | `f17df7f` | 14/07/2026 | Pendente |
 | 13 | Relatório de Itens — atualização automática via Oracle (SCODES), encadeada no agendador diário após Entrada (lotes), com botão "Atualizar via Oracle" manual para o admin. "Intercambiável" e "Comissão de Farmacologia" continuam só no CSV manual (não vêm do Oracle). Testado contra o Oracle real: 14.421 itens, sem nenhum sem descrição | `6b681bf` | 14/07/2026 | Pendente |
 | 14 | Backup automático diário do banco (5h por padrão) em `backend/data/backups/`, via VACUUM INTO (cópia consistente + compactada), com cópia opcional também para uma pasta do Google Drive sincronizada (`BACKUP_PASTA_DRIVE`). Mantém só os últimos 14 dias em cada pasta, apaga o resto sozinho. Testado manualmente (backup local, sobrescrita, retenção, cópia pro Drive e falha graciosa se a pasta não existir) | `8f2b406`, `77a96d5` | 14/07/2026 | Pendente — precisa configurar `BACKUP_PASTA_DRIVE` em produção |
-| 15 | Folha impressa da Requisição de Compra não mostra mais Prazo, Periodicidade e Disp. Autorizadas (continuam visíveis no modal de seleção) | `db6ab5a` | 14/07/2026 | Pendente |
+| 15 | Folha impressa da Requisição de Compra não mostra mais Prazo, Periodicidade, Disp. Autorizadas e Tipo de Demanda (continuam visíveis no modal de seleção) | `db6ab5a`, `ff33375` | 14/07/2026 | Pendente |
 
 ## Publicadas recentemente
 
