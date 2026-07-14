@@ -3230,7 +3230,6 @@ function montarDocumentoRequisicao(d) {
       <td>${it.cod_siafisico || '—'}</td>
       <td>${it.catmat || '—'}</td>
       <td>${it.descricao_item || '—'}</td>
-      <td>${it.tipo_demanda || '—'}</td>
       <td style="text-align:center;">${it.qtde_consumo || '—'}</td>
       <td style="text-align:center;"><strong>${it.quantidade || '—'}</strong></td>
     </tr>`).join('');
@@ -3263,7 +3262,7 @@ function montarDocumentoRequisicao(d) {
       <strong>Operador:</strong> ${d.operadorNome || '—'} &nbsp;|&nbsp; <strong>Login:</strong> ${d.operadorEmail || '—'}
     </div>
     <table>
-      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th>Tipo de Demanda</th><th>Qtde Consumo</th><th style="width:90px;">Quantidade de Aquisição</th></tr></thead>
+      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th>Qtde Consumo</th><th style="width:90px;">Quantidade de Aquisição</th></tr></thead>
       <tbody>${linhas}</tbody>
     </table>
     <div class="assin">
