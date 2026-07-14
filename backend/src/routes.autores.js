@@ -109,33 +109,45 @@ function importarAutoresDeLinhas(linhas, opcoes = {}) {
   const usuarioEmail = opcoes.usuarioEmail || 'sistema';
   const usuarioId = opcoes.usuarioId ?? null;
 
-  // Substitui a versão da mesma data (se reimportar no mesmo dia)
-  db.prepare('DELETE FROM autores_itens WHERE data_referencia = ?').run(dataReferencia);
+  // Tudo numa única transação: com milhares de linhas, gravar uma a uma (cada
+  // INSERT como commit separado) prendia o banco por minutos e colidia com
+  // qualquer outra escrita concorrente ("database is locked"), mesmo com
+  // busy_timeout. Em transação, o commit final é único e quase instantâneo.
+  let resumo;
+  db.exec('BEGIN');
+  try {
+    // Substitui a versão da mesma data (se reimportar no mesmo dia)
+    db.prepare('DELETE FROM autores_itens WHERE data_referencia = ?').run(dataReferencia);
 
-  const cols = ['data_referencia', ...CAMPOS];
-  const stmt = db.prepare(
-    `INSERT INTO autores_itens (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`
-  );
-  for (const l of linhas) {
-    // undefined não pode ser vinculado no SQLite; normaliza para null.
-    stmt.run(dataReferencia, ...CAMPOS.map((c) => (l[c] === undefined ? null : l[c])));
+    const cols = ['data_referencia', ...CAMPOS];
+    const stmt = db.prepare(
+      `INSERT INTO autores_itens (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`
+    );
+    for (const l of linhas) {
+      // undefined não pode ser vinculado no SQLite; normaliza para null.
+      stmt.run(dataReferencia, ...CAMPOS.map((c) => (l[c] === undefined ? null : l[c])));
+    }
+
+    // Mantém só as 2 versões mais recentes (atual + anterior, para o comparativo)
+    const datas = db.prepare('SELECT DISTINCT data_referencia FROM autores_itens WHERE data_referencia IS NOT NULL ORDER BY data_referencia DESC').all().map((r) => r.data_referencia);
+    if (datas.length > 2) {
+      const manter = datas.slice(0, 2);
+      db.prepare(`DELETE FROM autores_itens WHERE data_referencia NOT IN (${manter.map(() => '?').join(',')})`).run(...manter);
+    }
+
+    // contagens úteis (só da versão atual)
+    const totalAutores = db.prepare('SELECT COUNT(DISTINCT autor) c FROM autores_itens WHERE data_referencia = ?').get(dataReferencia).c;
+    resumo = { dataReferencia, totalLinhas: linhas.length, totalAutores };
+
+    db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
+      .run('autores', opcoes.nomeArquivo || 'autores', usuarioEmail, JSON.stringify(resumo));
+    db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, dados_depois) VALUES (?, ?, ?, ?, ?)')
+      .run(usuarioId, usuarioEmail, 'importar_autores', 'autores_itens', JSON.stringify(resumo));
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
   }
-
-  // Mantém só as 2 versões mais recentes (atual + anterior, para o comparativo)
-  const datas = db.prepare('SELECT DISTINCT data_referencia FROM autores_itens WHERE data_referencia IS NOT NULL ORDER BY data_referencia DESC').all().map((r) => r.data_referencia);
-  if (datas.length > 2) {
-    const manter = datas.slice(0, 2);
-    db.prepare(`DELETE FROM autores_itens WHERE data_referencia NOT IN (${manter.map(() => '?').join(',')})`).run(...manter);
-  }
-
-  // contagens úteis (só da versão atual)
-  const totalAutores = db.prepare('SELECT COUNT(DISTINCT autor) c FROM autores_itens WHERE data_referencia = ?').get(dataReferencia).c;
-  const resumo = { dataReferencia, totalLinhas: linhas.length, totalAutores };
-
-  db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
-    .run('autores', opcoes.nomeArquivo || 'autores', usuarioEmail, JSON.stringify(resumo));
-  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, dados_depois) VALUES (?, ?, ?, ?, ?)')
-    .run(usuarioId, usuarioEmail, 'importar_autores', 'autores_itens', JSON.stringify(resumo));
 
   return resumo;
 }
