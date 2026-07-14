@@ -1017,6 +1017,13 @@ body.tem-faixa-ambiente { padding-top: 30px; }
   text-align: center;
 }
 
+.rodape-desenvolvedor {
+  margin-top: 2px;
+  font-size: 0.66rem;
+  color: rgba(233, 243, 239, 0.4);
+  text-align: center;
+}
+
 /* Desfaz a regra genérica de largura da 3ª coluna (feita para outra tabela,
    onde a 3ª coluna é descrição). Nas telas de Autores a 3ª coluna é curta. */
 #paginaAutores .tabela-rolavel-x td:nth-child(3),
