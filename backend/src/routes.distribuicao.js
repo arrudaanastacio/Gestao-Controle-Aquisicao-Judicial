@@ -25,14 +25,29 @@ const { autenticar } = require('./auth');
 const router = express.Router();
 router.use(autenticar);
 
+// Algumas colunas de código (ex.: Código Programa, Código Destino) vêm
+// formatadas como DATA no Excel de origem mesmo contendo só um número (ex.:
+// "3004"). Com cellDates:true, o SheetJS converte essas células pra objeto
+// Date — se isso acontecer aqui (numa coluna que não deveria ser data),
+// reconstruímos o número original a partir da data em vez de devolver o
+// texto malformado tipo "Sun Mar 22 1908...".
 function texto(v) {
   if (v === undefined || v === null) return null;
+  if (v instanceof Date) {
+    if (Number.isNaN(v.getTime())) return null;
+    const serial = Math.round((v.getTime() - Date.UTC(1899, 11, 30)) / 86400000);
+    return String(serial);
+  }
   const t = String(v).trim();
   return t === '' ? null : t;
 }
 
 function numero(v) {
   if (v === undefined || v === null || v === '') return null;
+  if (v instanceof Date) {
+    if (Number.isNaN(v.getTime())) return null;
+    return Math.round((v.getTime() - Date.UTC(1899, 11, 30)) / 86400000);
+  }
   const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/\./g, '').replace(',', '.'));
   return Number.isFinite(n) ? n : null;
 }
@@ -45,10 +60,15 @@ function normalizar(s) {
 }
 
 // ---------- Mapeamento de código (GSNET -> SCODES) ----------
-// Reaproveita o mesmo arquivo já usado pelo Estoque Outras Demandas.
-const PASTA_ESTOQUE_OD_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\GRADES DISTRIBUIÇÕES\\2026\\OUTRAS DEMANDAS\\Estoque Outras Demandas';
-const PASTA_ESTOQUE_OD = process.env.CAMINHO_ESTOQUE_OD || PASTA_ESTOQUE_OD_PADRAO;
-const CAMINHO_MAPEAMENTO_GSNET = path.join(PASTA_ESTOQUE_OD, 'Cadastro Itens GSNET - IBL.xlsx');
+// A partir de 2026 este cadastro passou a ficar na pasta "BANCO DE DADOS"
+// (junto com o Modelo grade.xlsx), não mais em "OUTRAS DEMANDAS\Estoque
+// Outras Demandas" — a pasta antiga não existe mais (virou pastas por mês).
+// Colunas identificadas pelo NOME (não pela posição) porque a ordem já
+// mudou uma vez (o código GSNET está hoje em "Novo Código GSNET", não na
+// posição em que o Estoque OD original foi escrito).
+const PASTA_BANCO_DADOS_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\GRADES DISTRIBUIÇÕES\\2026\\BANCO DE DADOS';
+const PASTA_BANCO_DADOS = process.env.CAMINHO_BANCO_DADOS_DISTRIBUICAO || PASTA_BANCO_DADOS_PADRAO;
+const CAMINHO_MAPEAMENTO_GSNET = path.join(PASTA_BANCO_DADOS, 'Cadastro Itens GSNET - IBL.xlsx');
 
 function carregarMapeamentoGsnet() {
   const mapa = new Map();
@@ -57,10 +77,17 @@ function carregarMapeamentoGsnet() {
     const wb = XLSX.read(buffer, { type: 'buffer' });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const cab = (rows[0] || []).map(normalizar);
+    const colScodes = cab.findIndex((c) => c === 'codigo');
+    const colSku = cab.findIndex((c) => c.includes('novo codigo') && c.includes('gsnet'));
+    if (colScodes === -1 || colSku === -1) {
+      console.warn('[DISTRIBUIÇÃO] Não reconheci as colunas do Cadastro Itens GSNET-IBL (esperava "Código" e "Novo Código GSNET").');
+      return mapa;
+    }
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
-      const codigoScodes = texto(r[0]);
-      const codigoSku = texto(r[4]);
+      const codigoScodes = texto(r[colScodes]);
+      const codigoSku = texto(r[colSku]);
       if (codigoScodes && codigoSku) mapa.set(String(codigoSku).trim(), codigoScodes);
     }
   } catch (e) {
@@ -138,11 +165,14 @@ function parsearStatusFaturas(buffer) {
 function decodificarEntidadesHtml(s) {
   return s
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    // Entidades numéricas (ex.: &#199; -> Ç, &#195; -> Ã) — comuns em
+    // acentos exportados pelo sistema Simples (PRODESP).
+    .replace(/&#(\d+);/g, (_, cod) => String.fromCharCode(parseInt(cod, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, cod) => String.fromCharCode(parseInt(cod, 16)))
+    .replace(/&amp;/g, '&');
 }
 
 function textoCelula(html) {
