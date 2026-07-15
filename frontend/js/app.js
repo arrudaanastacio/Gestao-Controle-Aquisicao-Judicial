@@ -1707,16 +1707,23 @@ async function abrirDetalheEstoqueODItem(skuEncoded) {
   if (dados.lotes.length === 0) {
     html += '<p style="color:var(--cinza-texto); font-size:13px;">Sem lotes para este item na data selecionada.</p>';
   } else {
-    html += `<table style="font-size:12.5px;"><thead><tr><th>Lote</th><th>Validade</th><th>Múltiplo Distribuição</th><th>Disponível</th><th>Bloqueado</th></tr></thead><tbody>`;
-    html += dados.lotes.map((l) => `
+    html += `<table style="font-size:12.5px;"><thead><tr><th>Lote</th><th>Validade</th><th>Múltiplo Distribuição</th><th>Disponível</th><th>Bloqueado</th><th>Motivo do Bloqueio</th></tr></thead><tbody>`;
+    html += dados.lotes.map((l) => {
+      const naoInformado = (v) => !v || String(v).trim().toLowerCase() === 'não informado';
+      const partes = [naoInformado(l.tipo_bloqueio) ? null : l.tipo_bloqueio, naoInformado(l.obs_bloqueio) ? null : l.obs_bloqueio].filter(Boolean);
+      const bloqueado = (l.qtde_bloqueado || 0) > 0;
+      const motivo = bloqueado ? (partes.join(' — ') || '—') : '—';
+      return `
       <tr>
         <td class="col-codigo">${l.lote || '—'}</td>
         <td class="col-data">${l.validade || '—'}</td>
         <td>${fmtNumero(l.multiplo_distribuicao)}</td>
         <td>${fmtNumero(l.qtde_disponivel)}</td>
         <td>${fmtNumero(l.qtde_bloqueado)}</td>
+        <td>${bloqueado ? `<span class="etiqueta-status cancelado">${motivo}</span>` : '—'}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
     html += '</tbody></table>';
   }
 
