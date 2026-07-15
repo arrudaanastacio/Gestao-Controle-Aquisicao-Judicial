@@ -199,7 +199,7 @@ function aplicarPermissoesNav() {
     relatorio: 'relatorioComprasTP', solicitacoes: 'tabelaAnaliseTP',
     solicitacoesOD: 'relatorioComprasOD', aquisicaoODAndamento: 'aquisicaoODAndamento',
     estoque: 'estoqueTP', validades: 'validadesTP', historico: 'historicoEstoqueTP', evolucao: 'evolucaoEstoqueTP',
-    estoqueGeral: 'estoqueGeral', estoqueOD: 'estoqueOD',
+    estoqueGeral: 'estoqueGeral', estoqueOD: 'estoqueOD', distribuicao: 'distribuicao',
     relatorioItens: 'relatorioItens',
     autores: 'autoresTP', autoresGeral: 'autoresGeral',
     comparativoAutores: 'comparativoAutoresTP', relatorioReq: 'relatorioReqTP',
@@ -303,6 +303,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaEstoque').hidden = pagina !== 'estoque';
   document.getElementById('paginaEstoqueGeral').hidden = pagina !== 'estoqueGeral';
   document.getElementById('paginaEstoqueOD').hidden = pagina !== 'estoqueOD';
+  document.getElementById('paginaDistribuicao').hidden = pagina !== 'distribuicao';
   document.getElementById('paginaSolicitacoesOD').hidden = pagina !== 'solicitacoesOD';
   document.getElementById('paginaAquisicaoODAndamento').hidden = pagina !== 'aquisicaoODAndamento';
   document.getElementById('paginaValidades').hidden = pagina !== 'validades';
@@ -327,6 +328,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'estoque') await carregarEstoque();
     if (pagina === 'estoqueGeral') await carregarEstoqueGeral();
     if (pagina === 'estoqueOD') await carregarEstoqueOD();
+    if (pagina === 'distribuicao') await carregarDistribuicao();
     if (pagina === 'solicitacoesOD') await carregarSolicitacoesOD();
     if (pagina === 'aquisicaoODAndamento') await carregarAquisicaoODAndamento();
     if (pagina === 'validades') await carregarValidades();
@@ -1744,6 +1746,171 @@ document.getElementById('botaoAnteriorSolicitacoesOD').addEventListener('click',
 });
 document.getElementById('botaoProximoSolicitacoesOD').addEventListener('click', () => {
   estadoSolicitacoesOD.pagina++; carregarTabelaSolicitacoesOD();
+});
+
+// -------------------- Distribuição --------------------
+const estadoDistFaturas = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+const estadoDistMov = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+let abaDistribuicaoAtiva = 'faturas';
+
+document.querySelectorAll('#abasDistribuicao .chip-faixa').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#abasDistribuicao .chip-faixa').forEach((b) => b.classList.toggle('ativo', b === btn));
+    abaDistribuicaoAtiva = btn.dataset.aba;
+    document.getElementById('abaFaturasDistribuicao').hidden = abaDistribuicaoAtiva !== 'faturas';
+    document.getElementById('abaMovimentacoesDistribuicao').hidden = abaDistribuicaoAtiva !== 'movimentacoes';
+    if (abaDistribuicaoAtiva === 'faturas') carregarTabelaDistFaturas();
+    else carregarTabelaDistMov();
+  });
+});
+
+async function carregarDistribuicao() {
+  const resumo = await api('/distribuicao/faturas/resumo');
+  document.getElementById('grideResumoDistribuicao').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.total)}</div><div class="rotulo">Linhas de fatura importadas</div></div>
+    <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(resumo.pendentes)}</div><div class="rotulo">Pendentes de entrega</div></div>
+  `;
+  if (abaDistribuicaoAtiva === 'faturas') {
+    await carregarFiltrosDistFaturas();
+    carregarTabelaDistFaturas();
+  } else {
+    await carregarFiltrosDistMov();
+    carregarTabelaDistMov();
+  }
+}
+
+async function carregarFiltrosDistFaturas() {
+  if (estadoDistFaturas.filtrosCarregados) return;
+  try {
+    const f = await api('/distribuicao/faturas/filtros');
+    const preencher = (id, valores, rotulo) => {
+      document.getElementById(id).innerHTML = `<option value="">${rotulo}</option>` +
+        valores.map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+    };
+    preencher('filtroStatusDistFaturas', f.status, 'Status: todos');
+    preencher('filtroLocalDistFaturas', f.local, 'Unidade: todas');
+    estadoDistFaturas.filtrosCarregados = true;
+  } catch (e) { /* segue */ }
+}
+
+async function carregarTabelaDistFaturas() {
+  const params = new URLSearchParams({ page: estadoDistFaturas.pagina, pageSize: estadoDistFaturas.pageSize });
+  const q = document.getElementById('filtroBuscaDistFaturas').value.trim();
+  if (q) params.set('q', q);
+  const status = document.getElementById('filtroStatusDistFaturas').value;
+  if (status) params.set('status', status);
+  const local = document.getElementById('filtroLocalDistFaturas').value;
+  if (local) params.set('local', local);
+
+  const dados = await api(`/distribuicao/faturas?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaDistFaturas');
+  const vazio = document.getElementById('estadoVazioDistFaturas');
+
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((it) => `
+      <tr>
+        <td class="col-codigo">${it.numero_fatura || '—'}</td>
+        <td class="col-codigo">${it.codigo_item || '—'}</td>
+        <td class="col-codigo">${it.codigo_material || '—'}</td>
+        <td>${it.nome_material || '—'}</td>
+        <td>${it.local || '—'}</td>
+        <td>${it.status || '—'}</td>
+        <td>${it.emissao_fatura || '—'}</td>
+        <td>${it.dt_programacao_entrega || '—'}</td>
+        <td>${fmtNumero(it.qtde_faturada)}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoDistFaturas').textContent = `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} fatura(s)`;
+  document.getElementById('botaoAnteriorDistFaturas').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoDistFaturas').disabled = dados.page >= totalPaginas;
+}
+
+document.getElementById('filtroBuscaDistFaturas').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaDistFaturas);
+  window.__debounceBuscaDistFaturas = setTimeout(() => { estadoDistFaturas.pagina = 1; carregarTabelaDistFaturas(); }, 350);
+});
+document.getElementById('filtroStatusDistFaturas').addEventListener('change', () => { estadoDistFaturas.pagina = 1; carregarTabelaDistFaturas(); });
+document.getElementById('filtroLocalDistFaturas').addEventListener('change', () => { estadoDistFaturas.pagina = 1; carregarTabelaDistFaturas(); });
+document.getElementById('botaoLimparFiltrosDistFaturas').addEventListener('click', () => {
+  document.getElementById('filtroBuscaDistFaturas').value = '';
+  document.getElementById('filtroStatusDistFaturas').value = '';
+  document.getElementById('filtroLocalDistFaturas').value = '';
+  estadoDistFaturas.pagina = 1;
+  carregarTabelaDistFaturas();
+});
+document.getElementById('botaoAnteriorDistFaturas').addEventListener('click', () => {
+  if (estadoDistFaturas.pagina > 1) { estadoDistFaturas.pagina--; carregarTabelaDistFaturas(); }
+});
+document.getElementById('botaoProximoDistFaturas').addEventListener('click', () => {
+  estadoDistFaturas.pagina++; carregarTabelaDistFaturas();
+});
+
+async function carregarFiltrosDistMov() {
+  if (estadoDistMov.filtrosCarregados) return;
+  try {
+    const f = await api('/distribuicao/movimentacoes/filtros');
+    document.getElementById('filtroDestinoDistMov').innerHTML = '<option value="">Unidade de destino: todas</option>' +
+      f.local_destino.map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+    estadoDistMov.filtrosCarregados = true;
+  } catch (e) { /* segue */ }
+}
+
+async function carregarTabelaDistMov() {
+  const params = new URLSearchParams({ page: estadoDistMov.pagina, pageSize: estadoDistMov.pageSize });
+  const q = document.getElementById('filtroBuscaDistMov').value.trim();
+  if (q) params.set('q', q);
+  const destino = document.getElementById('filtroDestinoDistMov').value;
+  if (destino) params.set('local_destino', destino);
+
+  const dados = await api(`/distribuicao/movimentacoes?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaDistMov');
+  const vazio = document.getElementById('estadoVazioDistMov');
+
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((it) => `
+      <tr>
+        <td class="col-codigo">${it.nr_documento || '—'}</td>
+        <td>${it.dt_documento || '—'}</td>
+        <td class="col-codigo">${it.codigo_item || '—'}</td>
+        <td>${it.nm_item || '—'}</td>
+        <td>${it.local_destino || '—'}</td>
+        <td>${fmtNumero(it.qt_unit_atendida)}</td>
+        <td>${it.pmu != null ? fmtNumero(it.pmu) : '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoDistMov').textContent = `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} movimentação(ões)`;
+  document.getElementById('botaoAnteriorDistMov').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoDistMov').disabled = dados.page >= totalPaginas;
+}
+
+document.getElementById('filtroBuscaDistMov').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaDistMov);
+  window.__debounceBuscaDistMov = setTimeout(() => { estadoDistMov.pagina = 1; carregarTabelaDistMov(); }, 350);
+});
+document.getElementById('filtroDestinoDistMov').addEventListener('change', () => { estadoDistMov.pagina = 1; carregarTabelaDistMov(); });
+document.getElementById('botaoLimparFiltrosDistMov').addEventListener('click', () => {
+  document.getElementById('filtroBuscaDistMov').value = '';
+  document.getElementById('filtroDestinoDistMov').value = '';
+  estadoDistMov.pagina = 1;
+  carregarTabelaDistMov();
+});
+document.getElementById('botaoAnteriorDistMov').addEventListener('click', () => {
+  if (estadoDistMov.pagina > 1) { estadoDistMov.pagina--; carregarTabelaDistMov(); }
+});
+document.getElementById('botaoProximoDistMov').addEventListener('click', () => {
+  estadoDistMov.pagina++; carregarTabelaDistMov();
 });
 
 async function carregarSolicitacoesOD() {

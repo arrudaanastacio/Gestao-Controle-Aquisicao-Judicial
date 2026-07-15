@@ -44,6 +44,7 @@ const MODULOS = [
   { chave: 'estoqueGeral', rotulo: 'Itens em Estoque Geral', acoes: ['visualizar', 'exportar'] },
   { chave: 'autoresGeral', rotulo: 'Listagem de Autores Demais Unidades', acoes: ['visualizar', 'exportar'] },
   { chave: 'estoqueOD', rotulo: 'Estoque GSNET/IBL', acoes: ['visualizar', 'exportar', 'importar'] },
+  { chave: 'distribuicao', rotulo: 'Distribuição', acoes: ['visualizar', 'exportar'] },
 
   // 🔍 Consultas
   { chave: 'relatorioItens', rotulo: 'Relatório de Itens', acoes: ['visualizar', 'exportar', 'importar'] },

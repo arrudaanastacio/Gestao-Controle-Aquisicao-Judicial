@@ -44,6 +44,7 @@
           <a href="#" data-pagina="estoqueGeral">Itens em Estoque Geral</a>
           <a href="#" data-pagina="autoresGeral">Listagem de Autores Demais Unidades</a>
           <a href="#" data-pagina="estoqueOD">Estoque GSNET/IBL</a>
+          <a href="#" data-pagina="distribuicao">Distribuição</a>
         </div>
 
         <div class="nav-grupo">
@@ -569,6 +570,95 @@
               </div>
               <div class="estado-vazio" id="estadoVazioValidadesEstoqueOD" hidden>Nenhum lote encontrado com estes filtros.</div>
               <div class="paginacao"><span id="textoContagemValidadesEstoqueOD">—</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaDistribuicao" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Distribuição</h2>
+            <p>Status de faturas e movimentações de saída do GSNET/IBL para as unidades de Outras Demandas</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoDistribuicao"></div>
+
+        <div class="filtros-faixa" id="abasDistribuicao" style="margin:18px 0 14px;">
+          <button type="button" class="chip-faixa ativo" data-aba="faturas">Status de Faturas</button>
+          <button type="button" class="chip-faixa" data-aba="movimentacoes">Movimentações</button>
+        </div>
+
+        <div id="abaFaturasDistribuicao">
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaDistFaturas" placeholder="Buscar por medicamento, código, fatura ou unidade…" style="min-width:320px;">
+            <select id="filtroStatusDistFaturas"><option value="">Status: todos</option></select>
+            <select id="filtroLocalDistFaturas"><option value="">Unidade: todas</option></select>
+            <button id="botaoLimparFiltrosDistFaturas" class="botao-secundario" type="button">Limpar filtros</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nº Fatura</th>
+                    <th>Código SCODES</th>
+                    <th>Cód. Material</th>
+                    <th>Nome do Material</th>
+                    <th>Unidade (Local)</th>
+                    <th>Status</th>
+                    <th>Emissão Fatura</th>
+                    <th>Programação Entrega</th>
+                    <th>Qtde Faturada</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaDistFaturas"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioDistFaturas" hidden>Nenhuma fatura encontrada com estes filtros.</div>
+            <div class="paginacao">
+              <span id="textoPaginacaoDistFaturas">—</span>
+              <div class="botoes">
+                <button id="botaoAnteriorDistFaturas">← Anterior</button>
+                <button id="botaoProximoDistFaturas">Próximo →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="abaMovimentacoesDistribuicao" hidden>
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaDistMov" placeholder="Buscar por medicamento, código, documento ou unidade de destino…" style="min-width:320px;">
+            <select id="filtroDestinoDistMov"><option value="">Unidade de destino: todas</option></select>
+            <button id="botaoLimparFiltrosDistMov" class="botao-secundario" type="button">Limpar filtros</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nº Documento</th>
+                    <th>Data</th>
+                    <th>Código SCODES</th>
+                    <th>Item (GSNET)</th>
+                    <th>Unidade de Destino</th>
+                    <th>Qtde Atendida</th>
+                    <th>Valor Unit.</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaDistMov"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioDistMov" hidden>Nenhuma movimentação encontrada com estes filtros.</div>
+            <div class="paginacao">
+              <span id="textoPaginacaoDistMov">—</span>
+              <div class="botoes">
+                <button id="botaoAnteriorDistMov">← Anterior</button>
+                <button id="botaoProximoDistMov">Próximo →</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1650,6 +1740,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=53"></script>
+  <script src="/js/app.js?v=54"></script>
 </body>
 </html>

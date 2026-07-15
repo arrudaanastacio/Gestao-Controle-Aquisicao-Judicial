@@ -262,6 +262,66 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_estoqueod_codigo ON estoque_od_itens(cod
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoqueod_sku ON estoque_od_itens(codigo_sku);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoqueod_data ON estoque_od_itens(data_referencia);`);
 
+// Distribuição — Status de Faturas (WMS/IBL): planilha "2.Status Fatura WMS_IBL.xlsx".
+// Snapshot único (substitui tudo a cada importação, sem histórico por data).
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_faturas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_programa TEXT,
+  programa TEXT,
+  drs TEXT,
+  codigo_material TEXT,
+  nome_material TEXT,
+  unidade_medida TEXT,
+  numero_fatura TEXT,
+  emissao_fatura TEXT,
+  dt_programacao_entrega TEXT,
+  qtd_volumes_itens REAL,
+  origem TEXT,
+  status TEXT,
+  codigo_destino TEXT,
+  local TEXT,
+  municipio TEXT,
+  categoria TEXT,
+  status_fatura TEXT,
+  qtde_faturada REAL,
+  preco_total REAL,
+  codigo_item TEXT,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distfaturas_codigo ON distribuicao_faturas(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distfaturas_status ON distribuicao_faturas(status);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distfaturas_local ON distribuicao_faturas(local);`);
+
+// Distribuição — Extrato de Movimentações (GSNET/Simples): arquivo "1.Extrato Simples.xls".
+// Histórico de movimentações de saída do armazém GSNET/IBL. Snapshot único também.
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_movimentacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nr_documento TEXT,
+  sr_documento TEXT,
+  dt_documento TEXT,
+  tp_movimentacao TEXT,
+  vl_total REAL,
+  local_origem TEXT,
+  local_destino TEXT,
+  dt_inclusao TEXT,
+  dt_alteracao TEXT,
+  st_registro TEXT,
+  nr_ordem TEXT,
+  id_item TEXT,
+  nm_item TEXT,
+  qt_unit_atendida REAL,
+  pmu REAL,
+  cd_usuario TEXT,
+  codigo_item TEXT,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distmov_codigo ON distribuicao_movimentacoes(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distmov_destino ON distribuicao_movimentacoes(local_destino);`);
+
 // Solicitações de compra de Outras Demandas (relatório próprio, separado do
 // Tenente Pena — layout de colunas diferente, mesmo conceito de mês a mês)
 db.exec(`
