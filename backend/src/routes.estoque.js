@@ -210,71 +210,88 @@ function importarEstoqueDeLinhas(linhas, opcoes = {}) {
   const usuarioEmail = opcoes.usuarioEmail || 'sistema';
   const usuarioId = opcoes.usuarioId ?? null;
 
-  // Se já houver importação nesta data, substitui (refaz a foto do dia)
-  const existente = db.prepare('SELECT id FROM estoque_importacoes WHERE data_referencia = ?').get(dataReferencia);
-  if (existente) {
-    db.prepare('DELETE FROM estoque_itens WHERE importacao_id = ?').run(existente.id);
-    db.prepare('DELETE FROM estoque_importacoes WHERE id = ?').run(existente.id);
+  // Tudo numa única transação: apagar/inserir/arquivar/limpar em passos
+  // separados (sem transação) podia deixar o banco num estado parcial se
+  // uma etapa falhasse ou o processo fosse interrompido no meio — aí a
+  // linha "pai" (estoque_importacoes) e as linhas "filhas" (estoque_itens)
+  // ficavam dessincronizadas, causando "FOREIGN KEY constraint failed" na
+  // sincronização seguinte. Com BEGIN/COMMIT, se qualquer passo falhar,
+  // tudo volta atrás e o banco nunca fica inconsistente.
+  let resumo;
+  db.exec('BEGIN');
+  try {
+    // Se já houver importação nesta data (e ainda não for um snapshot
+    // histórico arquivado), substitui (refaz a foto do dia). Snapshots
+    // arquivados (dias 01/15) nunca são apagados aqui.
+    const existente = db.prepare('SELECT id FROM estoque_importacoes WHERE data_referencia = ? AND arquivado = 0').get(dataReferencia);
+    if (existente) {
+      db.prepare('DELETE FROM estoque_itens WHERE importacao_id = ?').run(existente.id);
+      db.prepare('DELETE FROM estoque_importacoes WHERE id = ?').run(existente.id);
+    }
+
+    const infoImp = db.prepare(
+      'INSERT INTO estoque_importacoes (data_referencia, nome_arquivo, usuario_email, total_itens) VALUES (?, ?, ?, ?)'
+    ).run(dataReferencia, nomeArquivo, usuarioEmail, linhas.length);
+    const importacaoId = infoImp.lastInsertRowid;
+
+    const campos = ['importacao_id', 'data_referencia', 'codigo_item', 'id_item_origem', 'descricao',
+      'siafisico', 'catmat', 'unidade', 'categoria', 'controlado', 'tipo_item', 'marca', 'importado',
+      'outras_demandas', 'demandas',
+      'demandas_aj', 'consumo_mensal_total', 'consumo_mensal_aj', 'estoque', 'autonomia',
+      'custo_unitario', 'valor_medio_unitario', 'lotes'];
+    const stmt = db.prepare(
+      `INSERT INTO estoque_itens (${campos.join(',')}) VALUES (${campos.map(() => '?').join(',')})`
+    );
+
+    for (const l of linhas) {
+      // undefined não pode ser vinculado no SQLite; normaliza para null.
+      const v = (x) => (x === undefined ? null : x);
+      stmt.run(importacaoId, dataReferencia, v(l.codigo_item), v(l.id_item_origem), v(l.descricao),
+        v(l.siafisico), v(l.catmat), v(l.unidade), v(l.categoria), v(l.controlado), v(l.tipo_item), v(l.marca), v(l.importado),
+        v(l.outras_demandas), v(l.demandas),
+        v(l.demandas_aj), v(l.consumo_mensal_total), v(l.consumo_mensal_aj), v(l.estoque), v(l.autonomia),
+        v(l.custo_unitario), v(l.valor_medio_unitario), v(l.lotes));
+    }
+
+    // Gera alertas a partir desta foto
+    const alertasGerados = gerarAlertasEstoque(dataReferencia, importacaoId);
+
+    // ----- Arquivamento histórico (regra do 1º dia útil para 01 e 15) -----
+    const jaArquivadas = new Set(
+      db.prepare("SELECT referencia_historica FROM estoque_importacoes WHERE arquivado = 1 AND referencia_historica IS NOT NULL")
+        .all().map((r) => r.referencia_historica)
+    );
+    const referencia = referenciaParaColeta(dataReferencia, jaArquivadas);
+    if (referencia) {
+      db.prepare('UPDATE estoque_importacoes SET arquivado = 1, referencia_historica = ? WHERE id = ?')
+        .run(referencia, importacaoId);
+    }
+
+    // ----- Limpeza: mantém só os snapshots históricos (01/15) + o estoque atual -----
+    const atual = db.prepare('SELECT id FROM estoque_importacoes ORDER BY data_referencia DESC, id DESC LIMIT 1').get();
+    const descartar = db.prepare('SELECT id FROM estoque_importacoes WHERE arquivado = 0 AND id != ?').all(atual.id);
+    const delItens = db.prepare('DELETE FROM estoque_itens WHERE importacao_id = ?');
+    const delImp = db.prepare('DELETE FROM estoque_importacoes WHERE id = ?');
+    for (const r of descartar) { delItens.run(r.id); delImp.run(r.id); }
+
+    resumo = {
+      dataReferencia,
+      totalItens: linhas.length,
+      substituiu: !!existente,
+      arquivadoComoHistorico: referencia || null,
+      snapshotsDescartados: descartar.length,
+      ...alertasGerados,
+    };
+
+    db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
+      .run('estoque', nomeArquivo, usuarioEmail, JSON.stringify(resumo));
+    db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, dados_depois) VALUES (?, ?, ?, ?, ?)')
+      .run(usuarioId, usuarioEmail, 'importar_estoque', 'estoque_itens', JSON.stringify(resumo));
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
   }
-
-  const infoImp = db.prepare(
-    'INSERT INTO estoque_importacoes (data_referencia, nome_arquivo, usuario_email, total_itens) VALUES (?, ?, ?, ?)'
-  ).run(dataReferencia, nomeArquivo, usuarioEmail, linhas.length);
-  const importacaoId = infoImp.lastInsertRowid;
-
-  const campos = ['importacao_id', 'data_referencia', 'codigo_item', 'id_item_origem', 'descricao',
-    'siafisico', 'catmat', 'unidade', 'categoria', 'controlado', 'tipo_item', 'marca', 'importado',
-    'outras_demandas', 'demandas',
-    'demandas_aj', 'consumo_mensal_total', 'consumo_mensal_aj', 'estoque', 'autonomia',
-    'custo_unitario', 'valor_medio_unitario', 'lotes'];
-  const stmt = db.prepare(
-    `INSERT INTO estoque_itens (${campos.join(',')}) VALUES (${campos.map(() => '?').join(',')})`
-  );
-
-  for (const l of linhas) {
-    // undefined não pode ser vinculado no SQLite; normaliza para null.
-    const v = (x) => (x === undefined ? null : x);
-    stmt.run(importacaoId, dataReferencia, v(l.codigo_item), v(l.id_item_origem), v(l.descricao),
-      v(l.siafisico), v(l.catmat), v(l.unidade), v(l.categoria), v(l.controlado), v(l.tipo_item), v(l.marca), v(l.importado),
-      v(l.outras_demandas), v(l.demandas),
-      v(l.demandas_aj), v(l.consumo_mensal_total), v(l.consumo_mensal_aj), v(l.estoque), v(l.autonomia),
-      v(l.custo_unitario), v(l.valor_medio_unitario), v(l.lotes));
-  }
-
-  // Gera alertas a partir desta foto
-  const alertasGerados = gerarAlertasEstoque(dataReferencia, importacaoId);
-
-  // ----- Arquivamento histórico (regra do 1º dia útil para 01 e 15) -----
-  const jaArquivadas = new Set(
-    db.prepare("SELECT referencia_historica FROM estoque_importacoes WHERE arquivado = 1 AND referencia_historica IS NOT NULL")
-      .all().map((r) => r.referencia_historica)
-  );
-  const referencia = referenciaParaColeta(dataReferencia, jaArquivadas);
-  if (referencia) {
-    db.prepare('UPDATE estoque_importacoes SET arquivado = 1, referencia_historica = ? WHERE id = ?')
-      .run(referencia, importacaoId);
-  }
-
-  // ----- Limpeza: mantém só os snapshots históricos (01/15) + o estoque atual -----
-  const atual = db.prepare('SELECT id FROM estoque_importacoes ORDER BY data_referencia DESC, id DESC LIMIT 1').get();
-  const descartar = db.prepare('SELECT id FROM estoque_importacoes WHERE arquivado = 0 AND id != ?').all(atual.id);
-  const delItens = db.prepare('DELETE FROM estoque_itens WHERE importacao_id = ?');
-  const delImp = db.prepare('DELETE FROM estoque_importacoes WHERE id = ?');
-  for (const r of descartar) { delItens.run(r.id); delImp.run(r.id); }
-
-  const resumo = {
-    dataReferencia,
-    totalItens: linhas.length,
-    substituiu: !!existente,
-    arquivadoComoHistorico: referencia || null,
-    snapshotsDescartados: descartar.length,
-    ...alertasGerados,
-  };
-
-  db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
-    .run('estoque', nomeArquivo, usuarioEmail, JSON.stringify(resumo));
-  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, dados_depois) VALUES (?, ?, ?, ?, ?)')
-    .run(usuarioId, usuarioEmail, 'importar_estoque', 'estoque_itens', JSON.stringify(resumo));
 
   return resumo;
 }
