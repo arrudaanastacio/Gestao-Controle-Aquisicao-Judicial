@@ -304,6 +304,66 @@ function importarExtratoSimples(linhas, opcoes = {}) {
   return resumo;
 }
 
+// ---------- Planilha 3: Itens Elegíveis por unidade (exceção, ex.: CEDMAC) ----------
+const MAPA_ELEGIVEIS = {
+  codigo_item: ['codigo'],
+  siafisico: ['siafisico'],
+  descricao_item: ['descricao do item'],
+  unidade_dispensadora: ['unidade dispensadora'],
+  demandas: ['demandas'],
+  consumo_mensal_fixo: ['consumo mensal total'],
+  conversao: ['conversao'],
+};
+const CAMPOS_ELEGIVEIS = Object.keys(MAPA_ELEGIVEIS);
+
+function parsearItensElegiveis(buffer) {
+  const wb = XLSX.read(buffer, { type: 'buffer' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const linhas = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+
+  const cab = (linhas[0] || []).map(normalizar);
+  const COL = {};
+  for (const [campo, nomes] of Object.entries(MAPA_ELEGIVEIS)) COL[campo] = cab.findIndex((c) => nomes.includes(c));
+  if (COL.codigo_item === -1) throw new Error('Não encontrei a coluna "Código" na planilha de Itens Elegíveis.');
+
+  const resultado = [];
+  for (let i = 1; i < linhas.length; i++) {
+    const r = linhas[i];
+    if (!r) continue;
+    const codigoItem = texto(r[COL.codigo_item]);
+    if (!codigoItem) continue;
+    const linha = {};
+    for (const campo of CAMPOS_ELEGIVEIS) {
+      const v = COL[campo] >= 0 ? r[COL[campo]] : null;
+      linha[campo] = (campo === 'demandas' || campo === 'consumo_mensal_fixo' || campo === 'conversao') ? numero(v) : texto(v);
+    }
+    // Conversão em branco/0 equivale a "sem conversão" (fator 1).
+    if (!linha.conversao) linha.conversao = 1;
+    resultado.push(linha);
+  }
+  return resultado;
+}
+
+function importarItensElegiveis(linhas, opcoes = {}) {
+  let resumo;
+  db.exec('BEGIN');
+  try {
+    db.exec('DELETE FROM distribuicao_itens_elegiveis');
+    const stmt = db.prepare(
+      `INSERT INTO distribuicao_itens_elegiveis (${CAMPOS_ELEGIVEIS.join(',')}) VALUES (${CAMPOS_ELEGIVEIS.map(() => '?').join(',')})`
+    );
+    for (const l of linhas) stmt.run(...CAMPOS_ELEGIVEIS.map((c) => l[c]));
+    resumo = { totalLinhas: linhas.length };
+    db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
+      .run('distribuicao_itens_elegiveis', opcoes.nomeArquivo || 'Elenco CEDMAC', opcoes.usuarioEmail || 'sistema', JSON.stringify(resumo));
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+  return resumo;
+}
+
 // Status considerados "pendente de entrega" (definidos pelo Rafael)
 const STATUS_PENDENTES = [
   '5. Onda Gerada', '6. Separação', '8. Etiquetagem de volumes', '9. Aguardando Expedição',
@@ -381,10 +441,18 @@ router.get('/movimentacoes/filtros', (req, res) => {
   res.json({ local_destino });
 });
 
+// ---------- Consulta: Itens Elegíveis ----------
+router.get('/elegiveis', (req, res) => {
+  const itens = db.prepare('SELECT * FROM distribuicao_itens_elegiveis ORDER BY unidade_dispensadora, descricao_item').all();
+  res.json({ total: itens.length, itens });
+});
+
 module.exports = router;
 module.exports.parsearStatusFaturas = parsearStatusFaturas;
 module.exports.parsearExtratoSimples = parsearExtratoSimples;
+module.exports.parsearItensElegiveis = parsearItensElegiveis;
 module.exports.importarStatusFaturas = importarStatusFaturas;
 module.exports.importarExtratoSimples = importarExtratoSimples;
+module.exports.importarItensElegiveis = importarItensElegiveis;
 module.exports.carregarMapeamentoGsnet = carregarMapeamentoGsnet;
 module.exports.STATUS_PENDENTES = STATUS_PENDENTES;

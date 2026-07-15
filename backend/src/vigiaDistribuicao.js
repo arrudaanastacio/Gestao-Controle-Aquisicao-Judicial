@@ -1,10 +1,8 @@
 // Vigia de arquivos: importa o módulo Distribuição (Status de Faturas +
-// Extrato de Movimentações) automaticamente sempre que QUALQUER um dos 2
-// arquivos monitorados for atualizado. Mesma lógica de polling dos outros
-// vigias (mais confiável em pasta de rede do que eventos de sistema de
-// arquivos). Também acompanha o arquivo de mapeamento GSNET-IBL (usado
-// pelo Estoque OD) — se ele mudar, reimporta os dois relatórios com o
-// mapeamento atualizado.
+// Extrato de Movimentações + Itens Elegíveis por unidade) automaticamente
+// sempre que QUALQUER um dos 3 arquivos monitorados for atualizado. Mesma
+// lógica de polling dos outros vigias (mais confiável em pasta de rede do
+// que eventos de sistema de arquivos).
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -15,6 +13,7 @@ const PASTA = process.env.CAMINHO_DISTRIBUICAO || PASTA_PADRAO;
 
 const CAMINHO_EXTRATO = path.join(PASTA, '1.Extrato Simples.xls');
 const CAMINHO_STATUS_FATURA = path.join(PASTA, '2.Status Fatura WMS_IBL.xlsx');
+const CAMINHO_ELEGIVEIS = path.join(PASTA, '6.Elenco CEDMAC.xlsx');
 
 const INTERVALO = parseInt(process.env.VIGIA_INTERVALO_MS, 10) || 30000;
 
@@ -33,8 +32,9 @@ function assinaturaArquivo(caminho) {
 function assinaturaConjunta() {
   const a = assinaturaArquivo(CAMINHO_EXTRATO);
   const b = assinaturaArquivo(CAMINHO_STATUS_FATURA);
-  if (!a || !b) return null; // algum arquivo ainda não existe
-  return `${a}::${b}`;
+  const c = assinaturaArquivo(CAMINHO_ELEGIVEIS);
+  if (!a || !b || !c) return null; // algum arquivo ainda não existe
+  return `${a}::${b}::${c}`;
 }
 
 function tentarImportar(motivo) {
@@ -46,13 +46,14 @@ function tentarImportar(motivo) {
   try {
     const bufExtrato = fs.readFileSync(CAMINHO_EXTRATO);
     const bufStatus = fs.readFileSync(CAMINHO_STATUS_FATURA);
+    const bufElegiveis = fs.readFileSync(CAMINHO_ELEGIVEIS);
 
     // Confere se os arquivos não mudaram durante a leitura (ainda sendo gravados)
     if (assinaturaConjunta() !== assin) { importando = false; return; }
 
     const {
-      parsearExtratoSimples, parsearStatusFaturas,
-      importarExtratoSimples, importarStatusFaturas,
+      parsearExtratoSimples, parsearStatusFaturas, parsearItensElegiveis,
+      importarExtratoSimples, importarStatusFaturas, importarItensElegiveis,
       carregarMapeamentoGsnet,
     } = require('./routes.distribuicao');
 
@@ -65,9 +66,12 @@ function tentarImportar(motivo) {
     const linhasStatus = parsearStatusFaturas(bufStatus);
     const resumoStatus = importarStatusFaturas(linhasStatus, { ...opcoes, nomeArquivo: '2.Status Fatura WMS_IBL.xlsx' });
 
+    const linhasElegiveis = parsearItensElegiveis(bufElegiveis);
+    const resumoElegiveis = importarItensElegiveis(linhasElegiveis, { usuarioEmail: 'auto-importador', nomeArquivo: '6.Elenco CEDMAC.xlsx' });
+
     ultimaAssinatura = assin;
     salvarAssinatura('distribuicao', ultimaAssinatura);
-    console.log(`[VIGIA DISTRIBUIÇÃO] ${motivo}: Extrato ${resumoExtrato.totalLinhas} linhas, Status Fatura ${resumoStatus.totalLinhas} linhas.`);
+    console.log(`[VIGIA DISTRIBUIÇÃO] ${motivo}: Extrato ${resumoExtrato.totalLinhas} linhas, Status Fatura ${resumoStatus.totalLinhas} linhas, Elegíveis ${resumoElegiveis.totalLinhas} linhas.`);
   } catch (e) {
     console.error('[VIGIA DISTRIBUIÇÃO] Falha ao importar:', e.message);
   } finally {
@@ -81,7 +85,7 @@ function iniciarVigiaDistribuicao() {
     return;
   }
   ultimaAssinatura = lerAssinatura('distribuicao');
-  [CAMINHO_EXTRATO, CAMINHO_STATUS_FATURA].forEach((caminho) => {
+  [CAMINHO_EXTRATO, CAMINHO_STATUS_FATURA, CAMINHO_ELEGIVEIS].forEach((caminho) => {
     fs.watchFile(caminho, { interval: INTERVALO }, () => tentarImportar('Arquivo atualizado'));
   });
   console.log('[VIGIA DISTRIBUIÇÃO] Monitorando atualizações em:', PASTA);

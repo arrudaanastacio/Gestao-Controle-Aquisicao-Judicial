@@ -322,6 +322,28 @@ CREATE TABLE IF NOT EXISTS distribuicao_movimentacoes (
 db.exec(`CREATE INDEX IF NOT EXISTS idx_distmov_codigo ON distribuicao_movimentacoes(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_distmov_destino ON distribuicao_movimentacoes(local_destino);`);
 
+// Distribuição — Itens Elegíveis por unidade (exceção, ex.: CEDMAC): planilha
+// "6.Elenco CEDMAC.xlsx". Para a maioria das unidades de Outras Demandas a
+// elegibilidade é só "outras_demandas = Sim" no catálogo; unidades com
+// regra própria (Consumo Mensal Total fixo por acordo administrativo, e
+// fator de Conversão porque o estoque vem numa unidade "base" diferente da
+// unidade de dispensação) entram aqui. Substitui tudo a cada importação.
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_itens_elegiveis (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_item TEXT,
+  siafisico TEXT,
+  descricao_item TEXT,
+  unidade_dispensadora TEXT,
+  demandas REAL,
+  consumo_mensal_fixo REAL,
+  conversao REAL,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distelegiveis_codigo ON distribuicao_itens_elegiveis(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distelegiveis_unidade ON distribuicao_itens_elegiveis(unidade_dispensadora);`);
+
 // Solicitações de compra de Outras Demandas (relatório próprio, separado do
 // Tenente Pena — layout de colunas diferente, mesmo conceito de mês a mês)
 db.exec(`
