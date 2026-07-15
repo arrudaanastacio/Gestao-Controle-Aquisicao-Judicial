@@ -1,8 +1,8 @@
 // Vigia de arquivos: importa o módulo Distribuição (Status de Faturas +
-// Extrato de Movimentações + Itens Elegíveis por unidade + Conversão OD)
-// automaticamente sempre que QUALQUER um dos 4 arquivos monitorados for
-// atualizado. Mesma lógica de polling dos outros vigias (mais confiável em
-// pasta de rede do que eventos de sistema de arquivos).
+// Extrato de Movimentações + Itens Elegíveis por unidade + Conversão OD +
+// Locais de Entrega) automaticamente sempre que QUALQUER um dos 5 arquivos
+// monitorados for atualizado. Mesma lógica de polling dos outros vigias
+// (mais confiável em pasta de rede do que eventos de sistema de arquivos).
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -15,6 +15,7 @@ const CAMINHO_EXTRATO = path.join(PASTA, '1.Extrato Simples.xls');
 const CAMINHO_STATUS_FATURA = path.join(PASTA, '2.Status Fatura WMS_IBL.xlsx');
 const CAMINHO_ELEGIVEIS = path.join(PASTA, '6.Elenco CEDMAC.xlsx');
 const CAMINHO_CONVERSAO_OD = path.join(PASTA, '7.Conversão OD.xlsx');
+const CAMINHO_LOCAIS = path.join(PASTA, '8.Locais de Entrega.xlsx');
 
 const INTERVALO = parseInt(process.env.VIGIA_INTERVALO_MS, 10) || 30000;
 
@@ -35,8 +36,9 @@ function assinaturaConjunta() {
   const b = assinaturaArquivo(CAMINHO_STATUS_FATURA);
   const c = assinaturaArquivo(CAMINHO_ELEGIVEIS);
   const d = assinaturaArquivo(CAMINHO_CONVERSAO_OD);
-  if (!a || !b || !c || !d) return null; // algum arquivo ainda não existe
-  return `${a}::${b}::${c}::${d}`;
+  const e = assinaturaArquivo(CAMINHO_LOCAIS);
+  if (!a || !b || !c || !d || !e) return null; // algum arquivo ainda não existe
+  return `${a}::${b}::${c}::${d}::${e}`;
 }
 
 function tentarImportar(motivo) {
@@ -50,13 +52,14 @@ function tentarImportar(motivo) {
     const bufStatus = fs.readFileSync(CAMINHO_STATUS_FATURA);
     const bufElegiveis = fs.readFileSync(CAMINHO_ELEGIVEIS);
     const bufConversaoOD = fs.readFileSync(CAMINHO_CONVERSAO_OD);
+    const bufLocais = fs.readFileSync(CAMINHO_LOCAIS);
 
     // Confere se os arquivos não mudaram durante a leitura (ainda sendo gravados)
     if (assinaturaConjunta() !== assin) { importando = false; return; }
 
     const {
-      parsearExtratoSimples, parsearStatusFaturas, parsearItensElegiveis, parsearConversaoOD,
-      importarExtratoSimples, importarStatusFaturas, importarItensElegiveis, importarConversaoOD,
+      parsearExtratoSimples, parsearStatusFaturas, parsearItensElegiveis, parsearConversaoOD, parsearLocaisEntrega,
+      importarExtratoSimples, importarStatusFaturas, importarItensElegiveis, importarConversaoOD, importarLocaisEntrega,
       carregarMapeamentoGsnet,
     } = require('./routes.distribuicao');
 
@@ -75,9 +78,12 @@ function tentarImportar(motivo) {
     const linhasConversaoOD = parsearConversaoOD(bufConversaoOD);
     const resumoConversaoOD = importarConversaoOD(linhasConversaoOD, { usuarioEmail: 'auto-importador', nomeArquivo: '7.Conversão OD.xlsx' });
 
+    const linhasLocais = parsearLocaisEntrega(bufLocais);
+    const resumoLocais = importarLocaisEntrega(linhasLocais, { usuarioEmail: 'auto-importador', nomeArquivo: '8.Locais de Entrega.xlsx' });
+
     ultimaAssinatura = assin;
     salvarAssinatura('distribuicao', ultimaAssinatura);
-    console.log(`[VIGIA DISTRIBUIÇÃO] ${motivo}: Extrato ${resumoExtrato.totalLinhas} linhas, Status Fatura ${resumoStatus.totalLinhas} linhas, Elegíveis ${resumoElegiveis.totalLinhas} linhas, Conversão OD ${resumoConversaoOD.totalLinhas} linhas.`);
+    console.log(`[VIGIA DISTRIBUIÇÃO] ${motivo}: Extrato ${resumoExtrato.totalLinhas} linhas, Status Fatura ${resumoStatus.totalLinhas} linhas, Elegíveis ${resumoElegiveis.totalLinhas} linhas, Conversão OD ${resumoConversaoOD.totalLinhas} linhas, Locais ${resumoLocais.totalLinhas} linhas.`);
   } catch (e) {
     console.error('[VIGIA DISTRIBUIÇÃO] Falha ao importar:', e.message);
   } finally {
@@ -91,7 +97,7 @@ function iniciarVigiaDistribuicao() {
     return;
   }
   ultimaAssinatura = lerAssinatura('distribuicao');
-  [CAMINHO_EXTRATO, CAMINHO_STATUS_FATURA, CAMINHO_ELEGIVEIS, CAMINHO_CONVERSAO_OD].forEach((caminho) => {
+  [CAMINHO_EXTRATO, CAMINHO_STATUS_FATURA, CAMINHO_ELEGIVEIS, CAMINHO_CONVERSAO_OD, CAMINHO_LOCAIS].forEach((caminho) => {
     fs.watchFile(caminho, { interval: INTERVALO }, () => tentarImportar('Arquivo atualizado'));
   });
   console.log('[VIGIA DISTRIBUIÇÃO] Monitorando atualizações em:', PASTA);

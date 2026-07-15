@@ -1925,8 +1925,24 @@ document.getElementById('botaoProximoDistMov').addEventListener('click', () => {
 });
 
 let dadosReposicaoBrutos = [];
+let unidadesReposicaoCarregadas = false;
+
+async function carregarUnidadesReposicao() {
+  if (unidadesReposicaoCarregadas) return;
+  const sel = document.getElementById('filtroUnidadeReposicao');
+  try {
+    const { unidades } = await api('/distribuicao/reposicao/unidades');
+    const atual = sel.value;
+    sel.innerHTML = unidades.map((u) => `<option value="${u.replace(/"/g, '&quot;')}">${u}</option>`).join('');
+    // Mantém CEDMAC selecionada por padrão se estiver na lista.
+    if (unidades.includes(atual)) sel.value = atual;
+    else if (unidades.includes('UD 27 - CEDMAC HCFMUSP')) sel.value = 'UD 27 - CEDMAC HCFMUSP';
+    unidadesReposicaoCarregadas = true;
+  } catch (e) { /* segue com a opção padrão do HTML */ }
+}
 
 async function carregarTabelaReposicao() {
+  await carregarUnidadesReposicao();
   const unidade = document.getElementById('filtroUnidadeReposicao').value;
   const corpo = document.getElementById('corpoTabelaReposicao');
   const vazio = document.getElementById('estadoVazioReposicao');

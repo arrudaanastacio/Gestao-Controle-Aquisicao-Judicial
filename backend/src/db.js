@@ -363,6 +363,23 @@ CREATE TABLE IF NOT EXISTS distribuicao_conversao_od (
 `);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_distconversaood_codigo ON distribuicao_conversao_od(codigo_item);`);
 
+// Distribuição — Locais de Entrega: planilha "8.Locais de Entrega.xlsx".
+// "De-para" entre o nome da unidade no SCODES (usado em estoque_itens.
+// unidade, ex.: "UD 27 - CEDMAC HCFMUSP") e o código numérico usado pelo
+// GSNET (distribuicao_faturas.codigo_destino, ex.: 2865) — os dois
+// sistemas usam nomes de unidade diferentes (às vezes com erro de
+// digitação de um lado), então o vínculo confiável é por esse código.
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_locais_entrega (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  local_entrega TEXT,
+  cod_local TEXT,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distlocais_local ON distribuicao_locais_entrega(local_entrega);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distlocais_cod ON distribuicao_locais_entrega(cod_local);`);
+
 // Solicitações de compra de Outras Demandas (relatório próprio, separado do
 // Tenente Pena — layout de colunas diferente, mesmo conceito de mês a mês)
 db.exec(`

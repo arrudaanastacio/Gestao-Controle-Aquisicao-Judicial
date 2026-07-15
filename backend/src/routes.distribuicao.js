@@ -501,31 +501,88 @@ router.get('/movimentacoes/filtros', (req, res) => {
   res.json({ local_destino });
 });
 
+// ---------- Planilha 5: Locais de Entrega (de-para SCODES x GSNET) ----------
+const MAPA_LOCAIS = {
+  local_entrega: ['local de entrega'],
+  cod_local: ['cod local'],
+};
+const CAMPOS_LOCAIS = Object.keys(MAPA_LOCAIS);
+
+function parsearLocaisEntrega(buffer) {
+  const wb = XLSX.read(buffer, { type: 'buffer' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const linhas = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+
+  const cab = (linhas[0] || []).map(normalizar);
+  const COL = {};
+  for (const [campo, nomes] of Object.entries(MAPA_LOCAIS)) COL[campo] = cab.findIndex((c) => nomes.includes(c));
+  if (COL.local_entrega === -1 || COL.cod_local === -1) {
+    throw new Error('Não reconheci as colunas da planilha de Locais de Entrega (esperava "Local de Entrega" e "Cod_Local").');
+  }
+
+  const resultado = [];
+  for (let i = 1; i < linhas.length; i++) {
+    const r = linhas[i];
+    if (!r) continue;
+    const local = texto(r[COL.local_entrega]);
+    const cod = texto(r[COL.cod_local]);
+    if (!local || !cod) continue;
+    resultado.push({ local_entrega: local, cod_local: cod });
+  }
+  return resultado;
+}
+
+function importarLocaisEntrega(linhas, opcoes = {}) {
+  let resumo;
+  db.exec('BEGIN');
+  try {
+    db.exec('DELETE FROM distribuicao_locais_entrega');
+    const stmt = db.prepare(
+      `INSERT INTO distribuicao_locais_entrega (${CAMPOS_LOCAIS.join(',')}) VALUES (${CAMPOS_LOCAIS.map(() => '?').join(',')})`
+    );
+    for (const l of linhas) stmt.run(...CAMPOS_LOCAIS.map((c) => l[c]));
+    resumo = { totalLinhas: linhas.length };
+    db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
+      .run('distribuicao_locais_entrega', opcoes.nomeArquivo || 'Locais de Entrega', opcoes.usuarioEmail || 'sistema', JSON.stringify(resumo));
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+  return resumo;
+}
+
 // ---------- Cálculo de sugestão de reposição ----------
 // Fórmula combinada com o Rafael:
 //   Sugestão = (autonomia-alvo × Consumo Mensal) − (Estoque convertido + Fatura em Trânsito), mínimo 0
 // Autonomia-alvo = 3 meses (confirmado com dados reais da CEDMAC).
 //
-// Por enquanto só a CEDMAC está pronta: precisa do código de destino do
-// GSNET (não dá pra cruzar por nome de unidade — os dois sistemas usam
-// nomes diferentes, ex.: SCODES "UD 27 - CEDMAC HCFMUSP" x GSNET "(2865) -
-// HC - CDEMAC", com erro de digitação no lado do GSNET). Adicionar aqui o
-// código de destino de outras unidades conforme forem confirmados.
+// Duas fontes de elegibilidade/consumo, dependendo da unidade:
+//   - Unidades com elenco próprio (ex.: CEDMAC, planilha "6.Elenco
+//     CEDMAC.xlsx"): lista fechada de itens, Consumo Mensal FIXO (acordo
+//     administrativo — não vem do relatório diário), só o Estoque é
+//     dividido pela conversão do próprio elenco.
+//   - Demais unidades de Outras Demandas (regra geral): elegibilidade =
+//     "outras_demandas = Sim" no relatório diário de estoque; Consumo e
+//     Estoque vêm do mesmo relatório (por isso os dois são divididos pela
+//     conversão, quando o item está na planilha "7.Conversão OD.xlsx").
+//
+// O vínculo entre a unidade no SCODES (estoque) e no GSNET (fatura em
+// trânsito) é feito pelo código numérico da planilha "8.Locais de
+// Entrega.xlsx" — não dá pra cruzar por nome porque os dois sistemas
+// grafam a unidade de forma diferente (ex.: SCODES "UD 27 - CEDMAC
+// HCFMUSP" x GSNET "(2865) - HC - CDEMAC", com erro de digitação no GSNET).
 const AUTONOMIA_ALVO_MESES = 3;
-const CODIGO_DESTINO_GSNET = {
-  'UD 27 - CEDMAC HCFMUSP': '2865',
-};
 
 router.get('/reposicao', (req, res) => {
-  const unidade = req.query.unidade || 'UD 27 - CEDMAC HCFMUSP';
-  const codigoDestino = CODIGO_DESTINO_GSNET[unidade];
-  if (!codigoDestino) {
-    return res.status(400).json({ erro: `Unidade "${unidade}" ainda não tem o código de destino do GSNET configurado.` });
-  }
+  const unidade = req.query.unidade;
+  if (!unidade) return res.status(400).json({ erro: 'Informe a unidade.' });
 
-  const elegiveis = db.prepare(
-    'SELECT * FROM distribuicao_itens_elegiveis WHERE unidade_dispensadora = ? ORDER BY descricao_item'
-  ).all(unidade);
+  const local = db.prepare('SELECT cod_local FROM distribuicao_locais_entrega WHERE local_entrega = ?').get(unidade);
+  if (!local) {
+    return res.status(400).json({ erro: `Não encontrei "${unidade}" na planilha de Locais de Entrega — confira se o nome bate exatamente.` });
+  }
+  const codigoDestino = local.cod_local;
 
   const ultimaData = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
 
@@ -536,30 +593,58 @@ router.get('/reposicao', (req, res) => {
   const stmtEstoque = ultimaData
     ? db.prepare('SELECT estoque FROM estoque_itens WHERE unidade = ? AND codigo_item = ? AND data_referencia = ? LIMIT 1')
     : null;
+  const mapaConversaoOD = new Map(
+    db.prepare('SELECT codigo_item, conversao FROM distribuicao_conversao_od').all().map((r) => [r.codigo_item, r.conversao])
+  );
 
-  const itens = elegiveis.map((el) => {
-    // CEDMAC: Consumo já é fixo (acordo administrativo) — não precisa de
-    // conversão. Só o Estoque (que vem do relatório diário, numa unidade
-    // "base" diferente) é dividido pela conversão do próprio Elenco CEDMAC.
-    const conversao = el.conversao || 1;
-    const consumoMensal = el.consumo_mensal_fixo || 0;
+  // Elenco fechado (ex.: CEDMAC) tem prioridade se existir para a unidade.
+  const elenco = db.prepare(
+    'SELECT * FROM distribuicao_itens_elegiveis WHERE unidade_dispensadora = ? ORDER BY descricao_item'
+  ).all(unidade);
 
-    const estoqueRow = stmtEstoque ? stmtEstoque.get(unidade, el.codigo_item, ultimaData.data_referencia) : null;
-    const estoqueBruto = estoqueRow ? (estoqueRow.estoque || 0) : 0;
-    const estoqueConvertido = conversao !== 1 ? estoqueBruto / conversao : estoqueBruto;
-
-    const faturaTransito = stmtTransito.get(codigoDestino, el.codigo_item, ...STATUS_PENDENTES).v || 0;
-
-    const sugestao = Math.max(0, Math.round((AUTONOMIA_ALVO_MESES * consumoMensal) - (estoqueConvertido + faturaTransito)));
-
-    return {
+  let base;
+  if (elenco.length > 0) {
+    base = elenco.map((el) => ({
       codigo_item: el.codigo_item,
       siafisico: el.siafisico,
       descricao_item: el.descricao_item,
-      unidade_dispensadora: el.unidade_dispensadora,
-      conversao,
-      convertido: conversao !== 1,
-      consumo_mensal: consumoMensal,
+      consumoMensal: el.consumo_mensal_fixo || 0,
+      conversaoEstoque: el.conversao || 1,
+    }));
+  } else if (ultimaData) {
+    const linhasEstoque = db.prepare(
+      "SELECT codigo_item, descricao, siafisico, consumo_mensal_total FROM estoque_itens WHERE unidade = ? AND data_referencia = ? AND outras_demandas = 'Sim' ORDER BY descricao"
+    ).all(unidade, ultimaData.data_referencia);
+    base = linhasEstoque.map((l) => {
+      const conv = mapaConversaoOD.get(l.codigo_item) || 1;
+      return {
+        codigo_item: l.codigo_item,
+        siafisico: l.siafisico,
+        descricao_item: l.descricao,
+        consumoMensal: conv !== 1 ? (l.consumo_mensal_total || 0) / conv : (l.consumo_mensal_total || 0),
+        conversaoEstoque: conv,
+      };
+    });
+  } else {
+    base = [];
+  }
+
+  const itens = base.map((it) => {
+    const estoqueRow = stmtEstoque && ultimaData ? stmtEstoque.get(unidade, it.codigo_item, ultimaData.data_referencia) : null;
+    const estoqueBruto = estoqueRow ? (estoqueRow.estoque || 0) : 0;
+    const estoqueConvertido = it.conversaoEstoque !== 1 ? estoqueBruto / it.conversaoEstoque : estoqueBruto;
+
+    const faturaTransito = stmtTransito.get(codigoDestino, it.codigo_item, ...STATUS_PENDENTES).v || 0;
+
+    const sugestao = Math.max(0, Math.round((AUTONOMIA_ALVO_MESES * it.consumoMensal) - (estoqueConvertido + faturaTransito)));
+
+    return {
+      codigo_item: it.codigo_item,
+      siafisico: it.siafisico,
+      descricao_item: it.descricao_item,
+      conversao: it.conversaoEstoque,
+      convertido: it.conversaoEstoque !== 1,
+      consumo_mensal: Math.round(it.consumoMensal * 100) / 100,
       estoque_bruto: estoqueBruto,
       estoque_convertido: Math.round(estoqueConvertido * 100) / 100,
       fatura_transito: faturaTransito,
@@ -569,11 +654,22 @@ router.get('/reposicao', (req, res) => {
 
   res.json({
     unidade,
+    modo: elenco.length > 0 ? 'elenco_fechado' : 'geral',
     dataReferenciaEstoque: ultimaData ? ultimaData.data_referencia : null,
     autonomiaAlvoMeses: AUTONOMIA_ALVO_MESES,
     total: itens.length,
     itens,
   });
+});
+
+// ---------- Consulta: unidades disponíveis pra reposição ----------
+router.get('/reposicao/unidades', (req, res) => {
+  const unidades = db.prepare(`
+    SELECT DISTINCT unidade v FROM estoque_itens
+    WHERE unidade IS NOT NULL AND unidade <> '' AND unidade NOT LIKE '%Tenente Pena%'
+    ORDER BY v
+  `).all().map((r) => r.v);
+  res.json({ unidades });
 });
 
 // ---------- Consulta: Itens Elegíveis ----------
@@ -593,9 +689,11 @@ module.exports.parsearStatusFaturas = parsearStatusFaturas;
 module.exports.parsearExtratoSimples = parsearExtratoSimples;
 module.exports.parsearItensElegiveis = parsearItensElegiveis;
 module.exports.parsearConversaoOD = parsearConversaoOD;
+module.exports.parsearLocaisEntrega = parsearLocaisEntrega;
 module.exports.importarStatusFaturas = importarStatusFaturas;
 module.exports.importarExtratoSimples = importarExtratoSimples;
 module.exports.importarItensElegiveis = importarItensElegiveis;
 module.exports.importarConversaoOD = importarConversaoOD;
+module.exports.importarLocaisEntrega = importarLocaisEntrega;
 module.exports.carregarMapeamentoGsnet = carregarMapeamentoGsnet;
 module.exports.STATUS_PENDENTES = STATUS_PENDENTES;
