@@ -21,6 +21,7 @@
 | 14 | Backup automático diário do banco (5h por padrão) em `backend/data/backups/`, via VACUUM INTO (cópia consistente + compactada), com cópia opcional também para uma pasta do Google Drive sincronizada (`BACKUP_PASTA_DRIVE`). Mantém só os últimos 14 dias em cada pasta, apaga o resto sozinho. Testado manualmente (backup local, sobrescrita, retenção, cópia pro Drive e falha graciosa se a pasta não existir) | `8f2b406`, `77a96d5` | 14/07/2026 | Pendente — precisa configurar `BACKUP_PASTA_DRIVE` em produção |
 | 15 | Folha impressa da Requisição de Compra não mostra mais Prazo, Periodicidade, Disp. Autorizadas e Tipo de Demanda (continuam visíveis no modal de seleção) | `db6ab5a`, `ff33375` | 14/07/2026 | Pendente |
 | 16 | Crédito "Desenvolvido por Rafael Arruda Anastácio" no rodapé do menu lateral, abaixo da versão | `f8b9ea1` | 14/07/2026 | Pendente |
+| 17 | Módulo Distribuição (novo) — importa automaticamente 2 planilhas do GSNET/IBL (Status de Faturas + Extrato de Movimentações) via vigia de pasta, traduz o código do item pro código SCODES, mostra em 2 abas com filtros. Ainda falta: lista de itens elegíveis da CEDMAC (aguardando Rafael) e o cálculo de sugestão de reposição (próxima etapa) | `307a34e` | 15/07/2026 | Pendente — módulo parcial, cálculo de reposição ainda não feito |
 
 ## Publicadas recentemente
 
