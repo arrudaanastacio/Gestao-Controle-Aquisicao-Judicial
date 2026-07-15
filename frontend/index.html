@@ -588,6 +588,7 @@
         <div class="filtros-faixa" id="abasDistribuicao" style="margin:18px 0 14px;">
           <button type="button" class="chip-faixa ativo" data-aba="faturas">Status de Faturas</button>
           <button type="button" class="chip-faixa" data-aba="movimentacoes">Movimentações</button>
+          <button type="button" class="chip-faixa" data-aba="reposicao">Sugestão de Reposição</button>
         </div>
 
         <div id="abaFaturasDistribuicao">
@@ -660,6 +661,40 @@
                 <button id="botaoProximoDistMov">Próximo →</button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div id="abaReposicaoDistribuicao" hidden>
+          <div class="barra-filtros">
+            <select id="filtroUnidadeReposicao">
+              <option value="UD 27 - CEDMAC HCFMUSP">UD 27 - CEDMAC HCFMUSP</option>
+            </select>
+            <input type="text" id="filtroBuscaReposicao" placeholder="Buscar por medicamento ou código…" style="min-width:280px;">
+            <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="filtroSoSugeridosReposicao"> Só com sugestão &gt; 0
+            </label>
+          </div>
+          <p class="descricao-item" id="infoReposicao" style="margin:4px 0 12px;"></p>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Descrição do Item</th>
+                    <th>Consumo Mensal</th>
+                    <th>Estoque</th>
+                    <th>Conversão</th>
+                    <th>Estoque Convertido</th>
+                    <th>Fatura em Trânsito</th>
+                    <th>Sugestão de Reposição</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaReposicao"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioReposicao" hidden>Nenhum item elegível encontrado.</div>
           </div>
         </div>
       </section>
@@ -1740,6 +1775,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=55"></script>
+  <script src="/js/app.js?v=56"></script>
 </body>
 </html>

@@ -1766,8 +1766,10 @@ document.querySelectorAll('#abasDistribuicao .chip-faixa').forEach((btn) => {
     abaDistribuicaoAtiva = btn.dataset.aba;
     document.getElementById('abaFaturasDistribuicao').hidden = abaDistribuicaoAtiva !== 'faturas';
     document.getElementById('abaMovimentacoesDistribuicao').hidden = abaDistribuicaoAtiva !== 'movimentacoes';
+    document.getElementById('abaReposicaoDistribuicao').hidden = abaDistribuicaoAtiva !== 'reposicao';
     if (abaDistribuicaoAtiva === 'faturas') carregarTabelaDistFaturas();
-    else carregarTabelaDistMov();
+    else if (abaDistribuicaoAtiva === 'movimentacoes') carregarTabelaDistMov();
+    else carregarTabelaReposicao();
   });
 });
 
@@ -1780,9 +1782,11 @@ async function carregarDistribuicao() {
   if (abaDistribuicaoAtiva === 'faturas') {
     await carregarFiltrosDistFaturas();
     carregarTabelaDistFaturas();
-  } else {
+  } else if (abaDistribuicaoAtiva === 'movimentacoes') {
     await carregarFiltrosDistMov();
     carregarTabelaDistMov();
+  } else {
+    carregarTabelaReposicao();
   }
 }
 
@@ -1919,6 +1923,61 @@ document.getElementById('botaoAnteriorDistMov').addEventListener('click', () => 
 document.getElementById('botaoProximoDistMov').addEventListener('click', () => {
   estadoDistMov.pagina++; carregarTabelaDistMov();
 });
+
+let dadosReposicaoBrutos = [];
+
+async function carregarTabelaReposicao() {
+  const unidade = document.getElementById('filtroUnidadeReposicao').value;
+  const corpo = document.getElementById('corpoTabelaReposicao');
+  const vazio = document.getElementById('estadoVazioReposicao');
+  const info = document.getElementById('infoReposicao');
+
+  try {
+    const dados = await api(`/distribuicao/reposicao?unidade=${encodeURIComponent(unidade)}`);
+    dadosReposicaoBrutos = dados.itens;
+    info.textContent = `Autonomia-alvo: ${dados.autonomiaAlvoMeses} meses · Estoque de referência: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) : '—'}`;
+    renderizarTabelaReposicao();
+  } catch (e) {
+    corpo.innerHTML = '';
+    vazio.hidden = false;
+    vazio.textContent = 'Erro ao calcular: ' + e.message;
+  }
+}
+
+function renderizarTabelaReposicao() {
+  const q = document.getElementById('filtroBuscaReposicao').value.trim().toLowerCase();
+  const soSugeridos = document.getElementById('filtroSoSugeridosReposicao').checked;
+  const corpo = document.getElementById('corpoTabelaReposicao');
+  const vazio = document.getElementById('estadoVazioReposicao');
+
+  let itens = dadosReposicaoBrutos;
+  if (q) itens = itens.filter((it) => (it.descricao_item || '').toLowerCase().includes(q) || (it.codigo_item || '').toLowerCase().includes(q));
+  if (soSugeridos) itens = itens.filter((it) => it.sugestao > 0);
+
+  if (itens.length === 0) {
+    corpo.innerHTML = '';
+    vazio.hidden = false;
+    vazio.textContent = 'Nenhum item elegível encontrado com estes filtros.';
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = itens.map((it) => `
+      <tr class="${it.convertido ? 'linha-convertida' : ''}">
+        <td class="col-codigo">${it.codigo_item || '—'}</td>
+        <td>${it.descricao_item || '—'}</td>
+        <td>${fmtNumero(it.consumo_mensal)}</td>
+        <td>${fmtNumero(it.estoque_bruto)}</td>
+        <td>${it.convertido ? '÷ ' + fmtNumero(it.conversao) : '—'}</td>
+        <td>${fmtNumero(it.estoque_convertido)}</td>
+        <td>${fmtNumero(it.fatura_transito)}</td>
+        <td><strong>${fmtNumero(it.sugestao)}</strong></td>
+      </tr>
+    `).join('');
+  }
+}
+
+document.getElementById('filtroUnidadeReposicao').addEventListener('change', carregarTabelaReposicao);
+document.getElementById('filtroBuscaReposicao').addEventListener('input', renderizarTabelaReposicao);
+document.getElementById('filtroSoSugeridosReposicao').addEventListener('change', renderizarTabelaReposicao);
 
 async function carregarSolicitacoesOD() {
   carregarUltimaAtualizacao('atualizadoSolicitacoesOD', 'solicitacoes_od');

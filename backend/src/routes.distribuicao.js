@@ -501,6 +501,81 @@ router.get('/movimentacoes/filtros', (req, res) => {
   res.json({ local_destino });
 });
 
+// ---------- Cálculo de sugestão de reposição ----------
+// Fórmula combinada com o Rafael:
+//   Sugestão = (autonomia-alvo × Consumo Mensal) − (Estoque convertido + Fatura em Trânsito), mínimo 0
+// Autonomia-alvo = 3 meses (confirmado com dados reais da CEDMAC).
+//
+// Por enquanto só a CEDMAC está pronta: precisa do código de destino do
+// GSNET (não dá pra cruzar por nome de unidade — os dois sistemas usam
+// nomes diferentes, ex.: SCODES "UD 27 - CEDMAC HCFMUSP" x GSNET "(2865) -
+// HC - CDEMAC", com erro de digitação no lado do GSNET). Adicionar aqui o
+// código de destino de outras unidades conforme forem confirmados.
+const AUTONOMIA_ALVO_MESES = 3;
+const CODIGO_DESTINO_GSNET = {
+  'UD 27 - CEDMAC HCFMUSP': '2865',
+};
+
+router.get('/reposicao', (req, res) => {
+  const unidade = req.query.unidade || 'UD 27 - CEDMAC HCFMUSP';
+  const codigoDestino = CODIGO_DESTINO_GSNET[unidade];
+  if (!codigoDestino) {
+    return res.status(400).json({ erro: `Unidade "${unidade}" ainda não tem o código de destino do GSNET configurado.` });
+  }
+
+  const elegiveis = db.prepare(
+    'SELECT * FROM distribuicao_itens_elegiveis WHERE unidade_dispensadora = ? ORDER BY descricao_item'
+  ).all(unidade);
+
+  const ultimaData = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+
+  const placeholders = STATUS_PENDENTES.map(() => '?').join(',');
+  const stmtTransito = db.prepare(
+    `SELECT COALESCE(SUM(qtde_faturada), 0) v FROM distribuicao_faturas WHERE codigo_destino = ? AND codigo_item = ? AND status IN (${placeholders})`
+  );
+  const stmtEstoque = ultimaData
+    ? db.prepare('SELECT estoque FROM estoque_itens WHERE unidade = ? AND codigo_item = ? AND data_referencia = ? LIMIT 1')
+    : null;
+
+  const itens = elegiveis.map((el) => {
+    // CEDMAC: Consumo já é fixo (acordo administrativo) — não precisa de
+    // conversão. Só o Estoque (que vem do relatório diário, numa unidade
+    // "base" diferente) é dividido pela conversão do próprio Elenco CEDMAC.
+    const conversao = el.conversao || 1;
+    const consumoMensal = el.consumo_mensal_fixo || 0;
+
+    const estoqueRow = stmtEstoque ? stmtEstoque.get(unidade, el.codigo_item, ultimaData.data_referencia) : null;
+    const estoqueBruto = estoqueRow ? (estoqueRow.estoque || 0) : 0;
+    const estoqueConvertido = conversao !== 1 ? estoqueBruto / conversao : estoqueBruto;
+
+    const faturaTransito = stmtTransito.get(codigoDestino, el.codigo_item, ...STATUS_PENDENTES).v || 0;
+
+    const sugestao = Math.max(0, Math.round((AUTONOMIA_ALVO_MESES * consumoMensal) - (estoqueConvertido + faturaTransito)));
+
+    return {
+      codigo_item: el.codigo_item,
+      siafisico: el.siafisico,
+      descricao_item: el.descricao_item,
+      unidade_dispensadora: el.unidade_dispensadora,
+      conversao,
+      convertido: conversao !== 1,
+      consumo_mensal: consumoMensal,
+      estoque_bruto: estoqueBruto,
+      estoque_convertido: Math.round(estoqueConvertido * 100) / 100,
+      fatura_transito: faturaTransito,
+      sugestao,
+    };
+  });
+
+  res.json({
+    unidade,
+    dataReferenciaEstoque: ultimaData ? ultimaData.data_referencia : null,
+    autonomiaAlvoMeses: AUTONOMIA_ALVO_MESES,
+    total: itens.length,
+    itens,
+  });
+});
+
 // ---------- Consulta: Itens Elegíveis ----------
 router.get('/elegiveis', (req, res) => {
   const itens = db.prepare('SELECT * FROM distribuicao_itens_elegiveis ORDER BY unidade_dispensadora, descricao_item').all();

@@ -712,6 +712,12 @@ thead th {
 .req-item-selecionado { background: #eaf3ea; border-left: 3px solid var(--selo); }
 .req-item-selecionado:hover { background: #e2eee2; }
 
+/* Linha de item que passou por conversão (Estoque/Consumo numa unidade
+   "base" diferente da unidade de dispensação) — destaque visual pra
+   deixar claro que o número já foi ajustado, não é o valor bruto. */
+.linha-convertida { background: #fff6e0; }
+.linha-convertida:hover { background: #ffefc7; }
+
 /* Chips de filtro por faixa de validade */
 .filtros-faixa { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip-faixa {
