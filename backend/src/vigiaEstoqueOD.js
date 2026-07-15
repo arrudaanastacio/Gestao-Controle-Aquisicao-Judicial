@@ -7,12 +7,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { lerAssinatura, salvarAssinatura } = require('./vigiaEstado');
 
-const PASTA_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\GRADES DISTRIBUIÇÕES\\2026\\OUTRAS DEMANDAS\\Estoque Outras Demandas';
+// A partir de 2026 os 3 arquivos passaram a ficar juntos na pasta
+// "BANCO DE DADOS\RELATÓRIOS" (mesma pasta do módulo Distribuição), com
+// nomes fixos numerados — a pasta antiga "OUTRAS DEMANDAS\Estoque Outras
+// Demandas" não existe mais (virou pastas por mês, com nomes de arquivo
+// datados que mudam a cada atualização).
+const PASTA_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\GRADES DISTRIBUIÇÕES\\2026\\BANCO DE DADOS\\RELATÓRIOS';
 const PASTA = process.env.CAMINHO_ESTOQUE_OD || PASTA_PADRAO;
 
-const CAMINHO_MAPEAMENTO = path.join(PASTA, 'Cadastro Itens GSNET - IBL.xlsx');
-const CAMINHO_GSNET = path.join(PASTA, 'Estoque_GSNET.xlsx');
-const CAMINHO_IBL = path.join(PASTA, 'Estoque_IBL.xlsx');
+const CAMINHO_MAPEAMENTO = path.join(PASTA, '3.Cadastro Itens GSNET - IBL.xlsx');
+const CAMINHO_GSNET = path.join(PASTA, '4.Estoque GSNET.xlsx');
+const CAMINHO_IBL = path.join(PASTA, '5.Estoque IBL.xlsx');
 
 const INTERVALO = parseInt(process.env.VIGIA_INTERVALO_MS, 10) || 30000;
 

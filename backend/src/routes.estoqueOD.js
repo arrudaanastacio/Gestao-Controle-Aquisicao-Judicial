@@ -45,16 +45,33 @@ function dataParaBR(v) {
 
 // ---------- Leitura das 3 planilhas ----------
 
+function normalizar(s) {
+  return String(s ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[._]/g, ' ')
+    .toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
 // "Cadastro Itens GSNET - IBL.xlsx" -> Map<codigoSku(string), codigoScodes>
+// Colunas identificadas pelo NOME, não pela posição: a ordem já mudou uma
+// vez (o código GSNET está hoje em "Novo Código GSNET", não na posição em
+// que este arquivo foi originalmente escrito).
 function parsearMapeamento(buffer) {
   const wb = XLSX.read(buffer, { type: 'buffer' });
   const sheet = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
   const mapa = new Map();
+  const cab = (rows[0] || []).map(normalizar);
+  const colScodes = cab.findIndex((c) => c === 'codigo');
+  const colSku = cab.findIndex((c) => c.includes('novo codigo') && c.includes('gsnet'));
+  if (colScodes === -1 || colSku === -1) {
+    console.warn('[ESTOQUE OD] Não reconheci as colunas do Cadastro Itens GSNET-IBL (esperava "Código" e "Novo Código GSNET").');
+    return mapa;
+  }
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
-    const codigoScodes = texto(r[0]);
-    const codigoSku = texto(r[4]);
+    const codigoScodes = texto(r[colScodes]);
+    const codigoSku = texto(r[colSku]);
     if (codigoScodes && codigoSku) mapa.set(String(codigoSku).trim(), codigoScodes);
   }
   return mapa;
