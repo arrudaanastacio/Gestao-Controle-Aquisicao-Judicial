@@ -364,6 +364,66 @@ function importarItensElegiveis(linhas, opcoes = {}) {
   return resumo;
 }
 
+// ---------- Planilha 4: Conversão geral de Outras Demandas ----------
+// "7.Conversão OD.xlsx" — Código, Siafisico, Descrição do Item, Conversão.
+// Vale pra QUALQUER unidade de Outras Demandas (diferente da exceção
+// CEDMAC): quando o código aparece aqui, tanto o Consumo quanto o Estoque
+// (vindos do relatório diário de estoque) são divididos pela conversão.
+const MAPA_CONVERSAO_OD = {
+  codigo_item: ['codigo'],
+  siafisico: ['siafisico'],
+  descricao_item: ['descricao do item'],
+  conversao: ['conversao'],
+};
+const CAMPOS_CONVERSAO_OD = Object.keys(MAPA_CONVERSAO_OD);
+
+function parsearConversaoOD(buffer) {
+  const wb = XLSX.read(buffer, { type: 'buffer' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const linhas = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+
+  const cab = (linhas[0] || []).map(normalizar);
+  const COL = {};
+  for (const [campo, nomes] of Object.entries(MAPA_CONVERSAO_OD)) COL[campo] = cab.findIndex((c) => nomes.includes(c));
+  if (COL.codigo_item === -1) throw new Error('Não encontrei a coluna "Código" na planilha de Conversão OD.');
+
+  const resultado = [];
+  for (let i = 1; i < linhas.length; i++) {
+    const r = linhas[i];
+    if (!r) continue;
+    const codigoItem = texto(r[COL.codigo_item]);
+    if (!codigoItem) continue;
+    const linha = {};
+    for (const campo of CAMPOS_CONVERSAO_OD) {
+      const v = COL[campo] >= 0 ? r[COL[campo]] : null;
+      linha[campo] = campo === 'conversao' ? numero(v) : texto(v);
+    }
+    if (!linha.conversao) linha.conversao = 1;
+    resultado.push(linha);
+  }
+  return resultado;
+}
+
+function importarConversaoOD(linhas, opcoes = {}) {
+  let resumo;
+  db.exec('BEGIN');
+  try {
+    db.exec('DELETE FROM distribuicao_conversao_od');
+    const stmt = db.prepare(
+      `INSERT INTO distribuicao_conversao_od (${CAMPOS_CONVERSAO_OD.join(',')}) VALUES (${CAMPOS_CONVERSAO_OD.map(() => '?').join(',')})`
+    );
+    for (const l of linhas) stmt.run(...CAMPOS_CONVERSAO_OD.map((c) => l[c]));
+    resumo = { totalLinhas: linhas.length };
+    db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
+      .run('distribuicao_conversao_od', opcoes.nomeArquivo || 'Conversão OD', opcoes.usuarioEmail || 'sistema', JSON.stringify(resumo));
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+  return resumo;
+}
+
 // Status considerados "pendente de entrega" (definidos pelo Rafael)
 const STATUS_PENDENTES = [
   '5. Onda Gerada', '6. Separação', '8. Etiquetagem de volumes', '9. Aguardando Expedição',
@@ -447,12 +507,20 @@ router.get('/elegiveis', (req, res) => {
   res.json({ total: itens.length, itens });
 });
 
+// ---------- Consulta: Conversão OD ----------
+router.get('/conversao-od', (req, res) => {
+  const itens = db.prepare('SELECT * FROM distribuicao_conversao_od ORDER BY descricao_item').all();
+  res.json({ total: itens.length, itens });
+});
+
 module.exports = router;
 module.exports.parsearStatusFaturas = parsearStatusFaturas;
 module.exports.parsearExtratoSimples = parsearExtratoSimples;
 module.exports.parsearItensElegiveis = parsearItensElegiveis;
+module.exports.parsearConversaoOD = parsearConversaoOD;
 module.exports.importarStatusFaturas = importarStatusFaturas;
 module.exports.importarExtratoSimples = importarExtratoSimples;
 module.exports.importarItensElegiveis = importarItensElegiveis;
+module.exports.importarConversaoOD = importarConversaoOD;
 module.exports.carregarMapeamentoGsnet = carregarMapeamentoGsnet;
 module.exports.STATUS_PENDENTES = STATUS_PENDENTES;

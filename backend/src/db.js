@@ -344,6 +344,25 @@ CREATE TABLE IF NOT EXISTS distribuicao_itens_elegiveis (
 db.exec(`CREATE INDEX IF NOT EXISTS idx_distelegiveis_codigo ON distribuicao_itens_elegiveis(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_distelegiveis_unidade ON distribuicao_itens_elegiveis(unidade_dispensadora);`);
 
+// Distribuição — Conversão geral de Outras Demandas: planilha "7.Conversão
+// OD.xlsx". Diferente da exceção CEDMAC (que é por unidade, com consumo
+// fixo), esta lista vale para QUALQUER unidade de Outras Demandas: só diz
+// quais itens têm estoque/consumo reportados numa unidade "base" (grama,
+// mililitro, dose) diferente da unidade de dispensação, e o fator pra
+// converter. Nesses itens, tanto o Consumo quanto o Estoque são divididos
+// pela conversão (diferente da CEDMAC, onde só o Estoque é dividido).
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_conversao_od (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_item TEXT,
+  siafisico TEXT,
+  descricao_item TEXT,
+  conversao REAL,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distconversaood_codigo ON distribuicao_conversao_od(codigo_item);`);
+
 // Solicitações de compra de Outras Demandas (relatório próprio, separado do
 // Tenente Pena — layout de colunas diferente, mesmo conceito de mês a mês)
 db.exec(`
