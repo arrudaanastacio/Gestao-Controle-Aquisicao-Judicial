@@ -765,6 +765,14 @@ thead th {
   font-size: 12.5px; text-align: center;
 }
 
+/* Botões Validar / Negar por linha (grade) */
+.btn-grade { padding: 3px 12px; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+.btn-grade:disabled { opacity: .55; cursor: default; }
+.btn-validar { background: #e3f4e9; color: #1b6b3a; border-color: #a9d9bd; }
+.btn-validar:hover:not(:disabled) { background: #d3f2df; }
+.btn-negar { background: #fde8e8; color: #a12a2a; border-color: #f0b8b8; }
+.btn-negar:hover:not(:disabled) { background: #fbd5d5; }
+
 /* Chips de filtro por faixa de validade */
 .filtros-faixa { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip-faixa {

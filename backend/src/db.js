@@ -380,6 +380,26 @@ CREATE TABLE IF NOT EXISTS distribuicao_locais_entrega (
 db.exec(`CREATE INDEX IF NOT EXISTS idx_distlocais_local ON distribuicao_locais_entrega(local_entrega);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_distlocais_cod ON distribuicao_locais_entrega(cod_local);`);
 
+// Grade validada da reposição: itens que o usuário aprovou ("Validar") para
+// enviar ao operador logístico, no layout do arquivo "9.Modelo grade.xlsx".
+// Uma linha por item (SCODES) por local de entrega — "Negar" apaga a linha.
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_grade (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cod_local TEXT,
+  local_entrega TEXT,
+  cod_item TEXT,            -- código GSNET (SKU), COD_ITEM na grade
+  medicamento TEXT,
+  qtde REAL,
+  validade TEXT,
+  codigo_scodes TEXT,      -- nosso código (coluna "Código SCODES")
+  criado_em TEXT DEFAULT (datetime('now')),
+  atualizado_em TEXT DEFAULT (datetime('now')),
+  UNIQUE(local_entrega, codigo_scodes)
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distgrade_local ON distribuicao_grade(local_entrega);`);
+
 // Solicitações de compra de Outras Demandas (relatório próprio, separado do
 // Tenente Pena — layout de colunas diferente, mesmo conceito de mês a mês)
 db.exec(`

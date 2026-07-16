@@ -1930,6 +1930,19 @@ let unidadesReposicaoCarregadas = false;
 let reposicaoReqId = 0; // evita que uma resposta atrasada sobrescreva a mais recente
 let autonomiaAlvoPadrao = 3;            // autonomia-alvo padrão (vem do backend)
 const autonomiaPorSku = new Map();       // autonomia-alvo escolhida por SKU (input)
+let gradeValidadas = new Set();          // chaves (local||scodes) já validadas na grade
+
+function chaveGrade(local, scodes) { return `${local}||${scodes}`; }
+
+// Carrega do banco quais itens já estão na grade validada e atualiza o contador.
+async function carregarGradeValidadas() {
+  try {
+    const { itens, total } = await api('/distribuicao/grade');
+    gradeValidadas = new Set(itens.map((g) => chaveGrade(g.local_entrega, g.codigo_scodes)));
+    const cont = document.getElementById('contadorGrade');
+    if (cont) cont.textContent = total != null ? total : gradeValidadas.size;
+  } catch (e) { /* segue */ }
+}
 
 // Arredondamentos de embalagem (espelham o backend) para o recálculo local.
 function ceilMultiplo(q, m) { const k = m && m > 0 ? m : 1; return Math.ceil(q / k) * k; }
@@ -2005,6 +2018,7 @@ function aoMudarUnidadesReposicao() {
 
 async function carregarTabelaReposicao() {
   await carregarUnidadesReposicao();
+  await carregarGradeValidadas();
   const selecionadas = unidadesSelecionadasReposicao();
   const corpo = document.getElementById('corpoTabelaReposicao');
   const vazio = document.getElementById('estadoVazioReposicao');
@@ -2053,6 +2067,20 @@ const ROTULO_ETIQUETA = {
   parcial: '<span class="etiqueta-rep etiqueta-parcial">Reposição parcial</span>',
   sem_reposicao: '<span class="etiqueta-rep etiqueta-sem">Sem reposição</span>',
 };
+
+function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+
+// Botão Validar/Negar por linha. Guarda no próprio botão os dados que vão para
+// a grade (layout do 9.Modelo grade): SKU=COD_ITEM, nosso código=Código SCODES.
+function botaoAcaoGrade(it) {
+  const validado = gradeValidadas.has(chaveGrade(it.local_entrega, it.codigo_item));
+  const attrs = `data-local="${escAttr(it.local_entrega)}" data-scodes="${escAttr(it.codigo_item)}"`
+    + ` data-sku="${escAttr(it.codigo_sku)}" data-med="${escAttr(it.descricao_item)}"`
+    + ` data-qtde="${escAttr(it.reposicao)}" data-val="${escAttr(it.validade)}"`;
+  return validado
+    ? `<button class="btn-grade btn-negar" ${attrs}>Negar</button>`
+    : `<button class="btn-grade btn-validar" ${attrs}>Validar</button>`;
+}
 
 function renderizarTabelaReposicao() {
   const q = document.getElementById('filtroBuscaReposicao').value.trim().toLowerCase();
@@ -2113,6 +2141,7 @@ function renderizarTabelaReposicao() {
         <td>${fmtNumero(it.sugestao)}</td>
         <td><strong>${fmtNumero(it.reposicao)}</strong></td>
         <td>${ROTULO_ETIQUETA[it.etiqueta] || '—'}</td>
+        <td>${botaoAcaoGrade(it)}</td>
       </tr>`;
     }
     // Subtotal por SKU quando o grupo tem mais de uma linha (ex.: mesmo SKU em
@@ -2136,6 +2165,7 @@ function renderizarTabelaReposicao() {
         <td colspan="3"></td>
         <td><strong>${fmtNumero(subtotal)}</strong></td>
         <td>${ROTULO_ETIQUETA[et] || '—'}</td>
+        <td></td>
       </tr>`;
     }
   }
@@ -2171,6 +2201,49 @@ document.getElementById('corpoTabelaReposicao').addEventListener('change', (ev) 
   autonomiaPorSku.set(sku, v);
   recalcularSku(sku);
   renderizarTabelaReposicao();
+});
+
+// Validar / Negar por linha (grade). Delegação no tbody.
+document.getElementById('corpoTabelaReposicao').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('.btn-grade');
+  if (!btn) return;
+  const d = btn.dataset;
+  const validar = btn.classList.contains('btn-validar');
+  btn.disabled = true;
+  try {
+    if (validar) {
+      const r = await api('/distribuicao/grade/validar', {
+        method: 'POST',
+        body: JSON.stringify({
+          local_entrega: d.local, codigo_scodes: d.scodes, cod_item: d.sku,
+          medicamento: d.med, qtde: Number(d.qtde) || 0, validade: d.val,
+        }),
+      });
+      gradeValidadas.add(chaveGrade(d.local, d.scodes));
+      document.getElementById('contadorGrade').textContent = r.total;
+    } else {
+      const r = await api('/distribuicao/grade/negar', {
+        method: 'POST',
+        body: JSON.stringify({ local_entrega: d.local, codigo_scodes: d.scodes }),
+      });
+      gradeValidadas.delete(chaveGrade(d.local, d.scodes));
+      document.getElementById('contadorGrade').textContent = r.total;
+    }
+    renderizarTabelaReposicao();
+  } catch (e) {
+    alert('Erro: ' + e.message);
+    btn.disabled = false;
+  }
+});
+
+// Exportar a grade validada no layout do 9.Modelo grade (download .xlsx).
+document.getElementById('botaoExportarGrade').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = '/api/distribuicao/grade/exportar';
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 });
 
 async function carregarSolicitacoesOD() {

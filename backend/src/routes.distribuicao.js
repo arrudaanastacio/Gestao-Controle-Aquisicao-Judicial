@@ -868,6 +868,68 @@ router.get('/conversao-od', (req, res) => {
   res.json({ total: itens.length, itens });
 });
 
+// ===================================================================
+// Grade validada (fluxo "Validar" / "Negar" da reposição)
+// Cada item aprovado entra na grade no layout do "9.Modelo grade.xlsx".
+// ===================================================================
+
+// Lista os itens já validados (para a tela mostrar o estado dos botões).
+router.get('/grade', (req, res) => {
+  const itens = db.prepare('SELECT * FROM distribuicao_grade ORDER BY medicamento COLLATE NOCASE, local_entrega').all();
+  res.json({ total: itens.length, itens });
+});
+
+// Valida um item: grava/atualiza na grade. O cod_local vem do Locais de Entrega.
+router.post('/grade/validar', (req, res) => {
+  const b = req.body || {};
+  const localEntrega = texto(b.local_entrega);
+  const codigoScodes = texto(b.codigo_scodes);
+  if (!localEntrega || !codigoScodes) return res.status(400).json({ erro: 'Informe local_entrega e codigo_scodes.' });
+
+  const loc = db.prepare('SELECT cod_local FROM distribuicao_locais_entrega WHERE local_entrega = ?').get(localEntrega);
+  const codLocal = loc ? loc.cod_local : null;
+
+  db.prepare(`
+    INSERT INTO distribuicao_grade (cod_local, local_entrega, cod_item, medicamento, qtde, validade, codigo_scodes)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(local_entrega, codigo_scodes) DO UPDATE SET
+      cod_local = excluded.cod_local, cod_item = excluded.cod_item, medicamento = excluded.medicamento,
+      qtde = excluded.qtde, validade = excluded.validade, atualizado_em = datetime('now')
+  `).run(codLocal, localEntrega, texto(b.cod_item), texto(b.medicamento), numero(b.qtde) || 0, texto(b.validade), codigoScodes);
+
+  const total = db.prepare('SELECT COUNT(*) c FROM distribuicao_grade').get().c;
+  res.json({ ok: true, total });
+});
+
+// Nega um item: remove da grade.
+router.post('/grade/negar', (req, res) => {
+  const b = req.body || {};
+  const localEntrega = texto(b.local_entrega);
+  const codigoScodes = texto(b.codigo_scodes);
+  if (!localEntrega || !codigoScodes) return res.status(400).json({ erro: 'Informe local_entrega e codigo_scodes.' });
+  db.prepare('DELETE FROM distribuicao_grade WHERE local_entrega = ? AND codigo_scodes = ?').run(localEntrega, codigoScodes);
+  const total = db.prepare('SELECT COUNT(*) c FROM distribuicao_grade').get().c;
+  res.json({ ok: true, total });
+});
+
+// Exporta a grade num arquivo .xlsx no layout do "9.Modelo grade.xlsx" (aba GRADE).
+router.get('/grade/exportar', (req, res) => {
+  const itens = db.prepare('SELECT * FROM distribuicao_grade ORDER BY medicamento COLLATE NOCASE, local_entrega').all();
+  const cabecalho = ['COD_LOCAL', 'LOCAL DE ENTREGA', 'COD_ITEM', 'MEDICAMENTO', 'QTDE', '', 'Fatura', 'Validade', 'Código\r\nSCODES'];
+  const linhas = itens.map((it) => [
+    it.cod_local || '', it.local_entrega || '', it.cod_item || '', it.medicamento || '',
+    it.qtde || 0, '', '', it.validade || '', it.codigo_scodes || '',
+  ]);
+  const ws = XLSX.utils.aoa_to_sheet([cabecalho, ...linhas]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'GRADE');
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const hoje = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="Grade Distribuicao ${hoje}.xlsx"`);
+  res.send(buffer);
+});
+
 module.exports = router;
 module.exports.parsearStatusFaturas = parsearStatusFaturas;
 module.exports.parsearExtratoSimples = parsearExtratoSimples;

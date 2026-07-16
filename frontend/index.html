@@ -683,6 +683,7 @@
             <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
               <input type="checkbox" id="filtroSoSugeridosReposicao"> Só com reposição &gt; 0
             </label>
+            <button type="button" id="botaoExportarGrade" class="botao-primario" style="margin-left:auto;">Exportar grade (<span id="contadorGrade">0</span>)</button>
           </div>
           <p class="descricao-item" id="infoReposicao" style="margin:4px 0 12px;"></p>
 
@@ -706,6 +707,7 @@
                     <th>Sugestão</th>
                     <th>Reposição</th>
                     <th>Etiqueta</th>
+                    <th>Ação</th>
                   </tr>
                 </thead>
                 <tbody id="corpoTabelaReposicao"></tbody>
@@ -1792,6 +1794,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=63"></script>
+  <script src="/js/app.js?v=64"></script>
 </body>
 </html>
