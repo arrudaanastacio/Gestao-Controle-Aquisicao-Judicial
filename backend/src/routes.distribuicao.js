@@ -795,7 +795,7 @@ router.get('/reposicao', (req, res) => {
 router.get('/reposicao/unidades', (req, res) => {
   const unidades = db.prepare(`
     SELECT DISTINCT unidade v FROM estoque_itens
-    WHERE unidade IS NOT NULL AND unidade <> '' AND unidade NOT LIKE '%Tenente Pena%'
+    WHERE unidade IS NOT NULL AND unidade <> ''
     ORDER BY v
   `).all().map((r) => r.v);
   res.json({ unidades });
