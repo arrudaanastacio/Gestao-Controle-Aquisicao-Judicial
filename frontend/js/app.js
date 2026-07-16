@@ -2082,9 +2082,16 @@ function renderizarTabelaReposicao() {
     // várias unidades). SKU indefinido não recebe subtotal.
     if (g.sku && g.itens.length > 1) {
       const subtotal = g.itens[0].subtotal_sku;
+      const op = g.itens[0].estoque_operador;
+      const saldo = op == null ? null : op - subtotal;
+      const celSaldo = op == null
+        ? '—'
+        : `${fmtNumero(op)} − ${fmtNumero(subtotal)} = <strong>${fmtNumero(saldo)}</strong>`;
       html += `
       <tr class="linha-subtotal-sku">
-        <td colspan="13" style="text-align:right;"><strong>Subtotal do SKU ${g.sku} · ${g.itens.length} local(is)</strong></td>
+        <td colspan="9" style="text-align:right;"><strong>Subtotal do SKU ${g.sku} · ${g.itens.length} local(is)</strong></td>
+        <td title="Saldo do operador após a reposição">${celSaldo}</td>
+        <td colspan="3"></td>
         <td><strong>${fmtNumero(subtotal)}</strong></td>
         <td>${ROTULO_ETIQUETA[et] || '—'}</td>
       </tr>`;

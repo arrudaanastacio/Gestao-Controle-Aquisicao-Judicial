@@ -451,7 +451,8 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaEstoqueOD:not([hidden])),
 .conteudo:has(> #paginaSolicitacoesOD:not([hidden])),
 .conteudo:has(> #paginaAquisicaoODAndamento:not([hidden])),
-.conteudo:has(> #paginaEntradaLotes:not([hidden])) {
+.conteudo:has(> #paginaEntradaLotes:not([hidden])),
+.conteudo:has(> #paginaDistribuicao:not([hidden])) {
   max-width: none;
 }
 
@@ -600,6 +601,10 @@ thead th {
 }
 /* Na tabela de Atas a 3ª coluna é Siafísico, não descrição — desfaz a regra acima */
 #paginaAtas .tabela-rolavel-x td:nth-child(3) { min-width: 0; max-width: none; }
+/* Na reposição a 3ª coluna é o SKU (não a descrição): desfaz a largura fixa e
+   aplica o controle na 4ª coluna, que é a Descrição do Item. */
+.tabela-reposicao td:nth-child(3) { min-width: 0; max-width: none; }
+.tabela-reposicao td:nth-child(4) { min-width: 220px; max-width: 320px; }
 
 /* Cabeçalho fixo no topo ao rolar verticalmente */
 .tabela-rolavel-x thead th {
