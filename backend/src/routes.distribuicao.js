@@ -655,44 +655,42 @@ router.get('/reposicao', (req, res) => {
     db.prepare('SELECT codigo_item, conversao FROM distribuicao_conversao_od').all().map((r) => [r.codigo_item, r.conversao])
   );
 
-  // A base de itens vem SEMPRE da query de itens em estoque (outras_demandas =
-  // 'Sim') da unidade. Para unidades com elenco fechado próprio (ex.: CEDMAC,
-  // planilha "6.Elenco CEDMAC.xlsx"), os itens do elenco entram ADICIONALMENTE
-  // com consumo FIXO (acordo administrativo) e têm prioridade sobre a query
-  // quando o mesmo código aparece nas duas fontes.
+  // Duas origens MUTUAMENTE EXCLUSIVAS de itens, conforme a unidade:
+  //   - Unidades com elenco fechado próprio (ex.: UD 27 - CEDMAC HCFMUSP,
+  //     planilha "6.Elenco CEDMAC.xlsx"): mostra SÓ os itens do elenco, com
+  //     consumo FIXO (acordo administrativo).
+  //   - Demais unidades de Outras Demandas: mostra os itens marcados como
+  //     "Outras Demandas = Sim" na query de itens em estoque, com consumo e
+  //     estoque vindos do relatório diário (÷ Conversão OD quando houver).
   const elenco = db.prepare(
     'SELECT * FROM distribuicao_itens_elegiveis WHERE unidade_dispensadora = ? ORDER BY descricao_item'
   ).all(unidade);
-  const codigosElenco = new Set(elenco.map((e) => e.codigo_item));
 
-  const base = [];
-  // 1) Itens do elenco fechado (consumo fixo, estoque convertido pela conversão do elenco).
-  for (const el of elenco) {
-    base.push({
+  let base;
+  if (elenco.length > 0) {
+    base = elenco.map((el) => ({
       codigo_item: el.codigo_item,
       siafisico: el.siafisico,
       descricao_item: el.descricao_item,
       consumoMensal: el.consumo_mensal_fixo || 0,
       conversaoEstoque: el.conversao || 1,
-    });
-  }
-  // 2) Demais itens Outras Demandas = 'Sim' da query de estoque (consumo e
-  //    estoque vêm do relatório diário, divididos pela Conversão OD quando houver).
-  if (ultimaData) {
+    }));
+  } else if (ultimaData) {
     const linhasEstoque = db.prepare(
       "SELECT codigo_item, descricao, siafisico, consumo_mensal_total FROM estoque_itens WHERE unidade = ? AND data_referencia = ? AND outras_demandas = 'Sim' ORDER BY descricao"
     ).all(unidade, ultimaData.data_referencia);
-    for (const l of linhasEstoque) {
-      if (codigosElenco.has(l.codigo_item)) continue; // já entrou pelo elenco (consumo fixo)
+    base = linhasEstoque.map((l) => {
       const conv = mapaConversaoOD.get(l.codigo_item) || 1;
-      base.push({
+      return {
         codigo_item: l.codigo_item,
         siafisico: l.siafisico,
         descricao_item: l.descricao,
         consumoMensal: conv !== 1 ? (l.consumo_mensal_total || 0) / conv : (l.consumo_mensal_total || 0),
         conversaoEstoque: conv,
-      });
-    }
+      };
+    });
+  } else {
+    base = [];
   }
 
   // 1ª passada: calcula, por item, o consumo/estoque/autonomia, a sugestão
