@@ -672,12 +672,13 @@ router.get('/reposicao', (req, res) => {
       codigo_item: el.codigo_item,
       siafisico: el.siafisico,
       descricao_item: el.descricao_item,
+      demandaTotal: el.demandas || 0,
       consumoMensal: el.consumo_mensal_fixo || 0,
       conversaoEstoque: el.conversao || 1,
     }));
   } else if (ultimaData) {
     const linhasEstoque = db.prepare(
-      "SELECT codigo_item, descricao, siafisico, consumo_mensal_total FROM estoque_itens WHERE unidade = ? AND data_referencia = ? AND outras_demandas = 'Sim' ORDER BY descricao"
+      "SELECT codigo_item, descricao, siafisico, demandas, consumo_mensal_total FROM estoque_itens WHERE unidade = ? AND data_referencia = ? AND outras_demandas = 'Sim' ORDER BY descricao"
     ).all(unidade, ultimaData.data_referencia);
     base = linhasEstoque.map((l) => {
       const conv = mapaConversaoOD.get(l.codigo_item) || 1;
@@ -685,6 +686,7 @@ router.get('/reposicao', (req, res) => {
         codigo_item: l.codigo_item,
         siafisico: l.siafisico,
         descricao_item: l.descricao,
+        demandaTotal: l.demandas || 0,
         consumoMensal: conv !== 1 ? (l.consumo_mensal_total || 0) / conv : (l.consumo_mensal_total || 0),
         conversaoEstoque: conv,
       };
@@ -714,6 +716,7 @@ router.get('/reposicao', (req, res) => {
       codigo_sku: op ? op.sku : null,
       siafisico: it.siafisico,
       descricao_item: it.descricao_item,
+      demanda_total: it.demandaTotal,
       conversao: it.conversaoEstoque,
       convertido: it.conversaoEstoque !== 1,
       consumo_mensal: Math.round(it.consumoMensal * 100) / 100,
@@ -729,9 +732,12 @@ router.get('/reposicao', (req, res) => {
     };
   });
 
-  // Filtro: só itens com autonomia >= 2 (esconde os críticos < 2). Itens sem
-  // consumo (autonomia indefinida) permanecem — a sugestão deles é 0 mesmo.
-  itens = itens.filter((it) => it.autonomia === null || it.autonomia >= AUTONOMIA_MINIMA_EXIBIR);
+  // Filtros da lista:
+  //   - Demanda total = 0 sai da sugestão (item sem consumo, não há o que repor).
+  //   - Só itens com autonomia >= 2 (esconde os críticos < 2).
+  itens = itens
+    .filter((it) => (it.demanda_total || 0) > 0)
+    .filter((it) => it.autonomia === null || it.autonomia >= AUTONOMIA_MINIMA_EXIBIR);
 
   // 2ª passada: agrupa por Código GSNET (SKU) e resolve o atendimento contra o
   // estoque do operador logístico. Etiquetas:

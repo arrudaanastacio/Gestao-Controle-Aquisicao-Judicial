@@ -1974,7 +1974,7 @@ function renderizarTabelaReposicao() {
   const etiqueta = document.getElementById('filtroEtiquetaReposicao').value;
   const corpo = document.getElementById('corpoTabelaReposicao');
   const vazio = document.getElementById('estadoVazioReposicao');
-  const N_COLS = 13;
+  const N_COLS = 14;
 
   let itens = dadosReposicaoBrutos;
   if (q) itens = itens.filter((it) => (it.descricao_item || '').toLowerCase().includes(q) || (it.codigo_item || '').toLowerCase().includes(q) || (it.codigo_sku || '').toLowerCase().includes(q));
@@ -2011,6 +2011,7 @@ function renderizarTabelaReposicao() {
         <td class="col-codigo">${it.codigo_item || '—'}</td>
         <td class="col-codigo">${it.codigo_sku || '—'}</td>
         <td>${it.descricao_item || '—'}</td>
+        <td>${fmtNumero(it.demanda_total)}</td>
         <td>${fmtNumero(it.consumo_mensal)}</td>
         <td>${fmtNumero(it.estoque_convertido)}${it.convertido ? ` <span class="descricao-item">(÷${fmtNumero(it.conversao)})</span>` : ''}</td>
         <td>${fmtNumero(it.fatura_transito)}</td>
@@ -2031,7 +2032,7 @@ function renderizarTabelaReposicao() {
       <tr class="linha-subtotal-sku">
         <td class="col-codigo">—</td>
         <td class="col-codigo">${g.sku}</td>
-        <td colspan="9" style="text-align:right;"><strong>Subtotal do SKU ${g.sku}</strong></td>
+        <td colspan="10" style="text-align:right;"><strong>Subtotal do SKU ${g.sku}</strong></td>
         <td><strong>${fmtNumero(subtotal)}</strong></td>
         <td>${ROTULO_ETIQUETA[et] || '—'}</td>
       </tr>`;
