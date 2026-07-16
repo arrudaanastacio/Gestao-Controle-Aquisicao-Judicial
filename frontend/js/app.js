@@ -1928,6 +1928,40 @@ let dadosReposicaoBrutos = [];
 let unidadesReposicaoLista = [];
 let unidadesReposicaoCarregadas = false;
 let reposicaoReqId = 0; // evita que uma resposta atrasada sobrescreva a mais recente
+let autonomiaAlvoPadrao = 3;            // autonomia-alvo padrão (vem do backend)
+const autonomiaPorSku = new Map();       // autonomia-alvo escolhida por SKU (input)
+
+// Arredondamentos de embalagem (espelham o backend) para o recálculo local.
+function ceilMultiplo(q, m) { const k = m && m > 0 ? m : 1; return Math.ceil(q / k) * k; }
+function floorMultiplo(q, m) { const k = m && m > 0 ? m : 1; return Math.floor(q / k) * k; }
+
+// Recalcula a reposição de UM SKU quando o usuário muda a autonomia-alvo dele.
+// Mesma lógica do backend (sugestão para a autonomia escolhida, arredondada ao
+// múltiplo; total/parcial/sem reposição contra o estoque do operador).
+function recalcularSku(sku) {
+  const grupo = dadosReposicaoBrutos.filter((it) => it.codigo_sku === sku);
+  if (!grupo.length) return;
+  const alvo = autonomiaPorSku.has(sku) ? autonomiaPorSku.get(sku) : autonomiaAlvoPadrao;
+  grupo.forEach((it) => {
+    const sug = Math.max(0, Math.round(alvo * it.consumo_mensal - (it.estoque_convertido + it.fatura_transito)));
+    it.sugestao = sug;
+    it.reposicao = sug > 0 ? ceilMultiplo(sug, it.multiplo_embalagem) : 0;
+  });
+  const subtotal = grupo.reduce((s, it) => s + it.reposicao, 0);
+  const op = grupo[0].estoque_operador;
+  const mult = grupo[0].multiplo_embalagem;
+  let et;
+  if (subtotal <= 0) { et = 'sem_reposicao'; grupo.forEach((it) => { it.reposicao = 0; it.destaque = false; }); }
+  else if (op == null) { et = 'total'; grupo.forEach((it) => { it.destaque = false; }); }
+  else if (op >= subtotal) { et = 'total'; grupo.forEach((it) => { it.destaque = false; }); }
+  else if (op > 0) {
+    et = 'parcial';
+    const fatia = op / grupo.length;
+    grupo.forEach((it) => { it.reposicao = Math.min(it.reposicao, floorMultiplo(fatia, mult)); it.destaque = true; });
+  } else { et = 'sem_reposicao'; grupo.forEach((it) => { it.reposicao = 0; it.destaque = true; }); }
+  const sub2 = grupo.reduce((s, it) => s + it.reposicao, 0);
+  grupo.forEach((it) => { it.etiqueta = et; it.subtotal_sku = sub2; });
+}
 
 // Monta a lista de checkboxes de unidades (uma vez). Deixa a CEDMAC marcada
 // por padrão, como era antes.
@@ -1997,6 +2031,8 @@ async function carregarTabelaReposicao() {
     const dados = await api(`/distribuicao/reposicao?unidades=${paramUnidades}`);
     if (req !== reposicaoReqId) return; // resposta antiga: descarta
     dadosReposicaoBrutos = dados.itens;
+    autonomiaAlvoPadrao = dados.autonomiaAlvoMeses || 3;
+    autonomiaPorSku.clear(); // recomeça as escolhas por SKU a cada nova consulta
     const nUnid = dados.unidades ? dados.unidades.length : selecionadas.length;
     let txt = `Autonomia-alvo: ${dados.autonomiaAlvoMeses} meses · Mostrando só autonomia ≥ ${dados.autonomiaMinimaExibir} · `
       + `${nUnid} unidade(s) · Estoque: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) : '—'} · `
@@ -2021,13 +2057,14 @@ const ROTULO_ETIQUETA = {
 function renderizarTabelaReposicao() {
   const q = document.getElementById('filtroBuscaReposicao').value.trim().toLowerCase();
   const soSugeridos = document.getElementById('filtroSoSugeridosReposicao').checked;
-  const etiqueta = document.getElementById('filtroEtiquetaReposicao').value;
+  const etiquetasSel = [...document.querySelectorAll('.chk-etiqueta:checked')].map((c) => c.value);
   const corpo = document.getElementById('corpoTabelaReposicao');
   const vazio = document.getElementById('estadoVazioReposicao');
 
   let itens = dadosReposicaoBrutos.slice();
   if (q) itens = itens.filter((it) => (it.descricao_item || '').toLowerCase().includes(q) || (it.codigo_item || '').toLowerCase().includes(q) || (it.codigo_sku || '').toLowerCase().includes(q));
-  if (etiqueta) itens = itens.filter((it) => it.etiqueta === etiqueta);
+  // Filtro de etiqueta com múltipla seleção (se nenhuma marcada, mostra todas).
+  if (etiquetasSel.length) itens = itens.filter((it) => etiquetasSel.includes(it.etiqueta));
   if (soSugeridos) itens = itens.filter((it) => it.reposicao > 0);
 
   if (itens.length === 0) {
@@ -2080,16 +2117,21 @@ function renderizarTabelaReposicao() {
     }
     // Subtotal por SKU quando o grupo tem mais de uma linha (ex.: mesmo SKU em
     // várias unidades). SKU indefinido não recebe subtotal.
-    if (g.sku && g.itens.length > 1) {
+    if (g.sku) {
       const subtotal = g.itens[0].subtotal_sku;
       const op = g.itens[0].estoque_operador;
       const saldo = op == null ? null : op - subtotal;
       const celSaldo = op == null
         ? '—'
         : `${fmtNumero(op)} − ${fmtNumero(subtotal)} = <strong>${fmtNumero(saldo)}</strong>`;
+      const alvo = autonomiaPorSku.has(g.sku) ? autonomiaPorSku.get(g.sku) : autonomiaAlvoPadrao;
       html += `
       <tr class="linha-subtotal-sku">
-        <td colspan="9" style="text-align:right;"><strong>Subtotal do SKU ${g.sku} · ${g.itens.length} local(is)</strong></td>
+        <td colspan="9" style="text-align:right;">
+          <strong>Subtotal do SKU ${g.sku} · ${g.itens.length} local(is)</strong>
+          &nbsp;·&nbsp;<span class="rotulo-autonomia">Autonomia-alvo:</span>
+          <input type="number" min="0" step="0.5" value="${alvo}" class="input-autonomia-sku" data-sku="${String(g.sku).replace(/"/g, '&quot;')}" title="Meses de autonomia-alvo deste SKU">
+        </td>
         <td title="Saldo do operador após a reposição">${celSaldo}</td>
         <td colspan="3"></td>
         <td><strong>${fmtNumero(subtotal)}</strong></td>
@@ -2116,7 +2158,20 @@ document.getElementById('chkTodasUnidadesReposicao').addEventListener('change', 
 });
 document.getElementById('filtroBuscaReposicao').addEventListener('input', renderizarTabelaReposicao);
 document.getElementById('filtroSoSugeridosReposicao').addEventListener('change', renderizarTabelaReposicao);
-document.getElementById('filtroEtiquetaReposicao').addEventListener('change', renderizarTabelaReposicao);
+document.querySelectorAll('.chk-etiqueta').forEach((c) => c.addEventListener('change', renderizarTabelaReposicao));
+
+// Autonomia-alvo por SKU (input na linha de subtotal). Delegação no tbody, que
+// é persistente mesmo com o innerHTML sendo recriado a cada render.
+document.getElementById('corpoTabelaReposicao').addEventListener('change', (ev) => {
+  const inp = ev.target;
+  if (!inp.classList || !inp.classList.contains('input-autonomia-sku')) return;
+  const sku = inp.dataset.sku;
+  let v = parseFloat(String(inp.value).replace(',', '.'));
+  if (!Number.isFinite(v) || v < 0) v = autonomiaAlvoPadrao;
+  autonomiaPorSku.set(sku, v);
+  recalcularSku(sku);
+  renderizarTabelaReposicao();
+});
 
 async function carregarSolicitacoesOD() {
   carregarUltimaAtualizacao('atualizadoSolicitacoesOD', 'solicitacoes_od');

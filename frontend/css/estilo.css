@@ -753,6 +753,18 @@ thead th {
 /* Tabela de reposição ocupa toda a largura disponível (evita espaço vazio à direita) */
 .tabela-reposicao { width: 100%; min-width: 1100px; }
 
+/* Filtro de etiquetas com múltipla seleção */
+.filtro-etiquetas { display: inline-flex; align-items: center; gap: 12px; font-size: 12.5px; }
+.filtro-etiquetas .rotulo-filtro { color: #5a616b; }
+.filtro-etiquetas label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+
+/* Input de autonomia-alvo por SKU na linha de subtotal */
+.rotulo-autonomia { color: #5a616b; font-weight: normal; }
+.input-autonomia-sku {
+  width: 58px; padding: 2px 6px; border: 1px solid #c9ccd1; border-radius: 5px;
+  font-size: 12.5px; text-align: center;
+}
+
 /* Chips de filtro por faixa de validade */
 .filtros-faixa { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip-faixa {

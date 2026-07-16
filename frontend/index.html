@@ -674,12 +674,12 @@
               </div>
             </div>
             <input type="text" id="filtroBuscaReposicao" placeholder="Buscar por medicamento ou código…" style="min-width:280px;">
-            <select id="filtroEtiquetaReposicao">
-              <option value="">Etiqueta: todas</option>
-              <option value="total">Reposição total</option>
-              <option value="parcial">Reposição parcial</option>
-              <option value="sem_reposicao">Sem reposição</option>
-            </select>
+            <span class="filtro-etiquetas" id="filtroEtiquetaReposicao">
+              <span class="rotulo-filtro">Etiquetas:</span>
+              <label><input type="checkbox" class="chk-etiqueta" value="total" checked> Total</label>
+              <label><input type="checkbox" class="chk-etiqueta" value="parcial" checked> Parcial</label>
+              <label><input type="checkbox" class="chk-etiqueta" value="sem_reposicao" checked> Sem reposição</label>
+            </span>
             <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
               <input type="checkbox" id="filtroSoSugeridosReposicao"> Só com reposição &gt; 0
             </label>
@@ -1792,6 +1792,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=62"></script>
+  <script src="/js/app.js?v=63"></script>
 </body>
 </html>
