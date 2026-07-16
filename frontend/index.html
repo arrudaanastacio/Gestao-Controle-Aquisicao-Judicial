@@ -670,8 +670,14 @@
               <option value="UD 27 - CEDMAC HCFMUSP">UD 27 - CEDMAC HCFMUSP</option>
             </select>
             <input type="text" id="filtroBuscaReposicao" placeholder="Buscar por medicamento ou código…" style="min-width:280px;">
+            <select id="filtroEtiquetaReposicao">
+              <option value="">Etiqueta: todas</option>
+              <option value="total">Reposição total</option>
+              <option value="parcial">Reposição parcial</option>
+              <option value="sem_reposicao">Sem reposição</option>
+            </select>
             <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" id="filtroSoSugeridosReposicao"> Só com sugestão &gt; 0
+              <input type="checkbox" id="filtroSoSugeridosReposicao"> Só com reposição &gt; 0
             </label>
           </div>
           <p class="descricao-item" id="infoReposicao" style="margin:4px 0 12px;"></p>
@@ -682,13 +688,18 @@
                 <thead>
                   <tr>
                     <th>Código</th>
+                    <th>Cód. GSNET (SKU)</th>
                     <th>Descrição do Item</th>
                     <th>Consumo Mensal</th>
-                    <th>Estoque</th>
-                    <th>Conversão</th>
                     <th>Estoque Convertido</th>
                     <th>Fatura em Trânsito</th>
-                    <th>Sugestão de Reposição</th>
+                    <th>Autonomia</th>
+                    <th>Estoque Operador</th>
+                    <th>Validade</th>
+                    <th>Múltiplo Emb.</th>
+                    <th>Sugestão</th>
+                    <th>Reposição</th>
+                    <th>Etiqueta</th>
                   </tr>
                 </thead>
                 <tbody id="corpoTabelaReposicao"></tbody>
@@ -1775,6 +1786,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=57"></script>
+  <script src="/js/app.js?v=58"></script>
 </body>
 </html>

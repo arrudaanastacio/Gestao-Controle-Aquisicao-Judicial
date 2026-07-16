@@ -573,6 +573,63 @@ function importarLocaisEntrega(linhas, opcoes = {}) {
 // grafam a unidade de forma diferente (ex.: SCODES "UD 27 - CEDMAC
 // HCFMUSP" x GSNET "(2865) - HC - CDEMAC", com erro de digitação no GSNET).
 const AUTONOMIA_ALVO_MESES = 3;
+// Só entram na sugestão de reposição itens com autonomia atual >= este valor
+// (definido com o Rafael). Itens com autonomia menor são ruptura/crítico e
+// tratados em outro fluxo, fora desta tela.
+const AUTONOMIA_MINIMA_EXIBIR = 2;
+
+// Arredonda para cima até o próximo múltiplo de embalagem (o que se pede ao
+// operador). Múltiplo ausente/<=0 equivale a "sem embalagem" (fator 1).
+function arredondarParaCima(qtd, multiplo) {
+  const m = multiplo && multiplo > 0 ? multiplo : 1;
+  return Math.ceil(qtd / m) * m;
+}
+// Arredonda para baixo até o múltiplo (usado quando o operador não tem
+// estoque para o pedido inteiro — só dá pra enviar embalagens fechadas).
+function arredondarParaBaixo(qtd, multiplo) {
+  const m = multiplo && multiplo > 0 ? multiplo : 1;
+  return Math.floor(qtd / m) * m;
+}
+
+// Converte "DD/MM/AAAA" -> número comparável (AAAAMMDD) ou null.
+function chaveDataBR(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  return m ? Number(`${m[3]}${m[2]}${m[1]}`) : null;
+}
+
+// Monta, para a última importação do Estoque OD (operador logístico), um mapa
+// codigo_item -> { sku, multiplo, estoqueOperador, validade }.
+//   - estoqueOperador = MENOR entre o disponível do IBL (soma dos lotes) e o
+//     Saldo Disp. do GSNET — é o que de fato pode ser separado/enviado.
+//   - validade = a MAIS PRÓXIMA entre os lotes com saldo disponível (FEFO).
+function carregarEstoqueOperadorPorItem() {
+  const mapa = new Map();
+  const ultima = db.prepare('SELECT data_referencia FROM estoque_od_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+  if (!ultima) return { mapa, dataReferencia: null };
+  const linhas = db.prepare(`
+    SELECT codigo_item, codigo_sku, multiplo_distribuicao, saldo_gsnet, qtde_disponivel, validade
+    FROM estoque_od_itens WHERE data_referencia = ? AND codigo_item IS NOT NULL
+  `).all(ultima.data_referencia);
+
+  const acc = new Map();
+  for (const l of linhas) {
+    let a = acc.get(l.codigo_item);
+    if (!a) { a = { sku: l.codigo_sku, multiplo: 0, ibl: 0, gsnet: null, validadeChave: null, validade: null }; acc.set(l.codigo_item, a); }
+    a.multiplo = Math.max(a.multiplo, l.multiplo_distribuicao || 0);
+    a.ibl += l.qtde_disponivel || 0;
+    if (l.saldo_gsnet != null) a.gsnet = Math.max(a.gsnet || 0, l.saldo_gsnet);
+    if ((l.qtde_disponivel || 0) > 0) {
+      const ch = chaveDataBR(l.validade);
+      if (ch != null && (a.validadeChave === null || ch < a.validadeChave)) { a.validadeChave = ch; a.validade = l.validade; }
+    }
+  }
+  for (const [codigo, a] of acc) {
+    const estoqueOperador = a.gsnet != null ? Math.min(a.gsnet, a.ibl) : a.ibl;
+    mapa.set(codigo, { sku: a.sku, multiplo: a.multiplo, estoqueOperador, validade: a.validade });
+  }
+  return { mapa, dataReferencia: ultima.data_referencia };
+}
 
 router.get('/reposicao', (req, res) => {
   const unidade = req.query.unidade;
@@ -585,6 +642,7 @@ router.get('/reposicao', (req, res) => {
   const codigoDestino = local.cod_local;
 
   const ultimaData = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+  const { mapa: mapaOperador, dataReferencia: dataOperador } = carregarEstoqueOperadorPorItem();
 
   const placeholders = STATUS_PENDENTES.map(() => '?').join(',');
   const stmtTransito = db.prepare(
@@ -629,7 +687,9 @@ router.get('/reposicao', (req, res) => {
     base = [];
   }
 
-  const itens = base.map((it) => {
+  // 1ª passada: calcula, por item, o consumo/estoque/autonomia, a sugestão
+  // bruta (para 3 meses) e a reposição arredondada ao múltiplo de embalagem.
+  let itens = base.map((it) => {
     const estoqueRow = stmtEstoque && ultimaData ? stmtEstoque.get(unidade, it.codigo_item, ultimaData.data_referencia) : null;
     const estoqueBruto = estoqueRow ? (estoqueRow.estoque || 0) : 0;
     const estoqueConvertido = it.conversaoEstoque !== 1 ? estoqueBruto / it.conversaoEstoque : estoqueBruto;
@@ -637,9 +697,15 @@ router.get('/reposicao', (req, res) => {
     const faturaTransito = stmtTransito.get(codigoDestino, it.codigo_item, ...STATUS_PENDENTES).v || 0;
 
     const sugestao = Math.max(0, Math.round((AUTONOMIA_ALVO_MESES * it.consumoMensal) - (estoqueConvertido + faturaTransito)));
+    const autonomia = it.consumoMensal > 0 ? (estoqueConvertido + faturaTransito) / it.consumoMensal : null;
+
+    const op = mapaOperador.get(it.codigo_item) || null;
+    const multiplo = op ? op.multiplo : null;
+    const reposicaoArredondada = sugestao > 0 ? arredondarParaCima(sugestao, multiplo) : 0;
 
     return {
       codigo_item: it.codigo_item,
+      codigo_sku: op ? op.sku : null,
       siafisico: it.siafisico,
       descricao_item: it.descricao_item,
       conversao: it.conversaoEstoque,
@@ -648,15 +714,72 @@ router.get('/reposicao', (req, res) => {
       estoque_bruto: estoqueBruto,
       estoque_convertido: Math.round(estoqueConvertido * 100) / 100,
       fatura_transito: faturaTransito,
+      autonomia: autonomia === null ? null : Math.round(autonomia * 10) / 10,
+      multiplo_embalagem: multiplo,
+      estoque_operador: op ? op.estoqueOperador : null,
+      validade: op ? op.validade : null,
       sugestao,
+      reposicao: reposicaoArredondada, // pode ser ajustado na 2ª passada (parcial)
     };
   });
+
+  // Filtro: só itens com autonomia >= 2 (esconde os críticos < 2). Itens sem
+  // consumo (autonomia indefinida) permanecem — a sugestão deles é 0 mesmo.
+  itens = itens.filter((it) => it.autonomia === null || it.autonomia >= AUTONOMIA_MINIMA_EXIBIR);
+
+  // 2ª passada: agrupa por Código GSNET (SKU) e resolve o atendimento contra o
+  // estoque do operador logístico. Etiquetas:
+  //   - total   : operador cobre todo o subtotal do SKU.
+  //   - parcial : operador tem estoque, mas menos que o subtotal -> distribui
+  //               igualitariamente entre os itens do grupo (embalagens fechadas).
+  //   - sem_reposicao : nada a repor, ou operador sem estoque.
+  const grupos = new Map();
+  for (const it of itens) {
+    const chave = it.codigo_sku || `__sem_sku__${it.codigo_item}`;
+    if (!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave).push(it);
+  }
+
+  for (const [, grupo] of grupos) {
+    const subtotal = grupo.reduce((s, it) => s + (it.reposicao || 0), 0);
+    const operador = grupo[0].estoque_operador; // mesmo SKU -> mesmo estoque operador
+    const multiplo = grupo[0].multiplo_embalagem;
+    let etiqueta;
+
+    if (subtotal <= 0) {
+      etiqueta = 'sem_reposicao';
+      grupo.forEach((it) => { it.reposicao = 0; it.destaque = false; });
+    } else if (operador == null) {
+      // Sem vínculo no operador (SKU desconhecido): mantém a sugestão, sem cap.
+      etiqueta = 'total';
+      grupo.forEach((it) => { it.destaque = false; });
+    } else if (operador >= subtotal) {
+      etiqueta = 'total';
+      grupo.forEach((it) => { it.destaque = false; });
+    } else if (operador > 0) {
+      etiqueta = 'parcial';
+      // Distribuição igualitária: cada item recebe uma fatia igual do estoque
+      // do operador, arredondada para baixo ao múltiplo e limitada ao que
+      // pediria. Sobra por arredondamento fica sem enviar (embalagem fechada).
+      const fatia = operador / grupo.length;
+      grupo.forEach((it) => {
+        it.reposicao = Math.min(it.reposicao, arredondarParaBaixo(fatia, multiplo));
+        it.destaque = true;
+      });
+    } else {
+      etiqueta = 'sem_reposicao'; // operador zerado
+      grupo.forEach((it) => { it.reposicao = 0; it.destaque = true; });
+    }
+    grupo.forEach((it) => { it.etiqueta = etiqueta; it.subtotal_sku = grupo.reduce((s, x) => s + (x.reposicao || 0), 0); });
+  }
 
   res.json({
     unidade,
     modo: elenco.length > 0 ? 'elenco_fechado' : 'geral',
     dataReferenciaEstoque: ultimaData ? ultimaData.data_referencia : null,
+    dataReferenciaOperador: dataOperador,
     autonomiaAlvoMeses: AUTONOMIA_ALVO_MESES,
+    autonomiaMinimaExibir: AUTONOMIA_MINIMA_EXIBIR,
     total: itens.length,
     itens,
   });

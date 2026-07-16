@@ -1951,7 +1951,9 @@ async function carregarTabelaReposicao() {
   try {
     const dados = await api(`/distribuicao/reposicao?unidade=${encodeURIComponent(unidade)}`);
     dadosReposicaoBrutos = dados.itens;
-    info.textContent = `Autonomia-alvo: ${dados.autonomiaAlvoMeses} meses · Estoque de referência: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) : '—'}`;
+    info.textContent = `Autonomia-alvo: ${dados.autonomiaAlvoMeses} meses · Mostrando só autonomia ≥ ${dados.autonomiaMinimaExibir} · `
+      + `Estoque unidade: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) : '—'} · `
+      + `Estoque operador: ${dados.dataReferenciaOperador ? formatarData(dados.dataReferenciaOperador) : '—'}`;
     renderizarTabelaReposicao();
   } catch (e) {
     corpo.innerHTML = '';
@@ -1960,40 +1962,88 @@ async function carregarTabelaReposicao() {
   }
 }
 
+const ROTULO_ETIQUETA = {
+  total: '<span class="etiqueta-rep etiqueta-total">Reposição total</span>',
+  parcial: '<span class="etiqueta-rep etiqueta-parcial">Reposição parcial</span>',
+  sem_reposicao: '<span class="etiqueta-rep etiqueta-sem">Sem reposição</span>',
+};
+
 function renderizarTabelaReposicao() {
   const q = document.getElementById('filtroBuscaReposicao').value.trim().toLowerCase();
   const soSugeridos = document.getElementById('filtroSoSugeridosReposicao').checked;
+  const etiqueta = document.getElementById('filtroEtiquetaReposicao').value;
   const corpo = document.getElementById('corpoTabelaReposicao');
   const vazio = document.getElementById('estadoVazioReposicao');
+  const N_COLS = 13;
 
   let itens = dadosReposicaoBrutos;
-  if (q) itens = itens.filter((it) => (it.descricao_item || '').toLowerCase().includes(q) || (it.codigo_item || '').toLowerCase().includes(q));
-  if (soSugeridos) itens = itens.filter((it) => it.sugestao > 0);
+  if (q) itens = itens.filter((it) => (it.descricao_item || '').toLowerCase().includes(q) || (it.codigo_item || '').toLowerCase().includes(q) || (it.codigo_sku || '').toLowerCase().includes(q));
+  if (etiqueta) itens = itens.filter((it) => it.etiqueta === etiqueta);
+  if (soSugeridos) itens = itens.filter((it) => it.reposicao > 0);
 
   if (itens.length === 0) {
     corpo.innerHTML = '';
     vazio.hidden = false;
     vazio.textContent = 'Nenhum item elegível encontrado com estes filtros.';
-  } else {
-    vazio.hidden = true;
-    corpo.innerHTML = itens.map((it) => `
-      <tr class="${it.convertido ? 'linha-convertida' : ''}">
+    return;
+  }
+  vazio.hidden = true;
+
+  // Agrupa por SKU preservando a ordem de chegada, para inserir uma linha de
+  // subtotal por Código GSNET (com a etiqueta do grupo).
+  const grupos = [];
+  const indice = new Map();
+  for (const it of itens) {
+    const chave = it.codigo_sku || `__sem_sku__${it.codigo_item}`;
+    if (!indice.has(chave)) { indice.set(chave, grupos.length); grupos.push({ chave, sku: it.codigo_sku, itens: [] }); }
+    grupos[indice.get(chave)].itens.push(it);
+  }
+
+  let html = '';
+  for (const g of grupos) {
+    const et = g.itens[0].etiqueta;
+    for (const it of g.itens) {
+      const classes = [];
+      if (it.convertido) classes.push('linha-convertida');
+      if (it.destaque) classes.push('linha-parcial');
+      html += `
+      <tr class="${classes.join(' ')}">
         <td class="col-codigo">${it.codigo_item || '—'}</td>
+        <td class="col-codigo">${it.codigo_sku || '—'}</td>
         <td>${it.descricao_item || '—'}</td>
         <td>${fmtNumero(it.consumo_mensal)}</td>
-        <td>${fmtNumero(it.estoque_bruto)}</td>
-        <td>${it.convertido ? '÷ ' + fmtNumero(it.conversao) : '—'}</td>
-        <td>${fmtNumero(it.estoque_convertido)}</td>
+        <td>${fmtNumero(it.estoque_convertido)}${it.convertido ? ` <span class="descricao-item">(÷${fmtNumero(it.conversao)})</span>` : ''}</td>
         <td>${fmtNumero(it.fatura_transito)}</td>
-        <td><strong>${fmtNumero(it.sugestao)}</strong></td>
-      </tr>
-    `).join('');
+        <td>${it.autonomia == null ? '—' : fmtNumero(it.autonomia)}</td>
+        <td>${it.estoque_operador == null ? '—' : fmtNumero(it.estoque_operador)}</td>
+        <td>${it.validade || '—'}</td>
+        <td>${it.multiplo_embalagem == null ? '—' : fmtNumero(it.multiplo_embalagem)}</td>
+        <td>${fmtNumero(it.sugestao)}</td>
+        <td><strong>${fmtNumero(it.reposicao)}</strong></td>
+        <td>${ROTULO_ETIQUETA[it.etiqueta] || '—'}</td>
+      </tr>`;
+    }
+    // Subtotal do SKU só quando há mais de um item no grupo (evita repetir a
+    // mesma linha). SKU indefinido não recebe subtotal.
+    if (g.sku && g.itens.length > 1) {
+      const subtotal = g.itens[0].subtotal_sku;
+      html += `
+      <tr class="linha-subtotal-sku">
+        <td class="col-codigo">—</td>
+        <td class="col-codigo">${g.sku}</td>
+        <td colspan="9" style="text-align:right;"><strong>Subtotal do SKU ${g.sku}</strong></td>
+        <td><strong>${fmtNumero(subtotal)}</strong></td>
+        <td>${ROTULO_ETIQUETA[et] || '—'}</td>
+      </tr>`;
+    }
   }
+  corpo.innerHTML = html;
 }
 
 document.getElementById('filtroUnidadeReposicao').addEventListener('change', carregarTabelaReposicao);
 document.getElementById('filtroBuscaReposicao').addEventListener('input', renderizarTabelaReposicao);
 document.getElementById('filtroSoSugeridosReposicao').addEventListener('change', renderizarTabelaReposicao);
+document.getElementById('filtroEtiquetaReposicao').addEventListener('change', renderizarTabelaReposicao);
 
 async function carregarSolicitacoesOD() {
   carregarUltimaAtualizacao('atualizadoSolicitacoesOD', 'solicitacoes_od');

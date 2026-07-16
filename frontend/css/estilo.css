@@ -718,6 +718,17 @@ thead th {
 .linha-convertida { background: #fff6e0; }
 .linha-convertida:hover { background: #ffefc7; }
 
+/* Reposição parcial: operador não cobre o subtotal do SKU (destaque) */
+.linha-parcial { background: #fde8e8; }
+.linha-parcial:hover { background: #fbd5d5; }
+/* Linha de subtotal por SKU */
+.linha-subtotal-sku { background: #eef2f7; font-size: 12.5px; }
+/* Etiquetas de status de reposição */
+.etiqueta-rep { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.etiqueta-total { background: #d3f2df; color: #1b6b3a; }
+.etiqueta-parcial { background: #fce3c4; color: #8a4b0d; }
+.etiqueta-sem { background: #e6e8eb; color: #5a616b; }
+
 /* Chips de filtro por faixa de validade */
 .filtros-faixa { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip-faixa {
