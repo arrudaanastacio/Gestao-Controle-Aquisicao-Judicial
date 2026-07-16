@@ -598,24 +598,28 @@ function chaveDataBR(s) {
   return m ? Number(`${m[3]}${m[2]}${m[1]}`) : null;
 }
 
-// Monta, para a última importação do Estoque OD (operador logístico), um mapa
-// codigo_item -> { sku, multiplo, estoqueOperador, validade }.
-//   - estoqueOperador = MENOR entre o disponível do IBL (soma dos lotes) e o
-//     Saldo Disp. do GSNET — é o que de fato pode ser separado/enviado.
-//   - validade = a MAIS PRÓXIMA entre os lotes com saldo disponível (FEFO).
-function carregarEstoqueOperadorPorItem() {
-  const mapa = new Map();
+// Monta, para a última importação do Estoque OD (operador logístico):
+//   - mapaItemSku: codigo_item (SCODES) -> codigo_sku (GSNET)
+//   - mapaSku: codigo_sku -> { multiplo, estoqueOperador, validade }, agregado
+//     POR SKU (não por codigo_item), para não contar o estoque em dobro quando
+//     um mesmo SKU aparece ligado a mais de um código.
+//       * estoqueOperador = MENOR entre o disponível do IBL (soma dos lotes) e
+//         o Saldo Disp. do GSNET — é o que de fato pode ser separado/enviado.
+//       * validade = a MAIS PRÓXIMA entre os lotes com saldo disponível (FEFO).
+function carregarEstoqueOperador() {
   const ultima = db.prepare('SELECT data_referencia FROM estoque_od_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
-  if (!ultima) return { mapa, dataReferencia: null };
+  if (!ultima) return { mapaItemSku: new Map(), mapaSku: new Map(), dataReferencia: null };
   const linhas = db.prepare(`
     SELECT codigo_item, codigo_sku, multiplo_distribuicao, saldo_gsnet, qtde_disponivel, validade
-    FROM estoque_od_itens WHERE data_referencia = ? AND codigo_item IS NOT NULL
+    FROM estoque_od_itens WHERE data_referencia = ? AND codigo_sku IS NOT NULL
   `).all(ultima.data_referencia);
 
-  const acc = new Map();
+  const mapaItemSku = new Map();
+  const acc = new Map(); // por SKU
   for (const l of linhas) {
-    let a = acc.get(l.codigo_item);
-    if (!a) { a = { sku: l.codigo_sku, multiplo: 0, ibl: 0, gsnet: null, validadeChave: null, validade: null }; acc.set(l.codigo_item, a); }
+    if (l.codigo_item) mapaItemSku.set(l.codigo_item, l.codigo_sku);
+    let a = acc.get(l.codigo_sku);
+    if (!a) { a = { multiplo: 0, ibl: 0, gsnet: null, validadeChave: null, validade: null }; acc.set(l.codigo_sku, a); }
     a.multiplo = Math.max(a.multiplo, l.multiplo_distribuicao || 0);
     a.ibl += l.qtde_disponivel || 0;
     if (l.saldo_gsnet != null) a.gsnet = Math.max(a.gsnet || 0, l.saldo_gsnet);
@@ -624,61 +628,47 @@ function carregarEstoqueOperadorPorItem() {
       if (ch != null && (a.validadeChave === null || ch < a.validadeChave)) { a.validadeChave = ch; a.validade = l.validade; }
     }
   }
-  for (const [codigo, a] of acc) {
+  const mapaSku = new Map();
+  for (const [sku, a] of acc) {
     const estoqueOperador = a.gsnet != null ? Math.min(a.gsnet, a.ibl) : a.ibl;
-    mapa.set(codigo, { sku: a.sku, multiplo: a.multiplo, estoqueOperador, validade: a.validade });
+    mapaSku.set(sku, { multiplo: a.multiplo, estoqueOperador, validade: a.validade });
   }
-  return { mapa, dataReferencia: ultima.data_referencia };
+  return { mapaItemSku, mapaSku, dataReferencia: ultima.data_referencia };
 }
 
-router.get('/reposicao', (req, res) => {
-  const unidade = req.query.unidade;
-  if (!unidade) return res.status(400).json({ erro: 'Informe a unidade.' });
-
+// Calcula as linhas (item a item, ANTES do agrupamento por SKU) de UMA unidade.
+// Devolve { erro } se a unidade não estiver no Locais de Entrega, senão um
+// array de linhas já com local_entrega, sugestão e reposição arredondada.
+function calcularLinhasUnidade(unidade, ctx) {
   const local = db.prepare('SELECT cod_local FROM distribuicao_locais_entrega WHERE local_entrega = ?').get(unidade);
-  if (!local) {
-    return res.status(400).json({ erro: `Não encontrei "${unidade}" na planilha de Locais de Entrega — confira se o nome bate exatamente.` });
-  }
+  if (!local) return { erro: `Não encontrei "${unidade}" na planilha de Locais de Entrega — confira se o nome bate exatamente.` };
   const codigoDestino = local.cod_local;
+  const { ultimaData, stmtEstoque, mapaTransito, mapaConversaoOD, mapaItemSku, mapaSku } = ctx;
 
-  const ultimaData = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
-  const { mapa: mapaOperador, dataReferencia: dataOperador } = carregarEstoqueOperadorPorItem();
-
-  const placeholders = STATUS_PENDENTES.map(() => '?').join(',');
-  const stmtTransito = db.prepare(
-    `SELECT COALESCE(SUM(qtde_faturada), 0) v FROM distribuicao_faturas WHERE codigo_destino = ? AND codigo_item = ? AND status IN (${placeholders})`
-  );
-  const stmtEstoque = ultimaData
-    ? db.prepare('SELECT estoque FROM estoque_itens WHERE unidade = ? AND codigo_item = ? AND data_referencia = ? LIMIT 1')
-    : null;
-  const mapaConversaoOD = new Map(
-    db.prepare('SELECT codigo_item, conversao FROM distribuicao_conversao_od').all().map((r) => [r.codigo_item, r.conversao])
-  );
-
-  // Duas origens MUTUAMENTE EXCLUSIVAS de itens, conforme a unidade:
-  //   - Unidades com elenco fechado próprio (ex.: UD 27 - CEDMAC HCFMUSP,
-  //     planilha "6.Elenco CEDMAC.xlsx"): mostra SÓ os itens do elenco, com
-  //     consumo FIXO (acordo administrativo).
-  //   - Demais unidades de Outras Demandas: mostra os itens marcados como
-  //     "Outras Demandas = Sim" na query de itens em estoque, com consumo e
-  //     estoque vindos do relatório diário (÷ Conversão OD quando houver).
+  // Origens mutuamente exclusivas: elenco fechado (consumo fixo) OU query de
+  // itens em estoque com outras_demandas = 'Sim'. O estoque é lido junto (na
+  // própria query da unidade) para não fazer uma consulta por item.
   const elenco = db.prepare(
     'SELECT * FROM distribuicao_itens_elegiveis WHERE unidade_dispensadora = ? ORDER BY descricao_item'
   ).all(unidade);
 
   let base;
   if (elenco.length > 0) {
-    base = elenco.map((el) => ({
-      codigo_item: el.codigo_item,
-      siafisico: el.siafisico,
-      descricao_item: el.descricao_item,
-      demandaTotal: el.demandas || 0,
-      consumoMensal: el.consumo_mensal_fixo || 0,
-      conversaoEstoque: el.conversao || 1,
-    }));
+    base = elenco.map((el) => {
+      const estoqueRow = stmtEstoque && ultimaData ? stmtEstoque.get(unidade, el.codigo_item, ultimaData.data_referencia) : null;
+      return {
+        codigo_item: el.codigo_item,
+        siafisico: el.siafisico,
+        descricao_item: el.descricao_item,
+        demandaTotal: el.demandas || 0,
+        consumoMensal: el.consumo_mensal_fixo || 0,
+        conversaoEstoque: el.conversao || 1,
+        estoqueBruto: estoqueRow ? (estoqueRow.estoque || 0) : 0,
+      };
+    });
   } else if (ultimaData) {
     const linhasEstoque = db.prepare(
-      "SELECT codigo_item, descricao, siafisico, demandas, consumo_mensal_total FROM estoque_itens WHERE unidade = ? AND data_referencia = ? AND outras_demandas = 'Sim' ORDER BY descricao"
+      "SELECT codigo_item, descricao, siafisico, demandas, consumo_mensal_total, estoque FROM estoque_itens WHERE unidade = ? AND data_referencia = ? AND outras_demandas = 'Sim' ORDER BY descricao"
     ).all(unidade, ultimaData.data_referencia);
     base = linhasEstoque.map((l) => {
       const conv = mapaConversaoOD.get(l.codigo_item) || 1;
@@ -689,31 +679,31 @@ router.get('/reposicao', (req, res) => {
         demandaTotal: l.demandas || 0,
         consumoMensal: conv !== 1 ? (l.consumo_mensal_total || 0) / conv : (l.consumo_mensal_total || 0),
         conversaoEstoque: conv,
+        estoqueBruto: l.estoque || 0,
       };
     });
   } else {
     base = [];
   }
 
-  // 1ª passada: calcula, por item, o consumo/estoque/autonomia, a sugestão
-  // bruta (para 3 meses) e a reposição arredondada ao múltiplo de embalagem.
-  let itens = base.map((it) => {
-    const estoqueRow = stmtEstoque && ultimaData ? stmtEstoque.get(unidade, it.codigo_item, ultimaData.data_referencia) : null;
-    const estoqueBruto = estoqueRow ? (estoqueRow.estoque || 0) : 0;
+  const linhas = base.map((it) => {
+    const estoqueBruto = it.estoqueBruto || 0;
     const estoqueConvertido = it.conversaoEstoque !== 1 ? estoqueBruto / it.conversaoEstoque : estoqueBruto;
 
-    const faturaTransito = stmtTransito.get(codigoDestino, it.codigo_item, ...STATUS_PENDENTES).v || 0;
+    const faturaTransito = mapaTransito.get(`${codigoDestino}|${it.codigo_item}`) || 0;
 
     const sugestao = Math.max(0, Math.round((AUTONOMIA_ALVO_MESES * it.consumoMensal) - (estoqueConvertido + faturaTransito)));
     const autonomia = it.consumoMensal > 0 ? (estoqueConvertido + faturaTransito) / it.consumoMensal : null;
 
-    const op = mapaOperador.get(it.codigo_item) || null;
+    const sku = mapaItemSku.get(it.codigo_item) || null;
+    const op = sku ? (mapaSku.get(sku) || null) : null;
     const multiplo = op ? op.multiplo : null;
     const reposicaoArredondada = sugestao > 0 ? arredondarParaCima(sugestao, multiplo) : 0;
 
     return {
+      local_entrega: unidade,
       codigo_item: it.codigo_item,
-      codigo_sku: op ? op.sku : null,
+      codigo_sku: sku,
       siafisico: it.siafisico,
       descricao_item: it.descricao_item,
       demanda_total: it.demandaTotal,
@@ -728,26 +718,87 @@ router.get('/reposicao', (req, res) => {
       estoque_operador: op ? op.estoqueOperador : null,
       validade: op ? op.validade : null,
       sugestao,
-      reposicao: reposicaoArredondada, // pode ser ajustado na 2ª passada (parcial)
+      reposicao: reposicaoArredondada, // pode ser ajustado no rateio (parcial)
     };
   });
 
-  // Filtros da lista:
-  //   - Demanda total = 0 sai da sugestão (item sem consumo, não há o que repor).
-  //   - Só itens com autonomia >= 2 (esconde os críticos < 2).
+  return { itens: linhas };
+}
+
+router.get('/reposicao', (req, res) => {
+  // Aceita uma unidade (?unidade=) ou várias (?unidades=A,B,C) ou todas
+  // (?unidades=__todas__). O agrupamento por SKU e o rateio do estoque do
+  // operador passam a valer para o conjunto de unidades escolhido.
+  let unidadesPedidas;
+  const todas = req.query.unidades === '__todas__' || req.query.todas === '1';
+  if (todas) {
+    unidadesPedidas = db.prepare(`
+      SELECT DISTINCT unidade v FROM estoque_itens WHERE unidade IS NOT NULL AND unidade <> '' ORDER BY v
+    `).all().map((r) => r.v);
+  } else if (req.query.unidades) {
+    unidadesPedidas = String(req.query.unidades).split(',').map((s) => s.trim()).filter(Boolean);
+  } else if (req.query.unidade) {
+    unidadesPedidas = [req.query.unidade];
+  } else {
+    return res.status(400).json({ erro: 'Informe a unidade.' });
+  }
+  if (unidadesPedidas.length === 0) return res.status(400).json({ erro: 'Nenhuma unidade selecionada.' });
+
+  const ultimaData = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+  const { mapaItemSku, mapaSku, dataReferencia: dataOperador } = carregarEstoqueOperador();
+
+  const placeholders = STATUS_PENDENTES.map(() => '?').join(',');
+  // Fatura em trânsito (pendente) somada por destino+item, pré-carregada uma
+  // única vez num Map — evita uma query por item (crítico ao pedir "todas").
+  const mapaTransito = new Map();
+  for (const r of db.prepare(
+    `SELECT codigo_destino, codigo_item, COALESCE(SUM(qtde_faturada), 0) v
+       FROM distribuicao_faturas WHERE status IN (${placeholders}) AND codigo_item IS NOT NULL
+       GROUP BY codigo_destino, codigo_item`
+  ).all(...STATUS_PENDENTES)) {
+    mapaTransito.set(`${r.codigo_destino}|${r.codigo_item}`, r.v);
+  }
+
+  const ctx = {
+    ultimaData,
+    mapaItemSku,
+    mapaSku,
+    mapaTransito,
+    stmtEstoque: ultimaData
+      ? db.prepare('SELECT estoque FROM estoque_itens WHERE unidade = ? AND codigo_item = ? AND data_referencia = ? LIMIT 1')
+      : null,
+    mapaConversaoOD: new Map(
+      db.prepare('SELECT codigo_item, conversao FROM distribuicao_conversao_od').all().map((r) => [r.codigo_item, r.conversao])
+    ),
+  };
+
+  // Calcula por unidade e junta tudo. Unidades fora do Locais de Entrega:
+  // se for só uma, devolve erro (compatível com o comportamento anterior);
+  // se forem várias/todas, apenas ignora e lista à parte.
+  let itens = [];
+  const ignoradas = [];
+  for (const u of unidadesPedidas) {
+    const r = calcularLinhasUnidade(u, ctx);
+    if (r.erro) {
+      if (unidadesPedidas.length === 1) return res.status(400).json({ erro: r.erro });
+      ignoradas.push(u);
+      continue;
+    }
+    itens = itens.concat(r.itens);
+  }
+
+  // Filtros: demanda 0 sai (sem consumo); só autonomia >= 2.
   itens = itens
     .filter((it) => (it.demanda_total || 0) > 0)
     .filter((it) => it.autonomia === null || it.autonomia >= AUTONOMIA_MINIMA_EXIBIR);
 
-  // 2ª passada: agrupa por Código GSNET (SKU) e resolve o atendimento contra o
-  // estoque do operador logístico. Etiquetas:
-  //   - total   : operador cobre todo o subtotal do SKU.
-  //   - parcial : operador tem estoque, mas menos que o subtotal -> distribui
-  //               igualitariamente entre os itens do grupo (embalagens fechadas).
-  //   - sem_reposicao : nada a repor, ou operador sem estoque.
+  // Agrupa por SKU GLOBALMENTE (entre todas as unidades escolhidas) e resolve o
+  // atendimento contra o estoque do operador (único por SKU). Quando o subtotal
+  // do SKU passa do estoque, rateia igualitariamente entre as linhas do grupo
+  // (que podem ser de unidades diferentes), em embalagens fechadas.
   const grupos = new Map();
   for (const it of itens) {
-    const chave = it.codigo_sku || `__sem_sku__${it.codigo_item}`;
+    const chave = it.codigo_sku || `__sem_sku__${it.codigo_item}__${it.local_entrega}`;
     if (!grupos.has(chave)) grupos.set(chave, []);
     grupos.get(chave).push(it);
   }
@@ -762,17 +813,13 @@ router.get('/reposicao', (req, res) => {
       etiqueta = 'sem_reposicao';
       grupo.forEach((it) => { it.reposicao = 0; it.destaque = false; });
     } else if (operador == null) {
-      // Sem vínculo no operador (SKU desconhecido): mantém a sugestão, sem cap.
-      etiqueta = 'total';
+      etiqueta = 'total'; // sem vínculo no operador: mantém a sugestão, sem cap
       grupo.forEach((it) => { it.destaque = false; });
     } else if (operador >= subtotal) {
       etiqueta = 'total';
       grupo.forEach((it) => { it.destaque = false; });
     } else if (operador > 0) {
       etiqueta = 'parcial';
-      // Distribuição igualitária: cada item recebe uma fatia igual do estoque
-      // do operador, arredondada para baixo ao múltiplo e limitada ao que
-      // pediria. Sobra por arredondamento fica sem enviar (embalagem fechada).
       const fatia = operador / grupo.length;
       grupo.forEach((it) => {
         it.reposicao = Math.min(it.reposicao, arredondarParaBaixo(fatia, multiplo));
@@ -782,12 +829,14 @@ router.get('/reposicao', (req, res) => {
       etiqueta = 'sem_reposicao'; // operador zerado
       grupo.forEach((it) => { it.reposicao = 0; it.destaque = true; });
     }
-    grupo.forEach((it) => { it.etiqueta = etiqueta; it.subtotal_sku = grupo.reduce((s, x) => s + (x.reposicao || 0), 0); });
+    const subtotalFinal = grupo.reduce((s, x) => s + (x.reposicao || 0), 0);
+    grupo.forEach((it) => { it.etiqueta = etiqueta; it.subtotal_sku = subtotalFinal; });
   }
 
   res.json({
-    unidade,
-    modo: elenco.length > 0 ? 'elenco_fechado' : 'geral',
+    unidades: unidadesPedidas,
+    multiUnidade: unidadesPedidas.length > 1,
+    ignoradas,
     dataReferenciaEstoque: ultimaData ? ultimaData.data_referencia : null,
     dataReferenciaOperador: dataOperador,
     autonomiaAlvoMeses: AUTONOMIA_ALVO_MESES,

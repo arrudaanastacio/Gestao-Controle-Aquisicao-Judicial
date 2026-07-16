@@ -666,9 +666,13 @@
 
         <div id="abaReposicaoDistribuicao" hidden>
           <div class="barra-filtros">
-            <select id="filtroUnidadeReposicao">
-              <option value="UD 27 - CEDMAC HCFMUSP">UD 27 - CEDMAC HCFMUSP</option>
-            </select>
+            <div class="seletor-multi" id="seletorUnidadesReposicao">
+              <button type="button" id="botaoUnidadesReposicao" class="botao-seletor-multi">Selecione a(s) unidade(s) ▾</button>
+              <div class="painel-seletor-multi" id="painelUnidadesReposicao" hidden>
+                <label class="opcao-todas"><input type="checkbox" id="chkTodasUnidadesReposicao"> <strong>Todas as unidades</strong></label>
+                <div id="listaUnidadesReposicao" class="lista-checkboxes"></div>
+              </div>
+            </div>
             <input type="text" id="filtroBuscaReposicao" placeholder="Buscar por medicamento ou código…" style="min-width:280px;">
             <select id="filtroEtiquetaReposicao">
               <option value="">Etiqueta: todas</option>
@@ -684,9 +688,10 @@
 
           <div class="tabela-wrap">
             <div class="tabela-rolavel-x">
-              <table>
+              <table class="tabela-reposicao">
                 <thead>
                   <tr>
+                    <th>Local de Entrega</th>
                     <th>Código</th>
                     <th>Cód. GSNET (SKU)</th>
                     <th>Descrição do Item</th>
@@ -1787,6 +1792,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=59"></script>
+  <script src="/js/app.js?v=61"></script>
 </body>
 </html>

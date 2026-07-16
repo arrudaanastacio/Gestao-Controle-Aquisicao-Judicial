@@ -729,6 +729,25 @@ thead th {
 .etiqueta-parcial { background: #fce3c4; color: #8a4b0d; }
 .etiqueta-sem { background: #e6e8eb; color: #5a616b; }
 
+/* Seletor múltiplo de unidades (Reposição) */
+.seletor-multi { position: relative; display: inline-block; }
+.botao-seletor-multi {
+  min-width: 240px; text-align: left; padding: 7px 10px; border: 1px solid #c9ccd1;
+  border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px;
+}
+.painel-seletor-multi {
+  position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; width: 320px; max-width: 90vw;
+  background: #fff; border: 1px solid #c9ccd1; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.14);
+  padding: 8px;
+}
+.painel-seletor-multi .opcao-todas { display: block; padding: 4px 6px 8px; border-bottom: 1px solid #eceef1; margin-bottom: 6px; }
+.lista-checkboxes { max-height: 300px; overflow-y: auto; }
+.lista-checkboxes .opcao-unidade { display: block; padding: 4px 6px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+.lista-checkboxes .opcao-unidade:hover { background: #f2f5f8; }
+
+/* Tabela de reposição ocupa toda a largura disponível (evita espaço vazio à direita) */
+.tabela-reposicao { width: 100%; min-width: 1100px; }
+
 /* Chips de filtro por faixa de validade */
 .filtros-faixa { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip-faixa {

@@ -1925,37 +1925,87 @@ document.getElementById('botaoProximoDistMov').addEventListener('click', () => {
 });
 
 let dadosReposicaoBrutos = [];
+let unidadesReposicaoLista = [];
 let unidadesReposicaoCarregadas = false;
+let reposicaoReqId = 0; // evita que uma resposta atrasada sobrescreva a mais recente
 
+// Monta a lista de checkboxes de unidades (uma vez). Deixa a CEDMAC marcada
+// por padrão, como era antes.
 async function carregarUnidadesReposicao() {
   if (unidadesReposicaoCarregadas) return;
-  const sel = document.getElementById('filtroUnidadeReposicao');
+  const lista = document.getElementById('listaUnidadesReposicao');
   try {
     const { unidades } = await api('/distribuicao/reposicao/unidades');
-    const atual = sel.value;
-    sel.innerHTML = unidades.map((u) => `<option value="${u.replace(/"/g, '&quot;')}">${u}</option>`).join('');
-    // Mantém CEDMAC selecionada por padrão se estiver na lista.
-    if (unidades.includes(atual)) sel.value = atual;
-    else if (unidades.includes('UD 27 - CEDMAC HCFMUSP')) sel.value = 'UD 27 - CEDMAC HCFMUSP';
+    unidadesReposicaoLista = unidades;
+    lista.innerHTML = unidades.map((u) => `
+      <label class="opcao-unidade"><input type="checkbox" class="chk-unidade-rep" value="${u.replace(/"/g, '&quot;')}"> ${u}</label>
+    `).join('');
+    const padrao = unidades.includes('UD 27 - CEDMAC HCFMUSP') ? 'UD 27 - CEDMAC HCFMUSP' : unidades[0];
+    const alvo = lista.querySelector(`.chk-unidade-rep[value="${(padrao || '').replace(/"/g, '&quot;')}"]`);
+    if (alvo) alvo.checked = true;
+    lista.querySelectorAll('.chk-unidade-rep').forEach((c) => c.addEventListener('change', aoMudarUnidadesReposicao));
     unidadesReposicaoCarregadas = true;
-  } catch (e) { /* segue com a opção padrão do HTML */ }
+    atualizarRotuloUnidadesReposicao();
+  } catch (e) { /* segue */ }
+}
+
+function unidadesSelecionadasReposicao() {
+  return [...document.querySelectorAll('.chk-unidade-rep:checked')].map((c) => c.value);
+}
+
+function atualizarRotuloUnidadesReposicao() {
+  const sel = unidadesSelecionadasReposicao();
+  const btn = document.getElementById('botaoUnidadesReposicao');
+  const total = unidadesReposicaoLista.length;
+  if (sel.length === 0) btn.textContent = 'Selecione a(s) unidade(s) ▾';
+  else if (sel.length === 1) btn.textContent = `${sel[0]} ▾`;
+  else if (sel.length === total) btn.textContent = `Todas as unidades (${total}) ▾`;
+  else btn.textContent = `${sel.length} unidades selecionadas ▾`;
+  document.getElementById('chkTodasUnidadesReposicao').checked = sel.length === total && total > 0;
+}
+
+function aoMudarUnidadesReposicao() {
+  atualizarRotuloUnidadesReposicao();
+  carregarTabelaReposicao();
 }
 
 async function carregarTabelaReposicao() {
   await carregarUnidadesReposicao();
-  const unidade = document.getElementById('filtroUnidadeReposicao').value;
+  const selecionadas = unidadesSelecionadasReposicao();
   const corpo = document.getElementById('corpoTabelaReposicao');
   const vazio = document.getElementById('estadoVazioReposicao');
   const info = document.getElementById('infoReposicao');
 
+  if (selecionadas.length === 0) {
+    dadosReposicaoBrutos = [];
+    corpo.innerHTML = '';
+    vazio.hidden = false;
+    vazio.textContent = 'Selecione ao menos uma unidade.';
+    info.textContent = '';
+    return;
+  }
+
+  // Se todas estiverem marcadas, manda "__todas__" (mais leve que a lista toda).
+  const todas = selecionadas.length === unidadesReposicaoLista.length;
+  const paramUnidades = todas ? '__todas__' : selecionadas.map(encodeURIComponent).join(',');
+
+  const req = ++reposicaoReqId;
+  vazio.hidden = true;
+  corpo.innerHTML = '';
+  info.textContent = 'Calculando…';
   try {
-    const dados = await api(`/distribuicao/reposicao?unidade=${encodeURIComponent(unidade)}`);
+    const dados = await api(`/distribuicao/reposicao?unidades=${paramUnidades}`);
+    if (req !== reposicaoReqId) return; // resposta antiga: descarta
     dadosReposicaoBrutos = dados.itens;
-    info.textContent = `Autonomia-alvo: ${dados.autonomiaAlvoMeses} meses · Mostrando só autonomia ≥ ${dados.autonomiaMinimaExibir} · `
-      + `Estoque unidade: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) : '—'} · `
-      + `Estoque operador: ${dados.dataReferenciaOperador ? formatarData(dados.dataReferenciaOperador) : '—'}`;
+    const nUnid = dados.unidades ? dados.unidades.length : selecionadas.length;
+    let txt = `Autonomia-alvo: ${dados.autonomiaAlvoMeses} meses · Mostrando só autonomia ≥ ${dados.autonomiaMinimaExibir} · `
+      + `${nUnid} unidade(s) · Estoque: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) : '—'} · `
+      + `Operador: ${dados.dataReferenciaOperador ? formatarData(dados.dataReferenciaOperador) : '—'}`;
+    if (dados.ignoradas && dados.ignoradas.length) txt += ` · Ignoradas (sem Local de Entrega): ${dados.ignoradas.length}`;
+    info.textContent = txt;
     renderizarTabelaReposicao();
   } catch (e) {
+    if (req !== reposicaoReqId) return;
     corpo.innerHTML = '';
     vazio.hidden = false;
     vazio.textContent = 'Erro ao calcular: ' + e.message;
@@ -1974,9 +2024,8 @@ function renderizarTabelaReposicao() {
   const etiqueta = document.getElementById('filtroEtiquetaReposicao').value;
   const corpo = document.getElementById('corpoTabelaReposicao');
   const vazio = document.getElementById('estadoVazioReposicao');
-  const N_COLS = 14;
 
-  let itens = dadosReposicaoBrutos;
+  let itens = dadosReposicaoBrutos.slice();
   if (q) itens = itens.filter((it) => (it.descricao_item || '').toLowerCase().includes(q) || (it.codigo_item || '').toLowerCase().includes(q) || (it.codigo_sku || '').toLowerCase().includes(q));
   if (etiqueta) itens = itens.filter((it) => it.etiqueta === etiqueta);
   if (soSugeridos) itens = itens.filter((it) => it.reposicao > 0);
@@ -1989,12 +2038,16 @@ function renderizarTabelaReposicao() {
   }
   vazio.hidden = true;
 
-  // Agrupa por SKU preservando a ordem de chegada, para inserir uma linha de
-  // subtotal por Código GSNET (com a etiqueta do grupo).
+  // Ordena a grade por medicamento e depois por local de entrega (pedido do
+  // Rafael, especialmente ao selecionar todas as unidades).
+  const colador = (a, b) => (a || '').localeCompare(b || '', 'pt-BR', { sensitivity: 'base' });
+  itens.sort((a, b) => colador(a.descricao_item, b.descricao_item) || colador(a.local_entrega, b.local_entrega));
+
+  // Agrupa por SKU (na ordem já ordenada por medicamento) para o subtotal.
   const grupos = [];
   const indice = new Map();
   for (const it of itens) {
-    const chave = it.codigo_sku || `__sem_sku__${it.codigo_item}`;
+    const chave = it.codigo_sku || `__sem_sku__${it.codigo_item}__${it.local_entrega}`;
     if (!indice.has(chave)) { indice.set(chave, grupos.length); grupos.push({ chave, sku: it.codigo_sku, itens: [] }); }
     grupos[indice.get(chave)].itens.push(it);
   }
@@ -2008,6 +2061,7 @@ function renderizarTabelaReposicao() {
       if (it.destaque) classes.push('linha-parcial');
       html += `
       <tr class="${classes.join(' ')}">
+        <td>${it.local_entrega || '—'}</td>
         <td class="col-codigo">${it.codigo_item || '—'}</td>
         <td class="col-codigo">${it.codigo_sku || '—'}</td>
         <td>${it.descricao_item || '—'}</td>
@@ -2024,15 +2078,13 @@ function renderizarTabelaReposicao() {
         <td>${ROTULO_ETIQUETA[it.etiqueta] || '—'}</td>
       </tr>`;
     }
-    // Subtotal do SKU só quando há mais de um item no grupo (evita repetir a
-    // mesma linha). SKU indefinido não recebe subtotal.
+    // Subtotal por SKU quando o grupo tem mais de uma linha (ex.: mesmo SKU em
+    // várias unidades). SKU indefinido não recebe subtotal.
     if (g.sku && g.itens.length > 1) {
       const subtotal = g.itens[0].subtotal_sku;
       html += `
       <tr class="linha-subtotal-sku">
-        <td class="col-codigo">—</td>
-        <td class="col-codigo">${g.sku}</td>
-        <td colspan="10" style="text-align:right;"><strong>Subtotal do SKU ${g.sku}</strong></td>
+        <td colspan="13" style="text-align:right;"><strong>Subtotal do SKU ${g.sku} · ${g.itens.length} local(is)</strong></td>
         <td><strong>${fmtNumero(subtotal)}</strong></td>
         <td>${ROTULO_ETIQUETA[et] || '—'}</td>
       </tr>`;
@@ -2041,7 +2093,20 @@ function renderizarTabelaReposicao() {
   corpo.innerHTML = html;
 }
 
-document.getElementById('filtroUnidadeReposicao').addEventListener('change', carregarTabelaReposicao);
+// Abre/fecha o painel de seleção de unidades.
+document.getElementById('botaoUnidadesReposicao').addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  const painel = document.getElementById('painelUnidadesReposicao');
+  painel.hidden = !painel.hidden;
+});
+document.addEventListener('click', (ev) => {
+  const seletor = document.getElementById('seletorUnidadesReposicao');
+  if (seletor && !seletor.contains(ev.target)) document.getElementById('painelUnidadesReposicao').hidden = true;
+});
+document.getElementById('chkTodasUnidadesReposicao').addEventListener('change', (ev) => {
+  document.querySelectorAll('.chk-unidade-rep').forEach((c) => { c.checked = ev.target.checked; });
+  aoMudarUnidadesReposicao();
+});
 document.getElementById('filtroBuscaReposicao').addEventListener('input', renderizarTabelaReposicao);
 document.getElementById('filtroSoSugeridosReposicao').addEventListener('change', renderizarTabelaReposicao);
 document.getElementById('filtroEtiquetaReposicao').addEventListener('change', renderizarTabelaReposicao);
