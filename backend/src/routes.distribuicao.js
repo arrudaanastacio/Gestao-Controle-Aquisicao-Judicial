@@ -912,6 +912,46 @@ router.post('/grade/negar', (req, res) => {
   res.json({ ok: true, total });
 });
 
+// Limpa a grade inteira (botão "Limpar grade" da aba Grade Final).
+router.post('/grade/limpar', (req, res) => {
+  db.prepare('DELETE FROM distribuicao_grade').run();
+  res.json({ ok: true, total: 0 });
+});
+
+// Salva a grade final inteira (substitui tudo pelo conjunto enviado da tela).
+// Usado pelo botão "Salvar grade" da aba Grade Final, depois de o Rafael
+// ajustar quantidades ou remover linhas. O cod_local é recalculado a partir
+// do Locais de Entrega para cada linha.
+router.post('/grade/salvar', (req, res) => {
+  const itens = Array.isArray(req.body && req.body.itens) ? req.body.itens : [];
+  const buscaLocal = db.prepare('SELECT cod_local FROM distribuicao_locais_entrega WHERE local_entrega = ?');
+  const inserir = db.prepare(`
+    INSERT INTO distribuicao_grade (cod_local, local_entrega, cod_item, medicamento, qtde, validade, codigo_scodes)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(local_entrega, codigo_scodes) DO UPDATE SET
+      cod_local = excluded.cod_local, cod_item = excluded.cod_item, medicamento = excluded.medicamento,
+      qtde = excluded.qtde, validade = excluded.validade, atualizado_em = datetime('now')
+  `);
+  db.exec('BEGIN');
+  try {
+    db.prepare('DELETE FROM distribuicao_grade').run();
+    for (const it of itens) {
+      const localEntrega = texto(it.local_entrega);
+      const codigoScodes = texto(it.codigo_scodes);
+      if (!localEntrega || !codigoScodes) continue;
+      const loc = buscaLocal.get(localEntrega);
+      const codLocal = loc ? loc.cod_local : null;
+      inserir.run(codLocal, localEntrega, texto(it.cod_item), texto(it.medicamento), numero(it.qtde) || 0, texto(it.validade), codigoScodes);
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    return res.status(500).json({ erro: 'Erro ao salvar a grade: ' + e.message });
+  }
+  const total = db.prepare('SELECT COUNT(*) c FROM distribuicao_grade').get().c;
+  res.json({ ok: true, total });
+});
+
 // Exporta a grade num arquivo .xlsx no layout do "9.Modelo grade.xlsx" (aba GRADE).
 router.get('/grade/exportar', (req, res) => {
   const itens = db.prepare('SELECT * FROM distribuicao_grade ORDER BY medicamento COLLATE NOCASE, local_entrega').all();

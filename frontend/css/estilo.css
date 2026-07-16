@@ -752,6 +752,8 @@ thead th {
 
 /* Tabela de reposição ocupa toda a largura disponível (evita espaço vazio à direita) */
 .tabela-reposicao { width: 100%; min-width: 1100px; }
+.tabela-grade-final { width: 100%; min-width: 820px; }
+.tabela-grade-final td .input-qtde-grade { padding: 4px 6px; }
 
 /* Filtro de etiquetas com múltipla seleção */
 .filtro-etiquetas { display: inline-flex; align-items: center; gap: 12px; font-size: 12.5px; }

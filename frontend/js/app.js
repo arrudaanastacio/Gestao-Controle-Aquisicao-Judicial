@@ -1767,8 +1767,10 @@ document.querySelectorAll('#abasDistribuicao .chip-faixa').forEach((btn) => {
     document.getElementById('abaFaturasDistribuicao').hidden = abaDistribuicaoAtiva !== 'faturas';
     document.getElementById('abaMovimentacoesDistribuicao').hidden = abaDistribuicaoAtiva !== 'movimentacoes';
     document.getElementById('abaReposicaoDistribuicao').hidden = abaDistribuicaoAtiva !== 'reposicao';
+    document.getElementById('abaGradeFinalDistribuicao').hidden = abaDistribuicaoAtiva !== 'gradefinal';
     if (abaDistribuicaoAtiva === 'faturas') carregarTabelaDistFaturas();
     else if (abaDistribuicaoAtiva === 'movimentacoes') carregarTabelaDistMov();
+    else if (abaDistribuicaoAtiva === 'gradefinal') carregarGradeFinal();
     else carregarTabelaReposicao();
   });
 });
@@ -2237,13 +2239,132 @@ document.getElementById('corpoTabelaReposicao').addEventListener('click', async 
 });
 
 // Exportar a grade validada no layout do 9.Modelo grade (download .xlsx).
-document.getElementById('botaoExportarGrade').addEventListener('click', () => {
+function baixarGradeXlsx() {
   const a = document.createElement('a');
   a.href = '/api/distribuicao/grade/exportar';
   a.download = '';
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+document.getElementById('botaoExportarGrade').addEventListener('click', baixarGradeXlsx);
+document.getElementById('botaoExportarGradeFinal').addEventListener('click', baixarGradeXlsx);
+
+// -------------------- Grade Final --------------------
+// Cópia editável da grade validada (o Rafael ajusta qtde/remove e depois Salva).
+let gradeFinalItens = [];
+
+async function carregarGradeFinal() {
+  try {
+    const { itens } = await api('/distribuicao/grade');
+    gradeFinalItens = (itens || []).map((g) => ({
+      cod_local: g.cod_local, local_entrega: g.local_entrega, cod_item: g.cod_item,
+      medicamento: g.medicamento, qtde: g.qtde, validade: g.validade, codigo_scodes: g.codigo_scodes,
+    }));
+  } catch (e) { gradeFinalItens = []; }
+  renderizarGradeFinal();
+}
+
+function renderizarGradeFinal() {
+  const q = (document.getElementById('filtroBuscaGradeFinal').value || '').trim().toLowerCase();
+  const corpo = document.getElementById('corpoTabelaGradeFinal');
+  const vazio = document.getElementById('estadoVazioGradeFinal');
+  const info = document.getElementById('infoGradeFinal');
+
+  let itens = gradeFinalItens;
+  if (q) itens = itens.filter((it) => (it.medicamento || '').toLowerCase().includes(q)
+    || (it.codigo_scodes || '').toLowerCase().includes(q)
+    || (it.cod_item || '').toLowerCase().includes(q)
+    || (it.local_entrega || '').toLowerCase().includes(q));
+
+  const totalQtde = gradeFinalItens.reduce((s, it) => s + (Number(it.qtde) || 0), 0);
+  info.textContent = `${gradeFinalItens.length} item(ns) na grade · ${fmtNumero(totalQtde)} unidade(s)`;
+
+  if (itens.length === 0) {
+    corpo.innerHTML = '';
+    vazio.hidden = false;
+    vazio.textContent = gradeFinalItens.length === 0
+      ? 'Nenhum item na grade. Valide itens na aba Sugestão de Reposição.'
+      : 'Nenhum item encontrado com esta busca.';
+    return;
+  }
+  vazio.hidden = true;
+
+  corpo.innerHTML = itens.map((it) => {
+    const chave = chaveGrade(it.local_entrega, it.codigo_scodes);
+    return `
+      <tr data-chave="${escAttr(chave)}">
+        <td>${it.cod_local || '—'}</td>
+        <td>${it.local_entrega || '—'}</td>
+        <td class="col-codigo">${it.cod_item || '—'}</td>
+        <td>${it.medicamento || '—'}</td>
+        <td><input type="number" min="0" step="1" value="${escAttr(it.qtde)}" class="input-qtde-grade" data-chave="${escAttr(chave)}" style="width:90px;"></td>
+        <td>${it.validade || '—'}</td>
+        <td class="col-codigo">${it.codigo_scodes || '—'}</td>
+        <td><button class="btn-grade btn-negar btn-remover-grade" data-chave="${escAttr(chave)}">Remover</button></td>
+      </tr>`;
+  }).join('');
+}
+
+// Editar quantidade de uma linha (guarda no array local; só grava ao Salvar).
+document.getElementById('corpoTabelaGradeFinal').addEventListener('change', (ev) => {
+  const inp = ev.target;
+  if (!inp.classList || !inp.classList.contains('input-qtde-grade')) return;
+  const item = gradeFinalItens.find((it) => chaveGrade(it.local_entrega, it.codigo_scodes) === inp.dataset.chave);
+  if (item) {
+    let v = parseInt(String(inp.value).replace(/[^\d]/g, ''), 10);
+    item.qtde = Number.isFinite(v) && v >= 0 ? v : 0;
+  }
+  renderizarGradeFinal();
+});
+
+// Remover uma linha da grade (só do array local; grava ao Salvar).
+document.getElementById('corpoTabelaGradeFinal').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.btn-remover-grade');
+  if (!btn) return;
+  gradeFinalItens = gradeFinalItens.filter((it) => chaveGrade(it.local_entrega, it.codigo_scodes) !== btn.dataset.chave);
+  renderizarGradeFinal();
+});
+
+document.getElementById('filtroBuscaGradeFinal').addEventListener('input', renderizarGradeFinal);
+
+// Salvar grade: substitui tudo no banco pelo conjunto atual da tela.
+document.getElementById('botaoSalvarGrade').addEventListener('click', async (ev) => {
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  try {
+    const r = await api('/distribuicao/grade/salvar', {
+      method: 'POST', body: JSON.stringify({ itens: gradeFinalItens }),
+    });
+    // Reflete o novo estado na aba Reposição (botões e contador).
+    gradeValidadas = new Set(gradeFinalItens.map((it) => chaveGrade(it.local_entrega, it.codigo_scodes)));
+    const cont = document.getElementById('contadorGrade');
+    if (cont) cont.textContent = r.total;
+    alert('Grade salva com sucesso (' + r.total + ' item(ns) no banco).');
+  } catch (e) {
+    alert('Erro ao salvar a grade: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// Limpar grade: zera tudo no banco (com confirmação).
+document.getElementById('botaoLimparGrade').addEventListener('click', async (ev) => {
+  if (!confirm('Isso apaga TODOS os itens da grade validada, no banco. Deseja continuar?')) return;
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  try {
+    const r = await api('/distribuicao/grade/limpar', { method: 'POST', body: JSON.stringify({}) });
+    gradeFinalItens = [];
+    gradeValidadas = new Set();
+    const cont = document.getElementById('contadorGrade');
+    if (cont) cont.textContent = r.total;
+    renderizarGradeFinal();
+  } catch (e) {
+    alert('Erro ao limpar a grade: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 async function carregarSolicitacoesOD() {

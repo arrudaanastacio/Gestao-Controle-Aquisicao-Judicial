@@ -589,6 +589,7 @@
           <button type="button" class="chip-faixa ativo" data-aba="faturas">Status de Faturas</button>
           <button type="button" class="chip-faixa" data-aba="movimentacoes">Movimentações</button>
           <button type="button" class="chip-faixa" data-aba="reposicao">Sugestão de Reposição</button>
+          <button type="button" class="chip-faixa" data-aba="gradefinal">Grade Final</button>
         </div>
 
         <div id="abaFaturasDistribuicao">
@@ -714,6 +715,38 @@
               </table>
             </div>
             <div class="estado-vazio" id="estadoVazioReposicao" hidden>Nenhum item elegível encontrado.</div>
+          </div>
+        </div>
+
+        <div id="abaGradeFinalDistribuicao" hidden>
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaGradeFinal" placeholder="Buscar por medicamento, código ou local…" style="min-width:300px;">
+            <span class="descricao-item" id="infoGradeFinal" style="margin-left:6px;"></span>
+            <button type="button" id="botaoLimparGrade" class="botao-secundario" style="margin-left:auto;">Limpar grade</button>
+            <button type="button" id="botaoSalvarGrade" class="botao-primario">Salvar grade</button>
+            <button type="button" id="botaoExportarGradeFinal" class="botao-secundario">Exportar (.xlsx)</button>
+          </div>
+          <p class="descricao-item" style="margin:4px 0 12px;">Itens validados na Sugestão de Reposição. Ajuste a quantidade ou remova linhas e clique em <strong>Salvar grade</strong> para gravar no banco.</p>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table class="tabela-grade-final">
+                <thead>
+                  <tr>
+                    <th>Cód. Local</th>
+                    <th>Local de Entrega</th>
+                    <th>Cód. Item (SKU)</th>
+                    <th>Medicamento</th>
+                    <th>Qtde</th>
+                    <th>Validade</th>
+                    <th>Código SCODES</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaGradeFinal"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioGradeFinal" hidden>Nenhum item na grade. Valide itens na aba Sugestão de Reposição.</div>
           </div>
         </div>
       </section>
@@ -1794,6 +1827,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=64"></script>
+  <script src="/js/app.js?v=65"></script>
 </body>
 </html>
