@@ -1,0 +1,31 @@
+ROBO DE IMPORTACAO DE FATURAS - GSNET / Suplementos 3.0
+=======================================================
+
+O QUE ELE FAZ
+  Automatiza a parte repetitiva da tela "Fatura em Lote":
+    1. Loga no GSNET com seu usuario e senha;
+    2. Abre Fatura em Lote;
+    3. Seleciona ID Gestor (11) e ID Local (3004);
+    4. Clica Pesquisar.
+  Depois PARA e deixa com voce: escolher o arquivo da grade e
+  clicar Importar (a decisao final e sempre sua).
+
+PRIMEIRA VEZ (so uma vez)
+  1. De duplo-clique em  "1 - colar senha.bat"
+     -> abre o Bloco de Notas. Na linha  GSNET_SENHA=
+        cole sua senha logo depois do = e salve (Ctrl+S).
+     (Seu usuario ja vem preenchido. A senha fica so na sua
+      maquina, no arquivo .env - nao vai para lugar nenhum.)
+
+USO NO DIA A DIA
+  1. De duplo-clique em  "2 - IMPORTAR FATURAS.bat"
+  2. Espere o Chrome abrir e a tela ficar pronta.
+  3. No Chrome: clique "Escolher arquivo", selecione a grade
+     (o .xlsx exportado na aba Grade Final) e clique Importar.
+  4. Ao terminar, FECHE a janela do Chrome.
+
+SE DER ERRADO
+  - Login nao passou: confira a senha em "1 - colar senha.bat".
+  - Aparece um arquivo "erro.png" na pasta: mostra onde travou.
+  - Gestor/Local diferentes: da para mudar no arquivo .env
+    (GSNET_ID_GESTOR e GSNET_ID_LOCAL).
