@@ -447,7 +447,12 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaRelatorioReq:not([hidden])),
 .conteudo:has(> #paginaRelatorioItens:not([hidden])),
 .conteudo:has(> #paginaValidades:not([hidden])),
-.conteudo:has(> #paginaAtas:not([hidden])) {
+.conteudo:has(> #paginaAtas:not([hidden])),
+.conteudo:has(> #paginaEstoqueOD:not([hidden])),
+.conteudo:has(> #paginaSolicitacoesOD:not([hidden])),
+.conteudo:has(> #paginaAquisicaoODAndamento:not([hidden])),
+.conteudo:has(> #paginaEntradaLotes:not([hidden])),
+.conteudo:has(> #paginaDistribuicao:not([hidden])) {
   max-width: none;
 }
 
@@ -462,6 +467,10 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 
 .cabecalho-pagina h2 { font-size: 24px; }
 .cabecalho-pagina p { color: var(--cinza-texto); margin: 4px 0 0; font-size: 13.5px; }
+
+.cabecalho-direita { display: flex; align-items: center; gap: 10px; }
+.atualizado-em { font-size: 12px; color: var(--cinza-texto); white-space: nowrap; }
+.atualizado-em::before { content: '🕒 '; }
 
 /* ---------- CARTÕES DE RESUMO ---------- */
 
@@ -592,6 +601,10 @@ thead th {
 }
 /* Na tabela de Atas a 3ª coluna é Siafísico, não descrição — desfaz a regra acima */
 #paginaAtas .tabela-rolavel-x td:nth-child(3) { min-width: 0; max-width: none; }
+/* Na reposição a 3ª coluna é o SKU (não a descrição): desfaz a largura fixa e
+   aplica o controle na 4ª coluna, que é a Descrição do Item. */
+.tabela-reposicao td:nth-child(3) { min-width: 0; max-width: none; }
+.tabela-reposicao td:nth-child(4) { min-width: 220px; max-width: 320px; }
 
 /* Cabeçalho fixo no topo ao rolar verticalmente */
 .tabela-rolavel-x thead th {
@@ -701,6 +714,66 @@ thead th {
 }
 .req-paciente-card:hover { border-color: var(--selo); background: #fbfaf3; }
 .req-item:hover { background: #fbfaf3; }
+.req-item-selecionado { background: #eaf3ea; border-left: 3px solid var(--selo); }
+.req-item-selecionado:hover { background: #e2eee2; }
+
+/* Linha de item que passou por conversão (Estoque/Consumo numa unidade
+   "base" diferente da unidade de dispensação) — destaque visual pra
+   deixar claro que o número já foi ajustado, não é o valor bruto. */
+.linha-convertida { background: #fff6e0; }
+.linha-convertida:hover { background: #ffefc7; }
+
+/* Reposição parcial: operador não cobre o subtotal do SKU (destaque) */
+.linha-parcial { background: #fde8e8; }
+.linha-parcial:hover { background: #fbd5d5; }
+/* Linha de subtotal por SKU */
+.linha-subtotal-sku { background: #eef2f7; font-size: 12.5px; }
+/* Etiquetas de status de reposição */
+.etiqueta-rep { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.etiqueta-total { background: #d3f2df; color: #1b6b3a; }
+.etiqueta-parcial { background: #fce3c4; color: #8a4b0d; }
+.etiqueta-sem { background: #e6e8eb; color: #5a616b; }
+
+/* Seletor múltiplo de unidades (Reposição) */
+.seletor-multi { position: relative; display: inline-block; }
+.botao-seletor-multi {
+  min-width: 240px; text-align: left; padding: 7px 10px; border: 1px solid #c9ccd1;
+  border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px;
+}
+.painel-seletor-multi {
+  position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; width: 320px; max-width: 90vw;
+  background: #fff; border: 1px solid #c9ccd1; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.14);
+  padding: 8px;
+}
+.painel-seletor-multi .opcao-todas { display: block; padding: 4px 6px 8px; border-bottom: 1px solid #eceef1; margin-bottom: 6px; }
+.lista-checkboxes { max-height: 300px; overflow-y: auto; }
+.lista-checkboxes .opcao-unidade { display: block; padding: 4px 6px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+.lista-checkboxes .opcao-unidade:hover { background: #f2f5f8; }
+
+/* Tabela de reposição ocupa toda a largura disponível (evita espaço vazio à direita) */
+.tabela-reposicao { width: 100%; min-width: 1100px; }
+.tabela-grade-final { width: 100%; min-width: 820px; }
+.tabela-grade-final td .input-qtde-grade { padding: 4px 6px; }
+
+/* Filtro de etiquetas com múltipla seleção */
+.filtro-etiquetas { display: inline-flex; align-items: center; gap: 12px; font-size: 12.5px; }
+.filtro-etiquetas .rotulo-filtro { color: #5a616b; }
+.filtro-etiquetas label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+
+/* Input de autonomia-alvo por SKU na linha de subtotal */
+.rotulo-autonomia { color: #5a616b; font-weight: normal; }
+.input-autonomia-sku {
+  width: 58px; padding: 2px 6px; border: 1px solid #c9ccd1; border-radius: 5px;
+  font-size: 12.5px; text-align: center;
+}
+
+/* Botões Validar / Negar por linha (grade) */
+.btn-grade { padding: 3px 12px; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+.btn-grade:disabled { opacity: .55; cursor: default; }
+.btn-validar { background: #e3f4e9; color: #1b6b3a; border-color: #a9d9bd; }
+.btn-validar:hover:not(:disabled) { background: #d3f2df; }
+.btn-negar { background: #fde8e8; color: #a12a2a; border-color: #f0b8b8; }
+.btn-negar:hover:not(:disabled) { background: #fbd5d5; }
 
 /* Chips de filtro por faixa de validade */
 .filtros-faixa { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -1004,6 +1077,13 @@ body.tem-faixa-ambiente { padding-top: 30px; }
   font-size: 0.72rem;
   letter-spacing: 0.5px;
   color: rgba(233, 243, 239, 0.55);
+  text-align: center;
+}
+
+.rodape-desenvolvedor {
+  margin-top: 2px;
+  font-size: 0.66rem;
+  color: rgba(233, 243, 239, 0.4);
   text-align: center;
 }
 

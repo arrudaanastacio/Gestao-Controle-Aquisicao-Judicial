@@ -157,6 +157,11 @@ async function carregarUsuario() {
     verificarStatusOracle(); // retoma acompanhamento se já houver atualização em curso
     document.getElementById('botaoAtualizarOracleEstoque').hidden = false;
     verificarStatusOracleEstoque();
+    document.getElementById('botaoImportarEstoqueOD').hidden = false;
+    document.getElementById('botaoAtualizarEntradaLotes').hidden = false;
+    verificarStatusOracleEntradaLotes();
+    document.getElementById('botaoAtualizarRelatorioItens').hidden = false;
+    verificarStatusOracleRelatorioItens();
     atualizarBadgeAlertas();
     carregarConfigLimiar();
   } else {
@@ -188,14 +193,18 @@ function temAlgumaEscrita() {
 
 // Esconde da navegação os módulos que o usuário não pode nem visualizar.
 function aplicarPermissoesNav() {
-  // Cada link de página é mapeado para o módulo que o controla.
+  // Cada link de página é mapeado para o módulo que o controla — um módulo
+  // por tela (13/07/2026), sem mais telas agrupadas sob o mesmo módulo.
   const mapa = {
-    solicitacoes: 'compras', relatorio: 'compras',
-    estoque: 'estoque', validades: 'estoque', estoqueGeral: 'estoque',
-    historico: 'estoque', evolucao: 'estoque',
+    relatorio: 'relatorioComprasTP', solicitacoes: 'tabelaAnaliseTP',
+    solicitacoesOD: 'relatorioComprasOD', aquisicaoODAndamento: 'aquisicaoODAndamento',
+    estoque: 'estoqueTP', validades: 'validadesTP', historico: 'historicoEstoqueTP', evolucao: 'evolucaoEstoqueTP',
+    estoqueGeral: 'estoqueGeral', estoqueOD: 'estoqueOD', distribuicao: 'distribuicao',
     relatorioItens: 'relatorioItens',
-    autores: 'autores', autoresGeral: 'autores', comparativoAutores: 'autores', relatorioReq: 'autores',
+    autores: 'autoresTP', autoresGeral: 'autoresGeral',
+    comparativoAutores: 'comparativoAutoresTP', relatorioReq: 'relatorioReqTP',
     atas: 'atas',
+    entradaLotes: 'entradaLotes',
     alertas: 'alertas',
   };
   for (const [pagina, modulo] of Object.entries(mapa)) {
@@ -240,6 +249,9 @@ const ICONES_NAV = {
   relatorio: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
   estoque: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
   estoqueGeral: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 13h18"/>',
+  estoqueOD: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 13h18"/><path d="M16 3l4 2v4l-4-2z"/>',
+  solicitacoesOD: '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/><path d="M16 3l4 2v4l-4-2z"/>',
+  aquisicaoODAndamento: '<path d="M4 19h16"/><path d="M4 19V5"/><path d="M7 15l4-5 3 3 5-7"/><path d="M16 3l4 2v4l-4-2z"/>',
   validades: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M9 3v4M15 3v4M12 12v3l2 1"/>',
   busca: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-3.5-3.5"/>',
   historico: '<path d="M4 12a8 8 0 1 0 2-5.3"/><path d="M4 4v3h3"/><path d="M12 8v4l3 2"/>',
@@ -251,6 +263,7 @@ const ICONES_NAV = {
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   elenco: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   atas: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/><path d="M15 19l2 2 3-3"/>',
+  entradaLotes: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/>',
   alertas: '<path d="M6 9a6 6 0 1 1 12 0c0 4 2 5 2 5H4s2-1 2-5"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   importadores: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
   usuarios: '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 6a3 3 0 0 1 0 6M21 20a6 6 0 0 0-5-5.9"/>',
@@ -289,6 +302,10 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaRelatorio').hidden = pagina !== 'relatorio';
   document.getElementById('paginaEstoque').hidden = pagina !== 'estoque';
   document.getElementById('paginaEstoqueGeral').hidden = pagina !== 'estoqueGeral';
+  document.getElementById('paginaEstoqueOD').hidden = pagina !== 'estoqueOD';
+  document.getElementById('paginaDistribuicao').hidden = pagina !== 'distribuicao';
+  document.getElementById('paginaSolicitacoesOD').hidden = pagina !== 'solicitacoesOD';
+  document.getElementById('paginaAquisicaoODAndamento').hidden = pagina !== 'aquisicaoODAndamento';
   document.getElementById('paginaValidades').hidden = pagina !== 'validades';
   document.getElementById('paginaHistorico').hidden = pagina !== 'historico';
   document.getElementById('paginaEvolucao').hidden = pagina !== 'evolucao';
@@ -297,6 +314,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaComparativoAutores').hidden = pagina !== 'comparativoAutores';
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
   document.getElementById('paginaAtas').hidden = pagina !== 'atas';
+  document.getElementById('paginaEntradaLotes').hidden = pagina !== 'entradaLotes';
   document.getElementById('paginaRelatorioItens').hidden = pagina !== 'relatorioItens';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
@@ -309,6 +327,10 @@ async function mudarPagina(pagina) {
     if (pagina === 'relatorio') await carregarRelatorio();
     if (pagina === 'estoque') await carregarEstoque();
     if (pagina === 'estoqueGeral') await carregarEstoqueGeral();
+    if (pagina === 'estoqueOD') await carregarEstoqueOD();
+    if (pagina === 'distribuicao') await carregarDistribuicao();
+    if (pagina === 'solicitacoesOD') await carregarSolicitacoesOD();
+    if (pagina === 'aquisicaoODAndamento') await carregarAquisicaoODAndamento();
     if (pagina === 'validades') await carregarValidades();
     if (pagina === 'historico') await carregarHistorico();
     if (pagina === 'evolucao') iniciarEvolucao();
@@ -317,6 +339,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'comparativoAutores') await carregarComparativo();
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
     if (pagina === 'atas') await carregarAtas();
+    if (pagina === 'entradaLotes') await carregarEntradaLotes();
     if (pagina === 'relatorioItens') await carregarRelatorioItens();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
@@ -382,6 +405,7 @@ function preencherAnos() {
 }
 
 async function carregarSolicitacoes() {
+  carregarUltimaAtualizacao('atualizadoSolicitacoes', 'solicitacoes');
   const params = new URLSearchParams();
   if (filtroBusca.value) params.set('q', filtroBusca.value);
   if (filtroStatus.value) params.set('status', filtroStatus.value);
@@ -653,6 +677,7 @@ document.getElementById('botaoLimparFiltrosRelatorio').addEventListener('click',
 });
 
 async function carregarRelatorio() {
+  carregarUltimaAtualizacao('atualizadoRelatorio', 'solicitacoes');
   if (filtroAnoRelatorio.options.length <= 1) {
     const anoAtual = new Date().getFullYear();
     for (let a = anoAtual + 1; a >= 2025; a--) {
@@ -1366,6 +1391,1204 @@ async function carregarTabelaEstoqueGeral() {
   document.getElementById('botaoProximoEstoqueGeral').disabled = dados.page >= totalPaginas;
 }
 
+// ==================== Estoque Outras Demandas (GSNET + IBL) ====================
+const estadoEstoqueOD = { pagina: 1, pageSize: 30, data: null };
+
+document.getElementById('filtroBuscaEstoqueOD').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaEstoqueOD);
+  window.__debounceBuscaEstoqueOD = setTimeout(() => { estadoEstoqueOD.pagina = 1; carregarTabelaEstoqueOD(); }, 350);
+});
+document.getElementById('filtroComparativoEstoqueOD').addEventListener('change', () => { estadoEstoqueOD.pagina = 1; carregarTabelaEstoqueOD(); });
+document.getElementById('filtroStatusEstoqueOD').addEventListener('change', () => { estadoEstoqueOD.pagina = 1; carregarTabelaEstoqueOD(); });
+document.getElementById('seletorDataEstoqueOD').addEventListener('change', async (ev) => {
+  estadoEstoqueOD.data = ev.target.value; estadoEstoqueOD.pagina = 1;
+  await carregarFiltrosEstoqueOD(); carregarTabelaEstoqueOD();
+});
+document.getElementById('botaoLimparFiltrosEstoqueOD').addEventListener('click', () => {
+  document.getElementById('filtroBuscaEstoqueOD').value = '';
+  document.getElementById('filtroComparativoEstoqueOD').value = '';
+  document.getElementById('filtroStatusEstoqueOD').value = '';
+  estadoEstoqueOD.pagina = 1;
+  carregarTabelaEstoqueOD();
+});
+document.getElementById('botaoAnteriorEstoqueOD').addEventListener('click', () => {
+  if (estadoEstoqueOD.pagina > 1) { estadoEstoqueOD.pagina--; carregarTabelaEstoqueOD(); }
+});
+document.getElementById('botaoProximoEstoqueOD').addEventListener('click', () => {
+  estadoEstoqueOD.pagina++; carregarTabelaEstoqueOD();
+});
+document.getElementById('botaoImportarEstoqueOD').addEventListener('click', async () => {
+  const botao = document.getElementById('botaoImportarEstoqueOD');
+  const status = document.getElementById('statusImportarEstoqueOD');
+  botao.disabled = true;
+  status.hidden = false;
+  status.textContent = 'Importando…';
+  try {
+    const resumo = await api('/estoque-od/importar-manual', { method: 'POST' });
+    status.textContent = `✓ ${resumo.totalItens} itens (${resumo.totalDivergente} divergentes)`;
+    estadoEstoqueOD.data = null;
+    await carregarEstoqueOD();
+  } catch (e) {
+    status.textContent = '✗ Falha ao importar. Veja se os 3 arquivos estão na pasta de rede.';
+  } finally {
+    botao.disabled = false;
+    setTimeout(() => { status.hidden = true; }, 8000);
+  }
+});
+
+async function carregarFiltrosEstoqueOD() {
+  const params = new URLSearchParams();
+  if (estadoEstoqueOD.data) params.set('data', estadoEstoqueOD.data);
+  let dados;
+  try { dados = await api(`/estoque-od/filtros?${params.toString()}`); } catch (e) { return; }
+  const sel = document.getElementById('filtroStatusEstoqueOD');
+  const valorAtual = sel.value;
+  sel.innerHTML = '<option value="">Status estoque: todos</option>' +
+    (dados.status_estoque || []).map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+  sel.value = valorAtual;
+}
+
+async function carregarEstoqueOD() {
+  const resumo = await api('/estoque-od/resumo');
+  if (!resumo.dataReferencia) {
+    document.getElementById('avisoSemEstoqueOD').hidden = false;
+    document.getElementById('conteudoEstoqueOD').hidden = true;
+    return;
+  }
+  document.getElementById('avisoSemEstoqueOD').hidden = true;
+  document.getElementById('conteudoEstoqueOD').hidden = false;
+
+  const seletor = document.getElementById('seletorDataEstoqueOD');
+  const lista = await api('/estoque-od?pageSize=1');
+  seletor.innerHTML = lista.datasDisponiveis.map((d) => `<option value="${d.data_referencia}">${formatarData(d.data_referencia)} (${d.total_itens} itens)</option>`).join('');
+  if (!estadoEstoqueOD.data) estadoEstoqueOD.data = resumo.dataReferencia;
+  seletor.value = estadoEstoqueOD.data;
+
+  document.getElementById('subtituloEstoqueOD').textContent =
+    `Posição de estoque no operador logístico em ${formatarData(resumo.dataReferencia)}`;
+
+  document.getElementById('grideResumoEstoqueOD').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.totalItens)}</div><div class="rotulo">Linhas (lotes)</div></div>
+    <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(resumo.divergente)}</div><div class="rotulo">Saldo divergente (GSNET x IBL)</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.semCorrespondencia)}</div><div class="rotulo">Sem código SCODES correspondente</div></div>
+  `;
+  await carregarFiltrosEstoqueOD();
+  carregarTabelaEstoqueOD();
+}
+
+async function carregarTabelaEstoqueOD() {
+  const q = document.getElementById('filtroBuscaEstoqueOD').value.trim();
+  const statusComparativo = document.getElementById('filtroComparativoEstoqueOD').value;
+  const statusEstoque = document.getElementById('filtroStatusEstoqueOD').value;
+
+  const params = new URLSearchParams({ page: estadoEstoqueOD.pagina, pageSize: estadoEstoqueOD.pageSize });
+  if (estadoEstoqueOD.data) params.set('data', estadoEstoqueOD.data);
+  if (q) params.set('q', q);
+  if (statusComparativo) params.set('status_comparativo', statusComparativo);
+  if (statusEstoque) params.set('status_estoque', statusEstoque);
+
+  const dados = await api(`/estoque-od?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaEstoqueOD');
+  const vazio = document.getElementById('estadoVazioEstoqueOD');
+
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((it) => {
+      const tagComparativo = it.status_comparativo === 'Bate'
+        ? `<span class="etiqueta-status finalizado">Bate</span>`
+        : it.status_comparativo === 'Diverge'
+          ? `<span class="etiqueta-status cancelado">Diverge</span>`
+          : `<span class="etiqueta-status atrasado">Sem correspondência</span>`;
+      return `
+        <tr>
+          <td class="col-codigo">${it.codigo_item || '—'}</td>
+          <td>${it.descricao || '—'}</td>
+          <td class="col-codigo">${it.codigo_sku || '—'}</td>
+          <td>${it.lote || '—'}</td>
+          <td class="col-data">${it.validade || '—'}</td>
+          <td>${it.embalagem2 || '—'}</td>
+          <td>${fmtNumero(it.multiplo_distribuicao)}</td>
+          <td>${it.status_estoque || '—'}</td>
+          <td>${it.tipo_bloqueio || '—'}</td>
+          <td>${it.obs_bloqueio || '—'}</td>
+          <td>${fmtNumero(it.qtde_disponivel)}</td>
+          <td>${fmtNumero(it.qtde_bloqueado)}</td>
+          <td>${fmtNumero(it.qtde_reservada)}</td>
+          <td>${fmtNumero(it.qtde_total)}</td>
+          <td>${it.saldo_gsnet === null ? '—' : fmtNumero(it.saldo_gsnet)}</td>
+          <td>${tagComparativo}</td>
+          <td>${it.diferenca === null ? '—' : fmtNumero(it.diferenca)}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoEstoqueOD').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} linhas`;
+  document.getElementById('botaoAnteriorEstoqueOD').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoEstoqueOD').disabled = dados.page >= totalPaginas;
+}
+
+// ---- Abas: Por Lote / Consolidado por Item ----
+document.querySelectorAll('#abasEstoqueOD .chip-faixa').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#abasEstoqueOD .chip-faixa').forEach((b) => b.classList.remove('ativo'));
+    btn.classList.add('ativo');
+    const aba = btn.dataset.aba;
+    document.getElementById('abaLotesEstoqueOD').hidden = aba !== 'lotes';
+    document.getElementById('abaConsolidadoEstoqueOD').hidden = aba !== 'consolidado';
+    document.getElementById('abaValidadesEstoqueOD').hidden = aba !== 'validades';
+    if (aba === 'consolidado') carregarTabelaEstoqueODConsolidado();
+    if (aba === 'validades') carregarValidadesEstoqueOD();
+  });
+});
+
+const estadoEstoqueODConsolidado = { pagina: 1, pageSize: 30 };
+
+document.getElementById('filtroBuscaEstoqueODConsolidado').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaEstoqueODConsolidado);
+  window.__debounceBuscaEstoqueODConsolidado = setTimeout(() => { estadoEstoqueODConsolidado.pagina = 1; carregarTabelaEstoqueODConsolidado(); }, 350);
+});
+document.getElementById('filtroComparativoEstoqueODConsolidado').addEventListener('change', () => { estadoEstoqueODConsolidado.pagina = 1; carregarTabelaEstoqueODConsolidado(); });
+document.getElementById('botaoAnteriorEstoqueODConsolidado').addEventListener('click', () => {
+  if (estadoEstoqueODConsolidado.pagina > 1) { estadoEstoqueODConsolidado.pagina--; carregarTabelaEstoqueODConsolidado(); }
+});
+document.getElementById('botaoProximoEstoqueODConsolidado').addEventListener('click', () => {
+  estadoEstoqueODConsolidado.pagina++; carregarTabelaEstoqueODConsolidado();
+});
+document.getElementById('botaoFecharModalEstoqueOD').addEventListener('click', () => {
+  document.getElementById('modalEstoqueODItem').hidden = true;
+});
+
+async function carregarTabelaEstoqueODConsolidado() {
+  const q = document.getElementById('filtroBuscaEstoqueODConsolidado').value.trim();
+  const statusComparativo = document.getElementById('filtroComparativoEstoqueODConsolidado').value;
+
+  const params = new URLSearchParams({ page: estadoEstoqueODConsolidado.pagina, pageSize: estadoEstoqueODConsolidado.pageSize });
+  if (estadoEstoqueOD.data) params.set('data', estadoEstoqueOD.data);
+  if (q) params.set('q', q);
+  if (statusComparativo) params.set('status_comparativo', statusComparativo);
+
+  const dados = await api(`/estoque-od/consolidado?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaEstoqueODConsolidado');
+  const vazio = document.getElementById('estadoVazioEstoqueODConsolidado');
+
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((it) => {
+      const tagComparativo = it.status_comparativo === 'Bate'
+        ? `<span class="etiqueta-status finalizado">Bate</span>`
+        : it.status_comparativo === 'Diverge'
+          ? `<span class="etiqueta-status cancelado">Diverge</span>`
+          : `<span class="etiqueta-status atrasado">Sem correspondência</span>`;
+      return `
+        <tr>
+          <td class="col-codigo">${it.codigo_item || '—'}</td>
+          <td>${it.descricao || '—'}</td>
+          <td class="col-codigo">${it.codigo_sku || '—'}</td>
+          <td>${fmtNumero(it.qtde_disponivel)}</td>
+          <td>${fmtNumero(it.qtde_bloqueado)}</td>
+          <td>${it.saldo_gsnet === null ? '—' : fmtNumero(it.saldo_gsnet)}</td>
+          <td>${tagComparativo}</td>
+          <td>${it.diferenca === null ? '—' : fmtNumero(it.diferenca)}</td>
+          <td><button class="botao-editar" data-sku="${encodeURIComponent(it.codigo_sku)}">Ver</button></td>
+        </tr>`;
+    }).join('');
+    corpo.querySelectorAll('button[data-sku]').forEach((btn) => {
+      btn.addEventListener('click', () => abrirDetalheEstoqueODItem(btn.dataset.sku));
+    });
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoEstoqueODConsolidado').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} itens`;
+  document.getElementById('botaoAnteriorEstoqueODConsolidado').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoEstoqueODConsolidado').disabled = dados.page >= totalPaginas;
+}
+
+// ---- Aba: Controle de Validade ----
+const estadoValidadesEstoqueOD = { janela: '' };
+
+document.getElementById('filtroBuscaValidadesEstoqueOD').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaValidadesEstoqueOD);
+  window.__debounceBuscaValidadesEstoqueOD = setTimeout(() => carregarValidadesEstoqueOD(), 350);
+});
+document.querySelectorAll('#filtrosFaixaValidadesEstoqueOD .chip-faixa').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#filtrosFaixaValidadesEstoqueOD .chip-faixa').forEach((b) => b.classList.remove('ativo'));
+    btn.classList.add('ativo');
+    estadoValidadesEstoqueOD.janela = btn.dataset.janela;
+    carregarValidadesEstoqueOD();
+  });
+});
+
+async function carregarValidadesEstoqueOD() {
+  const q = document.getElementById('filtroBuscaValidadesEstoqueOD').value.trim();
+  const params = new URLSearchParams();
+  if (estadoEstoqueOD.data) params.set('data', estadoEstoqueOD.data);
+  if (q) params.set('q', q);
+  if (estadoValidadesEstoqueOD.janela) params.set('janela', estadoValidadesEstoqueOD.janela);
+
+  const dados = await api(`/estoque-od/validades?${params.toString()}`);
+  const r = dados.resumo || { totalLotes: 0, vencido: 0, d30: 0, d60: 0, d90: 0, mais90: 0 };
+
+  document.getElementById('grideKpiValidadesEstoqueOD').innerHTML = `
+    <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(r.vencido)}</div><div class="rotulo">Lotes vencidos</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d30)}</div><div class="rotulo">Vencem em até 30 dias</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d60)}</div><div class="rotulo">31 a 60 dias</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.d90)}</div><div class="rotulo">61 a 90 dias</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(r.mais90)}</div><div class="rotulo">Mais de 90 dias</div></div>
+  `;
+
+  const corpo = document.getElementById('corpoTabelaValidadesEstoqueOD');
+  const vazio = document.getElementById('estadoVazioValidadesEstoqueOD');
+  if (!dados.lotes || dados.lotes.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.lotes.map((l) => {
+      const cls = corFaixaValidade(l.faixa);
+      const diasTxt = l.dias_para_vencer < 0
+        ? `vencido há ${Math.abs(l.dias_para_vencer)} dia(s)`
+        : `${l.dias_para_vencer} dia(s)`;
+      return `
+        <tr>
+          <td class="col-codigo">${l.codigo_item || '—'}</td>
+          <td>${l.descricao || '—'}</td>
+          <td class="col-codigo">${l.codigo_sku || '—'}</td>
+          <td>${l.lote || '—'}</td>
+          <td class="col-data"><span class="etiqueta-status ${cls}">${l.validade}</span></td>
+          <td>${diasTxt}</td>
+          <td>${fmtNumero(l.qtde_disponivel)}</td>
+          <td>${fmtNumero(l.qtde_bloqueado)}</td>
+          <td>${fmtNumero(l.qtde_total)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('textoContagemValidadesEstoqueOD').textContent =
+    `${dados.lotes ? dados.lotes.length : 0} lote(s) exibido(s) · ${fmtNumero(r.totalLotes)} no total`;
+}
+
+async function abrirDetalheEstoqueODItem(skuEncoded) {
+  const modal = document.getElementById('modalEstoqueODItem');
+  const conteudo = document.getElementById('conteudoModalEstoqueOD');
+  conteudo.innerHTML = '<p style="color:var(--cinza-texto);">Carregando…</p>';
+  modal.hidden = false;
+
+  const params = new URLSearchParams();
+  if (estadoEstoqueOD.data) params.set('data', estadoEstoqueOD.data);
+  const dados = await api(`/estoque-od/item/${skuEncoded}?${params.toString()}`);
+
+  document.getElementById('tituloModalEstoqueOD').textContent = dados.descricao || dados.codigoSku;
+  document.getElementById('codigoModalEstoqueOD').textContent =
+    `SCODES: ${dados.codigo_item || '—'} · SKU: ${dados.codigoSku}`;
+
+  let html = '';
+  if (dados.saldo_gsnet !== null && dados.saldo_gsnet !== undefined) {
+    const tagComparativo = dados.status_comparativo === 'Bate'
+      ? `<span class="etiqueta-status finalizado">Bate</span>`
+      : dados.status_comparativo === 'Diverge'
+        ? `<span class="etiqueta-status cancelado">Diverge</span>`
+        : `<span class="etiqueta-status atrasado">Sem correspondência</span>`;
+    html += `
+      <div class="grade-resumo" style="grid-template-columns: repeat(3, 1fr); margin-bottom:18px;">
+        <div class="cartao-resumo"><div class="numero" style="font-size:22px;">${fmtNumero(dados.saldo_gsnet)}</div><div class="rotulo">Saldo Disp. GSNET</div></div>
+        <div class="cartao-resumo"><div class="numero" style="font-size:22px;">${dados.diferenca === null ? '—' : fmtNumero(dados.diferenca)}</div><div class="rotulo">Diferença</div></div>
+        <div class="cartao-resumo"><div style="margin-top:4px;">${tagComparativo}</div><div class="rotulo">Comparativo</div></div>
+      </div>
+    `;
+  }
+
+  html += '<h4 style="margin:18px 0 8px; font-size:14px; font-family:var(--fonte-titulo);">Lotes</h4>';
+  if (dados.lotes.length === 0) {
+    html += '<p style="color:var(--cinza-texto); font-size:13px;">Sem lotes para este item na data selecionada.</p>';
+  } else {
+    html += `<table style="font-size:12.5px;"><thead><tr><th>Lote</th><th>Validade</th><th>Múltiplo Distribuição</th><th>Disponível</th><th>Bloqueado</th><th>Motivo do Bloqueio</th></tr></thead><tbody>`;
+    html += dados.lotes.map((l) => {
+      const naoInformado = (v) => !v || String(v).trim().toLowerCase() === 'não informado';
+      const partes = [naoInformado(l.tipo_bloqueio) ? null : l.tipo_bloqueio, naoInformado(l.obs_bloqueio) ? null : l.obs_bloqueio].filter(Boolean);
+      const bloqueado = (l.qtde_bloqueado || 0) > 0;
+      const motivo = bloqueado ? (partes.join(' — ') || '—') : '—';
+      return `
+      <tr>
+        <td class="col-codigo">${l.lote || '—'}</td>
+        <td class="col-data">${l.validade || '—'}</td>
+        <td>${fmtNumero(l.multiplo_distribuicao)}</td>
+        <td>${fmtNumero(l.qtde_disponivel)}</td>
+        <td>${fmtNumero(l.qtde_bloqueado)}</td>
+        <td>${bloqueado ? `<span class="etiqueta-status cancelado">${motivo}</span>` : '—'}</td>
+      </tr>
+    `;
+    }).join('');
+    html += '</tbody></table>';
+  }
+
+  conteudo.innerHTML = html;
+}
+
+// ==================== Relatório de Compras OD (Outras Demandas) ====================
+const estadoSolicitacoesOD = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+
+document.getElementById('filtroBuscaSolicitacoesOD').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaSolicitacoesOD);
+  window.__debounceBuscaSolicitacoesOD = setTimeout(() => { estadoSolicitacoesOD.pagina = 1; carregarTabelaSolicitacoesOD(); }, 350);
+});
+document.getElementById('filtroStatusSolicitacoesOD').addEventListener('change', () => { estadoSolicitacoesOD.pagina = 1; carregarTabelaSolicitacoesOD(); });
+document.getElementById('filtroAnoSolicitacoesOD').addEventListener('change', () => { estadoSolicitacoesOD.pagina = 1; carregarTabelaSolicitacoesOD(); });
+document.getElementById('filtroMesSolicitacoesOD').addEventListener('change', () => { estadoSolicitacoesOD.pagina = 1; carregarTabelaSolicitacoesOD(); });
+document.getElementById('botaoLimparFiltrosSolicitacoesOD').addEventListener('click', () => {
+  document.getElementById('filtroBuscaSolicitacoesOD').value = '';
+  document.getElementById('filtroStatusSolicitacoesOD').value = '';
+  document.getElementById('filtroAnoSolicitacoesOD').value = '';
+  document.getElementById('filtroMesSolicitacoesOD').value = '';
+  estadoSolicitacoesOD.pagina = 1;
+  carregarTabelaSolicitacoesOD();
+});
+document.getElementById('botaoAnteriorSolicitacoesOD').addEventListener('click', () => {
+  if (estadoSolicitacoesOD.pagina > 1) { estadoSolicitacoesOD.pagina--; carregarTabelaSolicitacoesOD(); }
+});
+document.getElementById('botaoProximoSolicitacoesOD').addEventListener('click', () => {
+  estadoSolicitacoesOD.pagina++; carregarTabelaSolicitacoesOD();
+});
+
+// -------------------- Distribuição --------------------
+const estadoDistFaturas = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+const estadoDistMov = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+let abaDistribuicaoAtiva = 'faturas';
+
+document.querySelectorAll('#abasDistribuicao .chip-faixa').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#abasDistribuicao .chip-faixa').forEach((b) => b.classList.toggle('ativo', b === btn));
+    abaDistribuicaoAtiva = btn.dataset.aba;
+    document.getElementById('abaFaturasDistribuicao').hidden = abaDistribuicaoAtiva !== 'faturas';
+    document.getElementById('abaMovimentacoesDistribuicao').hidden = abaDistribuicaoAtiva !== 'movimentacoes';
+    document.getElementById('abaReposicaoDistribuicao').hidden = abaDistribuicaoAtiva !== 'reposicao';
+    document.getElementById('abaHospitalEscolaDistribuicao').hidden = abaDistribuicaoAtiva !== 'hospitalescola';
+    document.getElementById('abaGradeFinalDistribuicao').hidden = abaDistribuicaoAtiva !== 'gradefinal';
+    if (abaDistribuicaoAtiva === 'faturas') carregarTabelaDistFaturas();
+    else if (abaDistribuicaoAtiva === 'movimentacoes') carregarTabelaDistMov();
+    else if (abaDistribuicaoAtiva === 'gradefinal') carregarGradeFinal();
+    else if (abaDistribuicaoAtiva === 'hospitalescola') carregarTabelaReposicaoHE();
+    else carregarTabelaReposicao();
+  });
+});
+
+async function carregarDistribuicao() {
+  const resumo = await api('/distribuicao/faturas/resumo');
+  document.getElementById('grideResumoDistribuicao').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.total)}</div><div class="rotulo">Linhas de fatura importadas</div></div>
+    <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(resumo.pendentes)}</div><div class="rotulo">Pendentes de entrega</div></div>
+  `;
+  if (abaDistribuicaoAtiva === 'faturas') {
+    await carregarFiltrosDistFaturas();
+    carregarTabelaDistFaturas();
+  } else if (abaDistribuicaoAtiva === 'movimentacoes') {
+    await carregarFiltrosDistMov();
+    carregarTabelaDistMov();
+  } else {
+    carregarTabelaReposicao();
+  }
+}
+
+async function carregarFiltrosDistFaturas() {
+  if (estadoDistFaturas.filtrosCarregados) return;
+  try {
+    const f = await api('/distribuicao/faturas/filtros');
+    const preencher = (id, valores, rotulo) => {
+      document.getElementById(id).innerHTML = `<option value="">${rotulo}</option>` +
+        valores.map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+    };
+    preencher('filtroStatusDistFaturas', f.status, 'Status: todos');
+    preencher('filtroLocalDistFaturas', f.local, 'Unidade: todas');
+    estadoDistFaturas.filtrosCarregados = true;
+  } catch (e) { /* segue */ }
+}
+
+async function carregarTabelaDistFaturas() {
+  const params = new URLSearchParams({ page: estadoDistFaturas.pagina, pageSize: estadoDistFaturas.pageSize });
+  const q = document.getElementById('filtroBuscaDistFaturas').value.trim();
+  if (q) params.set('q', q);
+  const status = document.getElementById('filtroStatusDistFaturas').value;
+  if (status) params.set('status', status);
+  const local = document.getElementById('filtroLocalDistFaturas').value;
+  if (local) params.set('local', local);
+
+  const dados = await api(`/distribuicao/faturas?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaDistFaturas');
+  const vazio = document.getElementById('estadoVazioDistFaturas');
+
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((it) => `
+      <tr>
+        <td class="col-codigo">${it.numero_fatura || '—'}</td>
+        <td class="col-codigo">${it.codigo_item || '—'}</td>
+        <td class="col-codigo">${it.codigo_material || '—'}</td>
+        <td>${it.nome_material || '—'}</td>
+        <td>${it.local || '—'}</td>
+        <td>${it.status || '—'}</td>
+        <td>${it.emissao_fatura || '—'}</td>
+        <td>${it.dt_programacao_entrega || '—'}</td>
+        <td>${fmtNumero(it.qtde_faturada)}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoDistFaturas').textContent = `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} fatura(s)`;
+  document.getElementById('botaoAnteriorDistFaturas').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoDistFaturas').disabled = dados.page >= totalPaginas;
+}
+
+document.getElementById('filtroBuscaDistFaturas').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaDistFaturas);
+  window.__debounceBuscaDistFaturas = setTimeout(() => { estadoDistFaturas.pagina = 1; carregarTabelaDistFaturas(); }, 350);
+});
+document.getElementById('filtroStatusDistFaturas').addEventListener('change', () => { estadoDistFaturas.pagina = 1; carregarTabelaDistFaturas(); });
+document.getElementById('filtroLocalDistFaturas').addEventListener('change', () => { estadoDistFaturas.pagina = 1; carregarTabelaDistFaturas(); });
+document.getElementById('botaoLimparFiltrosDistFaturas').addEventListener('click', () => {
+  document.getElementById('filtroBuscaDistFaturas').value = '';
+  document.getElementById('filtroStatusDistFaturas').value = '';
+  document.getElementById('filtroLocalDistFaturas').value = '';
+  estadoDistFaturas.pagina = 1;
+  carregarTabelaDistFaturas();
+});
+document.getElementById('botaoAnteriorDistFaturas').addEventListener('click', () => {
+  if (estadoDistFaturas.pagina > 1) { estadoDistFaturas.pagina--; carregarTabelaDistFaturas(); }
+});
+document.getElementById('botaoProximoDistFaturas').addEventListener('click', () => {
+  estadoDistFaturas.pagina++; carregarTabelaDistFaturas();
+});
+
+async function carregarFiltrosDistMov() {
+  if (estadoDistMov.filtrosCarregados) return;
+  try {
+    const f = await api('/distribuicao/movimentacoes/filtros');
+    document.getElementById('filtroDestinoDistMov').innerHTML = '<option value="">Unidade de destino: todas</option>' +
+      f.local_destino.map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+    estadoDistMov.filtrosCarregados = true;
+  } catch (e) { /* segue */ }
+}
+
+async function carregarTabelaDistMov() {
+  const params = new URLSearchParams({ page: estadoDistMov.pagina, pageSize: estadoDistMov.pageSize });
+  const q = document.getElementById('filtroBuscaDistMov').value.trim();
+  if (q) params.set('q', q);
+  const destino = document.getElementById('filtroDestinoDistMov').value;
+  if (destino) params.set('local_destino', destino);
+
+  const dados = await api(`/distribuicao/movimentacoes?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaDistMov');
+  const vazio = document.getElementById('estadoVazioDistMov');
+
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((it) => `
+      <tr>
+        <td class="col-codigo">${it.nr_documento || '—'}</td>
+        <td>${it.dt_documento || '—'}</td>
+        <td class="col-codigo">${it.codigo_item || '—'}</td>
+        <td>${it.nm_item || '—'}</td>
+        <td>${it.local_destino || '—'}</td>
+        <td>${fmtNumero(it.qt_unit_atendida)}</td>
+        <td>${it.pmu != null ? fmtNumero(it.pmu) : '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoDistMov').textContent = `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} movimentação(ões)`;
+  document.getElementById('botaoAnteriorDistMov').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoDistMov').disabled = dados.page >= totalPaginas;
+}
+
+document.getElementById('filtroBuscaDistMov').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaDistMov);
+  window.__debounceBuscaDistMov = setTimeout(() => { estadoDistMov.pagina = 1; carregarTabelaDistMov(); }, 350);
+});
+document.getElementById('filtroDestinoDistMov').addEventListener('change', () => { estadoDistMov.pagina = 1; carregarTabelaDistMov(); });
+document.getElementById('botaoLimparFiltrosDistMov').addEventListener('click', () => {
+  document.getElementById('filtroBuscaDistMov').value = '';
+  document.getElementById('filtroDestinoDistMov').value = '';
+  estadoDistMov.pagina = 1;
+  carregarTabelaDistMov();
+});
+document.getElementById('botaoAnteriorDistMov').addEventListener('click', () => {
+  if (estadoDistMov.pagina > 1) { estadoDistMov.pagina--; carregarTabelaDistMov(); }
+});
+document.getElementById('botaoProximoDistMov').addEventListener('click', () => {
+  estadoDistMov.pagina++; carregarTabelaDistMov();
+});
+
+// ==================== Reposição (fábrica de painéis) ====================
+// Dois painéis usam exatamente a mesma lógica de sugestão de reposição:
+//   - "Sugestão de Reposição" — geral, todas as unidades de Outras Demandas.
+//   - "Distribuição H.E" — universo fechado do Hospital Escola (planilha 10).
+// A fábrica criarPainelReposicao(cfg) evita duplicar ~250 linhas: cada painel
+// tem seus próprios elementos (IDs com sufixo) e seu endpoint, mas compartilham
+// a MESMA grade validada (tabela distribuicao_grade / aba Grade Final).
+
+let gradeValidadas = new Set();          // chaves (local||scodes) já validadas na grade
+function chaveGrade(local, scodes) { return `${local}||${scodes}`; }
+function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+
+// Arredondamentos de embalagem (espelham o backend) para o recálculo local.
+function ceilMultiplo(q, m) { const k = m && m > 0 ? m : 1; return Math.ceil(q / k) * k; }
+function floorMultiplo(q, m) { const k = m && m > 0 ? m : 1; return Math.floor(q / k) * k; }
+
+const ROTULO_ETIQUETA = {
+  total: '<span class="etiqueta-rep etiqueta-total">Reposição total</span>',
+  parcial: '<span class="etiqueta-rep etiqueta-parcial">Reposição parcial</span>',
+  sem_reposicao: '<span class="etiqueta-rep etiqueta-sem">Sem reposição</span>',
+};
+
+// Atualiza os contadores da grade nas duas abas (ambas mostram o mesmo total).
+function atualizarContadorGrade(total) {
+  if (total == null) return;
+  ['contadorGrade', 'contadorGradeHE'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = total;
+  });
+}
+
+// Carrega do banco quais itens já estão na grade validada e atualiza os contadores.
+async function carregarGradeValidadas() {
+  try {
+    const { itens, total } = await api('/distribuicao/grade');
+    gradeValidadas = new Set(itens.map((g) => chaveGrade(g.local_entrega, g.codigo_scodes)));
+    atualizarContadorGrade(total != null ? total : gradeValidadas.size);
+  } catch (e) { /* segue */ }
+}
+
+// Exportar a grade validada no layout do 9.Modelo grade (download .xlsx).
+function baixarGradeXlsx() {
+  const a = document.createElement('a');
+  a.href = '/api/distribuicao/grade/exportar';
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// Botão Validar/Negar por linha. Guarda no próprio botão os dados que vão para
+// a grade (layout do 9.Modelo grade): SKU=COD_ITEM, nosso código=Código SCODES.
+function botaoAcaoGrade(it) {
+  const validado = gradeValidadas.has(chaveGrade(it.local_entrega, it.codigo_item));
+  const attrs = `data-local="${escAttr(it.local_entrega)}" data-scodes="${escAttr(it.codigo_item)}"`
+    + ` data-sku="${escAttr(it.codigo_sku)}" data-med="${escAttr(it.descricao_item)}"`
+    + ` data-qtde="${escAttr(it.reposicao)}" data-val="${escAttr(it.validade)}"`;
+  return validado
+    ? `<button class="btn-grade btn-negar" ${attrs}>Negar</button>`
+    : `<button class="btn-grade btn-validar" ${attrs}>Validar</button>`;
+}
+
+// cfg = { prefixo, endpoint, endpointUnidades, classeChk, escolherPadrao(unidades)->[valores] }
+function criarPainelReposicao(cfg) {
+  const $ = (base) => document.getElementById(base + cfg.prefixo);
+  let dadosBrutos = [];
+  let unidadesLista = [];
+  let carregadas = false;
+  let reqId = 0;
+  let autonomiaAlvoPadrao = 3;
+  const autonomiaPorSku = new Map();
+
+  // Recalcula a reposição de UM SKU quando o usuário muda a autonomia-alvo dele.
+  function recalcularSku(sku) {
+    const grupo = dadosBrutos.filter((it) => it.codigo_sku === sku);
+    if (!grupo.length) return;
+    const alvo = autonomiaPorSku.has(sku) ? autonomiaPorSku.get(sku) : autonomiaAlvoPadrao;
+    grupo.forEach((it) => {
+      const sug = Math.max(0, Math.round(alvo * it.consumo_mensal - (it.estoque_convertido + it.fatura_transito)));
+      it.sugestao = sug;
+      it.reposicao = sug > 0 ? ceilMultiplo(sug, it.multiplo_embalagem) : 0;
+    });
+    const subtotal = grupo.reduce((s, it) => s + it.reposicao, 0);
+    const op = grupo[0].estoque_operador;
+    const mult = grupo[0].multiplo_embalagem;
+    let et;
+    if (subtotal <= 0) { et = 'sem_reposicao'; grupo.forEach((it) => { it.reposicao = 0; it.destaque = false; }); }
+    else if (op == null) { et = 'total'; grupo.forEach((it) => { it.destaque = false; }); }
+    else if (op >= subtotal) { et = 'total'; grupo.forEach((it) => { it.destaque = false; }); }
+    else if (op > 0) {
+      et = 'parcial';
+      const fatia = op / grupo.length;
+      grupo.forEach((it) => { it.reposicao = Math.min(it.reposicao, floorMultiplo(fatia, mult)); it.destaque = true; });
+    } else { et = 'sem_reposicao'; grupo.forEach((it) => { it.reposicao = 0; it.destaque = true; }); }
+    const sub2 = grupo.reduce((s, it) => s + it.reposicao, 0);
+    grupo.forEach((it) => { it.etiqueta = et; it.subtotal_sku = sub2; });
+  }
+
+  async function carregarUnidades() {
+    if (carregadas) return;
+    const lista = $('listaUnidades');
+    try {
+      const { unidades } = await api(cfg.endpointUnidades);
+      unidadesLista = unidades;
+      lista.innerHTML = unidades.map((u) => `
+        <label class="opcao-unidade"><input type="checkbox" class="${cfg.classeChk}" value="${escAttr(u)}"> ${u}</label>
+      `).join('');
+      const marcados = cfg.escolherPadrao ? cfg.escolherPadrao(unidades) : [];
+      lista.querySelectorAll('.' + cfg.classeChk).forEach((c) => {
+        if (marcados.includes(c.value)) c.checked = true;
+        c.addEventListener('change', aoMudarUnidades);
+      });
+      carregadas = true;
+      atualizarRotulo();
+    } catch (e) { /* segue */ }
+  }
+
+  function selecionadas() {
+    return [...$('listaUnidades').querySelectorAll('.' + cfg.classeChk + ':checked')].map((c) => c.value);
+  }
+
+  function atualizarRotulo() {
+    const sel = selecionadas();
+    const btn = $('botaoUnidades');
+    const total = unidadesLista.length;
+    if (sel.length === 0) btn.textContent = 'Selecione a(s) unidade(s) ▾';
+    else if (sel.length === 1) btn.textContent = `${sel[0]} ▾`;
+    else if (sel.length === total) btn.textContent = `Todas as unidades (${total}) ▾`;
+    else btn.textContent = `${sel.length} unidades selecionadas ▾`;
+    $('chkTodasUnidades').checked = sel.length === total && total > 0;
+  }
+
+  function aoMudarUnidades() {
+    atualizarRotulo();
+    carregar();
+  }
+
+  async function carregar() {
+    await carregarUnidades();
+    await carregarGradeValidadas();
+    const sel = selecionadas();
+    const corpo = $('corpoTabela');
+    const vazio = $('estadoVazio');
+    const info = $('info');
+
+    if (sel.length === 0) {
+      dadosBrutos = [];
+      corpo.innerHTML = '';
+      vazio.hidden = false;
+      vazio.textContent = 'Selecione ao menos uma unidade.';
+      info.textContent = '';
+      return;
+    }
+
+    const todas = sel.length === unidadesLista.length;
+    const paramUnidades = todas ? '__todas__' : sel.map(encodeURIComponent).join(',');
+
+    const req = ++reqId;
+    vazio.hidden = true;
+    corpo.innerHTML = '';
+    info.textContent = 'Calculando…';
+    try {
+      const dados = await api(`${cfg.endpoint}?unidades=${paramUnidades}`);
+      if (req !== reqId) return; // resposta antiga: descarta
+      dadosBrutos = dados.itens;
+      autonomiaAlvoPadrao = dados.autonomiaAlvoMeses || 3;
+      autonomiaPorSku.clear();
+      const nUnid = dados.unidades ? dados.unidades.length : sel.length;
+      let txt = `Autonomia-alvo: ${dados.autonomiaAlvoMeses} meses · Mostrando só autonomia ≥ ${dados.autonomiaMinimaExibir} · `
+        + `${nUnid} unidade(s) · Estoque: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) : '—'} · `
+        + `Operador: ${dados.dataReferenciaOperador ? formatarData(dados.dataReferenciaOperador) : '—'}`;
+      if (dados.ignoradas && dados.ignoradas.length) txt += ` · Ignoradas (sem Local de Entrega): ${dados.ignoradas.length}`;
+      info.textContent = txt;
+      renderizar();
+    } catch (e) {
+      if (req !== reqId) return;
+      corpo.innerHTML = '';
+      vazio.hidden = false;
+      vazio.textContent = 'Erro ao calcular: ' + e.message;
+    }
+  }
+
+  function renderizar() {
+    const q = $('filtroBusca').value.trim().toLowerCase();
+    const soSugeridos = $('filtroSoSugeridos').checked;
+    const etiquetasSel = [...$('filtroEtiqueta').querySelectorAll('.chk-etiqueta:checked')].map((c) => c.value);
+    const corpo = $('corpoTabela');
+    const vazio = $('estadoVazio');
+
+    let itens = dadosBrutos.slice();
+    if (q) itens = itens.filter((it) => (it.descricao_item || '').toLowerCase().includes(q) || (it.codigo_item || '').toLowerCase().includes(q) || (it.codigo_sku || '').toLowerCase().includes(q));
+    if (etiquetasSel.length) itens = itens.filter((it) => etiquetasSel.includes(it.etiqueta));
+    if (soSugeridos) itens = itens.filter((it) => it.reposicao > 0);
+
+    if (itens.length === 0) {
+      corpo.innerHTML = '';
+      vazio.hidden = false;
+      vazio.textContent = 'Nenhum item elegível encontrado com estes filtros.';
+      return;
+    }
+    vazio.hidden = true;
+
+    const colador = (a, b) => (a || '').localeCompare(b || '', 'pt-BR', { sensitivity: 'base' });
+    itens.sort((a, b) => colador(a.descricao_item, b.descricao_item) || colador(a.local_entrega, b.local_entrega));
+
+    const grupos = [];
+    const indice = new Map();
+    for (const it of itens) {
+      const chave = it.codigo_sku || `__sem_sku__${it.codigo_item}__${it.local_entrega}`;
+      if (!indice.has(chave)) { indice.set(chave, grupos.length); grupos.push({ chave, sku: it.codigo_sku, itens: [] }); }
+      grupos[indice.get(chave)].itens.push(it);
+    }
+
+    let html = '';
+    for (const g of grupos) {
+      const et = g.itens[0].etiqueta;
+      for (const it of g.itens) {
+        const classes = [];
+        if (it.convertido) classes.push('linha-convertida');
+        if (it.destaque) classes.push('linha-parcial');
+        html += `
+        <tr class="${classes.join(' ')}">
+          <td>${it.local_entrega || '—'}</td>
+          <td class="col-codigo">${it.codigo_item || '—'}</td>
+          <td class="col-codigo">${it.codigo_sku || '—'}</td>
+          <td>${it.descricao_item || '—'}</td>
+          <td>${fmtNumero(it.demanda_total)}</td>
+          <td>${fmtNumero(it.consumo_mensal)}</td>
+          <td>${fmtNumero(it.estoque_convertido)}${it.convertido ? ` <span class="descricao-item">(÷${fmtNumero(it.conversao)})</span>` : ''}</td>
+          <td>${fmtNumero(it.fatura_transito)}</td>
+          <td>${it.autonomia == null ? '—' : fmtNumero(it.autonomia)}</td>
+          <td>${it.estoque_operador == null ? '—' : fmtNumero(it.estoque_operador)}</td>
+          <td>${it.validade || '—'}</td>
+          <td>${it.multiplo_embalagem == null ? '—' : fmtNumero(it.multiplo_embalagem)}</td>
+          <td>${fmtNumero(it.sugestao)}</td>
+          <td><strong>${fmtNumero(it.reposicao)}</strong></td>
+          <td>${ROTULO_ETIQUETA[it.etiqueta] || '—'}</td>
+          <td>${botaoAcaoGrade(it)}</td>
+        </tr>`;
+      }
+      if (g.sku) {
+        const subtotal = g.itens[0].subtotal_sku;
+        const op = g.itens[0].estoque_operador;
+        const saldo = op == null ? null : op - subtotal;
+        const celSaldo = op == null
+          ? '—'
+          : `${fmtNumero(op)} − ${fmtNumero(subtotal)} = <strong>${fmtNumero(saldo)}</strong>`;
+        const alvo = autonomiaPorSku.has(g.sku) ? autonomiaPorSku.get(g.sku) : autonomiaAlvoPadrao;
+        html += `
+        <tr class="linha-subtotal-sku">
+          <td colspan="9" style="text-align:right;">
+            <strong>Subtotal do SKU ${g.sku} · ${g.itens.length} local(is)</strong>
+            &nbsp;·&nbsp;<span class="rotulo-autonomia">Autonomia-alvo:</span>
+            <input type="number" min="0" step="0.5" value="${alvo}" class="input-autonomia-sku" data-sku="${String(g.sku).replace(/"/g, '&quot;')}" title="Meses de autonomia-alvo deste SKU">
+          </td>
+          <td title="Saldo do operador após a reposição">${celSaldo}</td>
+          <td colspan="3"></td>
+          <td><strong>${fmtNumero(subtotal)}</strong></td>
+          <td>${ROTULO_ETIQUETA[et] || '—'}</td>
+          <td></td>
+        </tr>`;
+      }
+    }
+    corpo.innerHTML = html;
+  }
+
+  // ---- Listeners deste painel ----
+  $('botaoUnidades').addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const painel = $('painelUnidades');
+    painel.hidden = !painel.hidden;
+  });
+  document.addEventListener('click', (ev) => {
+    const seletor = $('seletorUnidades');
+    if (seletor && !seletor.contains(ev.target)) $('painelUnidades').hidden = true;
+  });
+  $('chkTodasUnidades').addEventListener('change', (ev) => {
+    $('listaUnidades').querySelectorAll('.' + cfg.classeChk).forEach((c) => { c.checked = ev.target.checked; });
+    aoMudarUnidades();
+  });
+  $('filtroBusca').addEventListener('input', renderizar);
+  $('filtroSoSugeridos').addEventListener('change', renderizar);
+  $('filtroEtiqueta').querySelectorAll('.chk-etiqueta').forEach((c) => c.addEventListener('change', renderizar));
+
+  // Autonomia-alvo por SKU (input na linha de subtotal). Delegação no tbody.
+  $('corpoTabela').addEventListener('change', (ev) => {
+    const inp = ev.target;
+    if (!inp.classList || !inp.classList.contains('input-autonomia-sku')) return;
+    const sku = inp.dataset.sku;
+    let v = parseFloat(String(inp.value).replace(',', '.'));
+    if (!Number.isFinite(v) || v < 0) v = autonomiaAlvoPadrao;
+    autonomiaPorSku.set(sku, v);
+    recalcularSku(sku);
+    renderizar();
+  });
+
+  // Validar / Negar por linha (grade compartilhada). Delegação no tbody.
+  $('corpoTabela').addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('.btn-grade');
+    if (!btn) return;
+    const d = btn.dataset;
+    const validar = btn.classList.contains('btn-validar');
+    btn.disabled = true;
+    try {
+      if (validar) {
+        const r = await api('/distribuicao/grade/validar', {
+          method: 'POST',
+          body: JSON.stringify({
+            local_entrega: d.local, codigo_scodes: d.scodes, cod_item: d.sku,
+            medicamento: d.med, qtde: Number(d.qtde) || 0, validade: d.val,
+          }),
+        });
+        gradeValidadas.add(chaveGrade(d.local, d.scodes));
+        atualizarContadorGrade(r.total);
+      } else {
+        const r = await api('/distribuicao/grade/negar', {
+          method: 'POST',
+          body: JSON.stringify({ local_entrega: d.local, codigo_scodes: d.scodes }),
+        });
+        gradeValidadas.delete(chaveGrade(d.local, d.scodes));
+        atualizarContadorGrade(r.total);
+      }
+      renderizar();
+    } catch (e) {
+      alert('Erro: ' + e.message);
+      btn.disabled = false;
+    }
+  });
+
+  return { carregar };
+}
+
+// Painel geral (Sugestão de Reposição) — padrão: CEDMAC marcada.
+const painelReposicao = criarPainelReposicao({
+  prefixo: 'Reposicao',
+  endpoint: '/distribuicao/reposicao',
+  endpointUnidades: '/distribuicao/reposicao/unidades',
+  classeChk: 'chk-unidade-rep',
+  escolherPadrao: (unidades) => [unidades.includes('UD 27 - CEDMAC HCFMUSP') ? 'UD 27 - CEDMAC HCFMUSP' : unidades[0]].filter(Boolean),
+});
+function carregarTabelaReposicao() { return painelReposicao.carregar(); }
+
+// Painel Hospital Escola (Distribuição H.E) — padrão: todas as unidades marcadas.
+const painelReposicaoHE = criarPainelReposicao({
+  prefixo: 'ReposicaoHE',
+  endpoint: '/distribuicao/reposicao-he',
+  endpointUnidades: '/distribuicao/reposicao-he/unidades',
+  classeChk: 'chk-unidade-rep-he',
+  escolherPadrao: (unidades) => unidades.slice(),
+});
+function carregarTabelaReposicaoHE() { return painelReposicaoHE.carregar(); }
+
+document.getElementById('botaoExportarGrade').addEventListener('click', baixarGradeXlsx);
+document.getElementById('botaoExportarGradeFinal').addEventListener('click', baixarGradeXlsx);
+const btnExpHE = document.getElementById('botaoExportarGradeHE');
+if (btnExpHE) btnExpHE.addEventListener('click', baixarGradeXlsx);
+
+// -------------------- Grade Final --------------------
+// Cópia editável da grade validada (o Rafael ajusta qtde/remove e depois Salva).
+let gradeFinalItens = [];
+
+async function carregarGradeFinal() {
+  try {
+    const { itens } = await api('/distribuicao/grade');
+    gradeFinalItens = (itens || []).map((g) => ({
+      cod_local: g.cod_local, local_entrega: g.local_entrega, cod_item: g.cod_item,
+      medicamento: g.medicamento, qtde: g.qtde, validade: g.validade, codigo_scodes: g.codigo_scodes,
+    }));
+  } catch (e) { gradeFinalItens = []; }
+  renderizarGradeFinal();
+}
+
+function renderizarGradeFinal() {
+  const q = (document.getElementById('filtroBuscaGradeFinal').value || '').trim().toLowerCase();
+  const corpo = document.getElementById('corpoTabelaGradeFinal');
+  const vazio = document.getElementById('estadoVazioGradeFinal');
+  const info = document.getElementById('infoGradeFinal');
+
+  let itens = gradeFinalItens;
+  if (q) itens = itens.filter((it) => (it.medicamento || '').toLowerCase().includes(q)
+    || (it.codigo_scodes || '').toLowerCase().includes(q)
+    || (it.cod_item || '').toLowerCase().includes(q)
+    || (it.local_entrega || '').toLowerCase().includes(q));
+
+  const totalQtde = gradeFinalItens.reduce((s, it) => s + (Number(it.qtde) || 0), 0);
+  info.textContent = `${gradeFinalItens.length} item(ns) na grade · ${fmtNumero(totalQtde)} unidade(s)`;
+
+  if (itens.length === 0) {
+    corpo.innerHTML = '';
+    vazio.hidden = false;
+    vazio.textContent = gradeFinalItens.length === 0
+      ? 'Nenhum item na grade. Valide itens na aba Sugestão de Reposição.'
+      : 'Nenhum item encontrado com esta busca.';
+    return;
+  }
+  vazio.hidden = true;
+
+  corpo.innerHTML = itens.map((it) => {
+    const chave = chaveGrade(it.local_entrega, it.codigo_scodes);
+    return `
+      <tr data-chave="${escAttr(chave)}">
+        <td>${it.cod_local || '—'}</td>
+        <td>${it.local_entrega || '—'}</td>
+        <td class="col-codigo">${it.cod_item || '—'}</td>
+        <td>${it.medicamento || '—'}</td>
+        <td><input type="number" min="0" step="1" value="${escAttr(it.qtde)}" class="input-qtde-grade" data-chave="${escAttr(chave)}" style="width:90px;"></td>
+        <td>${it.validade || '—'}</td>
+        <td class="col-codigo">${it.codigo_scodes || '—'}</td>
+        <td><button class="btn-grade btn-negar btn-remover-grade" data-chave="${escAttr(chave)}">Remover</button></td>
+      </tr>`;
+  }).join('');
+}
+
+// Editar quantidade de uma linha (guarda no array local; só grava ao Salvar).
+document.getElementById('corpoTabelaGradeFinal').addEventListener('change', (ev) => {
+  const inp = ev.target;
+  if (!inp.classList || !inp.classList.contains('input-qtde-grade')) return;
+  const item = gradeFinalItens.find((it) => chaveGrade(it.local_entrega, it.codigo_scodes) === inp.dataset.chave);
+  if (item) {
+    let v = parseInt(String(inp.value).replace(/[^\d]/g, ''), 10);
+    item.qtde = Number.isFinite(v) && v >= 0 ? v : 0;
+  }
+  renderizarGradeFinal();
+});
+
+// Remover uma linha da grade (só do array local; grava ao Salvar).
+document.getElementById('corpoTabelaGradeFinal').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.btn-remover-grade');
+  if (!btn) return;
+  gradeFinalItens = gradeFinalItens.filter((it) => chaveGrade(it.local_entrega, it.codigo_scodes) !== btn.dataset.chave);
+  renderizarGradeFinal();
+});
+
+document.getElementById('filtroBuscaGradeFinal').addEventListener('input', renderizarGradeFinal);
+
+// Salvar grade: substitui tudo no banco pelo conjunto atual da tela.
+document.getElementById('botaoSalvarGrade').addEventListener('click', async (ev) => {
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  try {
+    const r = await api('/distribuicao/grade/salvar', {
+      method: 'POST', body: JSON.stringify({ itens: gradeFinalItens }),
+    });
+    // Reflete o novo estado na aba Reposição (botões e contador).
+    gradeValidadas = new Set(gradeFinalItens.map((it) => chaveGrade(it.local_entrega, it.codigo_scodes)));
+    const cont = document.getElementById('contadorGrade');
+    if (cont) cont.textContent = r.total;
+    alert('Grade salva com sucesso (' + r.total + ' item(ns) no banco).');
+  } catch (e) {
+    alert('Erro ao salvar a grade: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// Limpar grade: zera tudo no banco (com confirmação).
+document.getElementById('botaoLimparGrade').addEventListener('click', async (ev) => {
+  if (!confirm('Isso apaga TODOS os itens da grade validada, no banco. Deseja continuar?')) return;
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  try {
+    const r = await api('/distribuicao/grade/limpar', { method: 'POST', body: JSON.stringify({}) });
+    gradeFinalItens = [];
+    gradeValidadas = new Set();
+    const cont = document.getElementById('contadorGrade');
+    if (cont) cont.textContent = r.total;
+    renderizarGradeFinal();
+  } catch (e) {
+    alert('Erro ao limpar a grade: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function carregarSolicitacoesOD() {
+  carregarUltimaAtualizacao('atualizadoSolicitacoesOD', 'solicitacoes_od');
+  const { porStatus } = await api('/solicitacoes-od/resumo');
+  document.getElementById('grideResumoSolicitacoesOD').innerHTML = porStatus
+    .sort((a, b) => b.qtde - a.qtde)
+    .map((l) => `<div class="cartao-resumo"><div class="numero">${l.qtde}</div><div class="rotulo">${l.status}</div></div>`)
+    .join('');
+
+  if (!estadoSolicitacoesOD.filtrosCarregados) {
+    const selStatus = document.getElementById('filtroStatusSolicitacoesOD');
+    selStatus.innerHTML = '<option value="">Status: todos</option>' +
+      porStatus.filter((l) => l.status && l.status !== 'Em andamento')
+        .map((l) => `<option value="${l.status}">${l.status}</option>`).join('');
+
+    const selAno = document.getElementById('filtroAnoSolicitacoesOD');
+    const anoAtual = new Date().getFullYear();
+    for (let a = anoAtual + 1; a >= 2025; a--) {
+      const opt = document.createElement('option');
+      opt.value = a; opt.textContent = a;
+      selAno.appendChild(opt);
+    }
+
+    const selMes = document.getElementById('filtroMesSolicitacoesOD');
+    ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+      .forEach((m) => {
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = m;
+        selMes.appendChild(opt);
+      });
+
+    estadoSolicitacoesOD.filtrosCarregados = true;
+  }
+
+  await carregarTabelaSolicitacoesOD();
+}
+
+async function carregarTabelaSolicitacoesOD() {
+  const q = document.getElementById('filtroBuscaSolicitacoesOD').value.trim();
+  const status = document.getElementById('filtroStatusSolicitacoesOD').value;
+  const ano = document.getElementById('filtroAnoSolicitacoesOD').value;
+  const mes = document.getElementById('filtroMesSolicitacoesOD').value;
+
+  const params = new URLSearchParams({ page: estadoSolicitacoesOD.pagina, pageSize: estadoSolicitacoesOD.pageSize });
+  if (q) params.set('q', q);
+  if (status) params.set('status', status);
+  if (ano) params.set('ano', ano);
+  if (mes) params.set('mes', mes);
+
+  const dados = await api(`/solicitacoes-od?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaSolicitacoesOD');
+  const vazio = document.getElementById('estadoVazioSolicitacoesOD');
+
+  if (dados.solicitacoes.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.solicitacoes.map((s) => `
+      <tr>
+        <td class="col-codigo">${s.codigo_item || '—'}</td>
+        <td>${s.descricao || '—'}</td>
+        <td class="col-codigo">${s.codigo_siafisico || '—'}</td>
+        <td class="col-codigo">${s.codigo_gsnet || '—'}</td>
+        <td>${s.ano || '—'}</td>
+        <td>${s.mes || '—'}</td>
+        <td>${s.tipo || '—'}</td>
+        <td>${s.modalidade_compra || '—'}</td>
+        <td class="col-codigo">${s.n_oficio || '—'}</td>
+        <td>${valorCelula(s.qtde_solicitada)}</td>
+        <td class="col-codigo">${s.requisicao_gsnet || '—'}</td>
+        <td class="col-codigo">${s.n_empenho || '—'}</td>
+        <td class="col-data">${formatarData(s.data_previsao_entrega)}</td>
+        <td class="col-data">${formatarData(s.data_entrega)}</td>
+        <td>${valorCelula(s.qtde_entregue)}</td>
+        <td>${valorCelula(s.qtde_pendente)}</td>
+        <td>${s.status || '—'}</td>
+        <td>${s.observacao || '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoSolicitacoesOD').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} resultados`;
+  document.getElementById('botaoAnteriorSolicitacoesOD').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoSolicitacoesOD').disabled = dados.page >= totalPaginas;
+}
+
+// ==================== Aquisição em Andamento OD ====================
+// Visão filtrada do Relatório de Compras OD: só status em aberto
+// (Planejamento, Adjucado, Empenhado, Entrega Parcial). Dados vêm do mesmo
+// vigia automático de solicitacoes_od — não tem importação própria.
+const estadoAquisicaoODAndamento = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+
+document.getElementById('filtroBuscaAquisicaoODAndamento').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaAquisicaoODAndamento);
+  window.__debounceBuscaAquisicaoODAndamento = setTimeout(() => { estadoAquisicaoODAndamento.pagina = 1; carregarTabelaAquisicaoODAndamento(); }, 350);
+});
+document.getElementById('filtroAnoAquisicaoODAndamento').addEventListener('change', () => { estadoAquisicaoODAndamento.pagina = 1; carregarTabelaAquisicaoODAndamento(); });
+document.getElementById('filtroMesAquisicaoODAndamento').addEventListener('change', () => { estadoAquisicaoODAndamento.pagina = 1; carregarTabelaAquisicaoODAndamento(); });
+document.getElementById('botaoLimparFiltrosAquisicaoODAndamento').addEventListener('click', () => {
+  document.getElementById('filtroBuscaAquisicaoODAndamento').value = '';
+  document.getElementById('filtroAnoAquisicaoODAndamento').value = '';
+  document.getElementById('filtroMesAquisicaoODAndamento').value = '';
+  estadoAquisicaoODAndamento.pagina = 1;
+  carregarTabelaAquisicaoODAndamento();
+});
+document.getElementById('botaoAnteriorAquisicaoODAndamento').addEventListener('click', () => {
+  if (estadoAquisicaoODAndamento.pagina > 1) { estadoAquisicaoODAndamento.pagina--; carregarTabelaAquisicaoODAndamento(); }
+});
+document.getElementById('botaoProximoAquisicaoODAndamento').addEventListener('click', () => {
+  estadoAquisicaoODAndamento.pagina++; carregarTabelaAquisicaoODAndamento();
+});
+
+async function carregarAquisicaoODAndamento() {
+  carregarUltimaAtualizacao('atualizadoAquisicaoODAndamento', 'solicitacoes_od');
+  const { porStatus } = await api('/solicitacoes-od/resumo?emAberto=true');
+  document.getElementById('grideResumoAquisicaoODAndamento').innerHTML = porStatus
+    .sort((a, b) => b.qtde - a.qtde)
+    .map((l) => `<div class="cartao-resumo"><div class="numero">${l.qtde}</div><div class="rotulo">${l.status}</div></div>`)
+    .join('');
+
+  if (!estadoAquisicaoODAndamento.filtrosCarregados) {
+    const selAno = document.getElementById('filtroAnoAquisicaoODAndamento');
+    const anoAtual = new Date().getFullYear();
+    for (let a = anoAtual + 1; a >= 2025; a--) {
+      const opt = document.createElement('option');
+      opt.value = a; opt.textContent = a;
+      selAno.appendChild(opt);
+    }
+    const selMes = document.getElementById('filtroMesAquisicaoODAndamento');
+    ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+      .forEach((m) => {
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = m;
+        selMes.appendChild(opt);
+      });
+    estadoAquisicaoODAndamento.filtrosCarregados = true;
+  }
+
+  await carregarTabelaAquisicaoODAndamento();
+}
+
+async function carregarTabelaAquisicaoODAndamento() {
+  const q = document.getElementById('filtroBuscaAquisicaoODAndamento').value.trim();
+  const ano = document.getElementById('filtroAnoAquisicaoODAndamento').value;
+  const mes = document.getElementById('filtroMesAquisicaoODAndamento').value;
+
+  const params = new URLSearchParams({ emAberto: 'true', page: estadoAquisicaoODAndamento.pagina, pageSize: estadoAquisicaoODAndamento.pageSize });
+  if (q) params.set('q', q);
+  if (ano) params.set('ano', ano);
+  if (mes) params.set('mes', mes);
+
+  const dados = await api(`/solicitacoes-od?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaAquisicaoODAndamento');
+  const vazio = document.getElementById('estadoVazioAquisicaoODAndamento');
+
+  if (dados.solicitacoes.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.solicitacoes.map((s) => `
+      <tr>
+        <td class="col-codigo">${s.codigo_item || '—'}</td>
+        <td>${s.descricao || '—'}</td>
+        <td class="col-codigo">${s.codigo_siafisico || '—'}</td>
+        <td class="col-codigo">${s.codigo_gsnet || '—'}</td>
+        <td>${s.ano || '—'}</td>
+        <td>${s.mes || '—'}</td>
+        <td>${s.tipo || '—'}</td>
+        <td>${s.modalidade_compra || '—'}</td>
+        <td class="col-codigo">${s.n_oficio || '—'}</td>
+        <td>${valorCelula(s.qtde_solicitada)}</td>
+        <td class="col-codigo">${s.requisicao_gsnet || '—'}</td>
+        <td class="col-codigo">${s.n_empenho || '—'}</td>
+        <td class="col-data">${formatarData(s.data_previsao_entrega)}</td>
+        <td>${valorCelula(s.qtde_pendente)}</td>
+        <td>${s.status || '—'}</td>
+        <td>${s.observacao || '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoAquisicaoODAndamento').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} resultados`;
+  document.getElementById('botaoAnteriorAquisicaoODAndamento').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoAquisicaoODAndamento').disabled = dados.page >= totalPaginas;
+}
+
 async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
   const modal = document.getElementById('modalEstoqueItem');
   const conteudo = document.getElementById('conteudoModalEstoque');
@@ -1440,6 +2663,26 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
         <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
       </tr>`;
     }).join('');
+    html += '</tbody></table>';
+  }
+
+  // Pacientes (Listagem de Autores) cadastrados com este item, na Tenente Pena
+  html += '<h4 style="margin:18px 0 8px; font-size:14px; font-family:var(--fonte-titulo);">Pacientes</h4>';
+  if (!dados.pacientes || dados.pacientes.length === 0) {
+    html += '<p style="color:var(--cinza-texto); font-size:13px;">Nenhum paciente cadastrado com este item na Tenente Pena.</p>';
+  } else {
+    html += `<table style="font-size:12.5px;"><thead><tr><th>Nome</th><th>Protocolo</th><th>Qtde. Consumo</th><th>Prazo</th><th>Periodicidade</th><th>Data de retirada</th><th>Próx. data de retorno</th></tr></thead><tbody>`;
+    html += dados.pacientes.map((p) => `
+      <tr>
+        <td>${p.autor || '—'}</td>
+        <td>${p.protocolo || '—'}</td>
+        <td>${p.qtde_consumo || '—'}</td>
+        <td>${p.prazo || '—'}</td>
+        <td>${p.periodicidade || '—'}</td>
+        <td class="col-data">${p.data_ultima_dispensacao || '—'}</td>
+        <td class="col-data">${p.data_ultimo_retorno || '—'}</td>
+      </tr>
+    `).join('');
     html += '</tbody></table>';
   }
 
@@ -2199,6 +3442,61 @@ async function carregarTabelaRelItens() {
   document.getElementById('riProximo').disabled = dados.page >= totalPaginas;
 }
 
+// ---------- Atualizar via Oracle (SCODES) ----------
+let timerStatusOracleRelatorioItens = null;
+function mostrarStatusOracleRelatorioItens(texto, cor) {
+  const el = document.getElementById('statusOracleRelatorioItens');
+  el.textContent = texto;
+  el.style.color = cor || '';
+  el.hidden = !texto;
+}
+async function verificarStatusOracleRelatorioItens() {
+  try {
+    const r = await fetch('/api/relatorio-itens/atualizar-oracle/status');
+    const s = await r.json();
+    const botao = document.getElementById('botaoAtualizarRelatorioItens');
+    if (s.rodando) {
+      botao.disabled = true;
+      if (!timerStatusOracleRelatorioItens) timerStatusOracleRelatorioItens = setInterval(verificarStatusOracleRelatorioItens, 5000);
+      const min = s.inicio ? Math.floor((Date.now() - new Date(s.inicio)) / 60000) : 0;
+      mostrarStatusOracleRelatorioItens(`⏳ Atualizando via Oracle… (${min} min) — pode continuar usando o sistema.`, '#8a6d00');
+    } else {
+      botao.disabled = false;
+      if (timerStatusOracleRelatorioItens) { clearInterval(timerStatusOracleRelatorioItens); timerStatusOracleRelatorioItens = null; }
+      if (s.ultimoErro) {
+        mostrarStatusOracleRelatorioItens('❌ Falha na última atualização: ' + s.ultimoErro, '#b00020');
+      } else if (s.ultimoResumo) {
+        const seg = Math.round((s.ultimoResumo.duracaoMs || 0) / 1000);
+        mostrarStatusOracleRelatorioItens(`✅ Atualizado: ${s.ultimoResumo.totalItens} itens (${seg}s). Recarregue a tabela.`, '#1f5c52');
+        if (estado.paginaAtual === 'relatorioItens') carregarTabelaRelItens();
+      } else {
+        mostrarStatusOracleRelatorioItens('', '');
+      }
+    }
+  } catch (_) { /* silencioso */ }
+}
+document.getElementById('botaoAtualizarRelatorioItens').addEventListener('click', async () => {
+  if (!confirm('Atualizar o catálogo completo (Relatório de Itens) direto do Oracle (SCODES)?\n\nIsso substitui os dados atuais e roda em segundo plano — você pode continuar usando o sistema normalmente.\n\nObs.: "Intercambiável" e "Comissão de Farmacologia" não vêm do Oracle e ficam em branco (só a importação manual por CSV preenche esses dois campos).')) return;
+  const botao = document.getElementById('botaoAtualizarRelatorioItens');
+  botao.disabled = true;
+  mostrarStatusOracleRelatorioItens('⏳ Iniciando…', '#8a6d00');
+  try {
+    const r = await fetch('/api/relatorio-itens/atualizar-oracle', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) {
+      mostrarStatusOracleRelatorioItens('❌ ' + (d.erro || 'Não foi possível iniciar.'), '#b00020');
+      botao.disabled = false;
+      return;
+    }
+    if (timerStatusOracleRelatorioItens) clearInterval(timerStatusOracleRelatorioItens);
+    timerStatusOracleRelatorioItens = setInterval(verificarStatusOracleRelatorioItens, 5000);
+    verificarStatusOracleRelatorioItens();
+  } catch (e) {
+    mostrarStatusOracleRelatorioItens('❌ Erro de rede ao iniciar.', '#b00020');
+    botao.disabled = false;
+  }
+});
+
 // -------------------- Comparativo de Autores (anterior × atual) --------------------
 let dadosComparativo = null;
 let abaComparativoAtiva = 'novos';
@@ -2377,6 +3675,7 @@ function abrirRequisicao() {
   reqEditId = null;
   modalRequisicao.hidden = false;
   document.getElementById('botaoGerarRequisicao').textContent = 'Gerar requisição →';
+  document.getElementById('reqApenasRegistro').checked = false;
   voltarParaBuscaPaciente();
 }
 
@@ -2518,7 +3817,21 @@ async function selecionarPaciente(autor) {
   document.querySelectorAll('#reqListaItens .req-autonomia').forEach((inp) => {
     inp.addEventListener('input', () => recalcularAquisicao(inp));
   });
+  aplicarModoApenasRegistro();
   atualizarContadorReq();
+}
+
+// Modo "Apenas registrar": desliga os campos de Autonomia/Qtde de Aquisição
+// (o item entra no Relatório de Primeiro Atendimento sem quantidade definida;
+// a regra de disponibilidade de estoque continua sendo aplicada normalmente).
+document.getElementById('reqApenasRegistro').addEventListener('change', aplicarModoApenasRegistro);
+
+function aplicarModoApenasRegistro() {
+  const ativo = document.getElementById('reqApenasRegistro').checked;
+  document.querySelectorAll('#reqListaItens .req-autonomia, #reqListaItens .req-qtd').forEach((inp) => {
+    inp.disabled = ativo;
+    inp.style.opacity = ativo ? '0.45' : '1';
+  });
 }
 
 // Converte texto numérico em PT-BR (ex.: "5", "5,00", "1.234,5") para número
@@ -2547,14 +3860,18 @@ document.getElementById('reqMarcarTodos').addEventListener('change', (ev) => {
 function atualizarContadorReq() {
   const n = document.querySelectorAll('#reqListaItens .req-check:checked').length;
   document.getElementById('reqContador').textContent = `${n} item(ns) selecionado(s)`;
+  document.querySelectorAll('#reqListaItens .req-check').forEach((c) => {
+    c.closest('.req-item').classList.toggle('req-item-selecionado', c.checked);
+  });
 }
 
 function coletarItensSelecionados() {
+  const apenasRegistro = document.getElementById('reqApenasRegistro').checked;
   const selecionados = [];
   document.querySelectorAll('#reqListaItens .req-check:checked').forEach((c) => {
     const idx = Number(c.dataset.idx);
-    const qtd = document.querySelector(`.req-qtd[data-idx="${idx}"]`).value;
-    const autonomiaCompra = document.querySelector(`.req-autonomia[data-idx="${idx}"]`).value;
+    const qtd = apenasRegistro ? 'Apenas registro' : document.querySelector(`.req-qtd[data-idx="${idx}"]`).value;
+    const autonomiaCompra = apenasRegistro ? '' : document.querySelector(`.req-autonomia[data-idx="${idx}"]`).value;
     selecionados.push({ ...reqItensAtuais[idx], quantidade: qtd, autonomia_compra: autonomiaCompra });
   });
   return selecionados;
@@ -2569,11 +3886,7 @@ function montarDocumentoRequisicao(d) {
       <td>${it.cod_siafisico || '—'}</td>
       <td>${it.catmat || '—'}</td>
       <td>${it.descricao_item || '—'}</td>
-      <td>${it.tipo_demanda || '—'}</td>
       <td style="text-align:center;">${it.qtde_consumo || '—'}</td>
-      <td style="text-align:center;">${it.prazo || '—'}</td>
-      <td>${it.periodicidade || '—'}</td>
-      <td style="text-align:center;">${it.dispensacoes_autorizadas || '—'}</td>
       <td style="text-align:center;"><strong>${it.quantidade || '—'}</strong></td>
     </tr>`).join('');
 
@@ -2605,7 +3918,7 @@ function montarDocumentoRequisicao(d) {
       <strong>Operador:</strong> ${d.operadorNome || '—'} &nbsp;|&nbsp; <strong>Login:</strong> ${d.operadorEmail || '—'}
     </div>
     <table>
-      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th>Tipo de Demanda</th><th>Qtde Consumo</th><th>Prazo</th><th>Periodicidade</th><th>Disp. Autorizadas</th><th style="width:90px;">Quantidade de Aquisição</th></tr></thead>
+      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th>Qtde Consumo</th><th style="width:90px;">Quantidade de Aquisição</th></tr></thead>
       <tbody>${linhas}</tbody>
     </table>
     <div class="assin">
@@ -2700,6 +4013,20 @@ async function reabrirRequisicao(id) {
     itens: dados.itens,
   });
   abrirDocumento(html);
+}
+
+// Preenche o "Atualizado em" do cabeçalho de uma tela com a data/hora da
+// última importação (manual ou automática, ambas gravam na tabela
+// importacoes) daquele tipo. Falha silenciosa: não deve travar a tela.
+async function carregarUltimaAtualizacao(spanId, tipo) {
+  const span = document.getElementById(spanId);
+  if (!span) return;
+  try {
+    const { criado_em } = await api(`/importacoes/ultima?tipo=${encodeURIComponent(tipo)}`);
+    span.textContent = criado_em ? `Atualizado em ${formatarDataHora(criado_em)}` : '';
+  } catch (_) {
+    span.textContent = '';
+  }
 }
 
 function formatarDataHora(iso) {
@@ -3499,13 +4826,17 @@ async function verificarFalhasOracle() {
   if (estado.usuario.perfil !== 'admin') return;
   const banner = document.getElementById('bannerAlertaOracle');
   try {
-    const [estoque, autores] = await Promise.all([
+    const [estoque, autores, entradaLotes, relatorioItens] = await Promise.all([
       api('/estoque/atualizar-oracle/status'),
       api('/autores/atualizar-oracle/status'),
+      api('/entrada-lotes/atualizar-oracle/status'),
+      api('/relatorio-itens/atualizar-oracle/status'),
     ]);
     const falhas = [];
     if (estoque && estoque.ultimoErro) falhas.push(`Estoque: ${estoque.ultimoErro}`);
     if (autores && autores.ultimoErro) falhas.push(`Listagem de Autores: ${autores.ultimoErro}`);
+    if (entradaLotes && entradaLotes.ultimoErro) falhas.push(`Entrada (lotes): ${entradaLotes.ultimoErro}`);
+    if (relatorioItens && relatorioItens.ultimoErro) falhas.push(`Relatório de Itens: ${relatorioItens.ultimoErro}`);
     if (falhas.length) {
       banner.textContent = `⚠️ A última sincronização automática via Oracle falhou. ${falhas.join(' | ')}`;
       banner.hidden = false;
@@ -3516,6 +4847,167 @@ async function verificarFalhasOracle() {
     // Silencioso: não travar o carregamento do app por causa do banner.
   }
 }
+
+// ==================== Movimentação de Entrada Estoque (Tenente Pena) ====================
+const estadoEntradaLotes = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+
+document.getElementById('filtroBuscaEntradaLotes').addEventListener('input', () => {
+  clearTimeout(window.__debounceBuscaEntradaLotes);
+  window.__debounceBuscaEntradaLotes = setTimeout(() => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); }, 350);
+});
+document.getElementById('filtroTipoEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
+document.getElementById('filtroCategoriaEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
+document.getElementById('filtroDataInicioEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
+document.getElementById('filtroDataFimEntradaLotes').addEventListener('change', () => { estadoEntradaLotes.pagina = 1; carregarTabelaEntradaLotes(); });
+document.getElementById('botaoLimparFiltrosEntradaLotes').addEventListener('click', () => {
+  document.getElementById('filtroBuscaEntradaLotes').value = '';
+  document.getElementById('filtroTipoEntradaLotes').value = '';
+  document.getElementById('filtroCategoriaEntradaLotes').value = '';
+  document.getElementById('filtroDataInicioEntradaLotes').value = '';
+  document.getElementById('filtroDataFimEntradaLotes').value = '';
+  estadoEntradaLotes.pagina = 1;
+  carregarTabelaEntradaLotes();
+});
+document.getElementById('botaoAnteriorEntradaLotes').addEventListener('click', () => {
+  if (estadoEntradaLotes.pagina > 1) { estadoEntradaLotes.pagina--; carregarTabelaEntradaLotes(); }
+});
+document.getElementById('botaoProximoEntradaLotes').addEventListener('click', () => {
+  estadoEntradaLotes.pagina++; carregarTabelaEntradaLotes();
+});
+
+async function carregarEntradaLotes() {
+  const resumo = await api('/entrada-lotes/resumo');
+  if (!resumo.total) {
+    document.getElementById('avisoSemEntradaLotes').hidden = false;
+    document.getElementById('conteudoEntradaLotes').hidden = true;
+    return;
+  }
+  document.getElementById('avisoSemEntradaLotes').hidden = true;
+  document.getElementById('conteudoEntradaLotes').hidden = false;
+
+  document.getElementById('subtituloEntradaLotes').textContent =
+    `${fmtNumero(resumo.total)} movimentações · período ${formatarDataHora(resumo.dataMaisAntiga)} a ${formatarDataHora(resumo.dataMaisRecente)} (últimos 12 meses, via Oracle/SCODES)`;
+
+  document.getElementById('grideResumoEntradaLotes').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.total)}</div><div class="rotulo">Movimentações de Entrada</div></div>
+  `;
+
+  if (!estadoEntradaLotes.filtrosCarregados) {
+    const { tipos, categorias } = await api('/entrada-lotes/filtros');
+    const selTipo = document.getElementById('filtroTipoEntradaLotes');
+    selTipo.innerHTML = '<option value="">Tipo de movimentação: todos</option>' +
+      tipos.map((t) => `<option value="${t.replace(/"/g, '&quot;')}">${t}</option>`).join('');
+    const selCat = document.getElementById('filtroCategoriaEntradaLotes');
+    selCat.innerHTML = '<option value="">Categoria: todas</option>' +
+      categorias.map((c) => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('');
+    estadoEntradaLotes.filtrosCarregados = true;
+  }
+
+  await carregarTabelaEntradaLotes();
+}
+
+async function carregarTabelaEntradaLotes() {
+  const q = document.getElementById('filtroBuscaEntradaLotes').value.trim();
+  const tipoMovimentacao = document.getElementById('filtroTipoEntradaLotes').value;
+  const categoria = document.getElementById('filtroCategoriaEntradaLotes').value;
+  const dataInicio = document.getElementById('filtroDataInicioEntradaLotes').value;
+  const dataFim = document.getElementById('filtroDataFimEntradaLotes').value;
+
+  const params = new URLSearchParams({ page: estadoEntradaLotes.pagina, pageSize: estadoEntradaLotes.pageSize });
+  if (q) params.set('q', q);
+  if (tipoMovimentacao) params.set('tipoMovimentacao', tipoMovimentacao);
+  if (categoria) params.set('categoria', categoria);
+  if (dataInicio) params.set('dataInicio', dataInicio);
+  if (dataFim) params.set('dataFim', dataFim);
+
+  const dados = await api(`/entrada-lotes?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaEntradaLotes');
+  const vazio = document.getElementById('estadoVazioEntradaLotes');
+
+  if (dados.entradas.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.entradas.map((e) => `
+      <tr>
+        <td class="col-data">${formatarDataHora(e.data_entrada)}</td>
+        <td>${e.item || '—'}</td>
+        <td class="col-codigo">${e.codigo_item || '—'}</td>
+        <td class="col-codigo">${e.lote || '—'}</td>
+        <td class="col-data">${e.validade || '—'}</td>
+        <td>${fmtNumero(e.qtde)}</td>
+        <td>${e.fabricante || '—'}</td>
+        <td>${e.fornecedor || '—'}</td>
+        <td>${e.modalidade_compra || '—'}</td>
+        <td class="col-codigo">${e.nota_empenho || '—'}</td>
+        <td class="col-codigo">${e.nota_fiscal || '—'}</td>
+        <td>${e.valor_unitario == null ? '—' : fmtNumero(e.valor_unitario)}</td>
+        <td>${e.valor_total == null ? '—' : fmtNumero(e.valor_total)}</td>
+        <td>${e.tipo_movimentacao || '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoEntradaLotes').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} resultados`;
+  document.getElementById('botaoAnteriorEntradaLotes').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoEntradaLotes').disabled = dados.page >= totalPaginas;
+}
+
+// ---------- Atualizar via Oracle (SCODES) ----------
+let timerStatusOracleEntradaLotes = null;
+function mostrarStatusOracleEntradaLotes(texto, cor) {
+  const el = document.getElementById('statusOracleEntradaLotes');
+  el.textContent = texto;
+  el.style.color = cor || '';
+  el.hidden = !texto;
+}
+async function verificarStatusOracleEntradaLotes() {
+  try {
+    const r = await fetch('/api/entrada-lotes/atualizar-oracle/status');
+    const s = await r.json();
+    const botao = document.getElementById('botaoAtualizarEntradaLotes');
+    if (s.rodando) {
+      botao.disabled = true;
+      if (!timerStatusOracleEntradaLotes) timerStatusOracleEntradaLotes = setInterval(verificarStatusOracleEntradaLotes, 5000);
+      const min = s.inicio ? Math.floor((Date.now() - new Date(s.inicio)) / 60000) : 0;
+      mostrarStatusOracleEntradaLotes(`⏳ Atualizando via Oracle… (${min} min) — pode continuar usando o sistema.`, '#8a6d00');
+    } else {
+      botao.disabled = false;
+      if (timerStatusOracleEntradaLotes) { clearInterval(timerStatusOracleEntradaLotes); timerStatusOracleEntradaLotes = null; }
+      if (s.ultimoErro) {
+        mostrarStatusOracleEntradaLotes('❌ Falha na última atualização: ' + s.ultimoErro, '#b00020');
+      } else if (s.ultimoResumo) {
+        const seg = Math.round((s.ultimoResumo.duracaoMs || 0) / 1000);
+        mostrarStatusOracleEntradaLotes(`✅ Atualizado: ${s.ultimoResumo.totalLinhas} linhas (${seg}s). Recarregue a tabela.`, '#1f5c52');
+        if (estado.paginaAtual === 'entradaLotes') carregarEntradaLotes();
+      } else {
+        mostrarStatusOracleEntradaLotes('', '');
+      }
+    }
+  } catch (_) { /* silencioso */ }
+}
+document.getElementById('botaoAtualizarEntradaLotes').addEventListener('click', async () => {
+  if (!confirm('Atualizar as Movimentações de Entrada (últimos 12 meses) direto do Oracle (SCODES)?\n\nIsso substitui os dados atuais e roda em segundo plano — você pode continuar usando o sistema normalmente.')) return;
+  const botao = document.getElementById('botaoAtualizarEntradaLotes');
+  botao.disabled = true;
+  mostrarStatusOracleEntradaLotes('⏳ Iniciando…', '#8a6d00');
+  try {
+    const r = await fetch('/api/entrada-lotes/atualizar-oracle', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) {
+      mostrarStatusOracleEntradaLotes('❌ ' + (d.erro || 'Não foi possível iniciar.'), '#b00020');
+      botao.disabled = false;
+      return;
+    }
+    if (timerStatusOracleEntradaLotes) clearInterval(timerStatusOracleEntradaLotes);
+    timerStatusOracleEntradaLotes = setInterval(verificarStatusOracleEntradaLotes, 5000);
+    verificarStatusOracleEntradaLotes();
+  } catch (e) {
+    mostrarStatusOracleEntradaLotes('❌ Erro de rede ao iniciar.', '#b00020');
+    botao.disabled = false;
+  }
+});
 
 (async function iniciar() {
   try {

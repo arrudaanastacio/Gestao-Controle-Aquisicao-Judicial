@@ -19,14 +19,39 @@ const ACOES_ROTULO = {
   importar: 'Importar',
 };
 
+// Um módulo por TELA do menu lateral (regra a partir de 13/07/2026): cada
+// relatório/tela pode ser liberado ou bloqueado por usuário de forma
+// independente das demais. Antes disso, várias telas dividiam o mesmo
+// módulo (ex.: "estoque" cobria 6 telas juntas) — ver MIGRACAO_MODULOS em
+// db.js para como as permissões antigas foram herdadas pelas telas novas.
 const MODULOS = [
-  { chave: 'estoque', rotulo: 'Estoque', acoes: ['visualizar', 'exportar', 'importar'] },
-  { chave: 'compras', rotulo: 'Compras / Solicitações', acoes: ['visualizar', 'inserir', 'editar', 'excluir', 'exportar', 'importar'] },
-  { chave: 'elenco', rotulo: 'Elenco (Catálogo)', acoes: ['visualizar', 'editar', 'importar'] },
-  { chave: 'autores', rotulo: 'Autores / Requisições', acoes: ['visualizar', 'inserir', 'editar', 'excluir', 'exportar', 'importar'] },
+  // 🏥 Tenente Pena
+  { chave: 'relatorioComprasTP', rotulo: 'Relatório de Compras TP', acoes: ['visualizar', 'exportar'] },
+  { chave: 'tabelaAnaliseTP', rotulo: 'Tabela Análise TP', acoes: ['visualizar', 'inserir', 'editar', 'excluir', 'exportar', 'importar'] },
+  { chave: 'estoqueTP', rotulo: 'Estoque Tenente Pena', acoes: ['visualizar', 'exportar', 'importar'] },
+  { chave: 'validadesTP', rotulo: 'Consultar Validades TP', acoes: ['visualizar', 'exportar'] },
+  { chave: 'historicoEstoqueTP', rotulo: 'Histórico de Estoque', acoes: ['visualizar'] },
+  { chave: 'evolucaoEstoqueTP', rotulo: 'Evolução de Estoque', acoes: ['visualizar'] },
+  { chave: 'autoresTP', rotulo: 'Listagem de Autores Tenente Pena', acoes: ['visualizar', 'exportar'] },
+  { chave: 'relatorioReqTP', rotulo: 'Relatório de Primeiro Atendimento', acoes: ['visualizar', 'inserir', 'editar', 'excluir'] },
+  { chave: 'comparativoAutoresTP', rotulo: 'Comparativo de Autores', acoes: ['visualizar'] },
+  { chave: 'entradaLotes', rotulo: 'Movimentação de Entrada Estoque', acoes: ['visualizar', 'exportar', 'importar'] },
+  { chave: 'alertas', rotulo: 'Alertas', acoes: ['visualizar', 'editar'] },
+
+  // 🏢 Outras Demandas
+  { chave: 'relatorioComprasOD', rotulo: 'Relatório de Compras OD', acoes: ['visualizar'] },
+  { chave: 'aquisicaoODAndamento', rotulo: 'Aquisição em Andamento OD', acoes: ['visualizar'] },
+  { chave: 'estoqueGeral', rotulo: 'Itens em Estoque Geral', acoes: ['visualizar', 'exportar'] },
+  { chave: 'autoresGeral', rotulo: 'Listagem de Autores Demais Unidades', acoes: ['visualizar', 'exportar'] },
+  { chave: 'estoqueOD', rotulo: 'Estoque GSNET/IBL', acoes: ['visualizar', 'exportar', 'importar'] },
+  { chave: 'distribuicao', rotulo: 'Distribuição', acoes: ['visualizar', 'exportar'] },
+
+  // 🔍 Consultas
   { chave: 'relatorioItens', rotulo: 'Relatório de Itens', acoes: ['visualizar', 'exportar', 'importar'] },
   { chave: 'atas', rotulo: 'Atas de Registro de Preço (SISCOA)', acoes: ['visualizar', 'exportar', 'importar'] },
-  { chave: 'alertas', rotulo: 'Alertas', acoes: ['visualizar', 'editar'] },
+
+  // Não aparece direto no menu (acessado via Administração > Importação)
+  { chave: 'elenco', rotulo: 'Elenco (Catálogo)', acoes: ['visualizar', 'editar', 'importar'] },
 ];
 
 const MODULO_CHAVES = MODULOS.map((m) => m.chave);

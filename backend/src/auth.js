@@ -88,4 +88,31 @@ function exigirModulo(modulo) {
   };
 }
 
-module.exports = { gerarToken, autenticar, exigirPerfil, exigirModulo, acaoDaRequisicao, JWT_SECRET };
+// Como exigirModulo, mas o módulo é descoberto a partir da própria requisição
+// (query/sub-caminho). Usado quando uma única rota de dados atende mais de
+// uma tela do menu (ex.: /api/estoque atende Estoque TP e Itens em Estoque
+// Geral, diferenciados por ?escopoUnidade=). `resolver(req)` deve devolver a
+// chave do módulo (uma das listadas em permissoes.js).
+function exigirModuloDinamico(resolver) {
+  const db = require('./db');
+  return (req, res, next) => {
+    if (!req.usuario) {
+      return res.status(401).json({ erro: 'Não autenticado. Faça login.' });
+    }
+    if (req.usuario.perfil === 'admin') return next();
+
+    const modulo = resolver(req);
+    const acao = acaoDaRequisicao(req);
+    const perm = db.prepare(
+      'SELECT * FROM permissoes WHERE usuario_id = ? AND modulo = ?'
+    ).get(req.usuario.id, modulo);
+
+    if (perm && perm.habilitado === 1 && perm[acao] === 1) return next();
+
+    return res.status(403).json({
+      erro: 'Você não tem permissão para esta ação neste módulo.',
+    });
+  };
+}
+
+module.exports = { gerarToken, autenticar, exigirPerfil, exigirModulo, exigirModuloDinamico, acaoDaRequisicao, JWT_SECRET };

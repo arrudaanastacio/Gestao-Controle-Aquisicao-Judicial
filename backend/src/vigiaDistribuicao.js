@@ -1,0 +1,124 @@
+// Vigia de arquivos: importa o módulo Distribuição (Status de Faturas +
+// Extrato de Movimentações + Itens Elegíveis por unidade + Conversão OD +
+// Locais de Entrega) automaticamente sempre que QUALQUER um dos 5 arquivos
+// monitorados for atualizado. Mesma lógica de polling dos outros vigias
+// (mais confiável em pasta de rede do que eventos de sistema de arquivos).
+
+const fs = require('node:fs');
+const path = require('node:path');
+const { lerAssinatura, salvarAssinatura } = require('./vigiaEstado');
+
+const PASTA_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\GRADES DISTRIBUIÇÕES\\2026\\BANCO DE DADOS\\RELATÓRIOS';
+const PASTA = process.env.CAMINHO_DISTRIBUICAO || PASTA_PADRAO;
+
+const CAMINHO_EXTRATO = path.join(PASTA, '1.Extrato Simples.xls');
+const CAMINHO_STATUS_FATURA = path.join(PASTA, '2.Status Fatura WMS_IBL.xlsx');
+const CAMINHO_ELEGIVEIS = path.join(PASTA, '6.Elenco CEDMAC.xlsx');
+const CAMINHO_CONVERSAO_OD = path.join(PASTA, '7.Conversão OD.xlsx');
+const CAMINHO_LOCAIS = path.join(PASTA, '8.Locais de Entrega.xlsx');
+const CAMINHO_HOSPITAL_ESCOLA = path.join(PASTA, '10.Hospital Escola Base.xlsx');
+
+const INTERVALO = parseInt(process.env.VIGIA_INTERVALO_MS, 10) || 30000;
+
+let ultimaAssinatura = null;
+let importando = false;
+
+function assinaturaArquivo(caminho) {
+  try {
+    const st = fs.statSync(caminho);
+    return `${st.mtimeMs}|${st.size}`;
+  } catch {
+    return null;
+  }
+}
+
+function assinaturaConjunta() {
+  const a = assinaturaArquivo(CAMINHO_EXTRATO);
+  const b = assinaturaArquivo(CAMINHO_STATUS_FATURA);
+  const c = assinaturaArquivo(CAMINHO_ELEGIVEIS);
+  const d = assinaturaArquivo(CAMINHO_CONVERSAO_OD);
+  const e = assinaturaArquivo(CAMINHO_LOCAIS);
+  if (!a || !b || !c || !d || !e) return null; // algum arquivo obrigatório ainda não existe
+  // Hospital Escola é opcional: entra na assinatura só se existir, para não
+  // travar a importação dos outros arquivos quando a planilha 10 não está lá.
+  const f = assinaturaArquivo(CAMINHO_HOSPITAL_ESCOLA) || 'sem-he';
+  return `${a}::${b}::${c}::${d}::${e}::${f}`;
+}
+
+function tentarImportar(motivo) {
+  if (importando) return;
+  const assin = assinaturaConjunta();
+  if (!assin || assin === ultimaAssinatura) return;
+
+  importando = true;
+  try {
+    const bufExtrato = fs.readFileSync(CAMINHO_EXTRATO);
+    const bufStatus = fs.readFileSync(CAMINHO_STATUS_FATURA);
+    const bufElegiveis = fs.readFileSync(CAMINHO_ELEGIVEIS);
+    const bufConversaoOD = fs.readFileSync(CAMINHO_CONVERSAO_OD);
+    const bufLocais = fs.readFileSync(CAMINHO_LOCAIS);
+
+    // Confere se os arquivos não mudaram durante a leitura (ainda sendo gravados)
+    if (assinaturaConjunta() !== assin) { importando = false; return; }
+
+    const {
+      parsearExtratoSimples, parsearStatusFaturas, parsearItensElegiveis, parsearConversaoOD, parsearLocaisEntrega,
+      importarExtratoSimples, importarStatusFaturas, importarItensElegiveis, importarConversaoOD, importarLocaisEntrega,
+      parsearHospitalEscola, importarHospitalEscola,
+      carregarMapeamentoGsnet,
+    } = require('./routes.distribuicao');
+
+    const mapaGsnet = carregarMapeamentoGsnet();
+    const opcoes = { usuarioEmail: 'auto-importador', mapaGsnet };
+
+    const linhasExtrato = parsearExtratoSimples(bufExtrato);
+    const resumoExtrato = importarExtratoSimples(linhasExtrato, { ...opcoes, nomeArquivo: '1.Extrato Simples.xls' });
+
+    const linhasStatus = parsearStatusFaturas(bufStatus);
+    const resumoStatus = importarStatusFaturas(linhasStatus, { ...opcoes, nomeArquivo: '2.Status Fatura WMS_IBL.xlsx' });
+
+    const linhasElegiveis = parsearItensElegiveis(bufElegiveis);
+    const resumoElegiveis = importarItensElegiveis(linhasElegiveis, { usuarioEmail: 'auto-importador', nomeArquivo: '6.Elenco CEDMAC.xlsx' });
+
+    const linhasConversaoOD = parsearConversaoOD(bufConversaoOD);
+    const resumoConversaoOD = importarConversaoOD(linhasConversaoOD, { usuarioEmail: 'auto-importador', nomeArquivo: '7.Conversão OD.xlsx' });
+
+    const linhasLocais = parsearLocaisEntrega(bufLocais);
+    const resumoLocais = importarLocaisEntrega(linhasLocais, { usuarioEmail: 'auto-importador', nomeArquivo: '8.Locais de Entrega.xlsx' });
+
+    // Hospital Escola (planilha 10) — opcional: só importa se o arquivo existir.
+    let resumoHE = null;
+    if (assinaturaArquivo(CAMINHO_HOSPITAL_ESCOLA)) {
+      try {
+        const bufHE = fs.readFileSync(CAMINHO_HOSPITAL_ESCOLA);
+        resumoHE = importarHospitalEscola(parsearHospitalEscola(bufHE), { usuarioEmail: 'auto-importador', nomeArquivo: '10.Hospital Escola Base.xlsx' });
+      } catch (e) {
+        console.error('[VIGIA DISTRIBUIÇÃO] Falha ao importar Hospital Escola:', e.message);
+      }
+    }
+
+    ultimaAssinatura = assin;
+    salvarAssinatura('distribuicao', ultimaAssinatura);
+    const textoHE = resumoHE ? `, Hospital Escola ${resumoHE.totalItens} itens/${resumoHE.totalUnidades} unidades` : '';
+    console.log(`[VIGIA DISTRIBUIÇÃO] ${motivo}: Extrato ${resumoExtrato.totalLinhas} linhas, Status Fatura ${resumoStatus.totalLinhas} linhas, Elegíveis ${resumoElegiveis.totalLinhas} linhas, Conversão OD ${resumoConversaoOD.totalLinhas} linhas, Locais ${resumoLocais.totalLinhas} linhas${textoHE}.`);
+  } catch (e) {
+    console.error('[VIGIA DISTRIBUIÇÃO] Falha ao importar:', e.message);
+  } finally {
+    importando = false;
+  }
+}
+
+function iniciarVigiaDistribuicao() {
+  if (process.env.AUTO_IMPORTAR_DISTRIBUICAO === 'false') {
+    console.log('[VIGIA DISTRIBUIÇÃO] Desativado (AUTO_IMPORTAR_DISTRIBUICAO=false).');
+    return;
+  }
+  ultimaAssinatura = lerAssinatura('distribuicao');
+  [CAMINHO_EXTRATO, CAMINHO_STATUS_FATURA, CAMINHO_ELEGIVEIS, CAMINHO_CONVERSAO_OD, CAMINHO_LOCAIS, CAMINHO_HOSPITAL_ESCOLA].forEach((caminho) => {
+    fs.watchFile(caminho, { interval: INTERVALO }, () => tentarImportar('Arquivo atualizado'));
+  });
+  console.log('[VIGIA DISTRIBUIÇÃO] Monitorando atualizações em:', PASTA);
+  tentarImportar('Verificação ao iniciar');
+}
+
+module.exports = { iniciarVigiaDistribuicao };

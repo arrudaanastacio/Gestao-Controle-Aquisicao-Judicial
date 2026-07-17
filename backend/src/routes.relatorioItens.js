@@ -86,23 +86,41 @@ function processarRelatorioItens(buffer) {
   return linhas;
 }
 
-function importarRelatorioItensDeBuffer(buffer, opcoes = {}) {
-  const linhas = processarRelatorioItens(buffer);
+// Importa (substitui todo o catálogo) a partir de linhas já mapeadas
+// (objetos com as chaves de CAMPOS). Usado tanto pelo CSV quanto pelo
+// atualizador via Oracle. Tudo numa única transação: gravar milhares de
+// linhas uma a uma sem transação prende o banco por muito tempo e colide
+// com outras escritas ("database is locked" — mesma causa já corrigida
+// na sincronização de Autores).
+function importarRelatorioItensDeLinhas(linhas, opcoes = {}) {
   const dataReferencia = (opcoes.dataReferencia || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const usuarioEmail = opcoes.usuarioEmail || 'sistema';
   const usuarioId = opcoes.usuarioId ?? null;
 
-  db.exec('DELETE FROM relatorio_itens');
-  const cols = ['data_referencia', ...CAMPOS];
-  const stmt = db.prepare(`INSERT INTO relatorio_itens (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`);
-  for (const l of linhas) stmt.run(dataReferencia, ...CAMPOS.map((c) => l[c]));
+  let resumo;
+  db.exec('BEGIN');
+  try {
+    db.exec('DELETE FROM relatorio_itens');
+    const cols = ['data_referencia', ...CAMPOS];
+    const stmt = db.prepare(`INSERT INTO relatorio_itens (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`);
+    for (const l of linhas) stmt.run(dataReferencia, ...CAMPOS.map((c) => (l[c] === undefined ? null : l[c])));
 
-  const resumo = { dataReferencia, totalItens: linhas.length };
-  db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
-    .run('relatorio_itens', opcoes.nomeArquivo || 'relatorio_itens', usuarioEmail, JSON.stringify(resumo));
-  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, dados_depois) VALUES (?, ?, ?, ?, ?)')
-    .run(usuarioId, usuarioEmail, 'importar_relatorio_itens', 'relatorio_itens', JSON.stringify(resumo));
+    resumo = { dataReferencia, totalItens: linhas.length };
+    db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
+      .run('relatorio_itens', opcoes.nomeArquivo || 'relatorio_itens', usuarioEmail, JSON.stringify(resumo));
+    db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, dados_depois) VALUES (?, ?, ?, ?, ?)')
+      .run(usuarioId, usuarioEmail, 'importar_relatorio_itens', 'relatorio_itens', JSON.stringify(resumo));
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
   return resumo;
+}
+
+function importarRelatorioItensDeBuffer(buffer, opcoes = {}) {
+  const linhas = processarRelatorioItens(buffer);
+  return importarRelatorioItensDeLinhas(linhas, opcoes);
 }
 
 // ---------- Listagem com filtros e paginação ----------
@@ -164,5 +182,50 @@ router.post('/importar/confirmar', upload.single('arquivo'), (req, res) => {
   }
 });
 
+// ---------- Atualização via Oracle (SCODES) ----------
+const estadoOracle = { rodando: false, inicio: null, ultimoResumo: null, ultimoErro: null };
+
+function executarAtualizacaoRelatorioItensOracle(opcoes = {}) {
+  if (estadoOracle.rodando) return Promise.resolve({ pulou: true, motivo: 'já em andamento' });
+  const { atualizarRelatorioItensViaOracle } = require('../oracle/sync-relatorio-itens');
+  estadoOracle.rodando = true;
+  estadoOracle.inicio = new Date().toISOString();
+  estadoOracle.ultimoErro = null;
+
+  return atualizarRelatorioItensViaOracle(opcoes)
+    .then((resumo) => {
+      estadoOracle.ultimoResumo = { ...resumo, fim: new Date().toISOString() };
+      console.log(`[SYNC RELATÓRIO ITENS] Concluido via Oracle: ${resumo.totalItens} itens em ${Math.round((resumo.duracaoMs || 0) / 1000)}s.`);
+      return resumo;
+    })
+    .catch((e) => {
+      estadoOracle.ultimoErro = e.message;
+      console.error('[SYNC RELATÓRIO ITENS] Falha via Oracle:', e.message);
+      require('./emailAlerta').enviarAlertaFalhaSincronizacao('Relatório de Itens', e.message);
+      throw e;
+    })
+    .finally(() => { estadoOracle.rodando = false; });
+}
+
+function iniciarAtualizacaoOracle(opcoes = {}) {
+  if (estadoOracle.rodando) return { iniciado: false, jaRodando: true };
+  executarAtualizacaoRelatorioItensOracle(opcoes).catch(() => {});
+  return { iniciado: true, jaRodando: false };
+}
+
+router.post('/atualizar-oracle', exigirPerfil('admin'), (req, res) => {
+  const r = iniciarAtualizacaoOracle({ usuarioEmail: req.usuario.email });
+  if (!r.iniciado) {
+    return res.status(409).json({ erro: 'Já existe uma atualização via Oracle em andamento.', ...estadoOracle });
+  }
+  res.json({ iniciado: true, inicio: estadoOracle.inicio });
+});
+
+router.get('/atualizar-oracle/status', (req, res) => {
+  res.json(estadoOracle);
+});
+
 module.exports = router;
 module.exports.importarRelatorioItensDeBuffer = importarRelatorioItensDeBuffer;
+module.exports.importarRelatorioItensDeLinhas = importarRelatorioItensDeLinhas;
+module.exports.executarAtualizacaoRelatorioItensOracle = executarAtualizacaoRelatorioItensOracle;

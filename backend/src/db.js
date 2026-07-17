@@ -222,6 +222,284 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_atas_siafisico ON atas_itens(siafisico);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_atas_data ON atas_itens(data_referencia);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_atas_vencimento ON atas_itens(vencimento);`);
 
+// Estoque Outras Demandas (operador logístico: GSNET + IBL) — cada linha é um
+// lote do relatório IBL, enriquecido com o codigo_item SCODES (via planilha de
+// "Cadastro Itens GSNET-IBL") e com o saldo do GSNET para conferência cruzada.
+db.exec(`
+CREATE TABLE IF NOT EXISTS estoque_od_importacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT NOT NULL UNIQUE,
+  total_itens INTEGER,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`
+CREATE TABLE IF NOT EXISTS estoque_od_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  importacao_id INTEGER NOT NULL,
+  data_referencia TEXT NOT NULL,
+  codigo_item TEXT,
+  codigo_sku TEXT,
+  descricao TEXT,
+  lote TEXT,
+  validade TEXT,
+  embalagem2 TEXT,
+  multiplo_distribuicao REAL,
+  status_estoque TEXT,
+  tipo_bloqueio TEXT,
+  obs_bloqueio TEXT,
+  qtde_disponivel REAL,
+  qtde_bloqueado REAL,
+  qtde_reservada REAL,
+  qtde_total REAL,
+  saldo_gsnet REAL,
+  status_comparativo TEXT,
+  diferenca REAL,
+  FOREIGN KEY (importacao_id) REFERENCES estoque_od_importacoes(id)
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_estoqueod_codigo ON estoque_od_itens(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_estoqueod_sku ON estoque_od_itens(codigo_sku);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_estoqueod_data ON estoque_od_itens(data_referencia);`);
+
+// Distribuição — Status de Faturas (WMS/IBL): planilha "2.Status Fatura WMS_IBL.xlsx".
+// Snapshot único (substitui tudo a cada importação, sem histórico por data).
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_faturas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_programa TEXT,
+  programa TEXT,
+  drs TEXT,
+  codigo_material TEXT,
+  nome_material TEXT,
+  unidade_medida TEXT,
+  numero_fatura TEXT,
+  emissao_fatura TEXT,
+  dt_programacao_entrega TEXT,
+  qtd_volumes_itens REAL,
+  origem TEXT,
+  status TEXT,
+  codigo_destino TEXT,
+  local TEXT,
+  municipio TEXT,
+  categoria TEXT,
+  status_fatura TEXT,
+  qtde_faturada REAL,
+  preco_total REAL,
+  codigo_item TEXT,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distfaturas_codigo ON distribuicao_faturas(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distfaturas_status ON distribuicao_faturas(status);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distfaturas_local ON distribuicao_faturas(local);`);
+
+// Distribuição — Extrato de Movimentações (GSNET/Simples): arquivo "1.Extrato Simples.xls".
+// Histórico de movimentações de saída do armazém GSNET/IBL. Snapshot único também.
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_movimentacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nr_documento TEXT,
+  sr_documento TEXT,
+  dt_documento TEXT,
+  tp_movimentacao TEXT,
+  vl_total REAL,
+  local_origem TEXT,
+  local_destino TEXT,
+  dt_inclusao TEXT,
+  dt_alteracao TEXT,
+  st_registro TEXT,
+  nr_ordem TEXT,
+  id_item TEXT,
+  nm_item TEXT,
+  qt_unit_atendida REAL,
+  pmu REAL,
+  cd_usuario TEXT,
+  codigo_item TEXT,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distmov_codigo ON distribuicao_movimentacoes(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distmov_destino ON distribuicao_movimentacoes(local_destino);`);
+
+// Distribuição — Itens Elegíveis por unidade (exceção, ex.: CEDMAC): planilha
+// "6.Elenco CEDMAC.xlsx". Para a maioria das unidades de Outras Demandas a
+// elegibilidade é só "outras_demandas = Sim" no catálogo; unidades com
+// regra própria (Consumo Mensal Total fixo por acordo administrativo, e
+// fator de Conversão porque o estoque vem numa unidade "base" diferente da
+// unidade de dispensação) entram aqui. Substitui tudo a cada importação.
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_itens_elegiveis (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_item TEXT,
+  siafisico TEXT,
+  descricao_item TEXT,
+  unidade_dispensadora TEXT,
+  demandas REAL,
+  consumo_mensal_fixo REAL,
+  conversao REAL,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distelegiveis_codigo ON distribuicao_itens_elegiveis(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distelegiveis_unidade ON distribuicao_itens_elegiveis(unidade_dispensadora);`);
+
+// Distribuição — Conversão geral de Outras Demandas: planilha "7.Conversão
+// OD.xlsx". Diferente da exceção CEDMAC (que é por unidade, com consumo
+// fixo), esta lista vale para QUALQUER unidade de Outras Demandas: só diz
+// quais itens têm estoque/consumo reportados numa unidade "base" (grama,
+// mililitro, dose) diferente da unidade de dispensação, e o fator pra
+// converter. Nesses itens, tanto o Consumo quanto o Estoque são divididos
+// pela conversão (diferente da CEDMAC, onde só o Estoque é dividido).
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_conversao_od (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_item TEXT,
+  siafisico TEXT,
+  descricao_item TEXT,
+  conversao REAL,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distconversaood_codigo ON distribuicao_conversao_od(codigo_item);`);
+
+// Distribuição — Locais de Entrega: planilha "8.Locais de Entrega.xlsx".
+// "De-para" entre o nome da unidade no SCODES (usado em estoque_itens.
+// unidade, ex.: "UD 27 - CEDMAC HCFMUSP") e o código numérico usado pelo
+// GSNET (distribuicao_faturas.codigo_destino, ex.: 2865) — os dois
+// sistemas usam nomes de unidade diferentes (às vezes com erro de
+// digitação de um lado), então o vínculo confiável é por esse código.
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_locais_entrega (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  local_entrega TEXT,
+  cod_local TEXT,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distlocais_local ON distribuicao_locais_entrega(local_entrega);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distlocais_cod ON distribuicao_locais_entrega(cod_local);`);
+
+// Grade validada da reposição: itens que o usuário aprovou ("Validar") para
+// enviar ao operador logístico, no layout do arquivo "9.Modelo grade.xlsx".
+// Uma linha por item (SCODES) por local de entrega — "Negar" apaga a linha.
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_grade (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cod_local TEXT,
+  local_entrega TEXT,
+  cod_item TEXT,            -- código GSNET (SKU), COD_ITEM na grade
+  medicamento TEXT,
+  qtde REAL,
+  validade TEXT,
+  codigo_scodes TEXT,      -- nosso código (coluna "Código SCODES")
+  criado_em TEXT DEFAULT (datetime('now')),
+  atualizado_em TEXT DEFAULT (datetime('now')),
+  UNIQUE(local_entrega, codigo_scodes)
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distgrade_local ON distribuicao_grade(local_entrega);`);
+
+// Distribuição Hospital Escola (H.E) — base fechada da planilha
+// "10.Hospital Escola Base.xlsx": lista fixa de medicamentos (aba "Itens")
+// e de unidades dispensadoras (aba "Unidades") que participam da grade dos
+// Hospitais Escola. Diferente da reposição geral (que varre todas as
+// unidades de Outras Demandas), aqui o universo é fechado: só estes itens,
+// só estas unidades. O Consumo e o Estoque vêm da query de itens em estoque,
+// divididos pela conversão de embalagem definida nesta própria planilha.
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_he_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_item TEXT,        -- código SCODES
+  codigo_gsnet TEXT,       -- código GSNET (SKU) informado na planilha
+  siafisico TEXT,
+  descricao_item TEXT,
+  conversao REAL,          -- Embalagem Conversão (fator; 1 = sem conversão)
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_disthe_itens_codigo ON distribuicao_he_itens(codigo_item);`);
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_he_unidades (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  unidade TEXT,            -- nome no SCODES (bate com estoque_itens.unidade)
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_disthe_unidades ON distribuicao_he_unidades(unidade);`);
+
+// Solicitações de compra de Outras Demandas (relatório próprio, separado do
+// Tenente Pena — layout de colunas diferente, mesmo conceito de mês a mês)
+db.exec(`
+CREATE TABLE IF NOT EXISTS solicitacoes_od (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_item TEXT NOT NULL,
+  descricao TEXT,
+  codigo_siafisico TEXT,
+  codigo_gsnet TEXT,
+  ano INTEGER NOT NULL,
+  mes TEXT NOT NULL,
+  tipo TEXT,
+  modalidade_compra TEXT,
+  n_oficio TEXT,
+  qtde_solicitada TEXT,
+  data_solicitacao TEXT,
+  requisicao_gsnet TEXT,
+  n_empenho TEXT,
+  data_previsao_entrega TEXT,
+  data_entrega TEXT,
+  qtde_entregue TEXT,
+  qtde_pendente TEXT,
+  status TEXT,
+  observacao TEXT
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_solod_codigo ON solicitacoes_od(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_solod_anomes ON solicitacoes_od(ano, mes);`);
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_solod_unico ON solicitacoes_od(codigo_item, ano, mes, tipo);`);
+
+// Movimentações de Entrada com Lotes/Validade (via Oracle/SCODES).
+// Janela dos últimos 12 meses até hoje, recalculada na própria query SQL.
+// A cada sincronização o conteúdo é substituído por completo (não é um
+// histórico próprio — o histórico real é o do Oracle).
+db.exec(`
+CREATE TABLE IF NOT EXISTS entrada_lotes_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  item TEXT,
+  unidade TEXT,
+  data_entrada TEXT,
+  tipo_movimentacao TEXT,
+  unidade_transferencia TEXT,
+  modalidade_compra TEXT,
+  nota_empenho TEXT,
+  nota_fiscal TEXT,
+  documento_transferencia TEXT,
+  fabricante TEXT,
+  codigo_item TEXT,
+  qtde REAL,
+  qtde_acerto REAL,
+  valor_unitario REAL,
+  valor_total REAL,
+  usuario_login TEXT,
+  observacao TEXT,
+  termolabil TEXT,
+  fornecedor TEXT,
+  fornecedor_cnpj TEXT,
+  tipo_transferencia TEXT,
+  lote TEXT,
+  validade TEXT,
+  lote_foi_digitado TEXT,
+  categoria TEXT,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_entlotes_codigo ON entrada_lotes_itens(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_entlotes_data ON entrada_lotes_itens(data_entrada);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_entlotes_unidade ON entrada_lotes_itens(unidade);`);
+const colunasEntLotes = db.prepare("PRAGMA table_info(entrada_lotes_itens)").all().map((c) => c.name);
+if (!colunasEntLotes.includes('categoria')) db.exec("ALTER TABLE entrada_lotes_itens ADD COLUMN categoria TEXT");
+
 // Requisições de compra geradas (Relatório Primeiro Atendimento)
 db.exec(`
 CREATE TABLE IF NOT EXISTS requisicoes (

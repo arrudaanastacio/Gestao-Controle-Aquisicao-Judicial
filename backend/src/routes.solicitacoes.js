@@ -11,6 +11,7 @@ const ORDEM_MES = {
 };
 
 const STATUS_FINALIZADOS = ['Finalizado', 'Cancelado', 'Revogado', 'Fracassado', 'Deserto'];
+const STATUS_EM_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
 
 // Lista/busca solicitações com filtros (todos os perfis podem consultar)
 router.get('/', (req, res) => {
@@ -29,7 +30,10 @@ router.get('/', (req, res) => {
     const like = `%${q}%`;
     params.push(like, like, like, like, like, like);
   }
-  if (status) {
+  if (status === '__em_aberto__') {
+    condicoes.push(`s.status IN (${STATUS_EM_ABERTO.map(() => '?').join(',')})`);
+    params.push(...STATUS_EM_ABERTO);
+  } else if (status) {
     condicoes.push('s.status = ?');
     params.push(status);
   }

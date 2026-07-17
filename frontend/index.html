@@ -33,15 +33,18 @@
           <a href="#" data-pagina="autores">Listagem de Autores Tenente Pena</a>
           <a href="#" data-pagina="relatorioReq">Relatório de Primeiro Atendimento</a>
           <a href="#" data-pagina="comparativoAutores">Comparativo de Autores</a>
+          <a href="#" data-pagina="entradaLotes">Movimentação de Entrada Estoque</a>
           <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
         </div>
 
         <div class="nav-grupo">
           <p class="nav-grupo-titulo">🏢 Outras Demandas</p>
-          <a href="#" class="nav-em-breve" title="Em breve">Relatório de Compras OD <span>(em breve)</span></a>
-          <a href="#" class="nav-em-breve" title="Em breve">Aquisição em Andamento OD <span>(em breve)</span></a>
+          <a href="#" data-pagina="solicitacoesOD">Relatório de Compras OD</a>
+          <a href="#" data-pagina="aquisicaoODAndamento">Aquisição em Andamento OD</a>
           <a href="#" data-pagina="estoqueGeral">Itens em Estoque Geral</a>
           <a href="#" data-pagina="autoresGeral">Listagem de Autores Demais Unidades</a>
+          <a href="#" data-pagina="estoqueOD">Estoque GSNET/IBL</a>
+          <a href="#" data-pagina="distribuicao">Distribuição</a>
         </div>
 
         <div class="nav-grupo">
@@ -69,6 +72,7 @@
           <span class="rotulo-sair">Sair</span>
         </button>
         <div class="rodape-versao" id="rodapeVersao" title="Versão do sistema">v—</div>
+        <div class="rodape-desenvolvedor">Desenvolvido por Rafael Arruda Anastácio</div>
       </div>
     </aside>
 
@@ -90,7 +94,10 @@
             <h2>Relatório de Compras - Aquisição em Andamento Tenente Pena</h2>
             <p>Consulte o andamento de cada item solicitado</p>
           </div>
-          <button class="botao-primario" id="botaoNovaSolicitacao" hidden>+ Nova solicitação</button>
+          <div class="cabecalho-direita">
+            <span class="atualizado-em" id="atualizadoSolicitacoes"></span>
+            <button class="botao-primario" id="botaoNovaSolicitacao" hidden>+ Nova solicitação</button>
+          </div>
         </div>
 
         <p class="somente-leitura-aviso" id="avisoSomenteLeitura" hidden>
@@ -100,6 +107,7 @@
         <div class="barra-filtros">
           <input type="text" id="filtroBusca" placeholder="Buscar por código, siafísico, descrição, ofício, requisição GSNET ou empenho…">
           <select id="filtroStatus">
+            <option value="__em_aberto__" selected>Em andamento (Planejamento/Adjucado/Empenhado/Entrega Parcial)</option>
             <option value="">Todos os status</option>
             <option value="Planejamento">Planejamento</option>
             <option value="Adjucado">Adjucado</option>
@@ -179,7 +187,8 @@
             <h2>Relatório de Compras Geral</h2>
             <p>Todos os meses reunidos em uma única lista — somente itens com modalidade de compra definida</p>
           </div>
-          <div style="display:flex; gap:10px;">
+          <div style="display:flex; gap:10px; align-items:center;">
+            <span class="atualizado-em" id="atualizadoRelatorio"></span>
             <select id="filtroAnoRelatorio">
               <option value="">Todos os anos</option>
             </select>
@@ -401,6 +410,572 @@
               <div class="botoes">
                 <button id="botaoAnteriorEstoqueGeral">← Anterior</button>
                 <button id="botaoProximoEstoqueGeral">Próximo →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaEstoqueOD" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Estoque GSNET/IBL</h2>
+            <p id="subtituloEstoqueOD">Posição de estoque no operador logístico (GSNET + IBL), cruzada com o código SCODES</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <select id="seletorDataEstoqueOD" title="Data do estoque"></select>
+            <button id="botaoImportarEstoqueOD" class="botao-secundario" type="button" hidden title="Relê os arquivos da pasta de rede (GSNET, IBL e o cadastro de correspondência).">🔄 Importar agora</button>
+            <span id="statusImportarEstoqueOD" class="status-oracle" hidden></span>
+          </div>
+        </div>
+
+        <div id="avisoSemEstoqueOD" class="estado-vazio" hidden>
+          Nenhum estoque de outras demandas importado ainda. Use o botão "Importar agora" (admin) para puxar os arquivos da pasta de rede.
+        </div>
+
+        <div id="conteudoEstoqueOD" hidden>
+          <div class="grade-resumo" id="grideResumoEstoqueOD"></div>
+
+          <div class="filtros-faixa" id="abasEstoqueOD" style="margin:18px 0 14px;">
+            <button type="button" class="chip-faixa ativo" data-aba="lotes">Por Lote</button>
+            <button type="button" class="chip-faixa" data-aba="consolidado">Consolidado por Item</button>
+            <button type="button" class="chip-faixa" data-aba="validades">Controle de Validade</button>
+          </div>
+
+          <div id="abaLotesEstoqueOD">
+            <div class="barra-filtros">
+              <input type="text" id="filtroBuscaEstoqueOD" placeholder="Buscar por medicamento, código SCODES, código SKU ou lote…">
+              <select id="filtroComparativoEstoqueOD">
+                <option value="">Comparativo: todos</option>
+                <option value="Bate">Bate</option>
+                <option value="Diverge">Diverge</option>
+                <option value="Sem correspondência">Sem correspondência</option>
+              </select>
+              <select id="filtroStatusEstoqueOD"><option value="">Status estoque: todos</option></select>
+              <button id="botaoLimparFiltrosEstoqueOD" class="botao-secundario" type="button">Limpar filtros</button>
+            </div>
+
+            <div class="tabela-wrap">
+              <div class="tabela-rolavel-x">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Código SCODES</th>
+                      <th>Descrição do Item</th>
+                      <th>Código Item (SKU)</th>
+                      <th>Lote</th>
+                      <th>Validade</th>
+                      <th>Embalagem 2ª</th>
+                      <th>Múltiplo Distribuição</th>
+                      <th>Status Estoque</th>
+                      <th>Tipo Bloqueio</th>
+                      <th>Obs. Bloqueio</th>
+                      <th>Qtde Disponível</th>
+                      <th>Qtde Bloqueado</th>
+                      <th>Qtde Reservada</th>
+                      <th>Qtde Total</th>
+                      <th>Saldo Disp. GSNET</th>
+                      <th>Comparativo</th>
+                      <th>Diferença</th>
+                    </tr>
+                  </thead>
+                  <tbody id="corpoTabelaEstoqueOD"></tbody>
+                </table>
+              </div>
+              <div class="estado-vazio" id="estadoVazioEstoqueOD" hidden>Nenhum item encontrado com estes filtros.</div>
+              <div class="paginacao">
+                <span id="textoPaginacaoEstoqueOD">—</span>
+                <div class="botoes">
+                  <button id="botaoAnteriorEstoqueOD">← Anterior</button>
+                  <button id="botaoProximoEstoqueOD">Próximo →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="abaConsolidadoEstoqueOD" hidden>
+            <div class="barra-filtros">
+              <input type="text" id="filtroBuscaEstoqueODConsolidado" placeholder="Buscar por medicamento, código SCODES ou código SKU…">
+              <select id="filtroComparativoEstoqueODConsolidado">
+                <option value="">Comparativo: todos</option>
+                <option value="Bate">Bate</option>
+                <option value="Diverge">Diverge</option>
+                <option value="Sem correspondência">Sem correspondência</option>
+              </select>
+            </div>
+
+            <div class="tabela-wrap">
+              <div class="tabela-rolavel-x">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Código SCODES</th>
+                      <th>Descrição do Item</th>
+                      <th>Código Item (SKU)</th>
+                      <th>Qtde Disponível</th>
+                      <th>Qtde Bloqueado</th>
+                      <th>Saldo Disp. GSNET</th>
+                      <th>Comparativo</th>
+                      <th>Diferença</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="corpoTabelaEstoqueODConsolidado"></tbody>
+                </table>
+              </div>
+              <div class="estado-vazio" id="estadoVazioEstoqueODConsolidado" hidden>Nenhum item encontrado com estes filtros.</div>
+              <div class="paginacao">
+                <span id="textoPaginacaoEstoqueODConsolidado">—</span>
+                <div class="botoes">
+                  <button id="botaoAnteriorEstoqueODConsolidado">← Anterior</button>
+                  <button id="botaoProximoEstoqueODConsolidado">Próximo →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="abaValidadesEstoqueOD" hidden>
+            <div class="grade-resumo" id="grideKpiValidadesEstoqueOD" style="margin-bottom:14px;"></div>
+
+            <div class="barra-filtros">
+              <input type="text" id="filtroBuscaValidadesEstoqueOD" placeholder="Buscar por medicamento, código SCODES, código SKU ou lote…">
+              <div class="filtros-faixa" id="filtrosFaixaValidadesEstoqueOD">
+                <button type="button" class="chip-faixa ativo" data-janela="">Todos</button>
+                <button type="button" class="chip-faixa" data-janela="vencido">Vencidos</button>
+                <button type="button" class="chip-faixa" data-janela="d30">Até 30 dias</button>
+                <button type="button" class="chip-faixa" data-janela="d60">31 a 60 dias</button>
+                <button type="button" class="chip-faixa" data-janela="d90">61 a 90 dias</button>
+                <button type="button" class="chip-faixa" data-janela="mais90">Mais de 90 dias</button>
+              </div>
+            </div>
+
+            <div class="tabela-wrap">
+              <div class="tabela-rolavel-x">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Código SCODES</th>
+                      <th>Descrição do Item</th>
+                      <th>Código Item (SKU)</th>
+                      <th>Lote</th>
+                      <th>Validade</th>
+                      <th>Dias p/ vencer</th>
+                      <th>Qtde Disponível</th>
+                      <th>Qtde Bloqueado</th>
+                      <th>Qtde Total</th>
+                    </tr>
+                  </thead>
+                  <tbody id="corpoTabelaValidadesEstoqueOD"></tbody>
+                </table>
+              </div>
+              <div class="estado-vazio" id="estadoVazioValidadesEstoqueOD" hidden>Nenhum lote encontrado com estes filtros.</div>
+              <div class="paginacao"><span id="textoContagemValidadesEstoqueOD">—</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaDistribuicao" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Distribuição</h2>
+            <p>Status de faturas e movimentações de saída do GSNET/IBL para as unidades de Outras Demandas</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoDistribuicao"></div>
+
+        <div class="filtros-faixa" id="abasDistribuicao" style="margin:18px 0 14px;">
+          <button type="button" class="chip-faixa ativo" data-aba="faturas">Status de Faturas</button>
+          <button type="button" class="chip-faixa" data-aba="movimentacoes">Movimentações</button>
+          <button type="button" class="chip-faixa" data-aba="reposicao">Sugestão de Reposição</button>
+          <button type="button" class="chip-faixa" data-aba="hospitalescola">Distribuição H.E</button>
+          <button type="button" class="chip-faixa" data-aba="gradefinal">Grade Final</button>
+        </div>
+
+        <div id="abaFaturasDistribuicao">
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaDistFaturas" placeholder="Buscar por medicamento, código, fatura ou unidade…" style="min-width:320px;">
+            <select id="filtroStatusDistFaturas"><option value="">Status: todos</option></select>
+            <select id="filtroLocalDistFaturas"><option value="">Unidade: todas</option></select>
+            <button id="botaoLimparFiltrosDistFaturas" class="botao-secundario" type="button">Limpar filtros</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nº Fatura</th>
+                    <th>Código SCODES</th>
+                    <th>Cód. Material</th>
+                    <th>Nome do Material</th>
+                    <th>Unidade (Local)</th>
+                    <th>Status</th>
+                    <th>Emissão Fatura</th>
+                    <th>Programação Entrega</th>
+                    <th>Qtde Faturada</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaDistFaturas"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioDistFaturas" hidden>Nenhuma fatura encontrada com estes filtros.</div>
+            <div class="paginacao">
+              <span id="textoPaginacaoDistFaturas">—</span>
+              <div class="botoes">
+                <button id="botaoAnteriorDistFaturas">← Anterior</button>
+                <button id="botaoProximoDistFaturas">Próximo →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="abaMovimentacoesDistribuicao" hidden>
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaDistMov" placeholder="Buscar por medicamento, código, documento ou unidade de destino…" style="min-width:320px;">
+            <select id="filtroDestinoDistMov"><option value="">Unidade de destino: todas</option></select>
+            <button id="botaoLimparFiltrosDistMov" class="botao-secundario" type="button">Limpar filtros</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nº Documento</th>
+                    <th>Data</th>
+                    <th>Código SCODES</th>
+                    <th>Item (GSNET)</th>
+                    <th>Unidade de Destino</th>
+                    <th>Qtde Atendida</th>
+                    <th>Valor Unit.</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaDistMov"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioDistMov" hidden>Nenhuma movimentação encontrada com estes filtros.</div>
+            <div class="paginacao">
+              <span id="textoPaginacaoDistMov">—</span>
+              <div class="botoes">
+                <button id="botaoAnteriorDistMov">← Anterior</button>
+                <button id="botaoProximoDistMov">Próximo →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="abaReposicaoDistribuicao" hidden>
+          <div class="barra-filtros">
+            <div class="seletor-multi" id="seletorUnidadesReposicao">
+              <button type="button" id="botaoUnidadesReposicao" class="botao-seletor-multi">Selecione a(s) unidade(s) ▾</button>
+              <div class="painel-seletor-multi" id="painelUnidadesReposicao" hidden>
+                <label class="opcao-todas"><input type="checkbox" id="chkTodasUnidadesReposicao"> <strong>Todas as unidades</strong></label>
+                <div id="listaUnidadesReposicao" class="lista-checkboxes"></div>
+              </div>
+            </div>
+            <input type="text" id="filtroBuscaReposicao" placeholder="Buscar por medicamento ou código…" style="min-width:280px;">
+            <span class="filtro-etiquetas" id="filtroEtiquetaReposicao">
+              <span class="rotulo-filtro">Etiquetas:</span>
+              <label><input type="checkbox" class="chk-etiqueta" value="total" checked> Total</label>
+              <label><input type="checkbox" class="chk-etiqueta" value="parcial" checked> Parcial</label>
+              <label><input type="checkbox" class="chk-etiqueta" value="sem_reposicao" checked> Sem reposição</label>
+            </span>
+            <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="filtroSoSugeridosReposicao"> Só com reposição &gt; 0
+            </label>
+            <button type="button" id="botaoExportarGrade" class="botao-primario" style="margin-left:auto;">Exportar grade (<span id="contadorGrade">0</span>)</button>
+          </div>
+          <p class="descricao-item" id="infoReposicao" style="margin:4px 0 12px;"></p>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table class="tabela-reposicao">
+                <thead>
+                  <tr>
+                    <th>Local de Entrega</th>
+                    <th>Código</th>
+                    <th>Cód. GSNET (SKU)</th>
+                    <th>Descrição do Item</th>
+                    <th>Demanda Total</th>
+                    <th>Consumo Mensal</th>
+                    <th>Estoque Convertido</th>
+                    <th>Fatura em Trânsito</th>
+                    <th>Autonomia</th>
+                    <th>Estoque Operador</th>
+                    <th>Validade</th>
+                    <th>Múltiplo Emb.</th>
+                    <th>Sugestão</th>
+                    <th>Reposição</th>
+                    <th>Etiqueta</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaReposicao"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioReposicao" hidden>Nenhum item elegível encontrado.</div>
+          </div>
+        </div>
+
+        <div id="abaHospitalEscolaDistribuicao" hidden>
+          <div class="barra-filtros">
+            <div class="seletor-multi" id="seletorUnidadesReposicaoHE">
+              <button type="button" id="botaoUnidadesReposicaoHE" class="botao-seletor-multi">Selecione a(s) unidade(s) ▾</button>
+              <div class="painel-seletor-multi" id="painelUnidadesReposicaoHE" hidden>
+                <label class="opcao-todas"><input type="checkbox" id="chkTodasUnidadesReposicaoHE"> <strong>Todas as unidades</strong></label>
+                <div id="listaUnidadesReposicaoHE" class="lista-checkboxes"></div>
+              </div>
+            </div>
+            <input type="text" id="filtroBuscaReposicaoHE" placeholder="Buscar por medicamento ou código…" style="min-width:280px;">
+            <span class="filtro-etiquetas" id="filtroEtiquetaReposicaoHE">
+              <span class="rotulo-filtro">Etiquetas:</span>
+              <label><input type="checkbox" class="chk-etiqueta" value="total" checked> Total</label>
+              <label><input type="checkbox" class="chk-etiqueta" value="parcial" checked> Parcial</label>
+              <label><input type="checkbox" class="chk-etiqueta" value="sem_reposicao" checked> Sem reposição</label>
+            </span>
+            <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="filtroSoSugeridosReposicaoHE"> Só com reposição &gt; 0
+            </label>
+            <button type="button" id="botaoExportarGradeHE" class="botao-primario" style="margin-left:auto;">Exportar grade (<span id="contadorGradeHE">0</span>)</button>
+          </div>
+          <p class="descricao-item" id="infoReposicaoHE" style="margin:4px 0 12px;"></p>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table class="tabela-reposicao">
+                <thead>
+                  <tr>
+                    <th>Local de Entrega</th>
+                    <th>Código</th>
+                    <th>Cód. GSNET (SKU)</th>
+                    <th>Descrição do Item</th>
+                    <th>Demanda Total</th>
+                    <th>Consumo Mensal</th>
+                    <th>Estoque Convertido</th>
+                    <th>Fatura em Trânsito</th>
+                    <th>Autonomia</th>
+                    <th>Estoque Operador</th>
+                    <th>Validade</th>
+                    <th>Múltiplo Emb.</th>
+                    <th>Sugestão</th>
+                    <th>Reposição</th>
+                    <th>Etiqueta</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaReposicaoHE"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioReposicaoHE" hidden>Nenhum item elegível encontrado.</div>
+          </div>
+        </div>
+
+        <div id="abaGradeFinalDistribuicao" hidden>
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaGradeFinal" placeholder="Buscar por medicamento, código ou local…" style="min-width:300px;">
+            <span class="descricao-item" id="infoGradeFinal" style="margin-left:6px;"></span>
+            <button type="button" id="botaoLimparGrade" class="botao-secundario" style="margin-left:auto;">Limpar grade</button>
+            <button type="button" id="botaoSalvarGrade" class="botao-primario">Salvar grade</button>
+            <button type="button" id="botaoExportarGradeFinal" class="botao-secundario">Exportar (.xlsx)</button>
+          </div>
+          <p class="descricao-item" style="margin:4px 0 12px;">Itens validados na Sugestão de Reposição. Ajuste a quantidade ou remova linhas e clique em <strong>Salvar grade</strong> para gravar no banco.</p>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table class="tabela-grade-final">
+                <thead>
+                  <tr>
+                    <th>Cód. Local</th>
+                    <th>Local de Entrega</th>
+                    <th>Cód. Item (SKU)</th>
+                    <th>Medicamento</th>
+                    <th>Qtde</th>
+                    <th>Validade</th>
+                    <th>Código SCODES</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaGradeFinal"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioGradeFinal" hidden>Nenhum item na grade. Valide itens na aba Sugestão de Reposição.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaSolicitacoesOD" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Relatório de Compras OD</h2>
+            <p>Solicitações de compra de medicamentos de Outras Demandas</p>
+          </div>
+          <span class="atualizado-em" id="atualizadoSolicitacoesOD"></span>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoSolicitacoesOD"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaSolicitacoesOD" placeholder="Buscar por medicamento, código, ofício ou empenho…" style="min-width:320px;">
+          <select id="filtroStatusSolicitacoesOD"><option value="">Status: todos</option></select>
+          <select id="filtroAnoSolicitacoesOD"><option value="">Ano: todos</option></select>
+          <select id="filtroMesSolicitacoesOD"><option value="">Mês: todos</option></select>
+          <button id="botaoLimparFiltrosSolicitacoesOD" class="botao-secundario" type="button">Limpar filtros</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código Item</th>
+                  <th>Descrição</th>
+                  <th>Cód. SIAFÍSICO</th>
+                  <th>Cód. GSNET</th>
+                  <th>Ano</th>
+                  <th>Mês</th>
+                  <th>Tipo</th>
+                  <th>Modalidade</th>
+                  <th>Nº Ofício</th>
+                  <th>Qtde Solicitada</th>
+                  <th>Requisição GSNET</th>
+                  <th>Nº Empenho</th>
+                  <th>Previsão Entrega</th>
+                  <th>Data Entrega</th>
+                  <th>Qtde Entregue</th>
+                  <th>Qtde Pendente</th>
+                  <th>Status</th>
+                  <th>Observação</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaSolicitacoesOD"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioSolicitacoesOD" hidden>Nenhuma solicitação encontrada com estes filtros.</div>
+          <div class="paginacao">
+            <span id="textoPaginacaoSolicitacoesOD">—</span>
+            <div class="botoes">
+              <button id="botaoAnteriorSolicitacoesOD">← Anterior</button>
+              <button id="botaoProximoSolicitacoesOD">Próximo →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaAquisicaoODAndamento" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Aquisição em Andamento OD</h2>
+            <p>Solicitações de Outras Demandas com compra ainda não finalizada (Planejamento, Adjucado, Empenhado, Entrega Parcial)</p>
+          </div>
+          <span class="atualizado-em" id="atualizadoAquisicaoODAndamento"></span>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoAquisicaoODAndamento"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaAquisicaoODAndamento" placeholder="Buscar por medicamento, código, ofício ou empenho…" style="min-width:320px;">
+          <select id="filtroAnoAquisicaoODAndamento"><option value="">Ano: todos</option></select>
+          <select id="filtroMesAquisicaoODAndamento"><option value="">Mês: todos</option></select>
+          <button id="botaoLimparFiltrosAquisicaoODAndamento" class="botao-secundario" type="button">Limpar filtros</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código Item</th>
+                  <th>Descrição</th>
+                  <th>Cód. SIAFÍSICO</th>
+                  <th>Cód. GSNET</th>
+                  <th>Ano</th>
+                  <th>Mês</th>
+                  <th>Tipo</th>
+                  <th>Modalidade</th>
+                  <th>Nº Ofício</th>
+                  <th>Qtde Solicitada</th>
+                  <th>Requisição GSNET</th>
+                  <th>Nº Empenho</th>
+                  <th>Previsão Entrega</th>
+                  <th>Qtde Pendente</th>
+                  <th>Status</th>
+                  <th>Observação</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaAquisicaoODAndamento"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioAquisicaoODAndamento" hidden>Nenhuma solicitação em andamento com estes filtros.</div>
+          <div class="paginacao">
+            <span id="textoPaginacaoAquisicaoODAndamento">—</span>
+            <div class="botoes">
+              <button id="botaoAnteriorAquisicaoODAndamento">← Anterior</button>
+              <button id="botaoProximoAquisicaoODAndamento">Próximo →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaEntradaLotes" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Movimentação de Entrada Estoque</h2>
+            <p id="subtituloEntradaLotes">Entradas de estoque da Unidade Tenente Pena, com lote e validade, dos últimos 12 meses (via Oracle/SCODES)</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button id="botaoAtualizarEntradaLotes" class="botao-secundario" type="button" hidden title="Puxa as movimentações de Entrada dos últimos 12 meses direto do Oracle (SCODES). Pode demorar alguns minutos.">🔄 Atualizar via Oracle</button>
+            <span id="statusOracleEntradaLotes" class="status-oracle" hidden></span>
+          </div>
+        </div>
+
+        <div id="avisoSemEntradaLotes" class="estado-vazio" hidden>
+          Nenhuma movimentação de Entrada importada ainda. Use o botão "Atualizar via Oracle" (admin) para puxar os dados.
+        </div>
+
+        <div id="conteudoEntradaLotes" hidden>
+          <div class="grade-resumo" id="grideResumoEntradaLotes"></div>
+
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaEntradaLotes" placeholder="Buscar por medicamento, código, lote, fornecedor, empenho ou nota fiscal…" style="min-width:320px;">
+            <select id="filtroTipoEntradaLotes"><option value="">Tipo de movimentação: todos</option></select>
+            <select id="filtroCategoriaEntradaLotes"><option value="">Categoria: todas</option></select>
+            <input type="date" id="filtroDataInicioEntradaLotes" title="Data inicial">
+            <input type="date" id="filtroDataFimEntradaLotes" title="Data final">
+            <button id="botaoLimparFiltrosEntradaLotes" class="botao-secundario" type="button">Limpar filtros</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data Entrada</th>
+                    <th>Medicamento</th>
+                    <th>Código Item</th>
+                    <th>Lote</th>
+                    <th>Validade</th>
+                    <th>Qtde</th>
+                    <th>Fabricante</th>
+                    <th>Fornecedor</th>
+                    <th>Modalidade</th>
+                    <th>Nota Empenho</th>
+                    <th>Nota Fiscal</th>
+                    <th>Valor Unitário</th>
+                    <th>Valor Total</th>
+                    <th>Tipo Movimentação</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaEntradaLotes"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioEntradaLotes" hidden>Nenhuma movimentação encontrada com estes filtros.</div>
+            <div class="paginacao">
+              <span id="textoPaginacaoEntradaLotes">—</span>
+              <div class="botoes">
+                <button id="botaoAnteriorEntradaLotes">← Anterior</button>
+                <button id="botaoProximoEntradaLotes">Próximo →</button>
               </div>
             </div>
           </div>
@@ -842,6 +1417,10 @@
             <h2>Relatório de Itens</h2>
             <p id="subtituloRelatorioItens">Catálogo completo dos itens</p>
           </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button id="botaoAtualizarRelatorioItens" class="botao-secundario" type="button" hidden title="Puxa o catálogo completo direto do Oracle (SCODES). Pode demorar alguns minutos.">🔄 Atualizar via Oracle</button>
+            <span id="statusOracleRelatorioItens" class="status-oracle" hidden></span>
+          </div>
         </div>
 
         <div class="grade-resumo" id="grideResumoRelItens"></div>
@@ -1216,6 +1795,17 @@
     </div>
   </div>
 
+  <div class="fundo-modal" id="modalEstoqueODItem" hidden>
+    <div class="modal" style="max-width:640px;">
+      <h3 id="tituloModalEstoqueOD">Detalhe do item</h3>
+      <p class="descricao-item" id="codigoModalEstoqueOD"></p>
+      <div id="conteudoModalEstoqueOD"></div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="botaoFecharModalEstoqueOD">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="fundo-modal" id="modalAtaItem" hidden>
     <div class="modal" style="max-width:640px;">
       <h3 id="tituloModalAta">Detalhe da Ata</h3>
@@ -1254,6 +1844,10 @@
           <label style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Nº do SEI <span style="color:#c0392b;">*</span> <span style="font-weight:400; color:var(--cinza-texto);">(obrigatório)</span></label>
           <input type="text" id="reqSEI" placeholder="Ex.: 00103.000123/2026-45" style="width:100%; padding:8px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
         </div>
+        <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer; margin-bottom:10px; background:#f0ece0; border:1px solid #e2dcc9; border-radius:6px; padding:8px 10px;">
+          <input type="checkbox" id="reqApenasRegistro">
+          <span><strong>📋 Apenas registrar</strong> <span style="font-weight:400; color:var(--cinza-texto);">— não informa quantidade de aquisição; os itens ficam só para registro no Relatório de Primeiro Atendimento (a regra de estoque disponível continua valendo normalmente).</span></span>
+        </label>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
           <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
             <input type="checkbox" id="reqMarcarTodos"> Marcar todos
@@ -1287,6 +1881,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=37"></script>
+  <script src="/js/app.js?v=66"></script>
 </body>
 </html>

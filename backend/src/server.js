@@ -22,8 +22,13 @@ const estoqueRoutes = require('./routes.estoque');
 const autoresRoutes = require('./routes.autores');
 const relatorioItensRoutes = require('./routes.relatorioItens');
 const atasRoutes = require('./routes.atas');
+const estoqueODRoutes = require('./routes.estoqueOD');
+const solicitacoesODRoutes = require('./routes.solicitacoesOD');
+const entradaLotesRoutes = require('./routes.entradaLotes');
+const importacoesInfoRoutes = require('./routes.importacoesInfo');
+const distribuicaoRoutes = require('./routes.distribuicao');
 const configRoutes = require('./routes.config');
-const { autenticar, exigirModulo } = require('./auth');
+const { autenticar, exigirModulo, exigirModuloDinamico } = require('./auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -43,18 +48,54 @@ app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', usuariosRoutes);   // só admin (guarda interna)
 app.use('/api/itens', itensRoutes);         // consulta de apoio do catálogo
 app.use('/api/config', configRoutes);       // leitura aberta, escrita só admin
+app.use('/api/importacoes', autenticar, importacoesInfoRoutes); // só data/hora, sem trava de módulo
 
 // Rotas de dados: travadas por MÓDULO. A ação (ver/inserir/editar/excluir/
 // exportar/importar) é deduzida do método+caminho em auth.js. Admin passa sempre.
-app.use('/api/solicitacoes', autenticar, exigirModulo('compras'), solicitacoesRoutes);
-app.use('/api/relatorios', autenticar, exigirModulo('compras'), relatoriosRoutes);
-app.use('/api/importar-solicitacoes', autenticar, exigirModulo('compras'), importarSolicitacoesRoutes);
+//
+// Um módulo por TELA do menu (13/07/2026): quando uma única rota atende
+// mais de uma tela (ex.: /api/estoque atende Estoque TP e Itens em Estoque
+// Geral), usa-se exigirModuloDinamico para escolher o módulo certo a partir
+// do próprio pedido (query ou sub-caminho) — sem precisar duplicar rota.
+app.use('/api/solicitacoes', autenticar, exigirModulo('tabelaAnaliseTP'), solicitacoesRoutes);
+app.use('/api/relatorios', autenticar, exigirModulo('relatorioComprasTP'), relatoriosRoutes);
+app.use('/api/importar-solicitacoes', autenticar, exigirModulo('tabelaAnaliseTP'), importarSolicitacoesRoutes);
 app.use('/api/elenco', autenticar, exigirModulo('elenco'), elencoRoutes);
 app.use('/api/alertas', autenticar, exigirModulo('alertas'), alertasRoutes);
-app.use('/api/estoque', autenticar, exigirModulo('estoque'), estoqueRoutes);
-app.use('/api/autores', autenticar, exigirModulo('autores'), autoresRoutes);
+
+// /api/estoque atende 4 telas: Estoque TP (padrão), Itens em Estoque Geral
+// (?escopoUnidade=geral), Consultar Validades TP (/validades), Histórico de
+// Estoque (/historico...) e Evolução de Estoque (/evolucao).
+app.use('/api/estoque', autenticar, exigirModuloDinamico((req) => {
+  if (req.query.escopoUnidade === 'geral') return 'estoqueGeral';
+  if (req.path.startsWith('/validades')) return 'validadesTP';
+  if (req.path.startsWith('/historico')) return 'historicoEstoqueTP';
+  if (req.path.startsWith('/evolucao')) return 'evolucaoEstoqueTP';
+  return 'estoqueTP';
+}), estoqueRoutes);
+
+// /api/autores atende 4 telas: Listagem de Autores TP (padrão), Listagem de
+// Autores Demais Unidades (?escopoUnidade=geral), Relatório de Primeiro
+// Atendimento (/requisicoes) e Comparativo de Autores (/comparacao).
+app.use('/api/autores', autenticar, exigirModuloDinamico((req) => {
+  if (req.query.escopoUnidade === 'geral') return 'autoresGeral';
+  if (req.path.startsWith('/requisicoes')) return 'relatorioReqTP';
+  if (req.path.startsWith('/comparacao')) return 'comparativoAutoresTP';
+  return 'autoresTP';
+}), autoresRoutes);
+
 app.use('/api/relatorio-itens', autenticar, exigirModulo('relatorioItens'), relatorioItensRoutes);
 app.use('/api/atas', autenticar, exigirModulo('atas'), atasRoutes);
+app.use('/api/estoque-od', autenticar, exigirModulo('estoqueOD'), estoqueODRoutes);
+
+// /api/solicitacoes-od atende 2 telas: Relatório de Compras OD (padrão) e
+// Aquisição em Andamento OD (?emAberto=true).
+app.use('/api/solicitacoes-od', autenticar, exigirModuloDinamico((req) =>
+  req.query.emAberto === 'true' ? 'aquisicaoODAndamento' : 'relatorioComprasOD'
+), solicitacoesODRoutes);
+
+app.use('/api/entrada-lotes', autenticar, exigirModulo('entradaLotes'), entradaLotesRoutes);
+app.use('/api/distribuicao', autenticar, exigirModulo('distribuicao'), distribuicaoRoutes);
 
 // Serve o frontend estático (build simples, sem framework)
 app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
@@ -73,9 +114,21 @@ app.listen(PORT, '0.0.0.0', () => {
   iniciarVigiaRelatorioItens();
   const { iniciarVigiaAtas } = require('./vigiaAtas');
   iniciarVigiaAtas();
+  const { iniciarVigiaEstoqueOD } = require('./vigiaEstoqueOD');
+  iniciarVigiaEstoqueOD();
+  const { iniciarVigiaSolicitacoes } = require('./vigiaSolicitacoes');
+  iniciarVigiaSolicitacoes();
+  const { iniciarVigiaSolicitacoesOD } = require('./vigiaSolicitacoesOD');
+  iniciarVigiaSolicitacoesOD();
+  const { iniciarVigiaDistribuicao } = require('./vigiaDistribuicao');
+  iniciarVigiaDistribuicao();
 
   // Atualização automática diária via Oracle (SCODES): Estoque primeiro,
   // Autores em seguida (encadeado, nunca ao mesmo tempo).
   const { iniciarAgendadorOracleDiario } = require('./agendadorOracleDiario');
   iniciarAgendadorOracleDiario();
+
+  // Backup diário do banco (antes das sincronizações via Oracle, por padrão).
+  const { iniciarBackupDiario } = require('./backupBanco');
+  iniciarBackupDiario();
 });
