@@ -552,6 +552,83 @@ function importarLocaisEntrega(linhas, opcoes = {}) {
   return resumo;
 }
 
+// ---------- Planilha 10: Base Hospital Escola (itens + unidades) ----------
+// "10.Hospital Escola Base.xlsx" — duas abas:
+//   - "Itens": Código (SCODES), Código GSNET, Siafisico, Descrição do Item,
+//     Embalagem Conversão (fator de conversão de embalagem).
+//   - "Unidades": Unidade Dispensadora (nome no SCODES, bate com
+//     estoque_itens.unidade).
+// Define o universo fechado da aba "Distribuição H.E".
+function parsearHospitalEscola(buffer) {
+  const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+  const abaItens = wb.Sheets['Itens'] || wb.Sheets[wb.SheetNames[0]];
+  const abaUnidades = wb.Sheets['Unidades'] || wb.Sheets[wb.SheetNames[1]];
+
+  // --- Itens ---
+  const linhasItens = XLSX.utils.sheet_to_json(abaItens, { header: 1, defval: null, raw: true });
+  const cabItens = (linhasItens[0] || []).map(normalizar);
+  const colCod = cabItens.findIndex((c) => c === 'codigo');
+  const colGsnet = cabItens.findIndex((c) => c.includes('codigo') && c.includes('gsnet'));
+  const colSiafisico = cabItens.findIndex((c) => c.includes('siafisico'));
+  const colDesc = cabItens.findIndex((c) => c.includes('descricao'));
+  const colConv = cabItens.findIndex((c) => c.includes('conversao') || c.includes('embalagem'));
+  if (colCod === -1) throw new Error('Não encontrei a coluna "Código" na aba Itens do Hospital Escola.');
+
+  const itens = [];
+  for (let i = 1; i < linhasItens.length; i++) {
+    const r = linhasItens[i];
+    if (!r) continue;
+    const codigoItem = texto(r[colCod]);
+    if (!codigoItem) continue;
+    let conversao = colConv >= 0 ? numero(r[colConv]) : null;
+    if (!conversao || conversao <= 0) conversao = 1;
+    itens.push({
+      codigo_item: codigoItem,
+      codigo_gsnet: colGsnet >= 0 ? texto(r[colGsnet]) : null,
+      siafisico: colSiafisico >= 0 ? texto(r[colSiafisico]) : null,
+      descricao_item: colDesc >= 0 ? texto(r[colDesc]) : null,
+      conversao,
+    });
+  }
+
+  // --- Unidades ---
+  const linhasUnid = XLSX.utils.sheet_to_json(abaUnidades, { header: 1, defval: null, raw: true });
+  const unidades = [];
+  for (let i = 1; i < linhasUnid.length; i++) {
+    const r = linhasUnid[i];
+    if (!r) continue;
+    const u = texto(r[0]);
+    if (u) unidades.push(u);
+  }
+
+  return { itens, unidades };
+}
+
+function importarHospitalEscola(dados, opcoes = {}) {
+  const itens = (dados && dados.itens) || [];
+  const unidades = (dados && dados.unidades) || [];
+  let resumo;
+  db.exec('BEGIN');
+  try {
+    db.exec('DELETE FROM distribuicao_he_itens');
+    db.exec('DELETE FROM distribuicao_he_unidades');
+    const stmtItem = db.prepare(
+      'INSERT INTO distribuicao_he_itens (codigo_item, codigo_gsnet, siafisico, descricao_item, conversao) VALUES (?, ?, ?, ?, ?)'
+    );
+    for (const it of itens) stmtItem.run(it.codigo_item, it.codigo_gsnet, it.siafisico, it.descricao_item, it.conversao);
+    const stmtUnid = db.prepare('INSERT INTO distribuicao_he_unidades (unidade) VALUES (?)');
+    for (const u of unidades) stmtUnid.run(u);
+    resumo = { totalItens: itens.length, totalUnidades: unidades.length };
+    db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
+      .run('distribuicao_hospital_escola', opcoes.nomeArquivo || 'Hospital Escola Base', opcoes.usuarioEmail || 'sistema', JSON.stringify(resumo));
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+  return resumo;
+}
+
 // ---------- Cálculo de sugestão de reposição ----------
 // Fórmula combinada com o Rafael:
 //   Sugestão = (autonomia-alvo × Consumo Mensal) − (Estoque convertido + Fatura em Trânsito), mínimo 0
@@ -589,6 +666,50 @@ function arredondarParaCima(qtd, multiplo) {
 function arredondarParaBaixo(qtd, multiplo) {
   const m = multiplo && multiplo > 0 ? multiplo : 1;
   return Math.floor(qtd / m) * m;
+}
+
+// Agrupa as linhas por SKU GLOBALMENTE e resolve o atendimento contra o estoque
+// do operador (único por SKU). Quando o subtotal do SKU passa do estoque,
+// rateia igualitariamente entre as linhas do grupo (que podem ser de unidades
+// diferentes), em embalagens fechadas. Marca em cada linha: reposicao (ajustada),
+// destaque, etiqueta (total/parcial/sem_reposicao) e subtotal_sku.
+function agruparPorSkuERatear(itens) {
+  const grupos = new Map();
+  for (const it of itens) {
+    const chave = it.codigo_sku || `__sem_sku__${it.codigo_item}__${it.local_entrega}`;
+    if (!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave).push(it);
+  }
+
+  for (const [, grupo] of grupos) {
+    const subtotal = grupo.reduce((s, it) => s + (it.reposicao || 0), 0);
+    const operador = grupo[0].estoque_operador; // mesmo SKU -> mesmo estoque operador
+    const multiplo = grupo[0].multiplo_embalagem;
+    let etiqueta;
+
+    if (subtotal <= 0) {
+      etiqueta = 'sem_reposicao';
+      grupo.forEach((it) => { it.reposicao = 0; it.destaque = false; });
+    } else if (operador == null) {
+      etiqueta = 'total'; // sem vínculo no operador: mantém a sugestão, sem cap
+      grupo.forEach((it) => { it.destaque = false; });
+    } else if (operador >= subtotal) {
+      etiqueta = 'total';
+      grupo.forEach((it) => { it.destaque = false; });
+    } else if (operador > 0) {
+      etiqueta = 'parcial';
+      const fatia = operador / grupo.length;
+      grupo.forEach((it) => {
+        it.reposicao = Math.min(it.reposicao, arredondarParaBaixo(fatia, multiplo));
+        it.destaque = true;
+      });
+    } else {
+      etiqueta = 'sem_reposicao'; // operador zerado
+      grupo.forEach((it) => { it.reposicao = 0; it.destaque = true; });
+    }
+    const subtotalFinal = grupo.reduce((s, x) => s + (x.reposicao || 0), 0);
+    grupo.forEach((it) => { it.etiqueta = etiqueta; it.subtotal_sku = subtotalFinal; });
+  }
 }
 
 // Converte "DD/MM/AAAA" -> número comparável (AAAAMMDD) ou null.
@@ -792,46 +913,9 @@ router.get('/reposicao', (req, res) => {
     .filter((it) => (it.demanda_total || 0) > 0)
     .filter((it) => it.autonomia === null || it.autonomia >= AUTONOMIA_MINIMA_EXIBIR);
 
-  // Agrupa por SKU GLOBALMENTE (entre todas as unidades escolhidas) e resolve o
-  // atendimento contra o estoque do operador (único por SKU). Quando o subtotal
-  // do SKU passa do estoque, rateia igualitariamente entre as linhas do grupo
-  // (que podem ser de unidades diferentes), em embalagens fechadas.
-  const grupos = new Map();
-  for (const it of itens) {
-    const chave = it.codigo_sku || `__sem_sku__${it.codigo_item}__${it.local_entrega}`;
-    if (!grupos.has(chave)) grupos.set(chave, []);
-    grupos.get(chave).push(it);
-  }
-
-  for (const [, grupo] of grupos) {
-    const subtotal = grupo.reduce((s, it) => s + (it.reposicao || 0), 0);
-    const operador = grupo[0].estoque_operador; // mesmo SKU -> mesmo estoque operador
-    const multiplo = grupo[0].multiplo_embalagem;
-    let etiqueta;
-
-    if (subtotal <= 0) {
-      etiqueta = 'sem_reposicao';
-      grupo.forEach((it) => { it.reposicao = 0; it.destaque = false; });
-    } else if (operador == null) {
-      etiqueta = 'total'; // sem vínculo no operador: mantém a sugestão, sem cap
-      grupo.forEach((it) => { it.destaque = false; });
-    } else if (operador >= subtotal) {
-      etiqueta = 'total';
-      grupo.forEach((it) => { it.destaque = false; });
-    } else if (operador > 0) {
-      etiqueta = 'parcial';
-      const fatia = operador / grupo.length;
-      grupo.forEach((it) => {
-        it.reposicao = Math.min(it.reposicao, arredondarParaBaixo(fatia, multiplo));
-        it.destaque = true;
-      });
-    } else {
-      etiqueta = 'sem_reposicao'; // operador zerado
-      grupo.forEach((it) => { it.reposicao = 0; it.destaque = true; });
-    }
-    const subtotalFinal = grupo.reduce((s, x) => s + (x.reposicao || 0), 0);
-    grupo.forEach((it) => { it.etiqueta = etiqueta; it.subtotal_sku = subtotalFinal; });
-  }
+  // Agrupa por SKU e rateia contra o estoque do operador (lógica compartilhada
+  // com a reposição do Hospital Escola).
+  agruparPorSkuERatear(itens);
 
   res.json({
     unidades: unidadesPedidas,
@@ -854,6 +938,138 @@ router.get('/reposicao/unidades', (req, res) => {
     ORDER BY v
   `).all().map((r) => r.v);
   res.json({ unidades });
+});
+
+// ===================================================================
+// Reposição Hospital Escola (H.E) — universo fechado da planilha
+// "10.Hospital Escola Base.xlsx": só as unidades e os itens dela, com a
+// conversão de embalagem própria. Consumo e Estoque vêm da query de itens
+// em estoque; a fórmula de sugestão e o rateio por SKU são os mesmos da
+// reposição geral.
+// ===================================================================
+
+// Unidades do Hospital Escola que de fato aparecem na última importação de
+// estoque (as que dá pra calcular).
+router.get('/reposicao-he/unidades', (req, res) => {
+  const ultimaData = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+  const unidadesHE = db.prepare('SELECT unidade FROM distribuicao_he_unidades ORDER BY unidade').all().map((r) => r.unidade);
+  if (!ultimaData) return res.json({ unidades: unidadesHE });
+  const comEstoque = new Set(
+    db.prepare('SELECT DISTINCT unidade v FROM estoque_itens WHERE data_referencia = ?').all(ultimaData.data_referencia).map((r) => r.v)
+  );
+  res.json({ unidades: unidadesHE.filter((u) => comEstoque.has(u)) });
+});
+
+router.get('/reposicao-he', (req, res) => {
+  const unidadesHE = db.prepare('SELECT unidade FROM distribuicao_he_unidades ORDER BY unidade').all().map((r) => r.unidade);
+  const itensHE = db.prepare('SELECT codigo_item, codigo_gsnet, siafisico, descricao_item, conversao FROM distribuicao_he_itens').all();
+  if (unidadesHE.length === 0 || itensHE.length === 0) {
+    return res.status(400).json({ erro: 'Base do Hospital Escola ainda não importada (planilha "10.Hospital Escola Base.xlsx").' });
+  }
+
+  // Seleção de unidades (subconjunto do universo HE). Sem parâmetro = todas.
+  let selecionadas;
+  if (req.query.unidades === '__todas__' || !req.query.unidades) {
+    selecionadas = unidadesHE.slice();
+  } else {
+    const pedidas = new Set(String(req.query.unidades).split(',').map((s) => s.trim()).filter(Boolean));
+    selecionadas = unidadesHE.filter((u) => pedidas.has(u));
+  }
+  if (selecionadas.length === 0) return res.status(400).json({ erro: 'Nenhuma unidade selecionada.' });
+
+  const ultimaData = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+  const { mapaItemSku, mapaSku, dataReferencia: dataOperador } = carregarEstoqueOperador();
+
+  // Fatura em trânsito por destino+item (mesmo cálculo da reposição geral).
+  const placeholders = STATUS_PENDENTES.map(() => '?').join(',');
+  const mapaTransito = new Map();
+  for (const r of db.prepare(
+    `SELECT codigo_destino, codigo_item, COALESCE(SUM(qtde_faturada), 0) v
+       FROM distribuicao_faturas WHERE status IN (${placeholders}) AND codigo_item IS NOT NULL
+       GROUP BY codigo_destino, codigo_item`
+  ).all(...STATUS_PENDENTES)) {
+    mapaTransito.set(`${r.codigo_destino}|${r.codigo_item}`, r.v);
+  }
+
+  const infoItem = new Map(itensHE.map((it) => [it.codigo_item, it]));
+  const codigosHE = itensHE.map((it) => it.codigo_item);
+  const phItens = codigosHE.map(() => '?').join(',');
+  const buscaLocal = db.prepare('SELECT cod_local FROM distribuicao_locais_entrega WHERE local_entrega = ?');
+
+  let itens = [];
+  const ignoradas = [];
+  for (const unidade of selecionadas) {
+    const loc = buscaLocal.get(unidade);
+    if (!loc) { ignoradas.push(unidade); continue; }
+    const codigoDestino = loc.cod_local;
+
+    // Estoque/consumo dos itens HE nesta unidade (fechado à lista de itens HE,
+    // independente do flag outras_demandas).
+    const linhasEstoque = ultimaData
+      ? db.prepare(
+          `SELECT codigo_item, descricao, siafisico, demandas, consumo_mensal_total, estoque
+             FROM estoque_itens
+            WHERE unidade = ? AND data_referencia = ? AND codigo_item IN (${phItens})`
+        ).all(unidade, ultimaData.data_referencia, ...codigosHE)
+      : [];
+
+    for (const l of linhasEstoque) {
+      const he = infoItem.get(l.codigo_item) || {};
+      const conv = he.conversao || 1;
+      const consumoMensal = conv !== 1 ? (l.consumo_mensal_total || 0) / conv : (l.consumo_mensal_total || 0);
+      const estoqueBruto = l.estoque || 0;
+      const estoqueConvertido = conv !== 1 ? estoqueBruto / conv : estoqueBruto;
+      const faturaTransito = mapaTransito.get(`${codigoDestino}|${l.codigo_item}`) || 0;
+
+      const sugestao = Math.max(0, Math.round((AUTONOMIA_ALVO_MESES * consumoMensal) - (estoqueConvertido + faturaTransito)));
+      const autonomia = consumoMensal > 0 ? (estoqueConvertido + faturaTransito) / consumoMensal : null;
+
+      const sku = mapaItemSku.get(l.codigo_item) || null;
+      const op = sku ? (mapaSku.get(sku) || null) : null;
+      const multiplo = op ? op.multiplo : null;
+      const reposicaoArredondada = sugestao > 0 ? arredondarParaCima(sugestao, multiplo) : 0;
+
+      itens.push({
+        local_entrega: unidade,
+        codigo_item: l.codigo_item,
+        codigo_sku: sku,
+        siafisico: he.siafisico || l.siafisico,
+        descricao_item: he.descricao_item || l.descricao,
+        demanda_total: l.demandas || 0,
+        conversao: conv,
+        convertido: conv !== 1,
+        consumo_mensal: Math.round(consumoMensal * 100) / 100,
+        estoque_bruto: estoqueBruto,
+        estoque_convertido: Math.round(estoqueConvertido * 100) / 100,
+        fatura_transito: faturaTransito,
+        autonomia: autonomia === null ? null : Math.round(autonomia * 10) / 10,
+        multiplo_embalagem: multiplo,
+        estoque_operador: op ? op.estoqueOperador : null,
+        validade: op ? op.validade : null,
+        sugestao,
+        reposicao: reposicaoArredondada,
+      });
+    }
+  }
+
+  // Mesmos filtros da reposição geral: demanda 0 sai; só autonomia >= 2.
+  itens = itens
+    .filter((it) => (it.demanda_total || 0) > 0)
+    .filter((it) => it.autonomia === null || it.autonomia >= AUTONOMIA_MINIMA_EXIBIR);
+
+  agruparPorSkuERatear(itens);
+
+  res.json({
+    unidades: selecionadas,
+    multiUnidade: selecionadas.length > 1,
+    ignoradas,
+    dataReferenciaEstoque: ultimaData ? ultimaData.data_referencia : null,
+    dataReferenciaOperador: dataOperador,
+    autonomiaAlvoMeses: AUTONOMIA_ALVO_MESES,
+    autonomiaMinimaExibir: AUTONOMIA_MINIMA_EXIBIR,
+    total: itens.length,
+    itens,
+  });
 });
 
 // ---------- Consulta: Itens Elegíveis ----------
@@ -976,6 +1192,8 @@ module.exports.parsearExtratoSimples = parsearExtratoSimples;
 module.exports.parsearItensElegiveis = parsearItensElegiveis;
 module.exports.parsearConversaoOD = parsearConversaoOD;
 module.exports.parsearLocaisEntrega = parsearLocaisEntrega;
+module.exports.parsearHospitalEscola = parsearHospitalEscola;
+module.exports.importarHospitalEscola = importarHospitalEscola;
 module.exports.importarStatusFaturas = importarStatusFaturas;
 module.exports.importarExtratoSimples = importarExtratoSimples;
 module.exports.importarItensElegiveis = importarItensElegiveis;

@@ -400,6 +400,35 @@ CREATE TABLE IF NOT EXISTS distribuicao_grade (
 `);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_distgrade_local ON distribuicao_grade(local_entrega);`);
 
+// Distribuição Hospital Escola (H.E) — base fechada da planilha
+// "10.Hospital Escola Base.xlsx": lista fixa de medicamentos (aba "Itens")
+// e de unidades dispensadoras (aba "Unidades") que participam da grade dos
+// Hospitais Escola. Diferente da reposição geral (que varre todas as
+// unidades de Outras Demandas), aqui o universo é fechado: só estes itens,
+// só estas unidades. O Consumo e o Estoque vêm da query de itens em estoque,
+// divididos pela conversão de embalagem definida nesta própria planilha.
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_he_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_item TEXT,        -- código SCODES
+  codigo_gsnet TEXT,       -- código GSNET (SKU) informado na planilha
+  siafisico TEXT,
+  descricao_item TEXT,
+  conversao REAL,          -- Embalagem Conversão (fator; 1 = sem conversão)
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_disthe_itens_codigo ON distribuicao_he_itens(codigo_item);`);
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_he_unidades (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  unidade TEXT,            -- nome no SCODES (bate com estoque_itens.unidade)
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_disthe_unidades ON distribuicao_he_unidades(unidade);`);
+
 // Solicitações de compra de Outras Demandas (relatório próprio, separado do
 // Tenente Pena — layout de colunas diferente, mesmo conceito de mês a mês)
 db.exec(`

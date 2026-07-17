@@ -1767,10 +1767,12 @@ document.querySelectorAll('#abasDistribuicao .chip-faixa').forEach((btn) => {
     document.getElementById('abaFaturasDistribuicao').hidden = abaDistribuicaoAtiva !== 'faturas';
     document.getElementById('abaMovimentacoesDistribuicao').hidden = abaDistribuicaoAtiva !== 'movimentacoes';
     document.getElementById('abaReposicaoDistribuicao').hidden = abaDistribuicaoAtiva !== 'reposicao';
+    document.getElementById('abaHospitalEscolaDistribuicao').hidden = abaDistribuicaoAtiva !== 'hospitalescola';
     document.getElementById('abaGradeFinalDistribuicao').hidden = abaDistribuicaoAtiva !== 'gradefinal';
     if (abaDistribuicaoAtiva === 'faturas') carregarTabelaDistFaturas();
     else if (abaDistribuicaoAtiva === 'movimentacoes') carregarTabelaDistMov();
     else if (abaDistribuicaoAtiva === 'gradefinal') carregarGradeFinal();
+    else if (abaDistribuicaoAtiva === 'hospitalescola') carregarTabelaReposicaoHE();
     else carregarTabelaReposicao();
   });
 });
@@ -1926,143 +1928,21 @@ document.getElementById('botaoProximoDistMov').addEventListener('click', () => {
   estadoDistMov.pagina++; carregarTabelaDistMov();
 });
 
-let dadosReposicaoBrutos = [];
-let unidadesReposicaoLista = [];
-let unidadesReposicaoCarregadas = false;
-let reposicaoReqId = 0; // evita que uma resposta atrasada sobrescreva a mais recente
-let autonomiaAlvoPadrao = 3;            // autonomia-alvo padrão (vem do backend)
-const autonomiaPorSku = new Map();       // autonomia-alvo escolhida por SKU (input)
+// ==================== Reposição (fábrica de painéis) ====================
+// Dois painéis usam exatamente a mesma lógica de sugestão de reposição:
+//   - "Sugestão de Reposição" — geral, todas as unidades de Outras Demandas.
+//   - "Distribuição H.E" — universo fechado do Hospital Escola (planilha 10).
+// A fábrica criarPainelReposicao(cfg) evita duplicar ~250 linhas: cada painel
+// tem seus próprios elementos (IDs com sufixo) e seu endpoint, mas compartilham
+// a MESMA grade validada (tabela distribuicao_grade / aba Grade Final).
+
 let gradeValidadas = new Set();          // chaves (local||scodes) já validadas na grade
-
 function chaveGrade(local, scodes) { return `${local}||${scodes}`; }
-
-// Carrega do banco quais itens já estão na grade validada e atualiza o contador.
-async function carregarGradeValidadas() {
-  try {
-    const { itens, total } = await api('/distribuicao/grade');
-    gradeValidadas = new Set(itens.map((g) => chaveGrade(g.local_entrega, g.codigo_scodes)));
-    const cont = document.getElementById('contadorGrade');
-    if (cont) cont.textContent = total != null ? total : gradeValidadas.size;
-  } catch (e) { /* segue */ }
-}
+function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
 
 // Arredondamentos de embalagem (espelham o backend) para o recálculo local.
 function ceilMultiplo(q, m) { const k = m && m > 0 ? m : 1; return Math.ceil(q / k) * k; }
 function floorMultiplo(q, m) { const k = m && m > 0 ? m : 1; return Math.floor(q / k) * k; }
-
-// Recalcula a reposição de UM SKU quando o usuário muda a autonomia-alvo dele.
-// Mesma lógica do backend (sugestão para a autonomia escolhida, arredondada ao
-// múltiplo; total/parcial/sem reposição contra o estoque do operador).
-function recalcularSku(sku) {
-  const grupo = dadosReposicaoBrutos.filter((it) => it.codigo_sku === sku);
-  if (!grupo.length) return;
-  const alvo = autonomiaPorSku.has(sku) ? autonomiaPorSku.get(sku) : autonomiaAlvoPadrao;
-  grupo.forEach((it) => {
-    const sug = Math.max(0, Math.round(alvo * it.consumo_mensal - (it.estoque_convertido + it.fatura_transito)));
-    it.sugestao = sug;
-    it.reposicao = sug > 0 ? ceilMultiplo(sug, it.multiplo_embalagem) : 0;
-  });
-  const subtotal = grupo.reduce((s, it) => s + it.reposicao, 0);
-  const op = grupo[0].estoque_operador;
-  const mult = grupo[0].multiplo_embalagem;
-  let et;
-  if (subtotal <= 0) { et = 'sem_reposicao'; grupo.forEach((it) => { it.reposicao = 0; it.destaque = false; }); }
-  else if (op == null) { et = 'total'; grupo.forEach((it) => { it.destaque = false; }); }
-  else if (op >= subtotal) { et = 'total'; grupo.forEach((it) => { it.destaque = false; }); }
-  else if (op > 0) {
-    et = 'parcial';
-    const fatia = op / grupo.length;
-    grupo.forEach((it) => { it.reposicao = Math.min(it.reposicao, floorMultiplo(fatia, mult)); it.destaque = true; });
-  } else { et = 'sem_reposicao'; grupo.forEach((it) => { it.reposicao = 0; it.destaque = true; }); }
-  const sub2 = grupo.reduce((s, it) => s + it.reposicao, 0);
-  grupo.forEach((it) => { it.etiqueta = et; it.subtotal_sku = sub2; });
-}
-
-// Monta a lista de checkboxes de unidades (uma vez). Deixa a CEDMAC marcada
-// por padrão, como era antes.
-async function carregarUnidadesReposicao() {
-  if (unidadesReposicaoCarregadas) return;
-  const lista = document.getElementById('listaUnidadesReposicao');
-  try {
-    const { unidades } = await api('/distribuicao/reposicao/unidades');
-    unidadesReposicaoLista = unidades;
-    lista.innerHTML = unidades.map((u) => `
-      <label class="opcao-unidade"><input type="checkbox" class="chk-unidade-rep" value="${u.replace(/"/g, '&quot;')}"> ${u}</label>
-    `).join('');
-    const padrao = unidades.includes('UD 27 - CEDMAC HCFMUSP') ? 'UD 27 - CEDMAC HCFMUSP' : unidades[0];
-    const alvo = lista.querySelector(`.chk-unidade-rep[value="${(padrao || '').replace(/"/g, '&quot;')}"]`);
-    if (alvo) alvo.checked = true;
-    lista.querySelectorAll('.chk-unidade-rep').forEach((c) => c.addEventListener('change', aoMudarUnidadesReposicao));
-    unidadesReposicaoCarregadas = true;
-    atualizarRotuloUnidadesReposicao();
-  } catch (e) { /* segue */ }
-}
-
-function unidadesSelecionadasReposicao() {
-  return [...document.querySelectorAll('.chk-unidade-rep:checked')].map((c) => c.value);
-}
-
-function atualizarRotuloUnidadesReposicao() {
-  const sel = unidadesSelecionadasReposicao();
-  const btn = document.getElementById('botaoUnidadesReposicao');
-  const total = unidadesReposicaoLista.length;
-  if (sel.length === 0) btn.textContent = 'Selecione a(s) unidade(s) ▾';
-  else if (sel.length === 1) btn.textContent = `${sel[0]} ▾`;
-  else if (sel.length === total) btn.textContent = `Todas as unidades (${total}) ▾`;
-  else btn.textContent = `${sel.length} unidades selecionadas ▾`;
-  document.getElementById('chkTodasUnidadesReposicao').checked = sel.length === total && total > 0;
-}
-
-function aoMudarUnidadesReposicao() {
-  atualizarRotuloUnidadesReposicao();
-  carregarTabelaReposicao();
-}
-
-async function carregarTabelaReposicao() {
-  await carregarUnidadesReposicao();
-  await carregarGradeValidadas();
-  const selecionadas = unidadesSelecionadasReposicao();
-  const corpo = document.getElementById('corpoTabelaReposicao');
-  const vazio = document.getElementById('estadoVazioReposicao');
-  const info = document.getElementById('infoReposicao');
-
-  if (selecionadas.length === 0) {
-    dadosReposicaoBrutos = [];
-    corpo.innerHTML = '';
-    vazio.hidden = false;
-    vazio.textContent = 'Selecione ao menos uma unidade.';
-    info.textContent = '';
-    return;
-  }
-
-  // Se todas estiverem marcadas, manda "__todas__" (mais leve que a lista toda).
-  const todas = selecionadas.length === unidadesReposicaoLista.length;
-  const paramUnidades = todas ? '__todas__' : selecionadas.map(encodeURIComponent).join(',');
-
-  const req = ++reposicaoReqId;
-  vazio.hidden = true;
-  corpo.innerHTML = '';
-  info.textContent = 'Calculando…';
-  try {
-    const dados = await api(`/distribuicao/reposicao?unidades=${paramUnidades}`);
-    if (req !== reposicaoReqId) return; // resposta antiga: descarta
-    dadosReposicaoBrutos = dados.itens;
-    autonomiaAlvoPadrao = dados.autonomiaAlvoMeses || 3;
-    autonomiaPorSku.clear(); // recomeça as escolhas por SKU a cada nova consulta
-    const nUnid = dados.unidades ? dados.unidades.length : selecionadas.length;
-    let txt = `Autonomia-alvo: ${dados.autonomiaAlvoMeses} meses · Mostrando só autonomia ≥ ${dados.autonomiaMinimaExibir} · `
-      + `${nUnid} unidade(s) · Estoque: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) : '—'} · `
-      + `Operador: ${dados.dataReferenciaOperador ? formatarData(dados.dataReferenciaOperador) : '—'}`;
-    if (dados.ignoradas && dados.ignoradas.length) txt += ` · Ignoradas (sem Local de Entrega): ${dados.ignoradas.length}`;
-    info.textContent = txt;
-    renderizarTabelaReposicao();
-  } catch (e) {
-    if (req !== reposicaoReqId) return;
-    corpo.innerHTML = '';
-    vazio.hidden = false;
-    vazio.textContent = 'Erro ao calcular: ' + e.message;
-  }
-}
 
 const ROTULO_ETIQUETA = {
   total: '<span class="etiqueta-rep etiqueta-total">Reposição total</span>',
@@ -2070,7 +1950,33 @@ const ROTULO_ETIQUETA = {
   sem_reposicao: '<span class="etiqueta-rep etiqueta-sem">Sem reposição</span>',
 };
 
-function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+// Atualiza os contadores da grade nas duas abas (ambas mostram o mesmo total).
+function atualizarContadorGrade(total) {
+  if (total == null) return;
+  ['contadorGrade', 'contadorGradeHE'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = total;
+  });
+}
+
+// Carrega do banco quais itens já estão na grade validada e atualiza os contadores.
+async function carregarGradeValidadas() {
+  try {
+    const { itens, total } = await api('/distribuicao/grade');
+    gradeValidadas = new Set(itens.map((g) => chaveGrade(g.local_entrega, g.codigo_scodes)));
+    atualizarContadorGrade(total != null ? total : gradeValidadas.size);
+  } catch (e) { /* segue */ }
+}
+
+// Exportar a grade validada no layout do 9.Modelo grade (download .xlsx).
+function baixarGradeXlsx() {
+  const a = document.createElement('a');
+  a.href = '/api/distribuicao/grade/exportar';
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 
 // Botão Validar/Negar por linha. Guarda no próprio botão os dados que vão para
 // a grade (layout do 9.Modelo grade): SKU=COD_ITEM, nosso código=Código SCODES.
@@ -2084,171 +1990,300 @@ function botaoAcaoGrade(it) {
     : `<button class="btn-grade btn-validar" ${attrs}>Validar</button>`;
 }
 
-function renderizarTabelaReposicao() {
-  const q = document.getElementById('filtroBuscaReposicao').value.trim().toLowerCase();
-  const soSugeridos = document.getElementById('filtroSoSugeridosReposicao').checked;
-  const etiquetasSel = [...document.querySelectorAll('.chk-etiqueta:checked')].map((c) => c.value);
-  const corpo = document.getElementById('corpoTabelaReposicao');
-  const vazio = document.getElementById('estadoVazioReposicao');
+// cfg = { prefixo, endpoint, endpointUnidades, classeChk, escolherPadrao(unidades)->[valores] }
+function criarPainelReposicao(cfg) {
+  const $ = (base) => document.getElementById(base + cfg.prefixo);
+  let dadosBrutos = [];
+  let unidadesLista = [];
+  let carregadas = false;
+  let reqId = 0;
+  let autonomiaAlvoPadrao = 3;
+  const autonomiaPorSku = new Map();
 
-  let itens = dadosReposicaoBrutos.slice();
-  if (q) itens = itens.filter((it) => (it.descricao_item || '').toLowerCase().includes(q) || (it.codigo_item || '').toLowerCase().includes(q) || (it.codigo_sku || '').toLowerCase().includes(q));
-  // Filtro de etiqueta com múltipla seleção (se nenhuma marcada, mostra todas).
-  if (etiquetasSel.length) itens = itens.filter((it) => etiquetasSel.includes(it.etiqueta));
-  if (soSugeridos) itens = itens.filter((it) => it.reposicao > 0);
+  // Recalcula a reposição de UM SKU quando o usuário muda a autonomia-alvo dele.
+  function recalcularSku(sku) {
+    const grupo = dadosBrutos.filter((it) => it.codigo_sku === sku);
+    if (!grupo.length) return;
+    const alvo = autonomiaPorSku.has(sku) ? autonomiaPorSku.get(sku) : autonomiaAlvoPadrao;
+    grupo.forEach((it) => {
+      const sug = Math.max(0, Math.round(alvo * it.consumo_mensal - (it.estoque_convertido + it.fatura_transito)));
+      it.sugestao = sug;
+      it.reposicao = sug > 0 ? ceilMultiplo(sug, it.multiplo_embalagem) : 0;
+    });
+    const subtotal = grupo.reduce((s, it) => s + it.reposicao, 0);
+    const op = grupo[0].estoque_operador;
+    const mult = grupo[0].multiplo_embalagem;
+    let et;
+    if (subtotal <= 0) { et = 'sem_reposicao'; grupo.forEach((it) => { it.reposicao = 0; it.destaque = false; }); }
+    else if (op == null) { et = 'total'; grupo.forEach((it) => { it.destaque = false; }); }
+    else if (op >= subtotal) { et = 'total'; grupo.forEach((it) => { it.destaque = false; }); }
+    else if (op > 0) {
+      et = 'parcial';
+      const fatia = op / grupo.length;
+      grupo.forEach((it) => { it.reposicao = Math.min(it.reposicao, floorMultiplo(fatia, mult)); it.destaque = true; });
+    } else { et = 'sem_reposicao'; grupo.forEach((it) => { it.reposicao = 0; it.destaque = true; }); }
+    const sub2 = grupo.reduce((s, it) => s + it.reposicao, 0);
+    grupo.forEach((it) => { it.etiqueta = et; it.subtotal_sku = sub2; });
+  }
 
-  if (itens.length === 0) {
+  async function carregarUnidades() {
+    if (carregadas) return;
+    const lista = $('listaUnidades');
+    try {
+      const { unidades } = await api(cfg.endpointUnidades);
+      unidadesLista = unidades;
+      lista.innerHTML = unidades.map((u) => `
+        <label class="opcao-unidade"><input type="checkbox" class="${cfg.classeChk}" value="${escAttr(u)}"> ${u}</label>
+      `).join('');
+      const marcados = cfg.escolherPadrao ? cfg.escolherPadrao(unidades) : [];
+      lista.querySelectorAll('.' + cfg.classeChk).forEach((c) => {
+        if (marcados.includes(c.value)) c.checked = true;
+        c.addEventListener('change', aoMudarUnidades);
+      });
+      carregadas = true;
+      atualizarRotulo();
+    } catch (e) { /* segue */ }
+  }
+
+  function selecionadas() {
+    return [...$('listaUnidades').querySelectorAll('.' + cfg.classeChk + ':checked')].map((c) => c.value);
+  }
+
+  function atualizarRotulo() {
+    const sel = selecionadas();
+    const btn = $('botaoUnidades');
+    const total = unidadesLista.length;
+    if (sel.length === 0) btn.textContent = 'Selecione a(s) unidade(s) ▾';
+    else if (sel.length === 1) btn.textContent = `${sel[0]} ▾`;
+    else if (sel.length === total) btn.textContent = `Todas as unidades (${total}) ▾`;
+    else btn.textContent = `${sel.length} unidades selecionadas ▾`;
+    $('chkTodasUnidades').checked = sel.length === total && total > 0;
+  }
+
+  function aoMudarUnidades() {
+    atualizarRotulo();
+    carregar();
+  }
+
+  async function carregar() {
+    await carregarUnidades();
+    await carregarGradeValidadas();
+    const sel = selecionadas();
+    const corpo = $('corpoTabela');
+    const vazio = $('estadoVazio');
+    const info = $('info');
+
+    if (sel.length === 0) {
+      dadosBrutos = [];
+      corpo.innerHTML = '';
+      vazio.hidden = false;
+      vazio.textContent = 'Selecione ao menos uma unidade.';
+      info.textContent = '';
+      return;
+    }
+
+    const todas = sel.length === unidadesLista.length;
+    const paramUnidades = todas ? '__todas__' : sel.map(encodeURIComponent).join(',');
+
+    const req = ++reqId;
+    vazio.hidden = true;
     corpo.innerHTML = '';
-    vazio.hidden = false;
-    vazio.textContent = 'Nenhum item elegível encontrado com estes filtros.';
-    return;
-  }
-  vazio.hidden = true;
-
-  // Ordena a grade por medicamento e depois por local de entrega (pedido do
-  // Rafael, especialmente ao selecionar todas as unidades).
-  const colador = (a, b) => (a || '').localeCompare(b || '', 'pt-BR', { sensitivity: 'base' });
-  itens.sort((a, b) => colador(a.descricao_item, b.descricao_item) || colador(a.local_entrega, b.local_entrega));
-
-  // Agrupa por SKU (na ordem já ordenada por medicamento) para o subtotal.
-  const grupos = [];
-  const indice = new Map();
-  for (const it of itens) {
-    const chave = it.codigo_sku || `__sem_sku__${it.codigo_item}__${it.local_entrega}`;
-    if (!indice.has(chave)) { indice.set(chave, grupos.length); grupos.push({ chave, sku: it.codigo_sku, itens: [] }); }
-    grupos[indice.get(chave)].itens.push(it);
-  }
-
-  let html = '';
-  for (const g of grupos) {
-    const et = g.itens[0].etiqueta;
-    for (const it of g.itens) {
-      const classes = [];
-      if (it.convertido) classes.push('linha-convertida');
-      if (it.destaque) classes.push('linha-parcial');
-      html += `
-      <tr class="${classes.join(' ')}">
-        <td>${it.local_entrega || '—'}</td>
-        <td class="col-codigo">${it.codigo_item || '—'}</td>
-        <td class="col-codigo">${it.codigo_sku || '—'}</td>
-        <td>${it.descricao_item || '—'}</td>
-        <td>${fmtNumero(it.demanda_total)}</td>
-        <td>${fmtNumero(it.consumo_mensal)}</td>
-        <td>${fmtNumero(it.estoque_convertido)}${it.convertido ? ` <span class="descricao-item">(÷${fmtNumero(it.conversao)})</span>` : ''}</td>
-        <td>${fmtNumero(it.fatura_transito)}</td>
-        <td>${it.autonomia == null ? '—' : fmtNumero(it.autonomia)}</td>
-        <td>${it.estoque_operador == null ? '—' : fmtNumero(it.estoque_operador)}</td>
-        <td>${it.validade || '—'}</td>
-        <td>${it.multiplo_embalagem == null ? '—' : fmtNumero(it.multiplo_embalagem)}</td>
-        <td>${fmtNumero(it.sugestao)}</td>
-        <td><strong>${fmtNumero(it.reposicao)}</strong></td>
-        <td>${ROTULO_ETIQUETA[it.etiqueta] || '—'}</td>
-        <td>${botaoAcaoGrade(it)}</td>
-      </tr>`;
-    }
-    // Subtotal por SKU quando o grupo tem mais de uma linha (ex.: mesmo SKU em
-    // várias unidades). SKU indefinido não recebe subtotal.
-    if (g.sku) {
-      const subtotal = g.itens[0].subtotal_sku;
-      const op = g.itens[0].estoque_operador;
-      const saldo = op == null ? null : op - subtotal;
-      const celSaldo = op == null
-        ? '—'
-        : `${fmtNumero(op)} − ${fmtNumero(subtotal)} = <strong>${fmtNumero(saldo)}</strong>`;
-      const alvo = autonomiaPorSku.has(g.sku) ? autonomiaPorSku.get(g.sku) : autonomiaAlvoPadrao;
-      html += `
-      <tr class="linha-subtotal-sku">
-        <td colspan="9" style="text-align:right;">
-          <strong>Subtotal do SKU ${g.sku} · ${g.itens.length} local(is)</strong>
-          &nbsp;·&nbsp;<span class="rotulo-autonomia">Autonomia-alvo:</span>
-          <input type="number" min="0" step="0.5" value="${alvo}" class="input-autonomia-sku" data-sku="${String(g.sku).replace(/"/g, '&quot;')}" title="Meses de autonomia-alvo deste SKU">
-        </td>
-        <td title="Saldo do operador após a reposição">${celSaldo}</td>
-        <td colspan="3"></td>
-        <td><strong>${fmtNumero(subtotal)}</strong></td>
-        <td>${ROTULO_ETIQUETA[et] || '—'}</td>
-        <td></td>
-      </tr>`;
+    info.textContent = 'Calculando…';
+    try {
+      const dados = await api(`${cfg.endpoint}?unidades=${paramUnidades}`);
+      if (req !== reqId) return; // resposta antiga: descarta
+      dadosBrutos = dados.itens;
+      autonomiaAlvoPadrao = dados.autonomiaAlvoMeses || 3;
+      autonomiaPorSku.clear();
+      const nUnid = dados.unidades ? dados.unidades.length : sel.length;
+      let txt = `Autonomia-alvo: ${dados.autonomiaAlvoMeses} meses · Mostrando só autonomia ≥ ${dados.autonomiaMinimaExibir} · `
+        + `${nUnid} unidade(s) · Estoque: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) : '—'} · `
+        + `Operador: ${dados.dataReferenciaOperador ? formatarData(dados.dataReferenciaOperador) : '—'}`;
+      if (dados.ignoradas && dados.ignoradas.length) txt += ` · Ignoradas (sem Local de Entrega): ${dados.ignoradas.length}`;
+      info.textContent = txt;
+      renderizar();
+    } catch (e) {
+      if (req !== reqId) return;
+      corpo.innerHTML = '';
+      vazio.hidden = false;
+      vazio.textContent = 'Erro ao calcular: ' + e.message;
     }
   }
-  corpo.innerHTML = html;
+
+  function renderizar() {
+    const q = $('filtroBusca').value.trim().toLowerCase();
+    const soSugeridos = $('filtroSoSugeridos').checked;
+    const etiquetasSel = [...$('filtroEtiqueta').querySelectorAll('.chk-etiqueta:checked')].map((c) => c.value);
+    const corpo = $('corpoTabela');
+    const vazio = $('estadoVazio');
+
+    let itens = dadosBrutos.slice();
+    if (q) itens = itens.filter((it) => (it.descricao_item || '').toLowerCase().includes(q) || (it.codigo_item || '').toLowerCase().includes(q) || (it.codigo_sku || '').toLowerCase().includes(q));
+    if (etiquetasSel.length) itens = itens.filter((it) => etiquetasSel.includes(it.etiqueta));
+    if (soSugeridos) itens = itens.filter((it) => it.reposicao > 0);
+
+    if (itens.length === 0) {
+      corpo.innerHTML = '';
+      vazio.hidden = false;
+      vazio.textContent = 'Nenhum item elegível encontrado com estes filtros.';
+      return;
+    }
+    vazio.hidden = true;
+
+    const colador = (a, b) => (a || '').localeCompare(b || '', 'pt-BR', { sensitivity: 'base' });
+    itens.sort((a, b) => colador(a.descricao_item, b.descricao_item) || colador(a.local_entrega, b.local_entrega));
+
+    const grupos = [];
+    const indice = new Map();
+    for (const it of itens) {
+      const chave = it.codigo_sku || `__sem_sku__${it.codigo_item}__${it.local_entrega}`;
+      if (!indice.has(chave)) { indice.set(chave, grupos.length); grupos.push({ chave, sku: it.codigo_sku, itens: [] }); }
+      grupos[indice.get(chave)].itens.push(it);
+    }
+
+    let html = '';
+    for (const g of grupos) {
+      const et = g.itens[0].etiqueta;
+      for (const it of g.itens) {
+        const classes = [];
+        if (it.convertido) classes.push('linha-convertida');
+        if (it.destaque) classes.push('linha-parcial');
+        html += `
+        <tr class="${classes.join(' ')}">
+          <td>${it.local_entrega || '—'}</td>
+          <td class="col-codigo">${it.codigo_item || '—'}</td>
+          <td class="col-codigo">${it.codigo_sku || '—'}</td>
+          <td>${it.descricao_item || '—'}</td>
+          <td>${fmtNumero(it.demanda_total)}</td>
+          <td>${fmtNumero(it.consumo_mensal)}</td>
+          <td>${fmtNumero(it.estoque_convertido)}${it.convertido ? ` <span class="descricao-item">(÷${fmtNumero(it.conversao)})</span>` : ''}</td>
+          <td>${fmtNumero(it.fatura_transito)}</td>
+          <td>${it.autonomia == null ? '—' : fmtNumero(it.autonomia)}</td>
+          <td>${it.estoque_operador == null ? '—' : fmtNumero(it.estoque_operador)}</td>
+          <td>${it.validade || '—'}</td>
+          <td>${it.multiplo_embalagem == null ? '—' : fmtNumero(it.multiplo_embalagem)}</td>
+          <td>${fmtNumero(it.sugestao)}</td>
+          <td><strong>${fmtNumero(it.reposicao)}</strong></td>
+          <td>${ROTULO_ETIQUETA[it.etiqueta] || '—'}</td>
+          <td>${botaoAcaoGrade(it)}</td>
+        </tr>`;
+      }
+      if (g.sku) {
+        const subtotal = g.itens[0].subtotal_sku;
+        const op = g.itens[0].estoque_operador;
+        const saldo = op == null ? null : op - subtotal;
+        const celSaldo = op == null
+          ? '—'
+          : `${fmtNumero(op)} − ${fmtNumero(subtotal)} = <strong>${fmtNumero(saldo)}</strong>`;
+        const alvo = autonomiaPorSku.has(g.sku) ? autonomiaPorSku.get(g.sku) : autonomiaAlvoPadrao;
+        html += `
+        <tr class="linha-subtotal-sku">
+          <td colspan="9" style="text-align:right;">
+            <strong>Subtotal do SKU ${g.sku} · ${g.itens.length} local(is)</strong>
+            &nbsp;·&nbsp;<span class="rotulo-autonomia">Autonomia-alvo:</span>
+            <input type="number" min="0" step="0.5" value="${alvo}" class="input-autonomia-sku" data-sku="${String(g.sku).replace(/"/g, '&quot;')}" title="Meses de autonomia-alvo deste SKU">
+          </td>
+          <td title="Saldo do operador após a reposição">${celSaldo}</td>
+          <td colspan="3"></td>
+          <td><strong>${fmtNumero(subtotal)}</strong></td>
+          <td>${ROTULO_ETIQUETA[et] || '—'}</td>
+          <td></td>
+        </tr>`;
+      }
+    }
+    corpo.innerHTML = html;
+  }
+
+  // ---- Listeners deste painel ----
+  $('botaoUnidades').addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const painel = $('painelUnidades');
+    painel.hidden = !painel.hidden;
+  });
+  document.addEventListener('click', (ev) => {
+    const seletor = $('seletorUnidades');
+    if (seletor && !seletor.contains(ev.target)) $('painelUnidades').hidden = true;
+  });
+  $('chkTodasUnidades').addEventListener('change', (ev) => {
+    $('listaUnidades').querySelectorAll('.' + cfg.classeChk).forEach((c) => { c.checked = ev.target.checked; });
+    aoMudarUnidades();
+  });
+  $('filtroBusca').addEventListener('input', renderizar);
+  $('filtroSoSugeridos').addEventListener('change', renderizar);
+  $('filtroEtiqueta').querySelectorAll('.chk-etiqueta').forEach((c) => c.addEventListener('change', renderizar));
+
+  // Autonomia-alvo por SKU (input na linha de subtotal). Delegação no tbody.
+  $('corpoTabela').addEventListener('change', (ev) => {
+    const inp = ev.target;
+    if (!inp.classList || !inp.classList.contains('input-autonomia-sku')) return;
+    const sku = inp.dataset.sku;
+    let v = parseFloat(String(inp.value).replace(',', '.'));
+    if (!Number.isFinite(v) || v < 0) v = autonomiaAlvoPadrao;
+    autonomiaPorSku.set(sku, v);
+    recalcularSku(sku);
+    renderizar();
+  });
+
+  // Validar / Negar por linha (grade compartilhada). Delegação no tbody.
+  $('corpoTabela').addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('.btn-grade');
+    if (!btn) return;
+    const d = btn.dataset;
+    const validar = btn.classList.contains('btn-validar');
+    btn.disabled = true;
+    try {
+      if (validar) {
+        const r = await api('/distribuicao/grade/validar', {
+          method: 'POST',
+          body: JSON.stringify({
+            local_entrega: d.local, codigo_scodes: d.scodes, cod_item: d.sku,
+            medicamento: d.med, qtde: Number(d.qtde) || 0, validade: d.val,
+          }),
+        });
+        gradeValidadas.add(chaveGrade(d.local, d.scodes));
+        atualizarContadorGrade(r.total);
+      } else {
+        const r = await api('/distribuicao/grade/negar', {
+          method: 'POST',
+          body: JSON.stringify({ local_entrega: d.local, codigo_scodes: d.scodes }),
+        });
+        gradeValidadas.delete(chaveGrade(d.local, d.scodes));
+        atualizarContadorGrade(r.total);
+      }
+      renderizar();
+    } catch (e) {
+      alert('Erro: ' + e.message);
+      btn.disabled = false;
+    }
+  });
+
+  return { carregar };
 }
 
-// Abre/fecha o painel de seleção de unidades.
-document.getElementById('botaoUnidadesReposicao').addEventListener('click', (ev) => {
-  ev.stopPropagation();
-  const painel = document.getElementById('painelUnidadesReposicao');
-  painel.hidden = !painel.hidden;
+// Painel geral (Sugestão de Reposição) — padrão: CEDMAC marcada.
+const painelReposicao = criarPainelReposicao({
+  prefixo: 'Reposicao',
+  endpoint: '/distribuicao/reposicao',
+  endpointUnidades: '/distribuicao/reposicao/unidades',
+  classeChk: 'chk-unidade-rep',
+  escolherPadrao: (unidades) => [unidades.includes('UD 27 - CEDMAC HCFMUSP') ? 'UD 27 - CEDMAC HCFMUSP' : unidades[0]].filter(Boolean),
 });
-document.addEventListener('click', (ev) => {
-  const seletor = document.getElementById('seletorUnidadesReposicao');
-  if (seletor && !seletor.contains(ev.target)) document.getElementById('painelUnidadesReposicao').hidden = true;
-});
-document.getElementById('chkTodasUnidadesReposicao').addEventListener('change', (ev) => {
-  document.querySelectorAll('.chk-unidade-rep').forEach((c) => { c.checked = ev.target.checked; });
-  aoMudarUnidadesReposicao();
-});
-document.getElementById('filtroBuscaReposicao').addEventListener('input', renderizarTabelaReposicao);
-document.getElementById('filtroSoSugeridosReposicao').addEventListener('change', renderizarTabelaReposicao);
-document.querySelectorAll('.chk-etiqueta').forEach((c) => c.addEventListener('change', renderizarTabelaReposicao));
+function carregarTabelaReposicao() { return painelReposicao.carregar(); }
 
-// Autonomia-alvo por SKU (input na linha de subtotal). Delegação no tbody, que
-// é persistente mesmo com o innerHTML sendo recriado a cada render.
-document.getElementById('corpoTabelaReposicao').addEventListener('change', (ev) => {
-  const inp = ev.target;
-  if (!inp.classList || !inp.classList.contains('input-autonomia-sku')) return;
-  const sku = inp.dataset.sku;
-  let v = parseFloat(String(inp.value).replace(',', '.'));
-  if (!Number.isFinite(v) || v < 0) v = autonomiaAlvoPadrao;
-  autonomiaPorSku.set(sku, v);
-  recalcularSku(sku);
-  renderizarTabelaReposicao();
+// Painel Hospital Escola (Distribuição H.E) — padrão: todas as unidades marcadas.
+const painelReposicaoHE = criarPainelReposicao({
+  prefixo: 'ReposicaoHE',
+  endpoint: '/distribuicao/reposicao-he',
+  endpointUnidades: '/distribuicao/reposicao-he/unidades',
+  classeChk: 'chk-unidade-rep-he',
+  escolherPadrao: (unidades) => unidades.slice(),
 });
+function carregarTabelaReposicaoHE() { return painelReposicaoHE.carregar(); }
 
-// Validar / Negar por linha (grade). Delegação no tbody.
-document.getElementById('corpoTabelaReposicao').addEventListener('click', async (ev) => {
-  const btn = ev.target.closest('.btn-grade');
-  if (!btn) return;
-  const d = btn.dataset;
-  const validar = btn.classList.contains('btn-validar');
-  btn.disabled = true;
-  try {
-    if (validar) {
-      const r = await api('/distribuicao/grade/validar', {
-        method: 'POST',
-        body: JSON.stringify({
-          local_entrega: d.local, codigo_scodes: d.scodes, cod_item: d.sku,
-          medicamento: d.med, qtde: Number(d.qtde) || 0, validade: d.val,
-        }),
-      });
-      gradeValidadas.add(chaveGrade(d.local, d.scodes));
-      document.getElementById('contadorGrade').textContent = r.total;
-    } else {
-      const r = await api('/distribuicao/grade/negar', {
-        method: 'POST',
-        body: JSON.stringify({ local_entrega: d.local, codigo_scodes: d.scodes }),
-      });
-      gradeValidadas.delete(chaveGrade(d.local, d.scodes));
-      document.getElementById('contadorGrade').textContent = r.total;
-    }
-    renderizarTabelaReposicao();
-  } catch (e) {
-    alert('Erro: ' + e.message);
-    btn.disabled = false;
-  }
-});
-
-// Exportar a grade validada no layout do 9.Modelo grade (download .xlsx).
-function baixarGradeXlsx() {
-  const a = document.createElement('a');
-  a.href = '/api/distribuicao/grade/exportar';
-  a.download = '';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
 document.getElementById('botaoExportarGrade').addEventListener('click', baixarGradeXlsx);
 document.getElementById('botaoExportarGradeFinal').addEventListener('click', baixarGradeXlsx);
+const btnExpHE = document.getElementById('botaoExportarGradeHE');
+if (btnExpHE) btnExpHE.addEventListener('click', baixarGradeXlsx);
 
 // -------------------- Grade Final --------------------
 // Cópia editável da grade validada (o Rafael ajusta qtde/remove e depois Salva).

@@ -589,6 +589,7 @@
           <button type="button" class="chip-faixa ativo" data-aba="faturas">Status de Faturas</button>
           <button type="button" class="chip-faixa" data-aba="movimentacoes">Movimentações</button>
           <button type="button" class="chip-faixa" data-aba="reposicao">Sugestão de Reposição</button>
+          <button type="button" class="chip-faixa" data-aba="hospitalescola">Distribuição H.E</button>
           <button type="button" class="chip-faixa" data-aba="gradefinal">Grade Final</button>
         </div>
 
@@ -715,6 +716,59 @@
               </table>
             </div>
             <div class="estado-vazio" id="estadoVazioReposicao" hidden>Nenhum item elegível encontrado.</div>
+          </div>
+        </div>
+
+        <div id="abaHospitalEscolaDistribuicao" hidden>
+          <div class="barra-filtros">
+            <div class="seletor-multi" id="seletorUnidadesReposicaoHE">
+              <button type="button" id="botaoUnidadesReposicaoHE" class="botao-seletor-multi">Selecione a(s) unidade(s) ▾</button>
+              <div class="painel-seletor-multi" id="painelUnidadesReposicaoHE" hidden>
+                <label class="opcao-todas"><input type="checkbox" id="chkTodasUnidadesReposicaoHE"> <strong>Todas as unidades</strong></label>
+                <div id="listaUnidadesReposicaoHE" class="lista-checkboxes"></div>
+              </div>
+            </div>
+            <input type="text" id="filtroBuscaReposicaoHE" placeholder="Buscar por medicamento ou código…" style="min-width:280px;">
+            <span class="filtro-etiquetas" id="filtroEtiquetaReposicaoHE">
+              <span class="rotulo-filtro">Etiquetas:</span>
+              <label><input type="checkbox" class="chk-etiqueta" value="total" checked> Total</label>
+              <label><input type="checkbox" class="chk-etiqueta" value="parcial" checked> Parcial</label>
+              <label><input type="checkbox" class="chk-etiqueta" value="sem_reposicao" checked> Sem reposição</label>
+            </span>
+            <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="filtroSoSugeridosReposicaoHE"> Só com reposição &gt; 0
+            </label>
+            <button type="button" id="botaoExportarGradeHE" class="botao-primario" style="margin-left:auto;">Exportar grade (<span id="contadorGradeHE">0</span>)</button>
+          </div>
+          <p class="descricao-item" id="infoReposicaoHE" style="margin:4px 0 12px;"></p>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table class="tabela-reposicao">
+                <thead>
+                  <tr>
+                    <th>Local de Entrega</th>
+                    <th>Código</th>
+                    <th>Cód. GSNET (SKU)</th>
+                    <th>Descrição do Item</th>
+                    <th>Demanda Total</th>
+                    <th>Consumo Mensal</th>
+                    <th>Estoque Convertido</th>
+                    <th>Fatura em Trânsito</th>
+                    <th>Autonomia</th>
+                    <th>Estoque Operador</th>
+                    <th>Validade</th>
+                    <th>Múltiplo Emb.</th>
+                    <th>Sugestão</th>
+                    <th>Reposição</th>
+                    <th>Etiqueta</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaReposicaoHE"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioReposicaoHE" hidden>Nenhum item elegível encontrado.</div>
           </div>
         </div>
 
@@ -1827,6 +1881,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=65"></script>
+  <script src="/js/app.js?v=66"></script>
 </body>
 </html>
