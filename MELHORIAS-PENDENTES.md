@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | _(nada pendente — tudo publicado na v1.5.0 em 20/07/2026)_ | | | |
+| 19 | Backup consolidado — aposenta o backup duplicado das 18h (`backupDb.js` removido), fica só o backup embutido das 5h. Adiciona **backup mensal de longo prazo** (1 por mês em `backups/mensais/`, mantém 12 meses, configurável via `BACKUP_MENSAL_MANTER`). Botão "backup manual" e npm `backup` repontados para a rotina consolidada. **Falta na produção: remover a tarefa agendada das 18h no Windows.** | 195b749 | 20/07/2026 | ✅ Testado em homolog |
 
 ## Publicadas recentemente
 
