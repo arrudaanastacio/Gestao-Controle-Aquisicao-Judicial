@@ -106,12 +106,18 @@ function processarPlanilha(buffer) {
   return { linhasComMovimento, abas };
 }
 
-// Grava no banco em modo "substituir": atualiza linhas existentes (mesmo
-// item+ano+mês+tipo) e insere as novas. Usado pelo vigia automático.
+// Grava no banco REFAZENDO O MÊS: para cada (ano, mês) presente na planilha,
+// apaga tudo daquele mês e regrava as linhas da planilha. A planilha é a
+// fonte da verdade, então o banco vira um espelho exato dela. Usado pelo
+// vigia automático.
+//
+// Antes isto identificava a solicitação por item+ano+mês+tipo e dava UPDATE:
+// duas linhas do mesmo item/mês/tipo com ofícios ou quantidades diferentes
+// eram fundidas (uma sobrescrevia a outra), perdendo dados — mesmo problema
+// já corrigido nas solicitações de Tenente Pena. Ver routes.importarSolicitacoes.js.
+// Meses que NÃO aparecem na planilha nunca são tocados.
 function gravarImportacao(buffer, nomeArquivo, usuarioEmail) {
   const { linhasComMovimento, abas } = processarPlanilha(buffer);
-
-  const stmtBuscaExistente = db.prepare('SELECT id FROM solicitacoes_od WHERE codigo_item = ? AND ano = ? AND mes = ? AND tipo IS ?');
 
   const campos = ['codigo_item','descricao','codigo_siafisico','codigo_gsnet','ano','mes','tipo',
     'modalidade_compra','n_oficio','qtde_solicitada','data_solicitacao','requisicao_gsnet','n_empenho',
@@ -120,25 +126,51 @@ function gravarImportacao(buffer, nomeArquivo, usuarioEmail) {
   const stmtInsert = db.prepare(
     `INSERT INTO solicitacoes_od (${campos.join(',')}) VALUES (${campos.map(() => '?').join(',')})`
   );
-  const camposSemChave = campos.filter((c) => !['codigo_item','ano','mes','tipo'].includes(c));
-  const stmtUpdate = db.prepare(
-    `UPDATE solicitacoes_od SET ${camposSemChave.map((c) => `${c} = ?`).join(', ')} WHERE codigo_item = ? AND ano = ? AND mes = ? AND tipo IS ?`
-  );
 
-  let inseridos = 0, atualizados = 0;
+  let inseridos = 0, apagados = 0;
+  const avisos = [];
 
+  // Separa as linhas por mês, preservando a ordem da planilha.
+  const porMes = new Map();
   for (const l of linhasComMovimento) {
-    const existente = stmtBuscaExistente.get(l.codigo_item, l.ano, l.mes, l.tipo);
-    if (!existente) {
-      stmtInsert.run(...campos.map((c) => l[c]));
-      inseridos++;
-    } else {
-      stmtUpdate.run(...camposSemChave.map((c) => l[c]), l.codigo_item, l.ano, l.mes, l.tipo);
-      atualizados++;
-    }
+    const chave = `${l.ano}||${l.mes}`;
+    if (!porMes.has(chave)) porMes.set(chave, []);
+    porMes.get(chave).push(l);
   }
 
-  const resumo = { abasProcessadas: abas, inseridos, atualizados };
+  // Tudo numa transação: se qualquer passo falhar, nada é apagado nem
+  // gravado pela metade (um mês nunca fica vazio por erro no meio).
+  db.exec('BEGIN');
+  try {
+    for (const [chave, linhas] of porMes) {
+      const [anoTxt, mes] = chave.split('||');
+      const ano = Number(anoTxt);
+
+      const existentes = db.prepare(
+        'SELECT COUNT(*) c FROM solicitacoes_od WHERE ano = ? AND mes = ?'
+      ).get(ano, mes).c;
+
+      // Rede de segurança: se a planilha traz bem menos linhas do que o
+      // banco já tem para o mês, pode ser arquivo truncado/corrompido.
+      if (existentes > 0 && linhas.length < existentes * 0.5) {
+        const aviso = `Mês ${mes}/${ano}: planilha trouxe ${linhas.length} linha(s) e o banco tinha ${existentes}. Verifique se a planilha está completa.`;
+        avisos.push(aviso);
+        console.warn(`[IMPORTAR SOLICITACOES OD] ATENCAO - ${aviso}`);
+      }
+
+      apagados += db.prepare('DELETE FROM solicitacoes_od WHERE ano = ? AND mes = ?').run(ano, mes).changes;
+      for (const l of linhas) {
+        stmtInsert.run(...campos.map((c) => l[c]));
+        inseridos++;
+      }
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+
+  const resumo = { abasProcessadas: abas, inseridos, apagados, mesesRefeitos: porMes.size, avisos };
 
   db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
     .run('solicitacoes_od', nomeArquivo, usuarioEmail, JSON.stringify(resumo));
