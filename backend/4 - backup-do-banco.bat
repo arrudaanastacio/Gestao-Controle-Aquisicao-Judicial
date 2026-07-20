@@ -11,12 +11,12 @@ echo Cria uma copia segura e datada do banco na pasta:
 echo     backend\data\backups
 echo.
 echo Pode rodar com o sistema LIGADO - a copia sai consistente.
-echo Os backups mais antigos sao apagados automaticamente,
-echo mantendo sempre os 30 mais recentes.
+echo Backups diarios mantidos por 14 dias + 1 backup por mes
+echo (longo prazo) na subpasta backups\mensais.
 echo ============================================================
 echo.
 
-node src/backupDb.js
+node src/backupBanco.js
 
 echo.
 if errorlevel 1 (
