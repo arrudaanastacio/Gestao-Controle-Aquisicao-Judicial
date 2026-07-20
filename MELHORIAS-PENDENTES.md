@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | _(nada pendente — tudo publicado na v1.5.1 em 20/07/2026)_ | | | |
+| 20 | Limpeza de código morto — remove `backupNuvem.js`, `backupGoogleDrive.js`, `exportarBanco.js` e os `.bat` 5/6/7 (backup antigo, tudo superado pelo backup consolidado da v1.5.1). Limpa scripts npm órfãos. Atualiza `COMO-FAZER-BACKUP.txt` e `COMECE-AQUI.txt` para o backup novo (05h, local + Google Drive, 14 diários + 12 mensais). | 061f279 | 20/07/2026 | ✅ Verificado em homolog |
 
 ## Publicadas recentemente
 

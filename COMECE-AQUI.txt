@@ -72,8 +72,9 @@ backend\.env (linhas CAMINHO_ESTOQUE_CSV e AUTO_IMPORTAR_ESTOQUE).
 ------------------------------------------------------------
 BACKUP (importante)
 ------------------------------------------------------------
-- Backup automatico na nuvem: todo dia as 17h (OneDrive PRODESP).
-- Backup manual: backend\6 - backup-completo.bat
+- Backup automatico: todo dia as 05h, sozinho (local + Google Drive).
+  Local: backend\data\backups (14 dias) + backups\mensais (12 meses).
+- Backup manual na hora: backend\4 - backup-do-banco.bat
 - Detalhes no arquivo  COMO-FAZER-BACKUP.txt
 
 Duvidas ou erros: anote a mensagem que aparecer na janela preta

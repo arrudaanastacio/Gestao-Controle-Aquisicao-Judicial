@@ -2,43 +2,42 @@
   COMO FAZER BACKUP — Sistema de Compras de Medicamentos Judiciais
 ========================================================================
 
-O sistema tem 3 camadas de proteção dos dados. Abaixo, o que cada uma
-faz e como usar.
+O backup agora é AUTOMÁTICO e consolidado numa rotina só, que roda junto
+com o sistema. Abaixo, o que ele faz e como usar.
 
 ------------------------------------------------------------------------
-1) BACKUP AUTOMÁTICO NA NUVEM  (já configurado — não precisa fazer nada)
+1) BACKUP AUTOMÁTICO  (já embutido no sistema — não precisa fazer nada)
 ------------------------------------------------------------------------
-- Roda TODO DIA às 17h, sozinho.
-- Faz uma cópia do banco e salva em:
-    C:\Users\ranastacio\OneDrive - PRODESP\Backup Compras Judiciais\
-  (o OneDrive sincroniza para a nuvem automaticamente)
-- Guarda os últimos 14 dias (apaga os mais antigos).
-- O computador só precisa estar LIGADO às 17h.
+- Roda TODO DIA às 05h, sozinho (junto com o serviço do sistema).
+- Usa "VACUUM INTO": a cópia sai consistente mesmo com o sistema em uso,
+  e ainda vem compactada.
+- Salva em DUAS camadas de proteção:
+
+    a) LOCAL, no próprio computador:
+       C:\Compras Judiciais\backend\data\backups\
+       - 1 arquivo por dia (guarda os últimos 14 dias)
+       - + 1 backup por mês de LONGO PRAZO, na subpasta:
+         C:\Compras Judiciais\backend\data\backups\mensais\
+         (guarda os últimos 12 meses)
+
+    b) NA NUVEM (Google Drive), cópia automática em:
+       D:\Meu Drive\Backup Compras Judiciais\
+       (o app "Google Drive para Desktop" sincroniza sozinho para a nuvem)
+       - mesma lógica: 14 diários + 12 mensais (subpasta "mensais")
+
+- O computador só precisa estar LIGADO às 05h. Como o sistema roda como
+  SERVIÇO do Windows, ele sobe sozinho quando o PC liga.
 
 Como conferir:
-- Abrir a pasta acima e ver os arquivos "medicamentos_judicial_DATA.db".
-- Ou: Agendador de Tarefas do Windows -> tarefa "Backup Compras Judiciais".
+- Abrir qualquer uma das pastas acima e ver os arquivos
+  "medicamentos_judicial_DATA.db".
 
-Rodar na hora (sem esperar as 17h):
-- Agendador de Tarefas -> botão direito na tarefa -> Executar.
-- Ou duplo-clique em: backend\7 - backup-nuvem.bat
-
-Se precisar recriar o agendamento (ex.: trocou de computador):
-- Abrir o Prompt de Comando (cmd) e colar (uma linha só):
-  schtasks /Create /TN "Backup Compras Judiciais" /TR "\"C:\Compras Judiciais\backend\7 - backup-nuvem.bat\"" /SC DAILY /ST 17:00 /F
+Rodar na hora (sem esperar as 05h):
+- Duplo-clique em: backend\4 - backup-do-banco.bat
+  (faz o mesmo backup consolidado — local + Google Drive.)
 
 ------------------------------------------------------------------------
-2) BACKUP MANUAL COMPLETO  (quando quiser, antes de mudanças grandes)
-------------------------------------------------------------------------
-- Duplo-clique em: backend\6 - backup-completo.bat
-- Gera, em backend\data\export:
-    * dump_completo_DATA.sql  (estrutura + todos os dados, em SQL)
-    * esquema.sql             (só a estrutura das tabelas)
-    * backup_banco_DATA.db    (cópia direta do banco)
-- DICA: copie a pasta "export" para um pendrive ou nuvem também.
-
-------------------------------------------------------------------------
-3) VERSIONAMENTO DO CÓDIGO (Git)  (a cada melhoria que ficar boa)
+2) VERSIONAMENTO DO CÓDIGO (Git)  (a cada melhoria que ficar boa)
 ------------------------------------------------------------------------
 - Duplo-clique em: backend\4 - salvar-versao.bat
 - Guarda uma "foto" do código, permitindo voltar a versões anteriores.
@@ -48,27 +47,28 @@ Se precisar recriar o agendamento (ex.: trocou de computador):
   COMO RESTAURAR O BANCO (se algo der errado)
 ========================================================================
 
-Opção A — pelo arquivo .db (mais simples):
-  1. Feche o sistema (feche a janela do servidor).
-  2. Na pasta backend\data\, renomeie o atual:
+  1. Pare o sistema:
+     - Aperte Win+R, digite  services.msc  e Enter.
+     - Botão direito no serviço "ComprasJudiciais" -> Parar.
+  2. Na pasta  C:\Compras Judiciais\backend\data\ , renomeie o atual:
        medicamentos_judicial.db  ->  medicamentos_judicial_RUIM.db
-  3. Copie o backup desejado (da nuvem ou da pasta export) para
-     backend\data\ e renomeie para:
+  3. Escolha o backup desejado (da pasta local "backups", da subpasta
+     "mensais", ou da pasta do Google Drive), copie para
+       C:\Compras Judiciais\backend\data\
+     e renomeie para:
        medicamentos_judicial.db
-  4. Abra o sistema de novo (3 - iniciar-sistema.bat).
-
-Opção B — pelo arquivo .sql (precisa do programa sqlite3):
-       sqlite3 novo_banco.db < dump_completo_DATA.sql
+  4. Volte no services.msc -> botão direito no serviço -> Iniciar.
 
 ========================================================================
   RESUMO RÁPIDO
 ========================================================================
-  Backup automático (nuvem) ...... todo dia 17h, sozinho
-  Backup manual completo ......... backend\6 - backup-completo.bat
+  Backup automático .............. todo dia 05h, sozinho (local + Drive)
+  Backup manual na hora .......... backend\4 - backup-do-banco.bat
   Salvar versão do código ........ backend\4 - salvar-versao.bat
 
-  Pasta dos backups na nuvem:
-    C:\Users\ranastacio\OneDrive - PRODESP\Backup Compras Judiciais\
-  Pasta dos backups locais:
-    C:\Compras Judiciais\backend\data\export\
+  Pasta dos backups LOCAIS:
+    C:\Compras Judiciais\backend\data\backups\
+    C:\Compras Judiciais\backend\data\backups\mensais\   (longo prazo)
+  Pasta dos backups na NUVEM:
+    D:\Meu Drive\Backup Compras Judiciais\
 ========================================================================

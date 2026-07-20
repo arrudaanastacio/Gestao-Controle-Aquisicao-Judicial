@@ -6,10 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "criar-admin": "node src/seedAdmin.js",
-    "exportar-banco": "node src/exportarBanco.js",
-    "backup-nuvem": "node src/backupNuvem.js",
     "backup": "node src/backupBanco.js",
-    "backup-google": "node src/backupGoogleDrive.js",
     "extrair-atas": "node scripts/extrairAtasSiscoa.js"
   },
   "keywords": [],
