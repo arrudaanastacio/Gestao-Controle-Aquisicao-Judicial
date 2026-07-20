@@ -6,12 +6,13 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 21 | **CORREÇÃO CRÍTICA — solicitações sumindo na importação.** O importador identificava a solicitação só por item+ano+mês, então duas linhas do mesmo item no mesmo mês (JS/AS/JM/ASM) eram tratadas como a mesma: no modo automático a segunda SOBRESCREVIA a primeira, apagando dados. Corrigido com **"refazer o mês"**: para cada mês da planilha, apaga e regrava tudo (planilha = fonte da verdade), em transação, com aviso se a planilha vier suspeita de incompleta. Teste com a planilha real: **+122 linhas recuperadas** e **470 grupos de duplicatas achatadas → 0**. | 5f851e8 | 20/07/2026 | ✅ Testado com planilha real |
+| — | _(nada pendente — tudo publicado na v1.5.3 em 20/07/2026)_ | | | |
 
 ## Publicadas recentemente
 
 | # | Melhoria | Publicado em |
 |---|----------|--------------|
+| 21 | **CORREÇÃO CRÍTICA — solicitações sumindo na importação.** O importador identificava a solicitação só por item+ano+mês, então duas linhas do mesmo item no mesmo mês (JS/AS/JM/ASM) eram fundidas (uma sobrescrevia a outra). Corrigido com **"refazer o mês"** (planilha = fonte da verdade), em transação. **Recupera dados perdidos ao reimportar.** | v1.5.3 — 20/07/2026 |
 | 20 | Limpeza de código morto — remove `backupNuvem.js`, `backupGoogleDrive.js`, `exportarBanco.js` e os `.bat` 5/6/7 (backup antigo). Limpa scripts npm órfãos. Atualiza `COMO-FAZER-BACKUP.txt` e `COMECE-AQUI.txt` para o backup novo. | v1.5.2 — 20/07/2026 |
 | 19 | Backup consolidado — aposenta o backup duplicado das 18h (`backupDb.js` removido), fica só o backup embutido das 5h. Adiciona **backup mensal de longo prazo** (1 por mês em `backups/mensais/`, mantém 12 meses, `BACKUP_MENSAL_MANTER`). **Falta na produção: remover a tarefa agendada das 18h no Windows.** | v1.5.1 — 20/07/2026 |
 | 18 | Serviço do Windows — sistema sobe sozinho ao ligar o PC, reinicia sozinho se travar, roda sem janela aberta. Instalação por duplo-clique (`9 - instalar/desinstalar-servico-windows.bat`). Serviços separados: produção `ComprasJudiciais` (3000) e homologação `ComprasJudiciasHomolog` (3001). **Falta a virada operacional na produção: fechar a janela .bat e rodar `9 - instalar-servico-windows.bat` como Administrador.** | v1.5.0 — 20/07/2026 |
