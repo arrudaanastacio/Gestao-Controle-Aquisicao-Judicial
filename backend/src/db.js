@@ -457,7 +457,12 @@ CREATE TABLE IF NOT EXISTS solicitacoes_od (
 `);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_solod_codigo ON solicitacoes_od(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_solod_anomes ON solicitacoes_od(ano, mes);`);
-db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_solod_unico ON solicitacoes_od(codigo_item, ano, mes, tipo);`);
+// MIGRAÇÃO: remove o índice ÚNICO antigo em (codigo_item, ano, mes, tipo).
+// Ele impedia guardar duas solicitações OD do mesmo item/mês/tipo com
+// ofícios/quantidades diferentes — forçava o importador a sobrescrever uma
+// pela outra, perdendo dados. O importador agora "refaz o mês" (apaga por
+// ano+mes, coberto por idx_solod_anomes) e não depende mais desse índice.
+db.exec(`DROP INDEX IF EXISTS idx_solod_unico;`);
 
 // Movimentações de Entrada com Lotes/Validade (via Oracle/SCODES).
 // Janela dos últimos 12 meses até hoje, recalculada na própria query SQL.
