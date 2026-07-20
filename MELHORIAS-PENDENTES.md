@@ -6,12 +6,13 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 22 | **CORREÇÃO — mesmo bug do item 21, agora no OD (Outras Demandas).** A tabela `solicitacoes_od` tinha um índice ÚNICO em (item, ano, mês, tipo) que **impedia** guardar duas solicitações OD do mesmo item/mês/tipo com ofícios/quantidades diferentes (forçava sobrescrever). Migração idempotente `DROP INDEX idx_solod_unico` + importador OD reescrito para "refazer o mês". Teste com planilha real: **+12 linhas recuperadas** (823→835). | 56de4f0 | 20/07/2026 | ✅ Testado com planilha real |
+| — | _(nada pendente — tudo publicado na v1.5.4 em 20/07/2026)_ | | | |
 
 ## Publicadas recentemente
 
 | # | Melhoria | Publicado em |
 |---|----------|--------------|
+| 22 | **CORREÇÃO — mesmo bug do item 21, no OD (Outras Demandas).** Remove índice ÚNICO em `solicitacoes_od(item,ano,mês,tipo)` que bloqueava solicitações OD distintas do mesmo item/mês/tipo (migração idempotente) + importador OD "refaz o mês". Teste real: **+12 linhas recuperadas**. | v1.5.4 — 20/07/2026 |
 | 21 | **CORREÇÃO CRÍTICA — solicitações sumindo na importação.** O importador identificava a solicitação só por item+ano+mês, então duas linhas do mesmo item no mesmo mês (JS/AS/JM/ASM) eram fundidas (uma sobrescrevia a outra). Corrigido com **"refazer o mês"** (planilha = fonte da verdade), em transação. **Recupera dados perdidos ao reimportar.** | v1.5.3 — 20/07/2026 |
 | 20 | Limpeza de código morto — remove `backupNuvem.js`, `backupGoogleDrive.js`, `exportarBanco.js` e os `.bat` 5/6/7 (backup antigo). Limpa scripts npm órfãos. Atualiza `COMO-FAZER-BACKUP.txt` e `COMECE-AQUI.txt` para o backup novo. | v1.5.2 — 20/07/2026 |
 | 19 | Backup consolidado — aposenta o backup duplicado das 18h (`backupDb.js` removido), fica só o backup embutido das 5h. Adiciona **backup mensal de longo prazo** (1 por mês em `backups/mensais/`, mantém 12 meses, `BACKUP_MENSAL_MANTER`). **Falta na produção: remover a tarefa agendada das 18h no Windows.** | v1.5.1 — 20/07/2026 |
