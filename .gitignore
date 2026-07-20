@@ -28,3 +28,7 @@ backend/_err.txt
 
 # Script auxiliar só para a ferramenta de preview do Claude Code
 iniciar-preview.bat
+
+# Pasta gerada pelo node-windows ao instalar o serviço (específica da máquina:
+# executável do serviço, logs e config local). Recriada na instalação.
+backend/src/daemon/

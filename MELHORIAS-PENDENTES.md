@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | _(nada pendente — tudo publicado na v1.4.0 em 17/07/2026)_ | | | |
+| 18 | Serviço do Windows — sistema sobe sozinho ao ligar o PC, reinicia sozinho se travar, roda sem janela aberta. Instalação por duplo-clique (`9 - instalar/desinstalar-servico-windows.bat`). Cria serviços separados para produção (`ComprasJudiciais`) e homologação (`ComprasJudiciasHomolog`). **Testado OK em homologação (20/07/2026) — pronto para publicar.** | 756f586 | 20/07/2026 | ✅ Testado |
 
 ## Publicadas recentemente
 
