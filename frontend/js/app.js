@@ -832,10 +832,19 @@ function renderResultadoImportacao(elementId, resumo, tipo) {
   } else if (tipo === 'confirmar-solicitacoes') {
     linhas = `
       <div class="linha"><span>Inseridos</span><strong>${resumo.inseridos}</strong></div>
-      <div class="linha"><span>Atualizados</span><strong>${resumo.atualizados}</strong></div>
       <div class="linha"><span>Ignorados (já existiam)</span><strong>${resumo.ignorados}</strong></div>
       <div class="linha"><span>Itens não cadastrados</span><strong>${resumo.itensInexistentes}</strong></div>
     `;
+    // No modo "substituir" o importador REFAZ cada mês da planilha (apaga e
+    // regrava), então mostramos quantos meses foram refeitos em vez de
+    // "atualizados", que nesse modo é sempre zero.
+    if (resumo.mesesRefeitos > 0) {
+      linhas += `<div class="linha"><span>Meses refeitos pela planilha</span><strong>${resumo.mesesRefeitos}</strong></div>`;
+      linhas += `<div class="linha"><span>Linhas antigas substituídas</span><strong>${resumo.apagados}</strong></div>`;
+    }
+    if (resumo.avisos && resumo.avisos.length > 0) {
+      linhas += `<div class="lista-codigos"><strong>Atenção:</strong> ${resumo.avisos.join(' ')}</div>`;
+    }
     if (resumo.codigosInexistentes.length > 0) {
       linhas += `<div class="lista-codigos">Não importados (item não está no elenco): ${resumo.codigosInexistentes.join(', ')}</div>`;
     }
