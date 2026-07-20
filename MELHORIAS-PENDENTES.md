@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | _(nada pendente — tudo publicado na v1.5.3 em 20/07/2026)_ | | | |
+| 22 | **CORREÇÃO — mesmo bug do item 21, agora no OD (Outras Demandas).** A tabela `solicitacoes_od` tinha um índice ÚNICO em (item, ano, mês, tipo) que **impedia** guardar duas solicitações OD do mesmo item/mês/tipo com ofícios/quantidades diferentes (forçava sobrescrever). Migração idempotente `DROP INDEX idx_solod_unico` + importador OD reescrito para "refazer o mês". Teste com planilha real: **+12 linhas recuperadas** (823→835). | 56de4f0 | 20/07/2026 | ✅ Testado com planilha real |
 
 ## Publicadas recentemente
 
