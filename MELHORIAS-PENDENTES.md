@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | _(nada pendente — tudo publicado na v1.5.2 em 20/07/2026)_ | | | |
+| 21 | **CORREÇÃO CRÍTICA — solicitações sumindo na importação.** O importador identificava a solicitação só por item+ano+mês, então duas linhas do mesmo item no mesmo mês (JS/AS/JM/ASM) eram tratadas como a mesma: no modo automático a segunda SOBRESCREVIA a primeira, apagando dados. Corrigido com **"refazer o mês"**: para cada mês da planilha, apaga e regrava tudo (planilha = fonte da verdade), em transação, com aviso se a planilha vier suspeita de incompleta. Teste com a planilha real: **+122 linhas recuperadas** e **470 grupos de duplicatas achatadas → 0**. | _(a preencher)_ | 20/07/2026 | ✅ Testado com planilha real |
 
 ## Publicadas recentemente
 

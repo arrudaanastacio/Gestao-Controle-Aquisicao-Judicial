@@ -149,13 +149,37 @@ router.post('/previa', upload.single('arquivo'), (req, res) => {
   });
 });
 
+// Identidade completa de uma linha de solicitação. Usada só no modo
+// 'somente_novos' (para não reinserir o que já está lá). Inclui TIPO
+// (JS/AS/JM/ASM), ofício, requisição GSNET e quantidade: o mesmo item pode
+// ter várias solicitações no mesmo mês, e elas se distinguem por esses
+// campos — considerar só item+ano+mês fundia solicitações diferentes.
+function chaveIdentidade(l) {
+  return [l.codigo_item, l.ano, l.mes, l.tipo, l.n_oficio, l.requisicao_gsnet, l.qtde_solicitada]
+    .map((v) => (v === null || v === undefined ? '' : String(v).trim()))
+    .join('||');
+}
+
 // Grava no banco as linhas extraídas de uma planilha, no modo indicado.
 // Compartilhado pela rota manual (/confirmar) e pelo vigia automático.
+//
+// modo 'substituir' (usado pelo vigia): REFAZ O MÊS. Para cada (ano, mês)
+// presente na planilha, apaga tudo daquele mês e regrava as linhas da
+// planilha. A planilha é a fonte da verdade, então o banco vira um espelho
+// exato dela. Isso resolve de uma vez:
+//   - várias solicitações do mesmo item no mesmo mês (JS/AS/JM/ASM) que
+//     antes eram fundidas numa linha só (uma sobrescrevia a outra);
+//   - correções feitas na planilha (quantidade, ofício) que antes gerariam
+//     duplicata em vez de corrigir;
+//   - duplicatas históricas já achatadas, que somem ao refazer o mês.
+// Meses que NÃO aparecem na planilha nunca são tocados.
+//
+// modo 'somente_novos': não apaga nada; insere só as linhas que ainda não
+// existem, comparando pela identidade completa (ver chaveIdentidade).
 function gravarImportacao(buffer, modo, nomeArquivo, usuarioEmail, usuarioId = null) {
   const { linhasComMovimento, abas } = processarPlanilha(buffer);
 
   const stmtBuscaItem = db.prepare('SELECT codigo_item FROM itens WHERE codigo_item = ?');
-  const stmtBuscaExistente = db.prepare('SELECT id FROM solicitacoes WHERE codigo_item = ? AND ano = ? AND mes = ?');
 
   const campos = ['codigo_item','ano','mes','tipo','modalidade_compra','n_oficio','qtde_solicitada',
     'data_solicitacao','requisicao_gsnet','n_empenho','quantidade_empenho','data_previsao_entrega',
@@ -164,36 +188,81 @@ function gravarImportacao(buffer, modo, nomeArquivo, usuarioEmail, usuarioId = n
   const stmtInsert = db.prepare(
     `INSERT INTO solicitacoes (${campos.join(',')}) VALUES (${campos.map(() => '?').join(',')})`
   );
-  const camposSemChave = campos.filter((c) => !['codigo_item','ano','mes'].includes(c));
-  const stmtUpdate = db.prepare(
-    `UPDATE solicitacoes SET ${camposSemChave.map((c) => `${c} = ?`).join(', ')} WHERE codigo_item = ? AND ano = ? AND mes = ?`
-  );
 
-  let inseridos = 0, atualizados = 0, ignorados = 0, itensInexistentes = 0;
+  let inseridos = 0, atualizados = 0, ignorados = 0, itensInexistentes = 0, apagados = 0;
   const codigosInexistentes = new Set();
+  const avisos = [];
 
+  // Separa as linhas por mês, preservando a ordem da planilha.
+  const porMes = new Map();
   for (const l of linhasComMovimento) {
-    if (!stmtBuscaItem.get(l.codigo_item)) {
-      itensInexistentes++;
-      codigosInexistentes.add(l.codigo_item);
-      continue;
-    }
+    const chave = `${l.ano}||${l.mes}`;
+    if (!porMes.has(chave)) porMes.set(chave, []);
+    porMes.get(chave).push(l);
+  }
 
-    const existente = stmtBuscaExistente.get(l.codigo_item, l.ano, l.mes);
+  // Tudo numa transação: se qualquer passo falhar, nada é apagado nem
+  // gravado pela metade (um mês nunca fica vazio por erro no meio).
+  db.exec('BEGIN');
+  try {
+    for (const [chave, linhas] of porMes) {
+      const [anoTxt, mes] = chave.split('||');
+      const ano = Number(anoTxt);
 
-    if (!existente) {
-      stmtInsert.run(...campos.map((c) => l[c]));
-      inseridos++;
-    } else if (modo === 'substituir') {
-      stmtUpdate.run(...camposSemChave.map((c) => l[c]), l.codigo_item, l.ano, l.mes);
-      atualizados++;
-    } else {
-      ignorados++;
+      // Só as linhas cujo item existe no catálogo podem ser gravadas.
+      const gravaveis = [];
+      for (const l of linhas) {
+        if (!stmtBuscaItem.get(l.codigo_item)) {
+          itensInexistentes++;
+          codigosInexistentes.add(l.codigo_item);
+          continue;
+        }
+        gravaveis.push(l);
+      }
+
+      if (modo === 'substituir') {
+        const existentes = db.prepare(
+          'SELECT COUNT(*) c FROM solicitacoes WHERE ano = ? AND mes = ?'
+        ).get(ano, mes).c;
+
+        // Rede de segurança: se a planilha traz bem menos linhas do que o
+        // banco já tem para o mês, pode ser arquivo truncado/corrompido.
+        // Não bloqueia (a planilha manda), mas registra aviso bem visível.
+        if (existentes > 0 && gravaveis.length < existentes * 0.5) {
+          const aviso = `Mês ${mes}/${ano}: planilha trouxe ${gravaveis.length} linha(s) e o banco tinha ${existentes}. Verifique se a planilha está completa.`;
+          avisos.push(aviso);
+          console.warn(`[IMPORTAR SOLICITACOES] ATENCAO - ${aviso}`);
+        }
+
+        apagados += db.prepare('DELETE FROM solicitacoes WHERE ano = ? AND mes = ?').run(ano, mes).changes;
+        for (const l of gravaveis) {
+          stmtInsert.run(...campos.map((c) => l[c]));
+          inseridos++;
+        }
+      } else {
+        // somente_novos: insere o que ainda não existe, pela identidade completa.
+        const jaExistem = new Set(
+          db.prepare(`SELECT ${campos.join(',')} FROM solicitacoes WHERE ano = ? AND mes = ?`)
+            .all(ano, mes).map(chaveIdentidade)
+        );
+        for (const l of gravaveis) {
+          if (jaExistem.has(chaveIdentidade(l))) { ignorados++; continue; }
+          stmtInsert.run(...campos.map((c) => l[c]));
+          jaExistem.add(chaveIdentidade(l));
+          inseridos++;
+        }
+      }
     }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
   }
 
   const resumo = {
     abasProcessadas: abas, inseridos, atualizados, ignorados, itensInexistentes,
+    apagados, mesesRefeitos: modo === 'substituir' ? porMes.size : 0,
+    avisos,
     codigosInexistentes: Array.from(codigosInexistentes).slice(0, 20),
   };
 
