@@ -37,6 +37,7 @@
   --realce-tabela: #eef4f0;
   --linha-tabela: #ece8db;
   --topbar-fundo: rgba(255, 253, 247, 0.92);
+  --sidebar-bg: #133d36;  /* fundo do menu: verde-escuro nos DOIS temas */
 }
 
 /* ============ TEMA ESCURO (botão claro/escuro na topbar) ============
@@ -62,6 +63,7 @@
   --topbar-fundo: rgba(15, 29, 25, 0.90);
   --sombra-cartao: 0 1px 2px rgba(0, 0, 0, 0.40);
   --sombra-flutua: 0 10px 30px rgba(0, 0, 0, 0.55);
+  --sidebar-bg: #0d241f;  /* menu um tom mais escuro no tema escuro */
 }
 /* No escuro, o hover do botão primário não pode clarear (o --selo-escuro vira
    claro); usa um verde um pouco mais escuro. */
@@ -206,7 +208,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 }
 
 .barra-lateral {
-  background: var(--selo-escuro);
+  background: var(--sidebar-bg);
   color: #e9f3ef;
   padding: 24px 18px;
   display: flex;
