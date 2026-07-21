@@ -4145,10 +4145,14 @@ async function carregarUltimaAtualizacao(spanId, tipo) {
 
 function formatarDataHora(iso) {
   if (!iso) return '—';
-  // iso vem como "AAAA-MM-DD HH:MM:SS" (datetime do SQLite, UTC)
-  const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  // iso vem como "AAAA-MM-DD HH:MM:SS" (datetime do SQLite, gravado em UTC).
+  // Convertemos para o horário LOCAL da máquina (Brasília, UTC−3) antes de
+  // exibir — senão o carimbo "Atualizado em" mostra 3h a mais.
+  const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
   if (!m) return iso;
-  return `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 // -------------------- Relatório Primeiro Atendimento (requisições salvas) --------------------
