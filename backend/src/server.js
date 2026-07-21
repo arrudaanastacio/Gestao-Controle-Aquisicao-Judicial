@@ -98,7 +98,31 @@ app.use('/api/entrada-lotes', autenticar, exigirModulo('entradaLotes'), entradaL
 app.use('/api/distribuicao', autenticar, exigirModulo('distribuicao'), distribuicaoRoutes);
 
 // Serve o frontend estático (build simples, sem framework)
-app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
+const PASTA_FRONT = path.join(__dirname, '..', '..', 'frontend');
+
+// Cache-buster automático: serve o index.html trocando a versão dos assets
+// (app.js / estilo.css) pela data de modificação do arquivo. Assim, toda vez
+// que o frontend muda, o navegador rebusca sozinho — sem precisar de Ctrl+F5.
+function versaoArquivo(rel) {
+  try { return fs.statSync(path.join(PASTA_FRONT, rel)).mtimeMs.toString(36); } catch { return '0'; }
+}
+function servirIndex(req, res) {
+  try {
+    let html = fs.readFileSync(path.join(PASTA_FRONT, 'index.html'), 'utf8');
+    const vApp = versaoArquivo(path.join('js', 'app.js'));
+    const vCss = versaoArquivo(path.join('css', 'estilo.css'));
+    html = html
+      .replace(/\/js\/app\.js(\?v=[^"']*)?/g, `/js/app.js?v=${vApp}`)
+      .replace(/\/css\/estilo\.css(\?v=[^"']*)?/g, `/css/estilo.css?v=${vCss}`);
+    res.set('Cache-Control', 'no-cache');
+    res.type('html').send(html);
+  } catch (e) {
+    res.sendFile(path.join(PASTA_FRONT, 'index.html'));
+  }
+}
+app.get(['/', '/index.html'], servirIndex);
+
+app.use(express.static(PASTA_FRONT));
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Sistema v${VERSAO} — ambiente: ${process.env.NODE_ENV || 'producao'}`);
