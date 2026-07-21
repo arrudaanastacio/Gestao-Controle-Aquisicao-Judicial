@@ -31,7 +31,45 @@
   --linha-forte: #cfc9b8; /* borda de ênfase (hover) */
   --alt-controle: 38px;   /* altura padrão de botões e campos */
   --esp-1: 4px; --esp-2: 8px; --esp-3: 12px; --esp-4: 16px; --esp-5: 24px; --esp-6: 32px;
+
+  /* Cores de tabela (viram variáveis para o tema escuro funcionar sozinho) */
+  --zebra: #faf9f2;
+  --realce-tabela: #eef4f0;
+  --linha-tabela: #ece8db;
+  --topbar-fundo: rgba(255, 253, 247, 0.92);
 }
+
+/* ============ TEMA ESCURO (botão claro/escuro na topbar) ============
+   Redefine só as variáveis; as peças, por lerem as variáveis, viram escuras
+   automaticamente. É a "identidade escura" do mockup. */
+:root[data-tema="escuro"] {
+  --tinta: #e7f0ec;
+  --tinta-suave: #a7bcb3;
+  --papel: #0f1d19;
+  --papel-elevado: #172a25;
+  --linha: rgba(255, 255, 255, 0.10);
+  --linha-forte: rgba(255, 255, 255, 0.20);
+  --selo: #2f8a76;
+  --selo-escuro: #8fe0c2;      /* usado como cor de texto/números/títulos */
+  --cinza-texto: #93a8a0;
+  --ambar-fundo: #3a2c14;
+  --vermelho-fundo: #3a201c;
+  --verde-ok-fundo: #163024;
+  --azul-fundo: #142a33;
+  --zebra: rgba(255, 255, 255, 0.03);
+  --realce-tabela: rgba(255, 255, 255, 0.06);
+  --linha-tabela: rgba(255, 255, 255, 0.08);
+  --topbar-fundo: rgba(15, 29, 25, 0.90);
+  --sombra-cartao: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --sombra-flutua: 0 10px 30px rgba(0, 0, 0, 0.55);
+}
+/* No escuro, o hover do botão primário não pode clarear (o --selo-escuro vira
+   claro); usa um verde um pouco mais escuro. */
+:root[data-tema="escuro"] .botao-primario:hover,
+:root[data-tema="escuro"] form button[type="submit"]:hover,
+:root[data-tema="escuro"] form button[type="button"]:hover { background: #2b7d69; border-color: #2b7d69; }
+:root[data-tema="escuro"] .etiqueta-status.andamento,
+:root[data-tema="escuro"] .etiqueta-status.planejamento { background: #253229; color: #cfe0d8; }
 
 * { box-sizing: border-box; }
 
@@ -521,7 +559,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   gap: 16px;
   margin: -32px -40px 24px;
   padding: 11px 40px;
-  background: rgba(255, 253, 247, 0.92);
+  background: var(--topbar-fundo);
   backdrop-filter: blur(6px);
   border-bottom: 1px solid var(--linha);
 }
@@ -551,6 +589,13 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   outline: none; border-color: var(--selo);
   box-shadow: 0 0 0 3px rgba(31, 92, 82, 0.15);
 }
+.ico-tema {
+  width: 36px; height: 36px; border-radius: var(--raio);
+  border: 1px solid var(--linha); background: var(--papel-elevado);
+  cursor: pointer; font-size: 16px; line-height: 1; flex-shrink: 0;
+  display: grid; place-items: center; transition: border-color .12s;
+}
+.ico-tema:hover { border-color: var(--selo); }
 .busca-topo-resultados {
   position: absolute; top: calc(100% + 5px); right: 0; width: 300px;
   background: var(--papel-elevado); border: 1px solid var(--linha);
@@ -723,7 +768,7 @@ thead th {
   font-weight: 600;
   padding: 10px 14px;
   border-bottom: 1px solid var(--linha);
-  background: #fbfaf6;
+  background: var(--papel);
 }
 
 /* Contêiner com rolagem horizontal, para tabelas largas (muitas colunas) */
@@ -764,7 +809,7 @@ thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f2efe6;
+  background: var(--papel);
   box-shadow: inset 0 -1px 0 var(--linha);
 }
 
@@ -780,10 +825,10 @@ thead th {
 /* O canto (cabeçalho da 1ª coluna) precisa ficar acima de ambos */
 .tabela-rolavel-x thead th:first-child {
   z-index: 3;
-  background: #f2efe6;
+  background: var(--papel);
 }
 /* Mantém o destaque da linha sob hover também na coluna congelada */
-.tabela-rolavel-x tbody tr:hover td:first-child { background: #e9f2ee; }
+.tabela-rolavel-x tbody tr:hover td:first-child { background: var(--realce-tabela); }
 
 /* Contêiner com rolagem própria + cabeçalho fixo (usado na tabela de estoque).
    A altura máxima cria a área rolável; o thead "gruda" no topo ao rolar. */
@@ -948,15 +993,15 @@ thead th {
 
 tbody td {
   padding: 11px 14px;
-  border-bottom: 1px solid #ece8db;
+  border-bottom: 1px solid var(--linha-tabela);
   vertical-align: top;
 }
 
 tbody tr:last-child td { border-bottom: none; }
 /* Zebra sutil + realce no hover (padrão de tabela corporativa). O realce vem
    depois na cascata para vencer a zebra. */
-tbody tr:nth-child(even) td { background: #faf9f2; }
-tbody tr:hover td { background: #eef4f0; }
+tbody tr:nth-child(even) td { background: var(--zebra); }
+tbody tr:hover td { background: var(--realce-tabela); }
 
 .col-codigo { font-family: var(--fonte-mono); font-size: 12px; color: var(--cinza-texto); }
 .col-data { font-family: var(--fonte-mono); font-size: 12px; white-space: nowrap; }
@@ -970,8 +1015,8 @@ tbody tr:hover td { background: #eef4f0; }
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 3px 8px;
-  border-radius: 3px;
+  padding: 3px 9px;
+  border-radius: 20px;
   white-space: nowrap;
 }
 

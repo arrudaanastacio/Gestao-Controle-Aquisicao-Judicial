@@ -290,6 +290,23 @@ const ICONES_NAV = {
   });
 })();
 
+// Tema claro/escuro (botão na topbar). Guardado por pessoa no navegador.
+(function tema() {
+  const raiz = document.documentElement;
+  function aplicar(t) {
+    raiz.setAttribute('data-tema', t);
+    const btn = document.getElementById('botaoTema');
+    if (btn) btn.textContent = t === 'escuro' ? '🌙' : '☀️';
+  }
+  aplicar(localStorage.getItem('tema') === 'escuro' ? 'escuro' : 'claro');
+  const btn = document.getElementById('botaoTema');
+  if (btn) btn.addEventListener('click', () => {
+    const novo = raiz.getAttribute('data-tema') === 'escuro' ? 'claro' : 'escuro';
+    localStorage.setItem('tema', novo);
+    aplicar(novo);
+  });
+})();
+
 // Busca "Ir para tela…" da topbar: filtra as telas pela trilha e navega.
 // Só oferece telas que o usuário pode ver (respeita a permissão do menu).
 (function buscaTelas() {
