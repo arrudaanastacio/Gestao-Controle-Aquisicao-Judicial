@@ -954,6 +954,26 @@ document.getElementById('botaoLimparFiltrosRelatorio').addEventListener('click',
   carregarRelatorio();
 });
 
+// KPIs do Relatório de Compras TP, calculados no navegador a partir das linhas
+// já carregadas — refletem o filtro atual (ano/status/busca) da tela.
+function renderKpisRelatorio(solicitacoes) {
+  const alvo = document.getElementById('kpisRelatorio');
+  if (!alvo) return;
+  const ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+  const total = solicitacoes.length;
+  const emAndamento = solicitacoes.filter((s) => ABERTO.includes(s.status)).length;
+  const finalizadas = solicitacoes.filter((s) => s.status === 'Finalizado').length;
+  const itens = new Set(solicitacoes.map((s) => s.codigo_item).filter(Boolean)).size;
+  const n = (v) => v.toLocaleString('pt-BR');
+  const cartao = (num, rotulo, classe = '') =>
+    `<div class="cartao-resumo"><div class="numero${classe ? ' ' + classe : ''}">${n(num)}</div><div class="rotulo">${rotulo}</div></div>`;
+  alvo.innerHTML =
+    cartao(total, 'Solicitações (filtro atual)') +
+    cartao(emAndamento, 'Em andamento') +
+    cartao(finalizadas, 'Finalizadas') +
+    cartao(itens, 'Itens distintos');
+}
+
 async function carregarRelatorio() {
   carregarUltimaAtualizacao('atualizadoRelatorio', 'solicitacoes');
   if (filtroAnoRelatorio.options.length <= 1) {
@@ -969,6 +989,8 @@ async function carregarRelatorio() {
   const params = paramsRelatorio();
 
   const { solicitacoes } = await api(`/relatorios/consolidado?${params.toString()}`);
+
+  renderKpisRelatorio(solicitacoes);
 
   const corpo = document.getElementById('corpoTabelaRelatorio');
   const vazio = document.getElementById('estadoVazioRelatorio');
