@@ -53,6 +53,10 @@
   --selo: #2f8a76;
   --selo-escuro: #8fe0c2;      /* usado como cor de texto/números/títulos */
   --cinza-texto: #93a8a0;
+  --ambar: #e0a54a;
+  --vermelho: #e07a6c;
+  --verde-ok: #6cc08a;
+  --azul: #7db8d0;
   --ambar-fundo: #3a2c14;
   --vermelho-fundo: #3a201c;
   --verde-ok-fundo: #163024;
@@ -686,6 +690,35 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 
 .cartao-resumo.alerta .numero { color: var(--vermelho); }
 .cartao-resumo.alerta { border-color: #e3b9b1; }
+
+/* Cartão de KPI no estilo do mockup: ícone + rótulo no topo, número grande e
+   uma linha descritiva embaixo. Usado nos relatórios. */
+.cartao-kpi {
+  background: var(--papel-elevado);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-cartao);
+  box-shadow: var(--sombra-cartao);
+  padding: 15px 17px;
+}
+.cartao-kpi .rot { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--cinza-texto); }
+.cartao-kpi .rot svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .8; }
+.cartao-kpi .num {
+  font-family: var(--fonte-titulo);
+  font-size: 27px; font-weight: 600; line-height: 1;
+  color: var(--selo-escuro); margin-top: 9px; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+.cartao-kpi .num.aviso { color: var(--ambar); }
+.cartao-kpi .num.critico { color: var(--vermelho); }
+.cartao-kpi .sub { font-size: 11.5px; color: var(--cinza-texto); margin-top: 5px; }
+
+/* Etiqueta do TIPO da solicitação (JS/AS/JM/ASM) na tabela — caixinha mono. */
+.tag-tipo {
+  font-family: var(--fonte-mono); font-size: 11px; font-weight: 600;
+  padding: 2px 7px; border-radius: var(--raio-peq);
+  background: var(--papel); border: 1px solid var(--linha); color: var(--cinza-texto);
+  white-space: nowrap;
+}
 
 /* ---------- FILTROS ---------- */
 

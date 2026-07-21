@@ -654,6 +654,24 @@ function preencherAnos() {
   }
 }
 
+// Ícones (traço simples) e montagem do cartão de KPI no estilo do mockup:
+// ícone + rótulo em cima, número grande, linha descritiva embaixo.
+const KPI_ICONES = {
+  doc: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+  chart: '<path d="M4 19h16M4 19V5M7 15l4-5 3 3 5-7"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  relogio: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+};
+function kpiCard(icone, num, rotulo, sub, classe = '') {
+  const svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${KPI_ICONES[icone] || ''}</svg>`;
+  return `<div class="cartao-kpi">
+      <div class="rot">${svg}${rotulo}</div>
+      <div class="num${classe ? ' ' + classe : ''}">${num}</div>
+      <div class="sub">${sub || ''}</div>
+    </div>`;
+}
+
 // KPIs da Tabela Análise TP, a partir do resumo (totais exatos, não paginados).
 async function renderKpisSolicitacoes() {
   const alvo = document.getElementById('kpisSolicitacoes');
@@ -668,13 +686,12 @@ async function renderKpisSolicitacoes() {
   const finalizadas = soma((l) => l.status === 'Finalizado');
   const atrasadas = r.atrasados || 0;
   const n = (v) => v.toLocaleString('pt-BR');
-  const c = (num, rot, cls = '') =>
-    `<div class="cartao-resumo${cls ? ' ' + cls : ''}"><div class="numero${cls ? ' ' + cls : ''}">${n(num)}</div><div class="rotulo">${rot}</div></div>`;
+  const pct = total ? Math.round((finalizadas / total) * 100) : 0;
   alvo.innerHTML =
-    c(total, 'Total de solicitações') +
-    c(andamento, 'Em andamento') +
-    c(finalizadas, 'Finalizadas') +
-    c(atrasadas, 'Atrasadas', atrasadas > 0 ? 'alerta' : '');
+    kpiCard('doc', n(total), 'Total de solicitações', 'todos os meses') +
+    kpiCard('chart', n(andamento), 'Em andamento', 'Planejamento · Adjucado · Empenhado · Entrega Parcial', 'aviso') +
+    kpiCard('check', n(finalizadas), 'Finalizadas', `${pct}% do total`) +
+    kpiCard('relogio', n(atrasadas), 'Atrasadas', 'previsão de entrega vencida', atrasadas > 0 ? 'critico' : '');
 }
 
 async function carregarSolicitacoes() {
@@ -709,7 +726,7 @@ async function carregarSolicitacoes() {
           <td>${s.descricao || '—'}</td>
           <td>${s.ano || '—'}</td>
           <td>${s.mes || '—'}</td>
-          <td>${s.tipo || '—'}</td>
+          <td>${s.tipo ? `<span class="tag-tipo">${s.tipo}</span>` : '—'}</td>
           <td>${s.modalidade_compra || '—'}</td>
           <td class="col-codigo">${s.n_oficio || '—'}</td>
           <td>${valorCelula(s.qtde_solicitada)}</td>
@@ -1006,13 +1023,12 @@ function renderKpisRelatorio(solicitacoes) {
   const finalizadas = solicitacoes.filter((s) => s.status === 'Finalizado').length;
   const itens = new Set(solicitacoes.map((s) => s.codigo_item).filter(Boolean)).size;
   const n = (v) => v.toLocaleString('pt-BR');
-  const cartao = (num, rotulo, classe = '') =>
-    `<div class="cartao-resumo"><div class="numero${classe ? ' ' + classe : ''}">${n(num)}</div><div class="rotulo">${rotulo}</div></div>`;
+  const pct = total ? Math.round((finalizadas / total) * 100) : 0;
   alvo.innerHTML =
-    cartao(total, 'Solicitações (filtro atual)') +
-    cartao(emAndamento, 'Em andamento') +
-    cartao(finalizadas, 'Finalizadas') +
-    cartao(itens, 'Itens distintos');
+    kpiCard('doc', n(total), 'Solicitações (filtro atual)', 'no recorte selecionado') +
+    kpiCard('chart', n(emAndamento), 'Em andamento', 'Planejamento · Adjucado · Empenhado · Entrega Parcial', 'aviso') +
+    kpiCard('check', n(finalizadas), 'Finalizadas', `${pct}% do total`) +
+    kpiCard('list', n(itens), 'Itens distintos', 'medicamentos diferentes');
 }
 
 async function carregarRelatorio() {
@@ -1053,7 +1069,7 @@ async function carregarRelatorio() {
         <td>${s.descricao || '—'}</td>
         <td>${s.ano || '—'}</td>
         <td>${s.mes || '—'}</td>
-        <td>${s.tipo || '—'}</td>
+        <td>${s.tipo ? `<span class="tag-tipo">${s.tipo}</span>` : '—'}</td>
         <td>${s.modalidade_compra || '—'}</td>
         <td class="col-codigo">${s.n_oficio || '—'}</td>
         <td>${valorCelula(s.qtde_solicitada)}</td>
@@ -2816,7 +2832,7 @@ async function carregarTabelaSolicitacoesOD() {
         <td class="col-codigo">${s.codigo_gsnet || '—'}</td>
         <td>${s.ano || '—'}</td>
         <td>${s.mes || '—'}</td>
-        <td>${s.tipo || '—'}</td>
+        <td>${s.tipo ? `<span class="tag-tipo">${s.tipo}</span>` : '—'}</td>
         <td>${s.modalidade_compra || '—'}</td>
         <td class="col-codigo">${s.n_oficio || '—'}</td>
         <td>${valorCelula(s.qtde_solicitada)}</td>
@@ -2919,7 +2935,7 @@ async function carregarTabelaAquisicaoODAndamento() {
         <td class="col-codigo">${s.codigo_gsnet || '—'}</td>
         <td>${s.ano || '—'}</td>
         <td>${s.mes || '—'}</td>
-        <td>${s.tipo || '—'}</td>
+        <td>${s.tipo ? `<span class="tag-tipo">${s.tipo}</span>` : '—'}</td>
         <td>${s.modalidade_compra || '—'}</td>
         <td class="col-codigo">${s.n_oficio || '—'}</td>
         <td>${valorCelula(s.qtde_solicitada)}</td>
