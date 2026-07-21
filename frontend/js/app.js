@@ -637,8 +637,32 @@ function preencherAnos() {
   }
 }
 
+// KPIs da Tabela Análise TP, a partir do resumo (totais exatos, não paginados).
+async function renderKpisSolicitacoes() {
+  const alvo = document.getElementById('kpisSolicitacoes');
+  if (!alvo) return;
+  let r;
+  try { r = await api('/solicitacoes/resumo'); } catch (_) { return; }
+  const ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial', 'Em andamento'];
+  const porStatus = r.porStatus || [];
+  const soma = (fil) => porStatus.filter(fil).reduce((s, l) => s + l.qtde, 0);
+  const total = soma(() => true);
+  const andamento = soma((l) => ABERTO.includes(l.status));
+  const finalizadas = soma((l) => l.status === 'Finalizado');
+  const atrasadas = r.atrasados || 0;
+  const n = (v) => v.toLocaleString('pt-BR');
+  const c = (num, rot, cls = '') =>
+    `<div class="cartao-resumo${cls ? ' ' + cls : ''}"><div class="numero${cls ? ' ' + cls : ''}">${n(num)}</div><div class="rotulo">${rot}</div></div>`;
+  alvo.innerHTML =
+    c(total, 'Total de solicitações') +
+    c(andamento, 'Em andamento') +
+    c(finalizadas, 'Finalizadas') +
+    c(atrasadas, 'Atrasadas', atrasadas > 0 ? 'alerta' : '');
+}
+
 async function carregarSolicitacoes() {
   carregarUltimaAtualizacao('atualizadoSolicitacoes', 'solicitacoes');
+  renderKpisSolicitacoes();
   const params = new URLSearchParams();
   if (filtroBusca.value) params.set('q', filtroBusca.value);
   if (filtroStatus.value) params.set('status', filtroStatus.value);
