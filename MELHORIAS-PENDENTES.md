@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | _(nada pendente — tudo publicado na v1.5.4 em 20/07/2026)_ | | | |
+| 23 | **Painel geral redesenhado** (visual de dashboard, mesma paleta): banner de alertas, 4 cards de KPI (compras em andamento, itens em ruptura, alertas ativos, lotes vencendo em 30 dias), barras "Compras por status", lista "Alertas recentes" e tabela "Compras em andamento". Dados reais (endpoints já existentes). | 6d8dc7c | 21/07/2026 | ✅ Visual conferido na prévia |
 
 ## Publicadas recentemente
 
