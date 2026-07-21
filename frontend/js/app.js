@@ -152,7 +152,11 @@ async function carregarUsuario() {
     document.getElementById('linkUsuarios').hidden = false;
     document.getElementById('linkImportadores').hidden = false;
     document.getElementById('linkAlertas').hidden = false;
-    document.getElementById('botaoNovaSolicitacao').hidden = false;
+    // "Nova solicitação" fica ESCONDIDO de propósito: as telas de compras
+    // TP/OD são espelho da planilha do G: (fonte da verdade). Um cadastro
+    // manual aqui seria apagado na próxima importação "refaz o mês" (12h/19h
+    // ou "Atualizar agora"). O cadastro correto é feito na planilha.
+    // document.getElementById('botaoNovaSolicitacao').hidden = false;
     document.getElementById('botaoAtualizarOracle').hidden = false;
     verificarStatusOracle(); // retoma acompanhamento se já houver atualização em curso
     document.getElementById('botaoAtualizarOracleEstoque').hidden = false;
