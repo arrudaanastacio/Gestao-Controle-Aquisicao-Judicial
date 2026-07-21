@@ -253,6 +253,9 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   }
   /* Rótulos longos ganham reticências em vez de corte seco (barra expandida) */
   .barra-lateral:hover .nav-rotulo { max-width: 190px; }
+  /* No trilho recolhido, some a estrela de favorito e a setinha de recolher. */
+  .barra-lateral:not(:hover) .fav-estrela,
+  .barra-lateral:not(:hover) .nav-cev { display: none; }
   .barra-lateral:hover .nav-rotulo,
   .barra-lateral:hover .marca-texto,
   .barra-lateral:hover .rodape-info,
@@ -419,6 +422,30 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .barra-lateral:not(:hover) .nav-subgrupo a { padding-left: 11px; }
 .nav-em-breve { opacity: 0.5; cursor: default; pointer-events: none; }
 .nav-em-breve span { font-style: italic; font-size: 0.85em; }
+
+/* ---------- Fase 3: menu escalável (grupos recolhíveis + favoritos) ---------- */
+/* Cabeçalho de unidade vira um botão que recolhe/expande o grupo. */
+.nav-unidade-titulo { cursor: pointer; user-select: none; }
+.nav-cev { margin-left: auto; display: flex; transition: transform .15s ease; opacity: .55; }
+.nav-cev svg { width: 14px; height: 14px; }
+.nav-grupo.recolhido .nav-cev { transform: rotate(-90deg); }
+.nav-grupo.recolhido .nav-subgrupo,
+.nav-grupo.recolhido > a,
+.nav-grupo.recolhido > .subtitulo { display: none; }
+
+/* Estrela de favorito em cada item (aparece no hover; fica acesa se favoritado). */
+.fav-estrela {
+  margin-left: auto; background: none; border: none; cursor: pointer; padding: 2px;
+  color: var(--lado-tinta); opacity: 0; flex-shrink: 0; display: flex; transition: opacity .12s, color .12s;
+}
+.link:hover .fav-estrela { opacity: .55; }
+.fav-estrela:hover { opacity: 1; color: #ffd166; }
+.fav-estrela.ativo { opacity: 1; color: #ffd166; }
+.fav-estrela svg { width: 15px; height: 15px; }
+.link .conta + .fav-estrela { margin-left: 6px; }
+
+/* Seção de favoritos no topo do menu. */
+.nav-favoritos { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
 
 .banner-alerta-oracle {
   background: #fdecea;

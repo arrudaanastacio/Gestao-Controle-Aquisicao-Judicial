@@ -220,6 +220,7 @@ function aplicarPermissoesNav() {
     document.getElementById('linkAlertas').hidden = false;
     atualizarBadgeAlertas();
   }
+  if (window.__favoritosRender) window.__favoritosRender();
 }
 
 async function atualizarBadgeAlertas() {
@@ -330,6 +331,92 @@ const ICONES_NAV = {
     else return;
     bs.forEach((b, i) => b.classList.toggle('marcado', i === marcado));
   });
+})();
+
+// Fase 3: menu escalável — grupos recolhíveis + favoritos (guardados no
+// navegador, por isso cada pessoa tem os seus). Mantém o menu limpo à medida
+// que novas telas entram.
+(function menuEscalavel() {
+  const CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>';
+  const ESTRELA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 21l1.1-6.5L2.6 9.8l6.5-.9z"/></svg>';
+
+  // Grupos recolhíveis: clicar no cabeçalho da unidade abre/fecha.
+  document.querySelectorAll('.nav-unidade-titulo').forEach((t) => {
+    const grupo = t.closest('.nav-grupo');
+    if (!grupo) return;
+    const chev = document.createElement('span');
+    chev.className = 'nav-cev';
+    chev.innerHTML = CHEV;
+    t.appendChild(chev);
+    t.setAttribute('role', 'button');
+    t.setAttribute('tabindex', '0');
+    const chave = 'menuRecolhido.' + (t.textContent || '').trim();
+    if (localStorage.getItem(chave) === '1') grupo.classList.add('recolhido');
+    const alternar = () => {
+      grupo.classList.toggle('recolhido');
+      localStorage.setItem(chave, grupo.classList.contains('recolhido') ? '1' : '0');
+    };
+    t.addEventListener('click', alternar);
+    t.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternar(); } });
+  });
+
+  // Favoritos: estrela em cada item fixa/desafixa a tela no topo do menu.
+  let FAV = [];
+  try { FAV = JSON.parse(localStorage.getItem('menuFavoritos') || '[]'); } catch (_) { FAV = []; }
+  const box = document.getElementById('navFavoritos');
+
+  function estrelasAtualizar() {
+    document.querySelectorAll('.fav-estrela').forEach((b) => b.classList.toggle('ativo', FAV.includes(b.dataset.pag)));
+  }
+  function favoritosRender() {
+    if (!box) return;
+    box.innerHTML = '';
+    const validos = FAV.filter((p) => {
+      const l = document.querySelector(`.nav-grupo a[data-pagina="${p}"]`);
+      return l && !l.hidden;
+    });
+    if (!validos.length) { box.hidden = true; return; }
+    box.hidden = false;
+    const tit = document.createElement('p');
+    tit.className = 'subtitulo';
+    tit.textContent = '⭐ Favoritos';
+    box.appendChild(tit);
+    validos.forEach((p) => {
+      const orig = document.querySelector(`.nav-grupo a[data-pagina="${p}"]`);
+      const a = document.createElement('a');
+      a.className = 'link';
+      a.href = '#';
+      a.dataset.pagina = p;
+      a.innerHTML = orig.innerHTML;
+      a.querySelectorAll('.fav-estrela').forEach((s) => s.remove());
+      a.addEventListener('click', (ev) => { ev.preventDefault(); mudarPagina(p); });
+      box.appendChild(a);
+    });
+  }
+  function alternarFav(p) {
+    const i = FAV.indexOf(p);
+    if (i >= 0) FAV.splice(i, 1); else FAV.push(p);
+    localStorage.setItem('menuFavoritos', JSON.stringify(FAV));
+    estrelasAtualizar();
+    favoritosRender();
+  }
+
+  document.querySelectorAll('.nav-grupo a[data-pagina]').forEach((a) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'fav-estrela';
+    b.dataset.pag = a.dataset.pagina;
+    b.setAttribute('aria-label', 'Fixar nos favoritos');
+    b.title = 'Fixar nos favoritos';
+    b.innerHTML = ESTRELA;
+    b.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); alternarFav(a.dataset.pagina); });
+    a.appendChild(b);
+  });
+  estrelasAtualizar();
+  favoritosRender();
+
+  // Reexpõe para reagir quando as permissões escondem telas (perfil consulta).
+  window.__favoritosRender = favoritosRender;
 })();
 
 function mostrarErroPagina(idSecao, mensagem) {
