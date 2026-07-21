@@ -13,10 +13,24 @@
   --verde-ok: #2c7a4b;
   --verde-ok-fundo: #e1f0e6;
   --cinza-texto: #5b5648;
+  --azul: #2a6a86;
+  --azul-fundo: #dfeaf0;
 
   --fonte-titulo: "Source Serif 4", "Iowan Old Style", Georgia, serif;
   --fonte-corpo: "Inter", "Segoe UI", system-ui, sans-serif;
   --fonte-mono: "IBM Plex Mono", "Courier New", monospace;
+
+  /* --- Tokens do design system (Fase 1) ---
+     Escala única de raio, sombra e espaçamento usada por todas as peças
+     (botões, campos, cartões, tabelas). Mexer aqui reflete no sistema todo. */
+  --raio: 8px;            /* controles: botões, campos, selects */
+  --raio-cartao: 12px;    /* cartões e blocos de conteúdo */
+  --raio-peq: 6px;        /* etiquetas, tags pequenas */
+  --sombra-cartao: 0 1px 2px rgba(22, 48, 43, 0.05);
+  --sombra-flutua: 0 8px 24px rgba(22, 48, 43, 0.12);
+  --linha-forte: #cfc9b8; /* borda de ênfase (hover) */
+  --alt-controle: 38px;   /* altura padrão de botões e campos */
+  --esp-1: 4px; --esp-2: 8px; --esp-3: 12px; --esp-4: 16px; --esp-5: 24px; --esp-6: 32px;
 }
 
 * { box-sizing: border-box; }
@@ -517,7 +531,8 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .cartao-resumo {
   background: var(--papel-elevado);
   border: 1px solid var(--linha);
-  border-radius: 6px;
+  border-radius: var(--raio-cartao);
+  box-shadow: var(--sombra-cartao);
   padding: 16px 18px;
   position: relative;
   overflow: hidden;
@@ -551,24 +566,43 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 
 .barra-filtros input[type="text"],
 .barra-filtros select {
-  padding: 8px 10px;
+  height: var(--alt-controle);
+  padding: 8px 11px;
   border: 1px solid var(--linha);
-  border-radius: 4px;
+  border-radius: var(--raio);
   background: var(--papel-elevado);
   font-size: 13px;
   font-family: var(--fonte-corpo);
   color: var(--tinta);
+  transition: border-color .12s, box-shadow .12s;
+}
+.barra-filtros input[type="text"]:focus,
+.barra-filtros select:focus {
+  outline: none;
+  border-color: var(--selo);
+  box-shadow: 0 0 0 3px rgba(31, 92, 82, 0.15);
 }
 
 .barra-filtros input[type="text"] { min-width: 240px; flex: 1; }
 
+.botao-secundario,
+.botao-primario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: var(--alt-controle);
+  padding: 0 15px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--raio);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
 .botao-secundario {
   background: var(--papel-elevado);
-  border: 1px solid var(--linha);
+  border: 1px solid var(--linha-forte);
   color: var(--tinta);
-  padding: 8px 14px;
-  font-size: 13px;
-  border-radius: 4px;
 }
 .botao-secundario:hover { border-color: var(--selo); color: var(--selo-escuro); }
 .botao-secundario:disabled { opacity: .55; cursor: not-allowed; }
@@ -576,19 +610,19 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 
 .botao-primario {
   background: var(--selo);
+  border: 1px solid var(--selo);
   color: #fdfdfb;
-  padding: 8px 14px;
-  font-size: 13px;
-  border-radius: 4px;
 }
-.botao-primario:hover { background: var(--selo-escuro); }
+.botao-primario:hover { background: var(--selo-escuro); border-color: var(--selo-escuro); }
+.botao-primario:disabled { opacity: .55; cursor: not-allowed; }
 
 /* ---------- TABELA ---------- */
 
 .tabela-wrap {
   background: var(--papel-elevado);
   border: 1px solid var(--linha);
-  border-radius: 6px;
+  border-radius: var(--raio-cartao);
+  box-shadow: var(--sombra-cartao);
   overflow: hidden;
 }
 
@@ -833,7 +867,10 @@ tbody td {
 }
 
 tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: #fbfaf3; }
+/* Zebra sutil + realce no hover (padrão de tabela corporativa). O realce vem
+   depois na cascata para vencer a zebra. */
+tbody tr:nth-child(even) td { background: #faf9f2; }
+tbody tr:hover td { background: #eef4f0; }
 
 .col-codigo { font-family: var(--fonte-mono); font-size: 12px; color: var(--cinza-texto); }
 .col-data { font-family: var(--fonte-mono); font-size: 12px; white-space: nowrap; }
