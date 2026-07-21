@@ -74,8 +74,13 @@
 :root[data-tema="escuro"] .botao-primario:hover,
 :root[data-tema="escuro"] form button[type="submit"]:hover,
 :root[data-tema="escuro"] form button[type="button"]:hover { background: #2b7d69; border-color: #2b7d69; }
-:root[data-tema="escuro"] .etiqueta-status.andamento,
-:root[data-tema="escuro"] .etiqueta-status.planejamento { background: #253229; color: #cfe0d8; }
+/* No escuro, todas as pílulas de status ganham um fundo uniforme derivado da
+   própria cor do texto — assim ficam igualmente visíveis (o verde "Finalizado"
+   não some mais) e consistentes entre si. */
+:root[data-tema="escuro"] .etiqueta-status {
+  background: rgba(255, 255, 255, 0.06); /* reserva, caso color-mix não exista */
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
 
 * { box-sizing: border-box; }
 
