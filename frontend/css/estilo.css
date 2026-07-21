@@ -81,6 +81,14 @@
   background: rgba(255, 255, 255, 0.06); /* reserva, caso color-mix não exista */
   background: color-mix(in srgb, currentColor 16%, transparent);
 }
+/* Status neutros (Planejamento/Adjucado/Empenhado…) usam texto cinza de baixa
+   saturação — o fundo de 16% ficaria invisível. Damos um fundo neutro definido
+   e um texto mais claro, para lerem como pílula igual às coloridas. */
+:root[data-tema="escuro"] .etiqueta-status.andamento,
+:root[data-tema="escuro"] .etiqueta-status.planejamento {
+  background: rgba(255, 255, 255, 0.10);
+  color: #c6d5cd;
+}
 
 * { box-sizing: border-box; }
 
