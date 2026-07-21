@@ -540,16 +540,14 @@ let idSolicitacaoEditando = null;
 document.getElementById('botaoNovaSolicitacao').addEventListener('click', () => abrirModalSolicitacao(null));
 document.getElementById('botaoCancelarModal').addEventListener('click', () => { modalSolicitacao.hidden = true; });
 
-// Botões "Atualizar agora" (só admin) — relê o arquivo da pasta de rede e
-// reimporta na hora, sem esperar os horários agendados (12h/19h). Fonte "tp"
-// atende Relatório de Compras TP + Tabela Análise TP; fonte "od" atende
-// Relatório de Compras OD + Aquisição em Andamento OD. Como TP e OD vêm cada um
-// de UM arquivo, um clique atualiza as duas telas da mesma fonte.
+// Botão "Atualizar agora" (só admin) — relê o arquivo da pasta de rede e
+// reimporta na hora, sem esperar os horários agendados (12h/19h). Como TP e OD
+// vêm cada um de UM arquivo e cada par de telas lê da MESMA tabela, o botão
+// fica só na tela "Relatório de Compras" de cada fonte; a tela irmã (Tabela
+// Análise TP / Aquisição em Andamento OD) já pega os dados novos ao abrir.
 const RECARGA_ATUALIZAR_AGORA = {
-  btnAtualizarAgoraSolicitacoes: carregarSolicitacoes,
   btnAtualizarAgoraRelatorio: carregarRelatorio,
   btnAtualizarAgoraSolicitacoesOD: carregarSolicitacoesOD,
-  btnAtualizarAgoraAquisicaoOD: carregarAquisicaoODAndamento,
 };
 // Mostra um recado curto ao lado do botão (cria o span se ainda não existir).
 function statusAtualizarAgora(botao, texto, cor) {
