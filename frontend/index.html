@@ -102,6 +102,7 @@
           </div>
           <div class="cabecalho-direita">
             <span class="atualizado-em" id="atualizadoSolicitacoes"></span>
+            <button class="botao-secundario botao-atualizar-agora" id="btnAtualizarAgoraSolicitacoes" data-fonte="tp" hidden>↻ Atualizar agora</button>
             <button class="botao-primario" id="botaoNovaSolicitacao" hidden>+ Nova solicitação</button>
           </div>
         </div>
@@ -195,6 +196,7 @@
           </div>
           <div style="display:flex; gap:10px; align-items:center;">
             <span class="atualizado-em" id="atualizadoRelatorio"></span>
+            <button class="botao-secundario botao-atualizar-agora" id="btnAtualizarAgoraRelatorio" data-fonte="tp" hidden>↻ Atualizar agora</button>
             <select id="filtroAnoRelatorio">
               <option value="">Todos os anos</option>
             </select>
@@ -817,7 +819,10 @@
             <h2>Relatório de Compras OD</h2>
             <p>Solicitações de compra de medicamentos de Outras Demandas</p>
           </div>
-          <span class="atualizado-em" id="atualizadoSolicitacoesOD"></span>
+          <div class="cabecalho-direita">
+            <span class="atualizado-em" id="atualizadoSolicitacoesOD"></span>
+            <button class="botao-secundario botao-atualizar-agora" id="btnAtualizarAgoraSolicitacoesOD" data-fonte="od" hidden>↻ Atualizar agora</button>
+          </div>
         </div>
 
         <div class="grade-resumo" id="grideResumoSolicitacoesOD"></div>
@@ -875,7 +880,10 @@
             <h2>Aquisição em Andamento OD</h2>
             <p>Solicitações de Outras Demandas com compra ainda não finalizada (Planejamento, Adjucado, Empenhado, Entrega Parcial)</p>
           </div>
-          <span class="atualizado-em" id="atualizadoAquisicaoODAndamento"></span>
+          <div class="cabecalho-direita">
+            <span class="atualizado-em" id="atualizadoAquisicaoODAndamento"></span>
+            <button class="botao-secundario botao-atualizar-agora" id="btnAtualizarAgoraAquisicaoOD" data-fonte="od" hidden>↻ Atualizar agora</button>
+          </div>
         </div>
 
         <div class="grade-resumo" id="grideResumoAquisicaoODAndamento"></div>

@@ -46,6 +46,31 @@ function tentarImportar(motivo) {
   }
 }
 
+// Importação manual "agora" (botão admin nas telas de Compras TP / Análise TP).
+// Ignora a assinatura: importa sempre a versão mais recente do arquivo, mesmo
+// que o vigia já tenha visto essa versão. Roda dentro do processo do app, que
+// já detém o banco (síncrono) — seguro, sem lock externo.
+function forcarImportacaoSolicitacoes(usuarioEmail, usuarioId = null) {
+  const assin = assinaturaArquivo();
+  if (!assin) {
+    const err = new Error('Arquivo do Relatório de Compras TP não encontrado na pasta de rede.');
+    err.codigo = 'ARQUIVO_NAO_ENCONTRADO';
+    throw err;
+  }
+  const buffer = fs.readFileSync(CAMINHO);
+  if (assinaturaArquivo() !== assin) {
+    const err = new Error('O arquivo está sendo gravado neste momento. Tente de novo em alguns segundos.');
+    err.codigo = 'ARQUIVO_EM_GRAVACAO';
+    throw err;
+  }
+  const { gravarImportacao } = require('./routes.importarSolicitacoes');
+  const resumo = gravarImportacao(buffer, 'substituir', 'RELATÓRIO DE COMPRAS TENENTE PENA - Macro.xlsm', usuarioEmail || 'atualizacao-manual', usuarioId);
+  ultimaAssinatura = assin;
+  salvarAssinatura('solicitacoes', ultimaAssinatura);
+  console.log(`[VIGIA SOLICITAÇÕES] Atualização manual por ${usuarioEmail}: ${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados.`);
+  return resumo;
+}
+
 function iniciarVigiaSolicitacoes() {
   if (process.env.AUTO_IMPORTAR_SOLICITACOES === 'false') {
     console.log('[VIGIA SOLICITAÇÕES] Desativado (AUTO_IMPORTAR_SOLICITACOES=false).');
@@ -57,4 +82,4 @@ function iniciarVigiaSolicitacoes() {
   console.log('[VIGIA SOLICITAÇÕES] Agendado para checar às 12h e 19h. Arquivo:', CAMINHO);
 }
 
-module.exports = { iniciarVigiaSolicitacoes };
+module.exports = { iniciarVigiaSolicitacoes, forcarImportacaoSolicitacoes };

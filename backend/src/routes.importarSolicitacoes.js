@@ -293,5 +293,20 @@ router.post('/confirmar', upload.single('arquivo'), (req, res) => {
   res.json(resumo);
 });
 
+// Atualização manual "agora" (admin) — relê o arquivo da pasta de rede e
+// reimporta, sem esperar o horário agendado (12h/19h). Usado pelos botões
+// "Atualizar agora" das telas Relatório de Compras TP e Tabela Análise TP.
+router.post('/atualizar-agora', exigirPerfil('admin'), (req, res) => {
+  try {
+    const { forcarImportacaoSolicitacoes } = require('./vigiaSolicitacoes');
+    const resumo = forcarImportacaoSolicitacoes(req.usuario.email, req.usuario.id);
+    res.json({ ok: true, ...resumo });
+  } catch (e) {
+    const status = e.codigo === 'ARQUIVO_NAO_ENCONTRADO' ? 404
+      : e.codigo === 'ARQUIVO_EM_GRAVACAO' ? 409 : 400;
+    res.status(status).json({ erro: e.message });
+  }
+});
+
 module.exports = router;
 module.exports.gravarImportacao = gravarImportacao;

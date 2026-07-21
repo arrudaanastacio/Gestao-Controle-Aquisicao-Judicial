@@ -162,6 +162,7 @@ async function carregarUsuario() {
     verificarStatusOracleEntradaLotes();
     document.getElementById('botaoAtualizarRelatorioItens').hidden = false;
     verificarStatusOracleRelatorioItens();
+    document.querySelectorAll('.botao-atualizar-agora').forEach((b) => { b.hidden = false; });
     atualizarBadgeAlertas();
     carregarConfigLimiar();
   } else {
@@ -534,6 +535,53 @@ let idSolicitacaoEditando = null;
 
 document.getElementById('botaoNovaSolicitacao').addEventListener('click', () => abrirModalSolicitacao(null));
 document.getElementById('botaoCancelarModal').addEventListener('click', () => { modalSolicitacao.hidden = true; });
+
+// Botões "Atualizar agora" (só admin) — relê o arquivo da pasta de rede e
+// reimporta na hora, sem esperar os horários agendados (12h/19h). Fonte "tp"
+// atende Relatório de Compras TP + Tabela Análise TP; fonte "od" atende
+// Relatório de Compras OD + Aquisição em Andamento OD. Como TP e OD vêm cada um
+// de UM arquivo, um clique atualiza as duas telas da mesma fonte.
+const RECARGA_ATUALIZAR_AGORA = {
+  btnAtualizarAgoraSolicitacoes: carregarSolicitacoes,
+  btnAtualizarAgoraRelatorio: carregarRelatorio,
+  btnAtualizarAgoraSolicitacoesOD: carregarSolicitacoesOD,
+  btnAtualizarAgoraAquisicaoOD: carregarAquisicaoODAndamento,
+};
+// Mostra um recado curto ao lado do botão (cria o span se ainda não existir).
+function statusAtualizarAgora(botao, texto, cor) {
+  let el = botao.nextElementSibling;
+  if (!el || !el.classList.contains('status-atualizar-agora')) {
+    el = document.createElement('span');
+    el.className = 'status-atualizar-agora atualizado-em';
+    botao.after(el);
+  }
+  el.textContent = texto || '';
+  el.style.color = cor || '';
+  el.hidden = !texto;
+}
+document.querySelectorAll('.botao-atualizar-agora').forEach((botao) => {
+  botao.addEventListener('click', async () => {
+    const fonte = botao.dataset.fonte; // 'tp' ou 'od'
+    const rota = fonte === 'od' ? '/solicitacoes-od/atualizar-agora' : '/importar-solicitacoes/atualizar-agora';
+    const rotulo = botao.textContent;
+    botao.disabled = true;
+    botao.textContent = '↻ Atualizando…';
+    statusAtualizarAgora(botao, '');
+    try {
+      const r = await api(rota, { method: 'POST' });
+      const recarregar = RECARGA_ATUALIZAR_AGORA[botao.id];
+      if (recarregar) await recarregar();
+      const ins = r.inseridos ?? 0;
+      const atu = r.atualizados ?? 0;
+      statusAtualizarAgora(botao, `✔ Atualizado: ${ins} inseridos, ${atu} atualizados.`, '#2c7a4b');
+    } catch (e) {
+      statusAtualizarAgora(botao, e.message || 'Não foi possível atualizar agora.', '#a3372b');
+    } finally {
+      botao.disabled = false;
+      botao.textContent = rotulo;
+    }
+  });
+});
 
 async function carregarItensCache(filtro = '') {
   const { itens } = await api(`/itens?q=${encodeURIComponent(filtro)}&pageSize=50`);
