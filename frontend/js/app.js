@@ -289,6 +289,49 @@ const ICONES_NAV = {
   });
 })();
 
+// Busca "Ir para tela…" da topbar: filtra as telas pela trilha e navega.
+// Só oferece telas que o usuário pode ver (respeita a permissão do menu).
+(function buscaTelas() {
+  const input = document.getElementById('buscaTelas');
+  const cx = document.getElementById('buscaTelasResultados');
+  if (!input || !cx) return;
+  let itens = [], marcado = -1;
+
+  function listar() {
+    const q = input.value.trim().toLowerCase();
+    const res = [];
+    for (const [pag, partes] of Object.entries(TRILHAS)) {
+      const link = document.querySelector(`.nav-lateral a[data-pagina="${pag}"]`);
+      if (link && link.hidden) continue;
+      const tela = partes[partes.length - 1];
+      const via = partes.slice(0, -1).join(' › ');
+      if (!q || `${tela} ${via}`.toLowerCase().includes(q)) res.push({ pag, tela, via });
+    }
+    return res.slice(0, 12);
+  }
+  function abrir() {
+    itens = listar(); marcado = -1;
+    cx.innerHTML = itens.length
+      ? itens.map((r) => `<button type="button" class="item" data-pag="${r.pag}">${r.tela}${r.via ? `<span class="via">${r.via}</span>` : ''}</button>`).join('')
+      : '<div class="vazio">Nenhuma tela encontrada.</div>';
+    cx.hidden = false;
+    cx.querySelectorAll('.item').forEach((b) => b.addEventListener('mousedown', (ev) => { ev.preventDefault(); ir(b.dataset.pag); }));
+  }
+  function ir(pag) { input.value = ''; cx.hidden = true; mudarPagina(pag); }
+  input.addEventListener('focus', abrir);
+  input.addEventListener('input', abrir);
+  input.addEventListener('blur', () => setTimeout(() => { cx.hidden = true; }, 120));
+  input.addEventListener('keydown', (ev) => {
+    const bs = cx.querySelectorAll('.item');
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); marcado = Math.min(marcado + 1, bs.length - 1); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); marcado = Math.max(marcado - 1, 0); }
+    else if (ev.key === 'Enter') { if (itens[marcado]) { ev.preventDefault(); ir(itens[marcado].pag); } return; }
+    else if (ev.key === 'Escape') { cx.hidden = true; input.blur(); return; }
+    else return;
+    bs.forEach((b, i) => b.classList.toggle('marcado', i === marcado));
+  });
+})();
+
 function mostrarErroPagina(idSecao, mensagem) {
   const secao = document.getElementById(idSecao);
   if (!secao) return;
@@ -299,8 +342,48 @@ function mostrarErroPagina(idSecao, mensagem) {
   alvo.prepend(div);
 }
 
+// Caminho de navegação (breadcrumb) de cada tela: Unidade › Tipo › Tela.
+// Usado pela topbar e pela busca "Ir para tela…".
+const TRILHAS = {
+  painel: ['Painel'],
+  relatorio: ['Tenente Pena', 'Compras', 'Relatório de Compras TP'],
+  solicitacoes: ['Tenente Pena', 'Compras', 'Tabela Análise TP'],
+  comparativoAutores: ['Tenente Pena', 'Compras', 'Comparativo de Autores'],
+  relatorioReq: ['Tenente Pena', 'Compras', 'Relatório de Primeiro Atendimento'],
+  estoque: ['Tenente Pena', 'Estoque', 'Estoque Tenente Pena'],
+  evolucao: ['Tenente Pena', 'Estoque', 'Evolução de Estoque'],
+  historico: ['Tenente Pena', 'Estoque', 'Histórico de Estoque'],
+  entradaLotes: ['Tenente Pena', 'Estoque', 'Movimentação de Entrada'],
+  alertas: ['Tenente Pena', 'Estoque', 'Alertas'],
+  autores: ['Tenente Pena', 'Autores', 'Listagem de Autores'],
+  validades: ['Tenente Pena', 'Autores', 'Consultar Validades TP'],
+  estoqueGeral: ['Outras Demandas', 'Estoque', 'Itens em Estoque Geral'],
+  estoqueOD: ['Outras Demandas', 'Estoque', 'Estoque GSNET/IBL'],
+  distribuicao: ['Outras Demandas', 'Estoque', 'Distribuição'],
+  aquisicaoODAndamento: ['Outras Demandas', 'Compras', 'Aquisição em Andamento'],
+  solicitacoesOD: ['Outras Demandas', 'Compras', 'Relatório de Compras OD'],
+  autoresGeral: ['Outras Demandas', 'Autores', 'Listagem de Autores Demais Unidades'],
+  relatorioItens: ['Consultas', 'Relatório de Itens'],
+  atas: ['Consultas', 'Atas de Registro de Preço'],
+  usuarios: ['Administração', 'Usuários'],
+  importadores: ['Administração', 'Importação'],
+  elenco: ['Administração', 'Elenco'],
+  busca: ['Busca de medicamento'],
+};
+
+function atualizarTrilha(pagina) {
+  const trilha = document.getElementById('trilha');
+  if (!trilha) return;
+  const partes = TRILHAS[pagina] || ['—'];
+  const sep = '<svg class="sep" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>';
+  trilha.innerHTML = partes
+    .map((p, i) => (i === partes.length - 1 ? `<span class="atual">${p}</span>` : `<span>${p}</span>`))
+    .join(sep);
+}
+
 async function mudarPagina(pagina) {
   estado.paginaAtual = pagina;
+  atualizarTrilha(pagina);
   document.querySelectorAll('.nav-lateral a').forEach((a) => a.classList.toggle('ativo', a.dataset.pagina === pagina));
   document.getElementById('paginaPainel').hidden = pagina !== 'painel';
   document.getElementById('paginaSolicitacoes').hidden = pagina !== 'solicitacoes';

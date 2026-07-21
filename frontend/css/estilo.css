@@ -481,6 +481,65 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   max-width: 1280px;
 }
 
+/* ---------- Barra superior (topbar) — Fase 2 do visual ERP ----------
+   Fica no topo de todas as telas: caminho de navegação (breadcrumb) à esquerda
+   e busca de telas à direita. Usa margem negativa para vazar o padding do
+   .conteudo e ocupar toda a largura, e fica fixa ao rolar. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: -32px -40px 24px;
+  padding: 11px 40px;
+  background: rgba(255, 253, 247, 0.92);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--linha);
+}
+.trilha {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--cinza-texto);
+  flex-wrap: wrap;
+}
+.trilha .sep { width: 13px; height: 13px; opacity: .45; flex-shrink: 0; }
+.trilha .atual { color: var(--selo-escuro); font-weight: 600; }
+.topbar-dir { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.busca-topo { position: relative; }
+.busca-topo .lupa {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  width: 15px; height: 15px; color: var(--cinza-texto); pointer-events: none;
+}
+.busca-topo input {
+  width: 230px; height: 36px;
+  background: var(--papel); border: 1px solid var(--linha); color: var(--tinta);
+  border-radius: var(--raio); padding: 8px 10px 8px 31px; font-size: 13px;
+  font-family: var(--fonte-corpo); transition: border-color .12s, box-shadow .12s;
+}
+.busca-topo input:focus {
+  outline: none; border-color: var(--selo);
+  box-shadow: 0 0 0 3px rgba(31, 92, 82, 0.15);
+}
+.busca-topo-resultados {
+  position: absolute; top: calc(100% + 5px); right: 0; width: 300px;
+  background: var(--papel-elevado); border: 1px solid var(--linha);
+  border-radius: var(--raio-cartao); box-shadow: var(--sombra-flutua);
+  padding: 6px; max-height: 340px; overflow-y: auto; z-index: 30;
+}
+.busca-topo-resultados .item {
+  display: block; width: 100%; text-align: left; background: none; border: none;
+  cursor: pointer; font-family: var(--fonte-corpo); color: var(--tinta);
+  padding: 8px 10px; border-radius: var(--raio); font-size: 13px;
+}
+.busca-topo-resultados .item:hover,
+.busca-topo-resultados .item.marcado { background: #eef4f0; }
+.busca-topo-resultados .item .via { display: block; font-size: 11px; color: var(--cinza-texto); margin-top: 1px; }
+.busca-topo-resultados .vazio { padding: 10px; font-size: 12.5px; color: var(--cinza-texto); }
+
 /* Páginas de relatório/estoque usam a largura total disponível,
    já que têm muitas colunas e se beneficiam de mais espaço. */
 .conteudo:has(> #paginaSolicitacoes:not([hidden])),
@@ -1071,6 +1130,10 @@ tbody tr:hover td { background: #eef4f0; }
   .nav-lateral { flex-direction: row; }
   .rodape-lateral { display: none; }
   .conteudo { padding: 20px; }
+  .topbar { margin: -20px -20px 18px; padding: 10px 20px; flex-wrap: wrap; gap: 10px; }
+  .busca-topo input { width: 100%; }
+  .busca-topo { flex: 1; }
+  .busca-topo-resultados { width: 100%; }
   .grade-form { grid-template-columns: 1fr; }
 }
 
