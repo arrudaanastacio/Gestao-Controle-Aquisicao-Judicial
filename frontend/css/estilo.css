@@ -234,8 +234,11 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
     width: 0;
     overflow: hidden;
     white-space: nowrap;
+    text-overflow: ellipsis;
     transition: opacity 0.12s ease;
   }
+  /* Rótulos longos ganham reticências em vez de corte seco (barra expandida) */
+  .barra-lateral:hover .nav-rotulo { max-width: 190px; }
   .barra-lateral:hover .nav-rotulo,
   .barra-lateral:hover .marca-texto,
   .barra-lateral:hover .rodape-info,
@@ -370,6 +373,36 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 }
 .nav-sub-vazio { opacity: 0.5; }
 .nav-sub-vazio span { font-style: italic; text-transform: none; letter-spacing: 0; }
+
+/* Menu em dois níveis: Unidade (Tenente Pena / Outras Demandas / Consultas /
+   Administração) e, dentro dela, subgrupos por tipo (Estoque / Compras /
+   Autores). O cabeçalho da unidade é mais forte; o do subgrupo é mais discreto
+   e os links dele ficam levemente recuados. */
+.nav-unidade-titulo {
+  font-size: 12px;
+  color: #eaf3ef;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+.nav-subgrupo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+}
+.nav-subgrupo:first-of-type { margin-top: 4px; }
+.nav-subgrupo-titulo {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: #9dbcb0;
+  margin: 0 0 3px 2px;
+}
+.nav-subgrupo a { padding-left: 20px; }
+.nav-subgrupo a.ativo::before { left: 8px; }
+/* Na barra recolhida (estreita), remove o recuo — os ícones ficam centrados. */
+.barra-lateral:not(:hover) .nav-subgrupo a { padding-left: 11px; }
 .nav-em-breve { opacity: 0.5; cursor: default; pointer-events: none; }
 .nav-em-breve span { font-style: italic; font-size: 0.85em; }
 

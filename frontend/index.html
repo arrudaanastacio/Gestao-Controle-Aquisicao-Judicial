@@ -23,38 +23,62 @@
         <a href="#" data-pagina="painel" class="ativo">Painel</a>
 
         <div class="nav-grupo">
-          <p class="nav-grupo-titulo">🏥 Tenente Pena</p>
-          <a href="#" data-pagina="relatorio">Relatório de Compras TP</a>
-          <a href="#" data-pagina="solicitacoes">Tabela Análise TP</a>
-          <a href="#" data-pagina="estoque">Estoque Tenente Pena</a>
-          <a href="#" data-pagina="validades">Consultar Validades TP</a>
-          <a href="#" data-pagina="historico">Histórico de Estoque</a>
-          <a href="#" data-pagina="evolucao">Evolução de Estoque</a>
-          <a href="#" data-pagina="autores">Listagem de Autores Tenente Pena</a>
-          <a href="#" data-pagina="relatorioReq">Relatório de Primeiro Atendimento</a>
-          <a href="#" data-pagina="comparativoAutores">Comparativo de Autores</a>
-          <a href="#" data-pagina="entradaLotes">Movimentação de Entrada Estoque</a>
-          <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
+          <p class="nav-grupo-titulo nav-unidade-titulo">📦 Tenente Pena</p>
+
+          <div class="nav-subgrupo">
+            <p class="nav-grupo-titulo nav-subgrupo-titulo">📊 Estoque</p>
+            <a href="#" data-pagina="estoque">Estoque Tenente Pena</a>
+            <a href="#" data-pagina="evolucao">Evolução de Estoque</a>
+            <a href="#" data-pagina="historico">Histórico de Estoque</a>
+            <a href="#" data-pagina="entradaLotes">Movimentação de Entrada</a>
+            <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
+          </div>
+
+          <div class="nav-subgrupo">
+            <p class="nav-grupo-titulo nav-subgrupo-titulo">🛒 Compras</p>
+            <a href="#" data-pagina="solicitacoes">Tabela Análise TP</a>
+            <a href="#" data-pagina="relatorio">Relatório de Compras TP</a>
+            <a href="#" data-pagina="comparativoAutores">Comparativo de Autores</a>
+            <a href="#" data-pagina="relatorioReq">Relatório de Primeiro Atendimento</a>
+          </div>
+
+          <div class="nav-subgrupo">
+            <p class="nav-grupo-titulo nav-subgrupo-titulo">👥 Autores</p>
+            <a href="#" data-pagina="autores">Listagem de Autores</a>
+            <a href="#" data-pagina="validades">Consultar Validades TP</a>
+          </div>
         </div>
 
         <div class="nav-grupo">
-          <p class="nav-grupo-titulo">🏢 Outras Demandas</p>
-          <a href="#" data-pagina="solicitacoesOD">Relatório de Compras OD</a>
-          <a href="#" data-pagina="aquisicaoODAndamento">Aquisição em Andamento OD</a>
-          <a href="#" data-pagina="estoqueGeral">Itens em Estoque Geral</a>
-          <a href="#" data-pagina="autoresGeral">Listagem de Autores Demais Unidades</a>
-          <a href="#" data-pagina="estoqueOD">Estoque GSNET/IBL</a>
-          <a href="#" data-pagina="distribuicao">Distribuição</a>
+          <p class="nav-grupo-titulo nav-unidade-titulo">🏢 Outras Demandas</p>
+
+          <div class="nav-subgrupo">
+            <p class="nav-grupo-titulo nav-subgrupo-titulo">📊 Estoque</p>
+            <a href="#" data-pagina="estoqueGeral">Itens em Estoque Geral</a>
+            <a href="#" data-pagina="estoqueOD">Estoque GSNET/IBL</a>
+            <a href="#" data-pagina="distribuicao">Distribuição</a>
+          </div>
+
+          <div class="nav-subgrupo">
+            <p class="nav-grupo-titulo nav-subgrupo-titulo">🛒 Compras</p>
+            <a href="#" data-pagina="aquisicaoODAndamento">Aquisição em Andamento</a>
+            <a href="#" data-pagina="solicitacoesOD">Relatório de Compras OD</a>
+          </div>
+
+          <div class="nav-subgrupo">
+            <p class="nav-grupo-titulo nav-subgrupo-titulo">👥 Autores</p>
+            <a href="#" data-pagina="autoresGeral">Listagem de Autores Demais Unidades</a>
+          </div>
         </div>
 
         <div class="nav-grupo">
-          <p class="nav-grupo-titulo">🔍 Consultas</p>
+          <p class="nav-grupo-titulo nav-unidade-titulo">📑 Consultas</p>
           <a href="#" data-pagina="relatorioItens">Relatório de Itens</a>
           <a href="#" data-pagina="atas">Atas de Registro de Preço</a>
         </div>
 
         <div class="nav-grupo" id="grupoAdministracao">
-          <p class="nav-grupo-titulo">⚙️ Administração</p>
+          <p class="nav-grupo-titulo nav-unidade-titulo">⚙️ Administração</p>
           <a href="#" data-pagina="usuarios" id="linkUsuarios" hidden>Usuários</a>
           <a href="#" data-pagina="importadores" id="linkImportadores" hidden>Importação</a>
         </div>
