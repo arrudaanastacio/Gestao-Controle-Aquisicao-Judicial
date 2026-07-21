@@ -2771,10 +2771,18 @@ document.getElementById('botaoLimparGrade').addEventListener('click', async (ev)
 async function carregarSolicitacoesOD() {
   carregarUltimaAtualizacao('atualizadoSolicitacoesOD', 'solicitacoes_od');
   const { porStatus } = await api('/solicitacoes-od/resumo');
-  document.getElementById('grideResumoSolicitacoesOD').innerHTML = porStatus
-    .sort((a, b) => b.qtde - a.qtde)
-    .map((l) => `<div class="cartao-resumo"><div class="numero">${l.qtde}</div><div class="rotulo">${l.status}</div></div>`)
-    .join('');
+  const ABERTO_OD = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial', 'Em andamento'];
+  const contOD = (nome) => (porStatus.find((l) => l.status === nome) || {}).qtde || 0;
+  const totalOD = porStatus.reduce((s, l) => s + l.qtde, 0);
+  const andamentoOD = porStatus.filter((l) => ABERTO_OD.includes(l.status)).reduce((s, l) => s + l.qtde, 0);
+  const finalOD = contOD('Finalizado');
+  const pctOD = totalOD ? Math.round((finalOD / totalOD) * 100) : 0;
+  const nOD = (v) => v.toLocaleString('pt-BR');
+  document.getElementById('grideResumoSolicitacoesOD').innerHTML =
+    kpiCard('doc', nOD(totalOD), 'Total de solicitações', 'todos os meses') +
+    kpiCard('chart', nOD(andamentoOD), 'Em andamento', 'Planejamento · Adjucado · Empenhado · Entrega Parcial', 'aviso') +
+    kpiCard('check', nOD(finalOD), 'Finalizadas', `${pctOD}% do total`) +
+    kpiCard('relogio', nOD(contOD('Entrega Parcial')), 'Entrega parcial', 'aguardando saldo');
 
   if (!estadoSolicitacoesOD.filtrosCarregados) {
     const selStatus = document.getElementById('filtroStatusSolicitacoesOD');
@@ -2883,10 +2891,14 @@ document.getElementById('botaoProximoAquisicaoODAndamento').addEventListener('cl
 async function carregarAquisicaoODAndamento() {
   carregarUltimaAtualizacao('atualizadoAquisicaoODAndamento', 'solicitacoes_od');
   const { porStatus } = await api('/solicitacoes-od/resumo?emAberto=true');
-  document.getElementById('grideResumoAquisicaoODAndamento').innerHTML = porStatus
-    .sort((a, b) => b.qtde - a.qtde)
-    .map((l) => `<div class="cartao-resumo"><div class="numero">${l.qtde}</div><div class="rotulo">${l.status}</div></div>`)
-    .join('');
+  const contAnd = (nome) => (porStatus.find((l) => l.status === nome) || {}).qtde || 0;
+  const totalAnd = porStatus.reduce((s, l) => s + l.qtde, 0);
+  const nAnd = (v) => v.toLocaleString('pt-BR');
+  document.getElementById('grideResumoAquisicaoODAndamento').innerHTML =
+    kpiCard('chart', nAnd(totalAnd), 'Total em andamento', 'compras não finalizadas', 'aviso') +
+    kpiCard('doc', nAnd(contAnd('Empenhado')), 'Empenhadas', 'com empenho emitido') +
+    kpiCard('relogio', nAnd(contAnd('Entrega Parcial')), 'Entrega parcial', 'aguardando saldo') +
+    kpiCard('list', nAnd(contAnd('Planejamento')), 'Planejamento', 'ainda sem empenho');
 
   if (!estadoAquisicaoODAndamento.filtrosCarregados) {
     const selAno = document.getElementById('filtroAnoAquisicaoODAndamento');
