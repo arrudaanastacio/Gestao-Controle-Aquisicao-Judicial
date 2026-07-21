@@ -1109,3 +1109,166 @@ body.tem-faixa-ambiente { padding-top: 30px; }
   overflow: hidden;
   line-height: 1.35;
 }
+
+/* ===================== Painel geral (dashboard) ===================== */
+
+/* Banner de alerta no topo do painel */
+.painel-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--ambar-fundo);
+  border: 1px solid #eccfa0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 22px;
+}
+.painel-banner .texto { color: #7a4a12; font-size: 14px; line-height: 1.4; }
+.painel-banner .texto strong { color: var(--ambar); }
+.painel-banner button {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--ambar);
+  color: var(--ambar);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.painel-banner button:hover { background: var(--ambar); color: #fff; }
+
+/* Cards grandes de números (KPIs) */
+.painel-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin: 22px 0;
+}
+.painel-tile {
+  background: var(--papel-elevado);
+  border: 1px solid var(--linha);
+  border-radius: 14px;
+  padding: 20px 22px;
+}
+.painel-tile .numero {
+  font-family: var(--fonte-titulo);
+  font-size: 40px;
+  line-height: 1;
+  color: var(--tinta);
+  margin-bottom: 10px;
+}
+.painel-tile .rotulo { color: var(--cinza-texto); font-size: 13.5px; }
+.painel-tile.critico .numero { color: var(--vermelho); }
+.painel-tile.aviso .numero { color: var(--ambar); }
+
+/* Duas colunas: status + alertas recentes */
+.painel-duas-colunas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.painel-cartao {
+  background: var(--papel-elevado);
+  border: 1px solid var(--linha);
+  border-radius: 14px;
+  padding: 22px 24px;
+}
+.painel-cartao .cartao-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.painel-cartao .cartao-cabecalho h3 {
+  font-family: var(--fonte-titulo);
+  font-size: 18px;
+  color: var(--tinta);
+  margin: 0;
+}
+.painel-link {
+  background: none;
+  border: none;
+  color: var(--selo);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.painel-link:hover { text-decoration: underline; }
+
+/* Barras "Compras por status" */
+.barra-status { margin-bottom: 14px; }
+.barra-status:last-child { margin-bottom: 0; }
+.barra-status .linha-topo {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13.5px;
+  color: var(--tinta-suave);
+  margin-bottom: 6px;
+}
+.barra-status .linha-topo .valor { font-weight: 600; color: var(--tinta); }
+.barra-status .trilho {
+  height: 8px;
+  background: #ece7d9;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.barra-status .preenchido {
+  height: 100%;
+  background: var(--selo);
+  border-radius: 6px;
+}
+.barra-status .preenchido.andamento { background: var(--ambar); }
+.barra-status .preenchido.final { background: var(--verde-ok); }
+
+/* Lista de alertas recentes */
+.lista-alertas { display: flex; flex-direction: column; }
+.item-alerta {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--linha);
+}
+.item-alerta:first-child { border-top: none; padding-top: 0; }
+.item-alerta .ponto {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+  background: var(--ambar);
+}
+.item-alerta .ponto.critico { background: var(--vermelho); }
+.item-alerta .alerta-txt { font-size: 13.5px; color: var(--tinta-suave); line-height: 1.4; }
+.item-alerta .data { color: var(--cinza-texto); font-size: 12px; margin-top: 3px; }
+
+/* Tabela de compras em andamento (painel) */
+.painel-tabela { width: 100%; border-collapse: collapse; }
+.painel-tabela th {
+  text-align: left;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cinza-texto);
+  font-weight: 600;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--linha);
+}
+.painel-tabela td {
+  padding: 13px 10px;
+  border-bottom: 1px solid var(--linha);
+  font-size: 14px;
+  color: var(--tinta-suave);
+}
+.painel-tabela tr:last-child td { border-bottom: none; }
+.painel-tabela .medicamento { font-weight: 600; color: var(--tinta); }
+.painel-tabela .cod-item { font-family: var(--fonte-mono); font-size: 12.5px; color: var(--cinza-texto); }
+.painel-tabela .painel-vazio { color: var(--cinza-texto); text-align: center; padding: 22px; }
+
+@media (max-width: 900px) {
+  .painel-tiles { grid-template-columns: repeat(2, 1fr); }
+  .painel-duas-colunas { grid-template-columns: 1fr; }
+}

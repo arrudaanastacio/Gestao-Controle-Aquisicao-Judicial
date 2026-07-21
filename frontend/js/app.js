@@ -353,30 +353,87 @@ async function mudarPagina(pagina) {
 
 // -------------------- Painel --------------------
 async function carregarPainel() {
-  const grade = document.getElementById('grideResumo');
-  grade.innerHTML = '<p style="color:var(--cinza-texto);">Carregando…</p>';
+  const STATUS_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
 
-  const { porStatus, atrasados } = await api('/solicitacoes/resumo');
+  // Busca tudo em paralelo; cada chamada é tolerante a falha (ex.: estoque
+  // ainda sem importação) para o painel nunca ficar em branco por completo.
+  const [resumo, alertasResp, validades, recentes] = await Promise.all([
+    api('/solicitacoes/resumo').catch(() => ({ porStatus: [], atrasados: 0 })),
+    api('/alertas?resolvido=false').catch(() => ({ alertas: [], totalAbertos: 0 })),
+    api('/estoque/validades').catch(() => ({ lotes: [] })),
+    api('/solicitacoes?status=__em_aberto__&page=1&pageSize=6').catch(() => ({ solicitacoes: [] })),
+  ]);
 
-  const cartoes = [];
-  cartoes.push(`
-    <div class="cartao-resumo alerta">
-      <div class="numero">${atrasados}</div>
-      <div class="rotulo">Itens com prazo vencido</div>
-    </div>
-  `);
-  porStatus
-    .sort((a, b) => b.qtde - a.qtde)
-    .forEach((linha) => {
-      cartoes.push(`
-        <div class="cartao-resumo">
-          <div class="numero">${linha.qtde}</div>
-          <div class="rotulo">${linha.status}</div>
-        </div>
-      `);
-    });
+  const porStatus = resumo.porStatus || [];
+  const alertas = alertasResp.alertas || [];
+  const totalAlertas = alertasResp.totalAbertos || 0;
+  const comprasAndamento = porStatus
+    .filter((s) => STATUS_ABERTO.includes(s.status))
+    .reduce((soma, s) => soma + s.qtde, 0);
+  const itensCriticos = alertas.filter((a) => a.tipo === 'estoque_ruptura').length;
+  const vencendo30 = (validades.lotes || [])
+    .filter((l) => l.dias_para_vencer >= 0 && l.dias_para_vencer <= 30).length;
 
-  grade.innerHTML = cartoes.join('');
+  // --- Banner de alertas ---
+  const banner = document.getElementById('painelBanner');
+  if (totalAlertas > 0) {
+    const p = totalAlertas > 1;
+    banner.innerHTML = `
+      <div class="texto"><strong>${totalAlertas} alerta${p ? 's' : ''} ativo${p ? 's' : ''}</strong> precisa${p ? 'm' : ''} de atenção — estoque em ruptura ou compras sem demanda registrada.</div>
+      <button type="button" onclick="mudarPagina('alertas')">Ver alertas →</button>`;
+    banner.hidden = false;
+  } else {
+    banner.hidden = true;
+  }
+
+  // --- Cards de números (KPIs) ---
+  document.getElementById('painelTiles').innerHTML = `
+    <div class="painel-tile"><div class="numero">${comprasAndamento}</div><div class="rotulo">Compras em andamento</div></div>
+    <div class="painel-tile critico"><div class="numero">${itensCriticos}</div><div class="rotulo">Itens com estoque crítico</div></div>
+    <div class="painel-tile aviso"><div class="numero">${totalAlertas}</div><div class="rotulo">Alertas ativos</div></div>
+    <div class="painel-tile"><div class="numero">${vencendo30}</div><div class="rotulo">Lotes vencendo em 30 dias</div></div>`;
+
+  // --- Barras "Compras por status" ---
+  const ORDEM = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial', 'Finalizado', 'Cancelado', 'Deserto', 'Fracassado', 'Revogado'];
+  const ordenado = porStatus.slice().sort((a, b) => ORDEM.indexOf(a.status) - ORDEM.indexOf(b.status));
+  const maxQ = Math.max(1, ...ordenado.map((s) => s.qtde));
+  const corBarra = (st) => (st === 'Entrega Parcial' ? 'andamento' : (st === 'Finalizado' ? 'final' : ''));
+  const barras = ordenado.map((s) => `
+    <div class="barra-status">
+      <div class="linha-topo"><span>${s.status}</span><span class="valor">${s.qtde}</span></div>
+      <div class="trilho"><div class="preenchido ${corBarra(s.status)}" style="width:${Math.round((s.qtde / maxQ) * 100)}%"></div></div>
+    </div>`).join('') || '<p class="painel-vazio">Sem dados de status.</p>';
+  document.getElementById('painelStatus').innerHTML =
+    `<div class="cartao-cabecalho"><h3>Compras por status</h3></div>${barras}`;
+
+  // --- Alertas recentes ---
+  const listaAlertas = alertas.slice(0, 3).map((a) => `
+    <div class="item-alerta">
+      <span class="ponto ${a.tipo === 'estoque_ruptura' ? 'critico' : ''}"></span>
+      <div><div class="alerta-txt">${a.mensagem || ''}</div><div class="data">${formatarData(a.criado_em)}</div></div>
+    </div>`).join('') || '<p class="painel-vazio">Nenhum alerta ativo. 🎉</p>';
+  document.getElementById('painelAlertas').innerHTML = `
+    <div class="cartao-cabecalho"><h3>Alertas recentes</h3><button class="painel-link" onclick="mudarPagina('alertas')">Ver todos →</button></div>
+    <div class="lista-alertas">${listaAlertas}</div>`;
+
+  // --- Compras em andamento (recentes) ---
+  const linhas = (recentes.solicitacoes || []).map((s) => {
+    const classe = classeStatus(s.status, s.data_previsao_entrega);
+    const rotulo = rotuloStatus(s.status, s.data_previsao_entrega);
+    return `<tr>
+      <td class="medicamento">${s.descricao || '—'}</td>
+      <td class="cod-item">${s.codigo_item || '—'}</td>
+      <td>${s.n_oficio || '—'}</td>
+      <td>${valorCelula(s.qtde_solicitada)}</td>
+      <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('painelComprasRecentes').innerHTML = `
+    <div class="cartao-cabecalho"><h3>Compras em andamento — recentes</h3><button class="painel-link" onclick="mudarPagina('solicitacoes')">Ver relatório completo →</button></div>
+    <table class="painel-tabela">
+      <thead><tr><th>Medicamento</th><th>Código do item</th><th>Ofício</th><th>Qtde.</th><th>Status</th></tr></thead>
+      <tbody>${linhas || '<tr><td colspan="5" class="painel-vazio">Nenhuma compra em andamento.</td></tr>'}</tbody>
+    </table>`;
 }
 
 // -------------------- Solicitações --------------------

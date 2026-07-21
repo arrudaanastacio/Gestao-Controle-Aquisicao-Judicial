@@ -79,13 +79,19 @@
     <main class="conteudo">
       <div class="banner-alerta-oracle" id="bannerAlertaOracle" hidden></div>
       <section id="paginaPainel">
+        <div class="painel-banner" id="painelBanner" hidden></div>
         <div class="cabecalho-pagina">
           <div>
             <h2>Painel geral</h2>
-            <p>Visão consolidada de todas as solicitações de compra por status</p>
+            <p>Visão consolidada de compras judiciais, estoque e alertas — Unidade Tenente Pena</p>
           </div>
         </div>
-        <div class="grade-resumo" id="grideResumo"></div>
+        <div class="painel-tiles" id="painelTiles"></div>
+        <div class="painel-duas-colunas">
+          <div class="painel-cartao" id="painelStatus"></div>
+          <div class="painel-cartao" id="painelAlertas"></div>
+        </div>
+        <div class="painel-cartao" id="painelComprasRecentes"></div>
       </section>
 
       <section id="paginaSolicitacoes" hidden>
