@@ -5500,6 +5500,20 @@ function escHtml(v) {
 }
 
 async function carregarReservas() {
+  try {
+    await carregarReservasInterno();
+  } catch (e) {
+    // Mesmo motivo da tela de Rupturas: sem isso, um erro deixaria a tela
+    // em branco sem explicação (a mensagem cairia no bloco escondido).
+    document.getElementById('conteudoReservas').hidden = true;
+    const aviso = document.getElementById('avisoSemReservas');
+    aviso.hidden = false;
+    aviso.textContent = 'Não consegui carregar as reservas: ' + e.message;
+    throw e;
+  }
+}
+
+async function carregarReservasInterno() {
   const btn = document.getElementById('botaoAtualizarReservas');
   if (btn) btn.hidden = !temPermissao('reservas', 'importar');
 
@@ -5741,7 +5755,18 @@ function paramsRupturas() {
 async function carregarRupturas() {
   const btn = document.getElementById('botaoAtualizarRupturas');
   if (btn) btn.hidden = !temPermissao('rupturas', 'importar');
-  await buscarRupturas();
+  try {
+    await buscarRupturas();
+  } catch (e) {
+    // O tratador genérico de erro escreve dentro de .grade-resumo, que aqui
+    // fica DENTRO do bloco escondido — a falha viraria uma página em branco
+    // muda. Mostramos a mensagem no aviso, que fica sempre visível.
+    document.getElementById('conteudoRupturas').hidden = true;
+    const aviso = document.getElementById('avisoSemRupturas');
+    aviso.hidden = false;
+    aviso.textContent = 'Não consegui carregar as rupturas: ' + e.message;
+    throw e;   // segue para o log do navegador, para diagnóstico
+  }
 }
 
 async function buscarRupturas() {
