@@ -549,6 +549,9 @@ async function mudarPagina(pagina) {
 }
 
 // -------------------- Painel --------------------
+// Estado do filtro por status do painel (qual barra está selecionada).
+const estadoPainel = { status: null };
+
 async function carregarPainel() {
   const STATUS_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
 
@@ -595,26 +598,41 @@ async function carregarPainel() {
   const ordenado = porStatus.slice().sort((a, b) => ORDEM.indexOf(a.status) - ORDEM.indexOf(b.status));
   const maxQ = Math.max(1, ...ordenado.map((s) => s.qtde));
   const corBarra = (st) => (st === 'Entrega Parcial' ? 'andamento' : (st === 'Finalizado' ? 'final' : ''));
+  // Cada barra é clicável: filtra a tabela "Compras" logo abaixo por aquele
+  // status. Clicar de novo na mesma barra limpa o filtro.
   const barras = ordenado.map((s) => `
-    <div class="barra-status">
+    <button type="button" class="barra-status clicavel" data-status="${escAttr(s.status)}"
+            title="Ver as compras com status ${escAttr(s.status)}">
       <div class="linha-topo"><span>${s.status}</span><span class="valor">${s.qtde}</span></div>
       <div class="trilho"><div class="preenchido ${corBarra(s.status)}" style="width:${Math.round((s.qtde / maxQ) * 100)}%"></div></div>
-    </div>`).join('') || '<p class="painel-vazio">Sem dados de status.</p>';
+    </button>`).join('') || '<p class="painel-vazio">Sem dados de status.</p>';
   document.getElementById('painelStatus').innerHTML =
-    `<div class="cartao-cabecalho"><h3>Compras por status</h3></div>${barras}`;
+    `<div class="cartao-cabecalho"><h3>Compras por status</h3>
+       <span class="texto-apoio">clique para filtrar</span></div>${barras}`;
+
+  document.querySelectorAll('#painelStatus .barra-status.clicavel').forEach((b) => {
+    b.addEventListener('click', () => selecionarStatusPainel(b.dataset.status));
+  });
 
   // --- Alertas recentes ---
   const listaAlertas = alertas.slice(0, 3).map((a) => `
     <div class="item-alerta">
       <span class="ponto ${a.tipo === 'estoque_ruptura' ? 'critico' : ''}"></span>
-      <div><div class="alerta-txt">${a.mensagem || ''}</div><div class="data">${formatarData(a.criado_em)}</div></div>
+      <div><div class="alerta-txt">${a.mensagem || ''}</div><div class="data">${formatarDataHora(a.criado_em)}</div></div>
     </div>`).join('') || '<p class="painel-vazio">Nenhum alerta ativo. 🎉</p>';
   document.getElementById('painelAlertas').innerHTML = `
     <div class="cartao-cabecalho"><h3>Alertas recentes</h3><button class="painel-link" onclick="mudarPagina('alertas')">Ver todos →</button></div>
     <div class="lista-alertas">${listaAlertas}</div>`;
 
   // --- Compras em andamento (recentes) ---
-  const linhas = (recentes.solicitacoes || []).map((s) => {
+  estadoPainel.status = null;
+  renderPainelCompras(recentes.solicitacoes || [], null);
+}
+
+// Monta a tabela de compras do painel. `status` nulo = "em andamento"
+// (comportamento padrão); com status, mostra as compras daquele status.
+function renderPainelCompras(lista, status) {
+  const linhas = (lista || []).map((s) => {
     const classe = classeStatus(s.status, s.data_previsao_entrega);
     const rotulo = rotuloStatus(s.status, s.data_previsao_entrega);
     return `<tr>
@@ -625,12 +643,50 @@ async function carregarPainel() {
       <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
     </tr>`;
   }).join('');
+
+  const titulo = status
+    ? `Compras — ${status}`
+    : 'Compras em andamento — recentes';
+  const limpar = status
+    ? `<button class="painel-link" type="button" id="limparStatusPainel">✕ Limpar filtro</button>`
+    : '';
+  const vazio = status
+    ? `Nenhuma compra com status "${status}".`
+    : 'Nenhuma compra em andamento.';
+
   document.getElementById('painelComprasRecentes').innerHTML = `
-    <div class="cartao-cabecalho"><h3>Compras em andamento — recentes</h3><button class="painel-link" onclick="mudarPagina('solicitacoes')">Ver relatório completo →</button></div>
+    <div class="cartao-cabecalho"><h3>${titulo}</h3>
+      ${limpar}
+      <button class="painel-link" onclick="mudarPagina('solicitacoes')">Ver relatório completo →</button></div>
     <table class="painel-tabela">
       <thead><tr><th>Medicamento</th><th>Código do item</th><th>Ofício</th><th>Qtde.</th><th>Status</th></tr></thead>
-      <tbody>${linhas || '<tr><td colspan="5" class="painel-vazio">Nenhuma compra em andamento.</td></tr>'}</tbody>
+      <tbody>${linhas || `<tr><td colspan="5" class="painel-vazio">${vazio}</td></tr>`}</tbody>
     </table>`;
+
+  const btnLimpar = document.getElementById('limparStatusPainel');
+  if (btnLimpar) btnLimpar.addEventListener('click', () => selecionarStatusPainel(null));
+}
+
+// Clique numa barra de "Compras por status": busca as compras daquele status
+// e atualiza a tabela. Clicar de novo na mesma barra (ou em "Limpar") volta
+// ao padrão "em andamento".
+async function selecionarStatusPainel(status) {
+  const alvo = (status && status === estadoPainel.status) ? null : status;
+  estadoPainel.status = alvo;
+
+  // Realce da barra selecionada
+  document.querySelectorAll('#painelStatus .barra-status').forEach((b) => {
+    b.classList.toggle('ativa', !!alvo && b.dataset.status === alvo);
+  });
+
+  try {
+    const filtro = alvo ? encodeURIComponent(alvo) : '__em_aberto__';
+    const r = await api(`/solicitacoes?status=${filtro}&page=1&pageSize=6`);
+    renderPainelCompras(r.solicitacoes || [], alvo);
+  } catch (e) {
+    document.getElementById('painelComprasRecentes').innerHTML =
+      `<p class="painel-vazio">Não consegui carregar: ${escHtml(e.message)}</p>`;
+  }
 }
 
 // -------------------- Solicitações --------------------

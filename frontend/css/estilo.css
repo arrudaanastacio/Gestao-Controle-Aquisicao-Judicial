@@ -650,6 +650,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaAquisicaoODAndamento:not([hidden])),
 .conteudo:has(> #paginaEntradaLotes:not([hidden])),
 .conteudo:has(> #paginaReservas:not([hidden])),
+.conteudo:has(> #paginaPainel:not([hidden])),
 .conteudo:has(> #paginaDistribuicao:not([hidden])) {
   max-width: none;
 }
@@ -1467,7 +1468,7 @@ body.tem-faixa-ambiente { padding-top: 30px; }
 .barra-status .linha-topo .valor { font-weight: 600; color: var(--tinta); }
 .barra-status .trilho {
   height: 8px;
-  background: #ece7d9;
+  background: var(--linha-tabela);   /* token: no escuro nao vira mancha clara */
   border-radius: 6px;
   overflow: hidden;
 }
@@ -1601,3 +1602,30 @@ body.tem-faixa-ambiente { padding-top: 30px; }
 .modal .cartao-kpi .num { font-size: 22px; }
 .modal .cartao-kpi .rot { font-size: 11px; }
 .modal .cartao-kpi .sub { font-size: 10.5px; }
+
+/* ---------- Painel: barras de status clicáveis ----------
+   As barras viraram <button> (acessível por teclado), então precisam de
+   reset: sem fundo, sem borda, largura total e texto alinhado à esquerda. */
+.barra-status.clicavel {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: var(--raio);
+  padding: 6px 8px;
+  margin: 0 -8px 8px;          /* compensa o padding, mantendo o alinhamento */
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background 0.12s ease;
+}
+.barra-status.clicavel:hover { background: var(--realce-tabela); }
+.barra-status.clicavel:focus-visible { outline: 2px solid var(--selo); outline-offset: 1px; }
+/* Barra selecionada: fundo de realce e rótulo em destaque. */
+.barra-status.ativa { background: var(--realce-tabela); }
+.barra-status.ativa .linha-topo { color: var(--tinta); font-weight: 600; }
+
+/* Cabeçalho do cartão com mais de um botão: agrupa à direita. */
+.painel-cartao .cartao-cabecalho { gap: 10px; }
+.painel-cartao .cartao-cabecalho h3 { margin-right: auto; }
