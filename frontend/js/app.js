@@ -5492,8 +5492,11 @@ function renderReservas(d) {
     // Disponível negativo/zero = estoque já todo comprometido: destaca.
     const classeDisp = l.disponivel < 0 ? 'texto-vermelho' : (l.disponivel === 0 ? 'texto-ambar' : '');
     return `
-    <tr class="linha-reserva" data-item="${escAttr(l.codigoItem)}">
-      <td><button class="botao-expandir" type="button" data-item="${escAttr(l.codigoItem)}" title="Ver lotes e pacientes">▸</button></td>
+    <tr class="linha-reserva">
+      <td><button class="botao-secundario botao-ver-reserva" type="button"
+                  data-item="${escAttr(l.codigoItem)}"
+                  data-desc="${escAttr(l.descricao)}"
+                  title="Ver lotes, validades e pacientes deste medicamento">Ver</button></td>
       <td>${escHtml(l.codigoItem)}</td>
       <td>${escHtml(l.descricao)}</td>
       <td>${escHtml(l.unidade)}</td>
@@ -5502,43 +5505,36 @@ function renderReservas(d) {
       <td class="${classeDisp}"><strong>${nf(l.disponivel)}</strong></td>
       <td>${l.validadeMaisProxima ? formatarData(l.validadeMaisProxima) : '—'}</td>
       <td>${nf(l.protocolos)}</td>
-    </tr>
-    <tr class="detalhe-reserva" data-detalhe="${escAttr(l.codigoItem)}" hidden>
-      <td colspan="9"><div class="painel-detalhe">Carregando…</div></td>
     </tr>`;
   }).join('');
   document.getElementById('estadoVazioReservas').hidden = d.linhas.length > 0;
 
-  // Expandir/recolher: busca os lotes e os pacientes daquele item sob demanda.
-  corpo.querySelectorAll('.botao-expandir').forEach((b) => {
-    b.addEventListener('click', () => alternarDetalheReserva(b));
+  // "Ver": abre o card com os lotes e os pacientes, buscando sob demanda.
+  corpo.querySelectorAll('.botao-ver-reserva').forEach((b) => {
+    b.addEventListener('click', () => abrirModalReserva(b.dataset.item, b.dataset.desc));
   });
 }
 
-async function alternarDetalheReserva(botao) {
-  const item = botao.dataset.item;
-  const linha = document.querySelector(`[data-detalhe="${CSS.escape(item)}"]`);
-  if (!linha) return;
+async function abrirModalReserva(codigoItem, descricao) {
+  const modal = document.getElementById('modalReservaItem');
+  const corpo = document.getElementById('conteudoModalReserva');
+  document.getElementById('tituloModalReserva').textContent = descricao || 'Lotes e pacientes';
+  document.getElementById('codigoModalReserva').textContent = codigoItem;
+  corpo.innerHTML = '<p class="texto-apoio">Carregando…</p>';
+  modal.hidden = false;
 
-  if (!linha.hidden) {           // já aberto -> fecha
-    linha.hidden = true;
-    botao.textContent = '▸';
-    return;
-  }
-  linha.hidden = false;
-  botao.textContent = '▾';
-
-  if (linha.dataset.carregado === '1') return;
-  const painel = linha.querySelector('.painel-detalhe');
   try {
-    const p = new URLSearchParams({ codigoItem: item });
+    const p = new URLSearchParams({ codigoItem });
     if (estadoReservas.data) p.set('data', estadoReservas.data);
     const d = await api('/reservas/detalhe?' + p.toString());
-    painel.innerHTML = montarDetalheReserva(d);
-    linha.dataset.carregado = '1';
+    corpo.innerHTML = montarDetalheReserva(d);
   } catch (e) {
-    painel.innerHTML = `<p class="texto-vermelho">Não consegui carregar o detalhe: ${escHtml(e.message)}</p>`;
+    corpo.innerHTML = `<p class="texto-vermelho">Não consegui carregar o detalhe: ${escHtml(e.message)}</p>`;
   }
+}
+
+function fecharModalReserva() {
+  document.getElementById('modalReservaItem').hidden = true;
 }
 
 function montarDetalheReserva(d) {
@@ -5596,6 +5592,11 @@ document.getElementById('filtroBuscaReservas').addEventListener('input', () => {
   tempoBuscaReservas = setTimeout(() => {
     buscarReservas().catch((err) => alert('Erro: ' + err.message));
   }, 300);
+});
+document.getElementById('botaoFecharModalReserva').addEventListener('click', fecharModalReserva);
+// Clicar no fundo escurecido também fecha (só no fundo, não dentro do card).
+document.getElementById('modalReservaItem').addEventListener('click', (ev) => {
+  if (ev.target.id === 'modalReservaItem') fecharModalReserva();
 });
 document.getElementById('filtroComprometidosReservas').addEventListener('change', () => {
   buscarReservas().catch((err) => alert('Erro: ' + err.message));
