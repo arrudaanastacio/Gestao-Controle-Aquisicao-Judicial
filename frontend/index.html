@@ -1103,8 +1103,6 @@
         </div>
 
         <div id="conteudoRupturas" hidden>
-          <div class="grade-resumo" id="kpisRupturas"></div>
-
           <div class="barra-filtros">
             <label style="display:flex; align-items:center; gap:6px; font-size:13px;">De
               <input type="date" id="filtroInicioRupturas" title="Início do período"></label>
@@ -1127,30 +1125,52 @@
             <button id="botaoExportarRupturas" class="botao-secundario" type="button">⬇ Exportar CSV</button>
           </div>
 
-          <div class="grade-quebras" id="quebrasRupturas"></div>
+          <div class="abas-tela" id="abasRupturas">
+            <button type="button" class="chip-faixa ativo" data-aba="lista">📋 Lista de rupturas</button>
+            <button type="button" class="chip-faixa" data-aba="indicadores">📊 Indicadores e gráficos</button>
+          </div>
 
-          <div class="tabela-wrap">
-            <div class="tabela-rolavel-x">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Medicamento</th>
-                    <th>Código do Item</th>
-                    <th>Qtde em falta</th>
-                    <th>Unidade</th>
-                    <th>Paciente</th>
-                    <th>Protocolo</th>
-                    <th>Categoria</th>
-                    <th>Tipo</th>
-                    <th>Importado</th>
-                    <th>Outras dem.</th>
-                  </tr>
-                </thead>
-                <tbody id="corpoTabelaRupturas"></tbody>
-              </table>
+          <!-- ABA 1: lista -->
+          <div id="abaRupturasLista">
+            <div class="tabela-wrap">
+              <div class="tabela-rolavel-x">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Medicamento</th>
+                      <th>Código do Item</th>
+                      <th>Qtde em falta</th>
+                      <th>Unidade</th>
+                      <th>Paciente</th>
+                      <th>Protocolo</th>
+                      <th>Categoria</th>
+                      <th>Tipo</th>
+                      <th>Importado</th>
+                      <th>Outras dem.</th>
+                    </tr>
+                  </thead>
+                  <tbody id="corpoTabelaRupturas"></tbody>
+                </table>
+              </div>
+              <div class="estado-vazio" id="estadoVazioRupturas" hidden>Nenhuma ruptura encontrada com estes filtros.</div>
             </div>
-            <div class="estado-vazio" id="estadoVazioRupturas" hidden>Nenhuma ruptura encontrada com estes filtros.</div>
+          </div>
+
+          <!-- ABA 2: indicadores -->
+          <div id="abaRupturasIndicadores" hidden>
+            <div class="grade-resumo" id="kpisRupturas"></div>
+            <div class="grade-quebras" id="quebrasRupturas"></div>
+            <div class="painel-cartao" style="margin-bottom:16px;">
+              <div class="cartao-cabecalho"><h3>Rupturas por dia</h3>
+                <span class="texto-apoio" id="legendaDiaRupturas"></span></div>
+              <div id="graficoDiaRupturas"></div>
+            </div>
+            <div class="painel-cartao">
+              <div class="cartao-cabecalho"><h3>Itens que mais romperam</h3>
+                <span class="texto-apoio">10 maiores no período filtrado</span></div>
+              <div id="graficoTopRupturas"></div>
+            </div>
           </div>
         </div>
       </section>

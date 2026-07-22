@@ -1672,3 +1672,62 @@ body.tem-faixa-ambiente { padding-top: 30px; }
   background: var(--vermelho);   /* ruptura é sempre algo negativo */
   border-radius: 4px;
 }
+
+/* ---------- Abas de tela (Rupturas) ---------- */
+.abas-tela {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+/* Coluna de porcentagem nas quebras */
+.cartao-quebra .col-pct { color: var(--cinza-texto); font-variant-numeric: tabular-nums; }
+.cartao-quebra tfoot td {
+  border-top: 2px solid var(--linha);
+  border-bottom: none;
+  padding-top: 7px;
+}
+
+/* ---------- Gráficos (SVG e barras) ----------
+   Sem cores cravadas: tudo por token, para o tema escuro funcionar. */
+.grafico-svg { width: 100%; height: auto; display: block; }
+.grafico-svg .g-grade { stroke: var(--linha-tabela); stroke-width: 1; }
+.grafico-svg .g-eixo { font-size: 10px; fill: var(--cinza-texto); }
+.grafico-svg .g-barra { fill: var(--vermelho); opacity: 0.85; }
+.grafico-svg .g-barra:hover { opacity: 1; }
+
+/* Barras horizontais do "top itens" */
+.barra-top {
+  display: grid;
+  grid-template-columns: minmax(140px, 2fr) 3fr minmax(90px, auto);
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+}
+.barra-top:last-child { margin-bottom: 0; }
+.barra-top-rotulo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tinta);
+}
+.barra-top-trilho {
+  height: 14px;
+  background: var(--linha-tabela);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.barra-top-trilho span {
+  display: block;
+  height: 100%;
+  background: var(--vermelho);
+  border-radius: 4px;
+}
+.barra-top-valor { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 700px) {
+  .barra-top { grid-template-columns: 1fr; gap: 2px; }
+  .barra-top-valor { text-align: left; }
+}

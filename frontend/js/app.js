@@ -5775,23 +5775,96 @@ async function buscarRupturas() {
 }
 
 // Monta um cartão de quebra (por categoria / por tipo de item).
+// A coluna "%" é a participação daquela linha no TOTAL de rupturas do grupo —
+// a barrinha usa a mesma proporção, para leitura imediata.
 function quebraRupturas(titulo, dados, rotuloColuna, campo) {
   if (!dados || !dados.length) return '';
   const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
-  const max = Math.max(1, ...dados.map((x) => x.rupturas));
+  const total = dados.reduce((s, x) => s + (x.rupturas || 0), 0) || 1;
   const linhas = dados.map((x) => {
-    const largura = Math.round((x.rupturas / max) * 100);
+    const pct = (x.rupturas / total) * 100;
+    // 1 casa decimal só quando ajuda (evita "56,0%")
+    const pctTxt = pct.toLocaleString('pt-BR', { minimumFractionDigits: pct < 10 ? 1 : 0, maximumFractionDigits: 1 }) + '%';
     return '<tr>'
       + '<td><div class="rotulo-quebra">' + escHtml(x[campo]) + '</div>'
-      + '<div class="trilho-quebra"><span style="width:' + largura + '%"></span></div></td>'
+      + '<div class="trilho-quebra"><span style="width:' + pct.toFixed(1) + '%"></span></div></td>'
       + '<td><strong>' + nf(x.rupturas) + '</strong></td>'
+      + '<td class="col-pct">' + pctTxt + '</td>'
       + '<td>' + nf(x.itens) + '</td>'
       + '<td>' + nf(x.pacientes) + '</td>'
       + '</tr>';
   }).join('');
   return '<div class="cartao-quebra"><h4>' + titulo + '</h4>'
-    + '<table><thead><tr><th>' + rotuloColuna + '</th><th>Rupturas</th><th>Itens</th><th>Pacientes</th></tr></thead>'
-    + '<tbody>' + linhas + '</tbody></table></div>';
+    + '<table><thead><tr><th>' + rotuloColuna + '</th><th>Rupturas</th><th>%</th><th>Itens</th><th>Pacientes</th></tr></thead>'
+    + '<tbody>' + linhas + '</tbody>'
+    + '<tfoot><tr><td><strong>Total</strong></td><td><strong>' + nf(total) + '</strong></td>'
+    + '<td class="col-pct">100%</td><td></td><td></td></tr></tfoot>'
+    + '</table></div>';
+}
+
+// ---- Gráfico 1: rupturas por dia (barras verticais em SVG) ----
+// Cores por classe CSS (não cravadas), para funcionar nos dois temas.
+function graficoDiaRupturas(porDia) {
+  const alvo = document.getElementById('graficoDiaRupturas');
+  const legenda = document.getElementById('legendaDiaRupturas');
+  if (!porDia || !porDia.length) {
+    alvo.innerHTML = '<p class="texto-apoio">Sem dados no período.</p>';
+    legenda.textContent = '';
+    return;
+  }
+  const max = Math.max(...porDia.map((d) => d.rupturas), 1);
+  const pico = porDia.reduce((a, b) => (b.rupturas > a.rupturas ? b : a));
+  const media = porDia.reduce((s, d) => s + d.rupturas, 0) / porDia.length;
+  legenda.textContent = `${porDia.length} dias · média ${media.toFixed(1)}/dia · pico ${pico.rupturas} em ${formatarData(pico.data)}`;
+
+  const L = 900, A = 240, mEsq = 40, mDir = 10, mTopo = 16, mBaixo = 54;
+  const util = L - mEsq - mDir;
+  const alt = A - mTopo - mBaixo;
+  const passo = util / porDia.length;
+  const larguraBarra = Math.max(4, Math.min(28, passo * 0.62));
+
+  let grade = '';
+  for (let g = 0; g <= 4; g++) {
+    const v = (max * g) / 4;
+    const yy = mTopo + alt - (v / max) * alt;
+    grade += `<line class="g-grade" x1="${mEsq}" y1="${yy}" x2="${L - mDir}" y2="${yy}"/>`;
+    grade += `<text class="g-eixo" x="${mEsq - 6}" y="${yy + 4}" text-anchor="end">${Math.round(v)}</text>`;
+  }
+
+  // Com muitos dias, mostra o rótulo de data alternado para não embolar.
+  const passoRotulo = porDia.length > 16 ? 3 : (porDia.length > 10 ? 2 : 1);
+  const barras = porDia.map((d, i) => {
+    const h = (d.rupturas / max) * alt;
+    const x = mEsq + i * passo + (passo - larguraBarra) / 2;
+    const y = mTopo + alt - h;
+    const rot = i % passoRotulo === 0
+      ? `<text class="g-eixo" x="${x + larguraBarra / 2}" y="${A - mBaixo + 16}" text-anchor="end" transform="rotate(-45 ${x + larguraBarra / 2} ${A - mBaixo + 16})">${formatarData(d.data).slice(0, 5)}</text>`
+      : '';
+    return `<rect class="g-barra" x="${x}" y="${y}" width="${larguraBarra}" height="${Math.max(1, h)}" rx="2">
+        <title>${formatarData(d.data)}: ${d.rupturas} ruptura(s), ${d.pacientes} paciente(s)</title>
+      </rect>${rot}`;
+  }).join('');
+
+  alvo.innerHTML = `<svg class="grafico-svg" viewBox="0 0 ${L} ${A}" preserveAspectRatio="xMidYMid meet">${grade}${barras}</svg>`;
+}
+
+// ---- Gráfico 2: itens que mais romperam (barras horizontais em HTML) ----
+function graficoTopRupturas(topItens) {
+  const alvo = document.getElementById('graficoTopRupturas');
+  if (!topItens || !topItens.length) {
+    alvo.innerHTML = '<p class="texto-apoio">Sem dados no período.</p>';
+    return;
+  }
+  const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
+  const max = Math.max(...topItens.map((t) => t.rupturas), 1);
+  alvo.innerHTML = topItens.map((t) => {
+    const pct = (t.rupturas / max) * 100;
+    return `<div class="barra-top">
+        <div class="barra-top-rotulo" title="${escAttr(t.descricao)}">${escHtml(t.descricao)}</div>
+        <div class="barra-top-trilho"><span style="width:${pct.toFixed(1)}%"></span></div>
+        <div class="barra-top-valor">${nf(t.rupturas)} <span class="texto-apoio">(${nf(t.pacientes)} pac.)</span></div>
+      </div>`;
+  }).join('');
 }
 
 function renderRupturas(d) {
@@ -5833,6 +5906,9 @@ function renderRupturas(d) {
     quebraRupturas('Por categoria', d.porCategoria, 'Categoria', 'categoria')
     + quebraRupturas('Por tipo de item', d.porTipo, 'Tipo', 'tipo');
 
+  graficoDiaRupturas(d.porDia);
+  graficoTopRupturas(d.topItens);
+
   // Preenche as opções dos filtros, mantendo a seleção atual.
   const encher = (id, valores, rotulo) => {
     const sel = document.getElementById(id);
@@ -5860,6 +5936,19 @@ function renderRupturas(d) {
     + '</tr>').join('');
   document.getElementById('estadoVazioRupturas').hidden = d.linhas.length > 0;
 }
+
+// --- abas da tela de Rupturas ---
+// Os filtros ficam ACIMA das abas de propósito: valem para as duas, então os
+// KPIs e gráficos acompanham o mesmo recorte da lista.
+document.querySelectorAll('#abasRupturas .chip-faixa').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const aba = btn.dataset.aba;
+    document.querySelectorAll('#abasRupturas .chip-faixa')
+      .forEach((b) => b.classList.toggle('ativo', b === btn));
+    document.getElementById('abaRupturasLista').hidden = aba !== 'lista';
+    document.getElementById('abaRupturasIndicadores').hidden = aba !== 'indicadores';
+  });
+});
 
 // --- eventos da tela de Rupturas ---
 let tempoBuscaRupturas = null;

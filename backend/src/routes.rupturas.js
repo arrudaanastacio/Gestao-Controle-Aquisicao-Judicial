@@ -135,6 +135,32 @@ router.get('/', (req, res) => {
      ORDER BY rupturas DESC
   `).all(...pre, ...params);
 
+  // Série diária (para o gráfico de evolução no período filtrado)
+  const porDia = db.prepare(`
+    SELECT r.data,
+           COUNT(*) AS rupturas,
+           COUNT(DISTINCT r.protocolo_norm) AS pacientes,
+           COALESCE(SUM(r.quantidade), 0) AS quantidade
+    ${base}
+     WHERE ${onde}
+     GROUP BY r.data
+     ORDER BY r.data
+  `).all(...pre, ...params);
+
+  // Itens que mais romperam (para o gráfico de barras "top itens")
+  const topItens = db.prepare(`
+    SELECT r.codigo_item AS codigoItem,
+           MAX(r.descricao) AS descricao,
+           COUNT(*) AS rupturas,
+           COUNT(DISTINCT r.protocolo_norm) AS pacientes,
+           COALESCE(SUM(r.quantidade), 0) AS quantidade
+    ${base}
+     WHERE ${onde}
+     GROUP BY r.codigo_item
+     ORDER BY rupturas DESC
+     LIMIT 10
+  `).all(...pre, ...params);
+
   const cab = db.prepare(
     'SELECT criado_em FROM rupturas_importacoes ORDER BY id DESC LIMIT 1'
   ).get();
@@ -156,6 +182,8 @@ router.get('/', (req, res) => {
     kpis,
     porCategoria,
     porTipo,
+    porDia,
+    topItens,
     opcoes,
     credenciaisConfiguradas: credenciaisConfiguradas(),
   });
