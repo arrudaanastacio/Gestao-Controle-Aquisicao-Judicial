@@ -149,6 +149,44 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_estoque_codigo ON estoque_itens(codigo_i
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoque_data ON estoque_itens(data_referencia);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estoque_importacao ON estoque_itens(importacao_id);`);
 
+// ---------------------------------------------------------------------
+// RESERVAS (API UDTP) — quantidade do estoque separada para um paciente.
+// Mesmo padrão do estoque: cada consulta é uma FOTO DATADA. Serve para
+// calcular o disponível real (estoque - reservado) por item/lote.
+// A ligação com o resto do sistema é pelo CÓDIGO SCODES.
+// A API não devolve identificação do paciente — por isso não há campo de
+// paciente aqui (nada de dado pessoal é guardado).
+// ---------------------------------------------------------------------
+db.exec(`
+CREATE TABLE IF NOT EXISTS reservas_importacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT NOT NULL,           -- dia consultado na API (yyyy-mm-dd)
+  origem TEXT,                             -- ex.: 'API UDTP'
+  usuario_email TEXT,
+  total_itens INTEGER,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS reservas_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  importacao_id INTEGER NOT NULL,
+  data_referencia TEXT NOT NULL,
+  codigo_scodes TEXT,                      -- chave de ligação com o estoque
+  descricao TEXT,                          -- nome do medicamento
+  lote TEXT,
+  validade TEXT,                           -- yyyy-mm-dd
+  quantidade REAL,
+  unidade TEXT,
+  FOREIGN KEY (importacao_id) REFERENCES reservas_importacoes(id)
+);
+`);
+
+db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_scodes ON reservas_itens(codigo_scodes);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_data ON reservas_itens(data_referencia);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_importacao ON reservas_itens(importacao_id);`);
+
 // Listagem de Autores (requerentes das ações judiciais) — cada linha é um
 // autor x item da demanda. É substituída por completo a cada importação.
 db.exec(`
