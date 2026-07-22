@@ -152,7 +152,11 @@ async function carregarUsuario() {
     document.getElementById('linkUsuarios').hidden = false;
     document.getElementById('linkImportadores').hidden = false;
     document.getElementById('linkAlertas').hidden = false;
-    document.getElementById('botaoNovaSolicitacao').hidden = false;
+    // "Nova solicitação" fica ESCONDIDO de propósito: as telas de compras
+    // TP/OD são espelho da planilha do G: (fonte da verdade). Um cadastro
+    // manual aqui seria apagado na próxima importação "refaz o mês" (12h/19h
+    // ou "Atualizar agora"). O cadastro correto é feito na planilha.
+    // document.getElementById('botaoNovaSolicitacao').hidden = false;
     document.getElementById('botaoAtualizarOracle').hidden = false;
     verificarStatusOracle(); // retoma acompanhamento se já houver atualização em curso
     document.getElementById('botaoAtualizarOracleEstoque').hidden = false;
@@ -162,6 +166,7 @@ async function carregarUsuario() {
     verificarStatusOracleEntradaLotes();
     document.getElementById('botaoAtualizarRelatorioItens').hidden = false;
     verificarStatusOracleRelatorioItens();
+    document.querySelectorAll('.botao-atualizar-agora').forEach((b) => { b.hidden = false; });
     atualizarBadgeAlertas();
     carregarConfigLimiar();
   } else {
@@ -215,6 +220,7 @@ function aplicarPermissoesNav() {
     document.getElementById('linkAlertas').hidden = false;
     atualizarBadgeAlertas();
   }
+  if (window.__favoritosRender) window.__favoritosRender();
 }
 
 async function atualizarBadgeAlertas() {
@@ -263,6 +269,7 @@ const ICONES_NAV = {
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   elenco: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   atas: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/><path d="M15 19l2 2 3-3"/>',
+  distribuicao: '<circle cx="12" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="M12 8v4M12 12l-5 4M12 12l5 4"/>',
   entradaLotes: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/>',
   alertas: '<path d="M6 9a6 6 0 1 1 12 0c0 4 2 5 2 5H4s2-1 2-5"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   importadores: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
@@ -283,6 +290,152 @@ const ICONES_NAV = {
   });
 })();
 
+// Tema claro/escuro (botão na topbar). Guardado por pessoa no navegador.
+(function tema() {
+  const raiz = document.documentElement;
+  function aplicar(t) {
+    raiz.setAttribute('data-tema', t);
+    const btn = document.getElementById('botaoTema');
+    if (btn) btn.textContent = t === 'escuro' ? '🌙' : '☀️';
+  }
+  aplicar(localStorage.getItem('tema') === 'escuro' ? 'escuro' : 'claro');
+  const btn = document.getElementById('botaoTema');
+  if (btn) btn.addEventListener('click', () => {
+    const novo = raiz.getAttribute('data-tema') === 'escuro' ? 'claro' : 'escuro';
+    localStorage.setItem('tema', novo);
+    aplicar(novo);
+  });
+})();
+
+// Busca "Ir para tela…" da topbar: filtra as telas pela trilha e navega.
+// Só oferece telas que o usuário pode ver (respeita a permissão do menu).
+(function buscaTelas() {
+  const input = document.getElementById('buscaTelas');
+  const cx = document.getElementById('buscaTelasResultados');
+  if (!input || !cx) return;
+  let itens = [], marcado = -1;
+
+  function listar() {
+    const q = input.value.trim().toLowerCase();
+    const res = [];
+    for (const [pag, partes] of Object.entries(TRILHAS)) {
+      const link = document.querySelector(`.nav-lateral a[data-pagina="${pag}"]`);
+      if (link && link.hidden) continue;
+      const tela = partes[partes.length - 1];
+      const via = partes.slice(0, -1).join(' › ');
+      if (!q || `${tela} ${via}`.toLowerCase().includes(q)) res.push({ pag, tela, via });
+    }
+    return res.slice(0, 12);
+  }
+  function abrir() {
+    itens = listar(); marcado = -1;
+    cx.innerHTML = itens.length
+      ? itens.map((r) => `<button type="button" class="item" data-pag="${r.pag}">${r.tela}${r.via ? `<span class="via">${r.via}</span>` : ''}</button>`).join('')
+      : '<div class="vazio">Nenhuma tela encontrada.</div>';
+    cx.hidden = false;
+    cx.querySelectorAll('.item').forEach((b) => b.addEventListener('mousedown', (ev) => { ev.preventDefault(); ir(b.dataset.pag); }));
+  }
+  function ir(pag) { input.value = ''; cx.hidden = true; mudarPagina(pag); }
+  input.addEventListener('focus', abrir);
+  input.addEventListener('input', abrir);
+  input.addEventListener('blur', () => setTimeout(() => { cx.hidden = true; }, 120));
+  input.addEventListener('keydown', (ev) => {
+    const bs = cx.querySelectorAll('.item');
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); marcado = Math.min(marcado + 1, bs.length - 1); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); marcado = Math.max(marcado - 1, 0); }
+    else if (ev.key === 'Enter') { if (itens[marcado]) { ev.preventDefault(); ir(itens[marcado].pag); } return; }
+    else if (ev.key === 'Escape') { cx.hidden = true; input.blur(); return; }
+    else return;
+    bs.forEach((b, i) => b.classList.toggle('marcado', i === marcado));
+  });
+})();
+
+// Fase 3: menu escalável — grupos recolhíveis + favoritos (guardados no
+// navegador, por isso cada pessoa tem os seus). Mantém o menu limpo à medida
+// que novas telas entram.
+(function menuEscalavel() {
+  const CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>';
+  const ESTRELA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 21l1.1-6.5L2.6 9.8l6.5-.9z"/></svg>';
+
+  // Grupos recolhíveis: clicar no cabeçalho da unidade abre/fecha.
+  document.querySelectorAll('.nav-unidade-titulo').forEach((t) => {
+    const grupo = t.closest('.nav-grupo');
+    if (!grupo) return;
+    const chev = document.createElement('span');
+    chev.className = 'nav-cev';
+    chev.innerHTML = CHEV;
+    t.appendChild(chev);
+    t.setAttribute('role', 'button');
+    t.setAttribute('tabindex', '0');
+    const chave = 'menuRecolhido.' + (t.textContent || '').trim();
+    if (localStorage.getItem(chave) === '1') grupo.classList.add('recolhido');
+    const alternar = () => {
+      grupo.classList.toggle('recolhido');
+      localStorage.setItem(chave, grupo.classList.contains('recolhido') ? '1' : '0');
+    };
+    t.addEventListener('click', alternar);
+    t.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternar(); } });
+  });
+
+  // Favoritos: estrela em cada item fixa/desafixa a tela no topo do menu.
+  let FAV = [];
+  try { FAV = JSON.parse(localStorage.getItem('menuFavoritos') || '[]'); } catch (_) { FAV = []; }
+  const box = document.getElementById('navFavoritos');
+
+  function estrelasAtualizar() {
+    document.querySelectorAll('.fav-estrela').forEach((b) => b.classList.toggle('ativo', FAV.includes(b.dataset.pag)));
+  }
+  function favoritosRender() {
+    if (!box) return;
+    box.innerHTML = '';
+    const validos = FAV.filter((p) => {
+      const l = document.querySelector(`.nav-grupo a[data-pagina="${p}"]`);
+      return l && !l.hidden;
+    });
+    if (!validos.length) { box.hidden = true; return; }
+    box.hidden = false;
+    const tit = document.createElement('p');
+    tit.className = 'subtitulo';
+    tit.textContent = '⭐ Favoritos';
+    box.appendChild(tit);
+    validos.forEach((p) => {
+      const orig = document.querySelector(`.nav-grupo a[data-pagina="${p}"]`);
+      const a = document.createElement('a');
+      a.className = 'link';
+      a.href = '#';
+      a.dataset.pagina = p;
+      a.innerHTML = orig.innerHTML;
+      a.querySelectorAll('.fav-estrela').forEach((s) => s.remove());
+      a.addEventListener('click', (ev) => { ev.preventDefault(); mudarPagina(p); });
+      box.appendChild(a);
+    });
+  }
+  function alternarFav(p) {
+    const i = FAV.indexOf(p);
+    if (i >= 0) FAV.splice(i, 1); else FAV.push(p);
+    localStorage.setItem('menuFavoritos', JSON.stringify(FAV));
+    estrelasAtualizar();
+    favoritosRender();
+  }
+
+  document.querySelectorAll('.nav-grupo a[data-pagina]').forEach((a) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'fav-estrela';
+    b.dataset.pag = a.dataset.pagina;
+    b.setAttribute('aria-label', 'Fixar nos favoritos');
+    b.title = 'Fixar nos favoritos';
+    b.innerHTML = ESTRELA;
+    b.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); alternarFav(a.dataset.pagina); });
+    a.appendChild(b);
+  });
+  estrelasAtualizar();
+  favoritosRender();
+
+  // Reexpõe para reagir quando as permissões escondem telas (perfil consulta).
+  window.__favoritosRender = favoritosRender;
+})();
+
 function mostrarErroPagina(idSecao, mensagem) {
   const secao = document.getElementById(idSecao);
   if (!secao) return;
@@ -293,8 +446,48 @@ function mostrarErroPagina(idSecao, mensagem) {
   alvo.prepend(div);
 }
 
+// Caminho de navegação (breadcrumb) de cada tela: Unidade › Tipo › Tela.
+// Usado pela topbar e pela busca "Ir para tela…".
+const TRILHAS = {
+  painel: ['Painel'],
+  relatorio: ['Tenente Pena', 'Compras', 'Relatório de Compras TP'],
+  solicitacoes: ['Tenente Pena', 'Compras', 'Tabela Análise TP'],
+  comparativoAutores: ['Tenente Pena', 'Compras', 'Comparativo de Autores'],
+  relatorioReq: ['Tenente Pena', 'Compras', 'Relatório de Primeiro Atendimento'],
+  estoque: ['Tenente Pena', 'Estoque', 'Estoque Tenente Pena'],
+  evolucao: ['Tenente Pena', 'Estoque', 'Evolução de Estoque'],
+  historico: ['Tenente Pena', 'Estoque', 'Histórico de Estoque'],
+  entradaLotes: ['Tenente Pena', 'Estoque', 'Movimentação de Entrada'],
+  alertas: ['Tenente Pena', 'Estoque', 'Alertas'],
+  autores: ['Tenente Pena', 'Autores', 'Listagem de Autores'],
+  validades: ['Tenente Pena', 'Autores', 'Consultar Validades TP'],
+  estoqueGeral: ['Outras Demandas', 'Estoque', 'Itens em Estoque Geral'],
+  estoqueOD: ['Outras Demandas', 'Estoque', 'Estoque GSNET/IBL'],
+  distribuicao: ['Outras Demandas', 'Estoque', 'Distribuição'],
+  aquisicaoODAndamento: ['Outras Demandas', 'Compras', 'Aquisição em Andamento'],
+  solicitacoesOD: ['Outras Demandas', 'Compras', 'Relatório de Compras OD'],
+  autoresGeral: ['Outras Demandas', 'Autores', 'Listagem de Autores Demais Unidades'],
+  relatorioItens: ['Consultas', 'Relatório de Itens'],
+  atas: ['Consultas', 'Atas de Registro de Preço'],
+  usuarios: ['Administração', 'Usuários'],
+  importadores: ['Administração', 'Importação'],
+  elenco: ['Administração', 'Elenco'],
+  busca: ['Busca de medicamento'],
+};
+
+function atualizarTrilha(pagina) {
+  const trilha = document.getElementById('trilha');
+  if (!trilha) return;
+  const partes = TRILHAS[pagina] || ['—'];
+  const sep = '<svg class="sep" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>';
+  trilha.innerHTML = partes
+    .map((p, i) => (i === partes.length - 1 ? `<span class="atual">${p}</span>` : `<span>${p}</span>`))
+    .join(sep);
+}
+
 async function mudarPagina(pagina) {
   estado.paginaAtual = pagina;
+  atualizarTrilha(pagina);
   document.querySelectorAll('.nav-lateral a').forEach((a) => a.classList.toggle('ativo', a.dataset.pagina === pagina));
   document.getElementById('paginaPainel').hidden = pagina !== 'painel';
   document.getElementById('paginaSolicitacoes').hidden = pagina !== 'solicitacoes';
@@ -353,30 +546,87 @@ async function mudarPagina(pagina) {
 
 // -------------------- Painel --------------------
 async function carregarPainel() {
-  const grade = document.getElementById('grideResumo');
-  grade.innerHTML = '<p style="color:var(--cinza-texto);">Carregando…</p>';
+  const STATUS_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
 
-  const { porStatus, atrasados } = await api('/solicitacoes/resumo');
+  // Busca tudo em paralelo; cada chamada é tolerante a falha (ex.: estoque
+  // ainda sem importação) para o painel nunca ficar em branco por completo.
+  const [resumo, alertasResp, validades, recentes] = await Promise.all([
+    api('/solicitacoes/resumo').catch(() => ({ porStatus: [], atrasados: 0 })),
+    api('/alertas?resolvido=false').catch(() => ({ alertas: [], totalAbertos: 0 })),
+    api('/estoque/validades').catch(() => ({ lotes: [] })),
+    api('/solicitacoes?status=__em_aberto__&page=1&pageSize=6').catch(() => ({ solicitacoes: [] })),
+  ]);
 
-  const cartoes = [];
-  cartoes.push(`
-    <div class="cartao-resumo alerta">
-      <div class="numero">${atrasados}</div>
-      <div class="rotulo">Itens com prazo vencido</div>
-    </div>
-  `);
-  porStatus
-    .sort((a, b) => b.qtde - a.qtde)
-    .forEach((linha) => {
-      cartoes.push(`
-        <div class="cartao-resumo">
-          <div class="numero">${linha.qtde}</div>
-          <div class="rotulo">${linha.status}</div>
-        </div>
-      `);
-    });
+  const porStatus = resumo.porStatus || [];
+  const alertas = alertasResp.alertas || [];
+  const totalAlertas = alertasResp.totalAbertos || 0;
+  const comprasAndamento = porStatus
+    .filter((s) => STATUS_ABERTO.includes(s.status))
+    .reduce((soma, s) => soma + s.qtde, 0);
+  const itensCriticos = alertas.filter((a) => a.tipo === 'estoque_ruptura').length;
+  const vencendo30 = (validades.lotes || [])
+    .filter((l) => l.dias_para_vencer >= 0 && l.dias_para_vencer <= 30).length;
 
-  grade.innerHTML = cartoes.join('');
+  // --- Banner de alertas ---
+  const banner = document.getElementById('painelBanner');
+  if (totalAlertas > 0) {
+    const p = totalAlertas > 1;
+    banner.innerHTML = `
+      <div class="texto"><strong>${totalAlertas} alerta${p ? 's' : ''} ativo${p ? 's' : ''}</strong> precisa${p ? 'm' : ''} de atenção — estoque em ruptura ou compras sem demanda registrada.</div>
+      <button type="button" onclick="mudarPagina('alertas')">Ver alertas →</button>`;
+    banner.hidden = false;
+  } else {
+    banner.hidden = true;
+  }
+
+  // --- Cards de números (KPIs) ---
+  document.getElementById('painelTiles').innerHTML = `
+    <div class="painel-tile"><div class="numero">${comprasAndamento}</div><div class="rotulo">Compras em andamento</div></div>
+    <div class="painel-tile critico"><div class="numero">${itensCriticos}</div><div class="rotulo">Itens com estoque crítico</div></div>
+    <div class="painel-tile aviso"><div class="numero">${totalAlertas}</div><div class="rotulo">Alertas ativos</div></div>
+    <div class="painel-tile"><div class="numero">${vencendo30}</div><div class="rotulo">Lotes vencendo em 30 dias</div></div>`;
+
+  // --- Barras "Compras por status" ---
+  const ORDEM = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial', 'Finalizado', 'Cancelado', 'Deserto', 'Fracassado', 'Revogado'];
+  const ordenado = porStatus.slice().sort((a, b) => ORDEM.indexOf(a.status) - ORDEM.indexOf(b.status));
+  const maxQ = Math.max(1, ...ordenado.map((s) => s.qtde));
+  const corBarra = (st) => (st === 'Entrega Parcial' ? 'andamento' : (st === 'Finalizado' ? 'final' : ''));
+  const barras = ordenado.map((s) => `
+    <div class="barra-status">
+      <div class="linha-topo"><span>${s.status}</span><span class="valor">${s.qtde}</span></div>
+      <div class="trilho"><div class="preenchido ${corBarra(s.status)}" style="width:${Math.round((s.qtde / maxQ) * 100)}%"></div></div>
+    </div>`).join('') || '<p class="painel-vazio">Sem dados de status.</p>';
+  document.getElementById('painelStatus').innerHTML =
+    `<div class="cartao-cabecalho"><h3>Compras por status</h3></div>${barras}`;
+
+  // --- Alertas recentes ---
+  const listaAlertas = alertas.slice(0, 3).map((a) => `
+    <div class="item-alerta">
+      <span class="ponto ${a.tipo === 'estoque_ruptura' ? 'critico' : ''}"></span>
+      <div><div class="alerta-txt">${a.mensagem || ''}</div><div class="data">${formatarData(a.criado_em)}</div></div>
+    </div>`).join('') || '<p class="painel-vazio">Nenhum alerta ativo. 🎉</p>';
+  document.getElementById('painelAlertas').innerHTML = `
+    <div class="cartao-cabecalho"><h3>Alertas recentes</h3><button class="painel-link" onclick="mudarPagina('alertas')">Ver todos →</button></div>
+    <div class="lista-alertas">${listaAlertas}</div>`;
+
+  // --- Compras em andamento (recentes) ---
+  const linhas = (recentes.solicitacoes || []).map((s) => {
+    const classe = classeStatus(s.status, s.data_previsao_entrega);
+    const rotulo = rotuloStatus(s.status, s.data_previsao_entrega);
+    return `<tr>
+      <td class="medicamento">${s.descricao || '—'}</td>
+      <td class="cod-item">${s.codigo_item || '—'}</td>
+      <td>${s.n_oficio || '—'}</td>
+      <td>${valorCelula(s.qtde_solicitada)}</td>
+      <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('painelComprasRecentes').innerHTML = `
+    <div class="cartao-cabecalho"><h3>Compras em andamento — recentes</h3><button class="painel-link" onclick="mudarPagina('solicitacoes')">Ver relatório completo →</button></div>
+    <table class="painel-tabela">
+      <thead><tr><th>Medicamento</th><th>Código do item</th><th>Ofício</th><th>Qtde.</th><th>Status</th></tr></thead>
+      <tbody>${linhas || '<tr><td colspan="5" class="painel-vazio">Nenhuma compra em andamento.</td></tr>'}</tbody>
+    </table>`;
 }
 
 // -------------------- Solicitações --------------------
@@ -404,8 +654,49 @@ function preencherAnos() {
   }
 }
 
+// Ícones (traço simples) e montagem do cartão de KPI no estilo do mockup:
+// ícone + rótulo em cima, número grande, linha descritiva embaixo.
+const KPI_ICONES = {
+  doc: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+  chart: '<path d="M4 19h16M4 19V5M7 15l4-5 3 3 5-7"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  relogio: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+};
+function kpiCard(icone, num, rotulo, sub, classe = '') {
+  const svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${KPI_ICONES[icone] || ''}</svg>`;
+  return `<div class="cartao-kpi">
+      <div class="rot">${svg}${rotulo}</div>
+      <div class="num${classe ? ' ' + classe : ''}">${num}</div>
+      <div class="sub">${sub || ''}</div>
+    </div>`;
+}
+
+// KPIs da Tabela Análise TP, a partir do resumo (totais exatos, não paginados).
+async function renderKpisSolicitacoes() {
+  const alvo = document.getElementById('kpisSolicitacoes');
+  if (!alvo) return;
+  let r;
+  try { r = await api('/solicitacoes/resumo'); } catch (_) { return; }
+  const ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial', 'Em andamento'];
+  const porStatus = r.porStatus || [];
+  const soma = (fil) => porStatus.filter(fil).reduce((s, l) => s + l.qtde, 0);
+  const total = soma(() => true);
+  const andamento = soma((l) => ABERTO.includes(l.status));
+  const finalizadas = soma((l) => l.status === 'Finalizado');
+  const atrasadas = r.atrasados || 0;
+  const n = (v) => v.toLocaleString('pt-BR');
+  const pct = total ? Math.round((finalizadas / total) * 100) : 0;
+  alvo.innerHTML =
+    kpiCard('doc', n(total), 'Total de solicitações', 'todos os meses') +
+    kpiCard('chart', n(andamento), 'Em andamento', 'Planejamento · Adjucado · Empenhado · Entrega Parcial', 'aviso') +
+    kpiCard('check', n(finalizadas), 'Finalizadas', `${pct}% do total`) +
+    kpiCard('relogio', n(atrasadas), 'Atrasadas', 'previsão de entrega vencida', atrasadas > 0 ? 'critico' : '');
+}
+
 async function carregarSolicitacoes() {
   carregarUltimaAtualizacao('atualizadoSolicitacoes', 'solicitacoes');
+  renderKpisSolicitacoes();
   const params = new URLSearchParams();
   if (filtroBusca.value) params.set('q', filtroBusca.value);
   if (filtroStatus.value) params.set('status', filtroStatus.value);
@@ -435,7 +726,7 @@ async function carregarSolicitacoes() {
           <td>${s.descricao || '—'}</td>
           <td>${s.ano || '—'}</td>
           <td>${s.mes || '—'}</td>
-          <td>${s.tipo || '—'}</td>
+          <td>${s.tipo ? `<span class="tag-tipo">${s.tipo}</span>` : '—'}</td>
           <td>${s.modalidade_compra || '—'}</td>
           <td class="col-codigo">${s.n_oficio || '—'}</td>
           <td>${valorCelula(s.qtde_solicitada)}</td>
@@ -477,6 +768,51 @@ let idSolicitacaoEditando = null;
 
 document.getElementById('botaoNovaSolicitacao').addEventListener('click', () => abrirModalSolicitacao(null));
 document.getElementById('botaoCancelarModal').addEventListener('click', () => { modalSolicitacao.hidden = true; });
+
+// Botão "Atualizar agora" (só admin) — relê o arquivo da pasta de rede e
+// reimporta na hora, sem esperar os horários agendados (12h/19h). Como TP e OD
+// vêm cada um de UM arquivo e cada par de telas lê da MESMA tabela, o botão
+// fica só na tela "Relatório de Compras" de cada fonte; a tela irmã (Tabela
+// Análise TP / Aquisição em Andamento OD) já pega os dados novos ao abrir.
+const RECARGA_ATUALIZAR_AGORA = {
+  btnAtualizarAgoraRelatorio: carregarRelatorio,
+  btnAtualizarAgoraSolicitacoesOD: carregarSolicitacoesOD,
+};
+// Mostra um recado curto ao lado do botão (cria o span se ainda não existir).
+function statusAtualizarAgora(botao, texto, cor) {
+  let el = botao.nextElementSibling;
+  if (!el || !el.classList.contains('status-atualizar-agora')) {
+    el = document.createElement('span');
+    el.className = 'status-atualizar-agora atualizado-em';
+    botao.after(el);
+  }
+  el.textContent = texto || '';
+  el.style.color = cor || '';
+  el.hidden = !texto;
+}
+document.querySelectorAll('.botao-atualizar-agora').forEach((botao) => {
+  botao.addEventListener('click', async () => {
+    const fonte = botao.dataset.fonte; // 'tp' ou 'od'
+    const rota = fonte === 'od' ? '/solicitacoes-od/atualizar-agora' : '/importar-solicitacoes/atualizar-agora';
+    const rotulo = botao.textContent;
+    botao.disabled = true;
+    botao.textContent = '↻ Atualizando…';
+    statusAtualizarAgora(botao, '');
+    try {
+      const r = await api(rota, { method: 'POST' });
+      const recarregar = RECARGA_ATUALIZAR_AGORA[botao.id];
+      if (recarregar) await recarregar();
+      const ins = r.inseridos ?? 0;
+      const atu = r.atualizados ?? 0;
+      statusAtualizarAgora(botao, `✔ Atualizado: ${ins} inseridos, ${atu} atualizados.`, '#2c7a4b');
+    } catch (e) {
+      statusAtualizarAgora(botao, e.message || 'Não foi possível atualizar agora.', '#a3372b');
+    } finally {
+      botao.disabled = false;
+      botao.textContent = rotulo;
+    }
+  });
+});
 
 async function carregarItensCache(filtro = '') {
   const { itens } = await api(`/itens?q=${encodeURIComponent(filtro)}&pageSize=50`);
@@ -676,6 +1012,25 @@ document.getElementById('botaoLimparFiltrosRelatorio').addEventListener('click',
   carregarRelatorio();
 });
 
+// KPIs do Relatório de Compras TP, calculados no navegador a partir das linhas
+// já carregadas — refletem o filtro atual (ano/status/busca) da tela.
+function renderKpisRelatorio(solicitacoes) {
+  const alvo = document.getElementById('kpisRelatorio');
+  if (!alvo) return;
+  const ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+  const total = solicitacoes.length;
+  const emAndamento = solicitacoes.filter((s) => ABERTO.includes(s.status)).length;
+  const finalizadas = solicitacoes.filter((s) => s.status === 'Finalizado').length;
+  const itens = new Set(solicitacoes.map((s) => s.codigo_item).filter(Boolean)).size;
+  const n = (v) => v.toLocaleString('pt-BR');
+  const pct = total ? Math.round((finalizadas / total) * 100) : 0;
+  alvo.innerHTML =
+    kpiCard('doc', n(total), 'Solicitações (filtro atual)', 'no recorte selecionado') +
+    kpiCard('chart', n(emAndamento), 'Em andamento', 'Planejamento · Adjucado · Empenhado · Entrega Parcial', 'aviso') +
+    kpiCard('check', n(finalizadas), 'Finalizadas', `${pct}% do total`) +
+    kpiCard('list', n(itens), 'Itens distintos', 'medicamentos diferentes');
+}
+
 async function carregarRelatorio() {
   carregarUltimaAtualizacao('atualizadoRelatorio', 'solicitacoes');
   if (filtroAnoRelatorio.options.length <= 1) {
@@ -691,6 +1046,8 @@ async function carregarRelatorio() {
   const params = paramsRelatorio();
 
   const { solicitacoes } = await api(`/relatorios/consolidado?${params.toString()}`);
+
+  renderKpisRelatorio(solicitacoes);
 
   const corpo = document.getElementById('corpoTabelaRelatorio');
   const vazio = document.getElementById('estadoVazioRelatorio');
@@ -712,7 +1069,7 @@ async function carregarRelatorio() {
         <td>${s.descricao || '—'}</td>
         <td>${s.ano || '—'}</td>
         <td>${s.mes || '—'}</td>
-        <td>${s.tipo || '—'}</td>
+        <td>${s.tipo ? `<span class="tag-tipo">${s.tipo}</span>` : '—'}</td>
         <td>${s.modalidade_compra || '—'}</td>
         <td class="col-codigo">${s.n_oficio || '—'}</td>
         <td>${valorCelula(s.qtde_solicitada)}</td>
@@ -2414,10 +2771,18 @@ document.getElementById('botaoLimparGrade').addEventListener('click', async (ev)
 async function carregarSolicitacoesOD() {
   carregarUltimaAtualizacao('atualizadoSolicitacoesOD', 'solicitacoes_od');
   const { porStatus } = await api('/solicitacoes-od/resumo');
-  document.getElementById('grideResumoSolicitacoesOD').innerHTML = porStatus
-    .sort((a, b) => b.qtde - a.qtde)
-    .map((l) => `<div class="cartao-resumo"><div class="numero">${l.qtde}</div><div class="rotulo">${l.status}</div></div>`)
-    .join('');
+  const ABERTO_OD = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial', 'Em andamento'];
+  const contOD = (nome) => (porStatus.find((l) => l.status === nome) || {}).qtde || 0;
+  const totalOD = porStatus.reduce((s, l) => s + l.qtde, 0);
+  const andamentoOD = porStatus.filter((l) => ABERTO_OD.includes(l.status)).reduce((s, l) => s + l.qtde, 0);
+  const finalOD = contOD('Finalizado');
+  const pctOD = totalOD ? Math.round((finalOD / totalOD) * 100) : 0;
+  const nOD = (v) => v.toLocaleString('pt-BR');
+  document.getElementById('grideResumoSolicitacoesOD').innerHTML =
+    kpiCard('doc', nOD(totalOD), 'Total de solicitações', 'todos os meses') +
+    kpiCard('chart', nOD(andamentoOD), 'Em andamento', 'Planejamento · Adjucado · Empenhado · Entrega Parcial', 'aviso') +
+    kpiCard('check', nOD(finalOD), 'Finalizadas', `${pctOD}% do total`) +
+    kpiCard('relogio', nOD(contOD('Entrega Parcial')), 'Entrega parcial', 'aguardando saldo');
 
   if (!estadoSolicitacoesOD.filtrosCarregados) {
     const selStatus = document.getElementById('filtroStatusSolicitacoesOD');
@@ -2475,7 +2840,7 @@ async function carregarTabelaSolicitacoesOD() {
         <td class="col-codigo">${s.codigo_gsnet || '—'}</td>
         <td>${s.ano || '—'}</td>
         <td>${s.mes || '—'}</td>
-        <td>${s.tipo || '—'}</td>
+        <td>${s.tipo ? `<span class="tag-tipo">${s.tipo}</span>` : '—'}</td>
         <td>${s.modalidade_compra || '—'}</td>
         <td class="col-codigo">${s.n_oficio || '—'}</td>
         <td>${valorCelula(s.qtde_solicitada)}</td>
@@ -2526,10 +2891,14 @@ document.getElementById('botaoProximoAquisicaoODAndamento').addEventListener('cl
 async function carregarAquisicaoODAndamento() {
   carregarUltimaAtualizacao('atualizadoAquisicaoODAndamento', 'solicitacoes_od');
   const { porStatus } = await api('/solicitacoes-od/resumo?emAberto=true');
-  document.getElementById('grideResumoAquisicaoODAndamento').innerHTML = porStatus
-    .sort((a, b) => b.qtde - a.qtde)
-    .map((l) => `<div class="cartao-resumo"><div class="numero">${l.qtde}</div><div class="rotulo">${l.status}</div></div>`)
-    .join('');
+  const contAnd = (nome) => (porStatus.find((l) => l.status === nome) || {}).qtde || 0;
+  const totalAnd = porStatus.reduce((s, l) => s + l.qtde, 0);
+  const nAnd = (v) => v.toLocaleString('pt-BR');
+  document.getElementById('grideResumoAquisicaoODAndamento').innerHTML =
+    kpiCard('chart', nAnd(totalAnd), 'Total em andamento', 'compras não finalizadas', 'aviso') +
+    kpiCard('doc', nAnd(contAnd('Empenhado')), 'Empenhadas', 'com empenho emitido') +
+    kpiCard('relogio', nAnd(contAnd('Entrega Parcial')), 'Entrega parcial', 'aguardando saldo') +
+    kpiCard('list', nAnd(contAnd('Planejamento')), 'Planejamento', 'ainda sem empenho');
 
   if (!estadoAquisicaoODAndamento.filtrosCarregados) {
     const selAno = document.getElementById('filtroAnoAquisicaoODAndamento');
@@ -2578,7 +2947,7 @@ async function carregarTabelaAquisicaoODAndamento() {
         <td class="col-codigo">${s.codigo_gsnet || '—'}</td>
         <td>${s.ano || '—'}</td>
         <td>${s.mes || '—'}</td>
-        <td>${s.tipo || '—'}</td>
+        <td>${s.tipo ? `<span class="tag-tipo">${s.tipo}</span>` : '—'}</td>
         <td>${s.modalidade_compra || '—'}</td>
         <td class="col-codigo">${s.n_oficio || '—'}</td>
         <td>${valorCelula(s.qtde_solicitada)}</td>
@@ -4040,10 +4409,14 @@ async function carregarUltimaAtualizacao(spanId, tipo) {
 
 function formatarDataHora(iso) {
   if (!iso) return '—';
-  // iso vem como "AAAA-MM-DD HH:MM:SS" (datetime do SQLite, UTC)
-  const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  // iso vem como "AAAA-MM-DD HH:MM:SS" (datetime do SQLite, gravado em UTC).
+  // Convertemos para o horário LOCAL da máquina (Brasília, UTC−3) antes de
+  // exibir — senão o carimbo "Atualizado em" mostra 3h a mais.
+  const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
   if (!m) return iso;
-  return `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 // -------------------- Relatório Primeiro Atendimento (requisições salvas) --------------------

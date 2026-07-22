@@ -1,7 +1,7 @@
 const express = require('express');
 const XLSX = require('xlsx');
 const db = require('./db');
-const { autenticar } = require('./auth');
+const { autenticar, exigirPerfil } = require('./auth');
 
 const router = express.Router();
 router.use(autenticar);
@@ -232,6 +232,21 @@ router.get('/', (req, res) => {
   `).all(...params, limit, offset);
 
   res.json({ solicitacoes: linhas, total, page: Number(page), pageSize: limit });
+});
+
+// Atualização manual "agora" (admin) — relê o arquivo OD da pasta de rede e
+// reimporta, sem esperar o horário agendado. Usado pelos botões "Atualizar
+// agora" das telas Relatório de Compras OD e Aquisição em Andamento OD.
+router.post('/atualizar-agora', exigirPerfil('admin'), (req, res) => {
+  try {
+    const { forcarImportacaoSolicitacoesOD } = require('./vigiaSolicitacoesOD');
+    const resumo = forcarImportacaoSolicitacoesOD(req.usuario.email);
+    res.json({ ok: true, ...resumo });
+  } catch (e) {
+    const status = e.codigo === 'ARQUIVO_NAO_ENCONTRADO' ? 404
+      : e.codigo === 'ARQUIVO_EM_GRAVACAO' ? 409 : 400;
+    res.status(status).json({ erro: e.message });
+  }
 });
 
 module.exports = router;

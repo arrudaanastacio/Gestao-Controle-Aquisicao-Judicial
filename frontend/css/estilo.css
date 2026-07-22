@@ -13,10 +13,81 @@
   --verde-ok: #2c7a4b;
   --verde-ok-fundo: #e1f0e6;
   --cinza-texto: #5b5648;
+  --azul: #2a6a86;
+  --azul-fundo: #dfeaf0;
 
   --fonte-titulo: "Source Serif 4", "Iowan Old Style", Georgia, serif;
   --fonte-corpo: "Inter", "Segoe UI", system-ui, sans-serif;
   --fonte-mono: "IBM Plex Mono", "Courier New", monospace;
+
+  /* --- Tokens do design system (Fase 1) ---
+     Escala única de raio, sombra e espaçamento usada por todas as peças
+     (botões, campos, cartões, tabelas). Mexer aqui reflete no sistema todo. */
+  --raio: 8px;            /* controles: botões, campos, selects */
+  --raio-cartao: 12px;    /* cartões e blocos de conteúdo */
+  --raio-peq: 6px;        /* etiquetas, tags pequenas */
+  --sombra-cartao: 0 1px 2px rgba(22, 48, 43, 0.05);
+  --sombra-flutua: 0 8px 24px rgba(22, 48, 43, 0.12);
+  --linha-forte: #cfc9b8; /* borda de ênfase (hover) */
+  --alt-controle: 38px;   /* altura padrão de botões e campos */
+  --esp-1: 4px; --esp-2: 8px; --esp-3: 12px; --esp-4: 16px; --esp-5: 24px; --esp-6: 32px;
+
+  /* Cores de tabela (viram variáveis para o tema escuro funcionar sozinho) */
+  --zebra: #faf9f2;
+  --realce-tabela: #eef4f0;
+  --linha-tabela: #ece8db;
+  --topbar-fundo: rgba(255, 253, 247, 0.92);
+  --sidebar-bg: #133d36;  /* fundo do menu: verde-escuro nos DOIS temas */
+}
+
+/* ============ TEMA ESCURO (botão claro/escuro na topbar) ============
+   Redefine só as variáveis; as peças, por lerem as variáveis, viram escuras
+   automaticamente. É a "identidade escura" do mockup. */
+:root[data-tema="escuro"] {
+  --tinta: #e7f0ec;
+  --tinta-suave: #a7bcb3;
+  --papel: #0f1d19;
+  --papel-elevado: #172a25;
+  --linha: rgba(255, 255, 255, 0.10);
+  --linha-forte: rgba(255, 255, 255, 0.20);
+  --selo: #2f8a76;
+  --selo-escuro: #8fe0c2;      /* usado como cor de texto/números/títulos */
+  --cinza-texto: #93a8a0;
+  --ambar: #e0a54a;
+  --vermelho: #e07a6c;
+  --verde-ok: #6cc08a;
+  --azul: #7db8d0;
+  --ambar-fundo: #3a2c14;
+  --vermelho-fundo: #3a201c;
+  --verde-ok-fundo: #163024;
+  --azul-fundo: #142a33;
+  --zebra: rgba(255, 255, 255, 0.03);
+  --realce-tabela: rgba(255, 255, 255, 0.06);
+  --linha-tabela: rgba(255, 255, 255, 0.08);
+  --topbar-fundo: rgba(15, 29, 25, 0.90);
+  --sombra-cartao: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --sombra-flutua: 0 10px 30px rgba(0, 0, 0, 0.55);
+  --sidebar-bg: #0d241f;  /* menu um tom mais escuro no tema escuro */
+}
+/* No escuro, o hover do botão primário não pode clarear (o --selo-escuro vira
+   claro); usa um verde um pouco mais escuro. */
+:root[data-tema="escuro"] .botao-primario:hover,
+:root[data-tema="escuro"] form button[type="submit"]:hover,
+:root[data-tema="escuro"] form button[type="button"]:hover { background: #2b7d69; border-color: #2b7d69; }
+/* No escuro, todas as pílulas de status ganham um fundo uniforme derivado da
+   própria cor do texto — assim ficam igualmente visíveis (o verde "Finalizado"
+   não some mais) e consistentes entre si. */
+:root[data-tema="escuro"] .etiqueta-status {
+  background: rgba(255, 255, 255, 0.06); /* reserva, caso color-mix não exista */
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+/* Status neutros (Planejamento/Adjucado/Empenhado…) usam texto cinza de baixa
+   saturação — o fundo de 16% ficaria invisível. Damos um fundo neutro definido
+   e um texto mais claro, para lerem como pílula igual às coloridas. */
+:root[data-tema="escuro"] .etiqueta-status.andamento,
+:root[data-tema="escuro"] .etiqueta-status.planejamento {
+  background: rgba(255, 255, 255, 0.10);
+  color: #c6d5cd;
 }
 
 * { box-sizing: border-box; }
@@ -154,7 +225,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 }
 
 .barra-lateral {
-  background: var(--selo-escuro);
+  background: var(--sidebar-bg);
   color: #e9f3ef;
   padding: 24px 18px;
   display: flex;
@@ -234,8 +305,14 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
     width: 0;
     overflow: hidden;
     white-space: nowrap;
+    text-overflow: ellipsis;
     transition: opacity 0.12s ease;
   }
+  /* Rótulos longos ganham reticências em vez de corte seco (barra expandida) */
+  .barra-lateral:hover .nav-rotulo { max-width: 190px; }
+  /* No trilho recolhido, some a estrela de favorito e a setinha de recolher. */
+  .barra-lateral:not(:hover) .fav-estrela,
+  .barra-lateral:not(:hover) .nav-cev { display: none; }
   .barra-lateral:hover .nav-rotulo,
   .barra-lateral:hover .marca-texto,
   .barra-lateral:hover .rodape-info,
@@ -370,8 +447,62 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 }
 .nav-sub-vazio { opacity: 0.5; }
 .nav-sub-vazio span { font-style: italic; text-transform: none; letter-spacing: 0; }
+
+/* Menu em dois níveis: Unidade (Tenente Pena / Outras Demandas / Consultas /
+   Administração) e, dentro dela, subgrupos por tipo (Estoque / Compras /
+   Autores). O cabeçalho da unidade é mais forte; o do subgrupo é mais discreto
+   e os links dele ficam levemente recuados. */
+.nav-unidade-titulo {
+  font-size: 12px;
+  color: #eaf3ef;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+.nav-subgrupo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+}
+.nav-subgrupo:first-of-type { margin-top: 4px; }
+.nav-subgrupo-titulo {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: #9dbcb0;
+  margin: 0 0 3px 2px;
+}
+.nav-subgrupo a { padding-left: 20px; }
+.nav-subgrupo a.ativo::before { left: 8px; }
+/* Na barra recolhida (estreita), remove o recuo — os ícones ficam centrados. */
+.barra-lateral:not(:hover) .nav-subgrupo a { padding-left: 11px; }
 .nav-em-breve { opacity: 0.5; cursor: default; pointer-events: none; }
 .nav-em-breve span { font-style: italic; font-size: 0.85em; }
+
+/* ---------- Fase 3: menu escalável (grupos recolhíveis + favoritos) ---------- */
+/* Cabeçalho de unidade vira um botão que recolhe/expande o grupo. */
+.nav-unidade-titulo { cursor: pointer; user-select: none; }
+.nav-cev { margin-left: auto; display: flex; transition: transform .15s ease; opacity: .55; }
+.nav-cev svg { width: 14px; height: 14px; }
+.nav-grupo.recolhido .nav-cev { transform: rotate(-90deg); }
+.nav-grupo.recolhido .nav-subgrupo,
+.nav-grupo.recolhido > a,
+.nav-grupo.recolhido > .subtitulo { display: none; }
+
+/* Estrela de favorito em cada item (aparece no hover; fica acesa se favoritado). */
+.fav-estrela {
+  margin-left: auto; background: none; border: none; cursor: pointer; padding: 2px;
+  color: var(--lado-tinta); opacity: 0; flex-shrink: 0; display: flex; transition: opacity .12s, color .12s;
+}
+.link:hover .fav-estrela { opacity: .55; }
+.fav-estrela:hover { opacity: 1; color: #ffd166; }
+.fav-estrela.ativo { opacity: 1; color: #ffd166; }
+.fav-estrela svg { width: 15px; height: 15px; }
+.link .conta + .fav-estrela { margin-left: 6px; }
+
+/* Seção de favoritos no topo do menu. */
+.nav-favoritos { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
 
 .banner-alerta-oracle {
   background: #fdecea;
@@ -434,6 +565,72 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   max-width: 1280px;
 }
 
+/* ---------- Barra superior (topbar) — Fase 2 do visual ERP ----------
+   Fica no topo de todas as telas: caminho de navegação (breadcrumb) à esquerda
+   e busca de telas à direita. Usa margem negativa para vazar o padding do
+   .conteudo e ocupar toda a largura, e fica fixa ao rolar. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: -32px -40px 24px;
+  padding: 11px 40px;
+  background: var(--topbar-fundo);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--linha);
+}
+.trilha {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--cinza-texto);
+  flex-wrap: wrap;
+}
+.trilha .sep { width: 13px; height: 13px; opacity: .45; flex-shrink: 0; }
+.trilha .atual { color: var(--selo-escuro); font-weight: 600; }
+.topbar-dir { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.busca-topo { position: relative; }
+.busca-topo .lupa {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  width: 15px; height: 15px; color: var(--cinza-texto); pointer-events: none;
+}
+.busca-topo input {
+  width: 230px; height: 36px;
+  background: var(--papel); border: 1px solid var(--linha); color: var(--tinta);
+  border-radius: var(--raio); padding: 8px 10px 8px 31px; font-size: 13px;
+  font-family: var(--fonte-corpo); transition: border-color .12s, box-shadow .12s;
+}
+.busca-topo input:focus {
+  outline: none; border-color: var(--selo);
+  box-shadow: 0 0 0 3px rgba(31, 92, 82, 0.15);
+}
+.ico-tema {
+  width: 36px; height: 36px; border-radius: var(--raio);
+  border: 1px solid var(--linha); background: var(--papel-elevado);
+  cursor: pointer; font-size: 16px; line-height: 1; flex-shrink: 0;
+  display: grid; place-items: center; transition: border-color .12s;
+}
+.ico-tema:hover { border-color: var(--selo); }
+.busca-topo-resultados {
+  position: absolute; top: calc(100% + 5px); right: 0; width: 300px;
+  background: var(--papel-elevado); border: 1px solid var(--linha);
+  border-radius: var(--raio-cartao); box-shadow: var(--sombra-flutua);
+  padding: 6px; max-height: 340px; overflow-y: auto; z-index: 30;
+}
+.busca-topo-resultados .item {
+  display: block; width: 100%; text-align: left; background: none; border: none;
+  cursor: pointer; font-family: var(--fonte-corpo); color: var(--tinta);
+  padding: 8px 10px; border-radius: var(--raio); font-size: 13px;
+}
+.busca-topo-resultados .item:hover,
+.busca-topo-resultados .item.marcado { background: #eef4f0; }
+.busca-topo-resultados .item .via { display: block; font-size: 11px; color: var(--cinza-texto); margin-top: 1px; }
+.busca-topo-resultados .vazio { padding: 10px; font-size: 12.5px; color: var(--cinza-texto); }
+
 /* Páginas de relatório/estoque usam a largura total disponível,
    já que têm muitas colunas e se beneficiam de mais espaço. */
 .conteudo:has(> #paginaSolicitacoes:not([hidden])),
@@ -484,7 +681,8 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .cartao-resumo {
   background: var(--papel-elevado);
   border: 1px solid var(--linha);
-  border-radius: 6px;
+  border-radius: var(--raio-cartao);
+  box-shadow: var(--sombra-cartao);
   padding: 16px 18px;
   position: relative;
   overflow: hidden;
@@ -506,6 +704,35 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .cartao-resumo.alerta .numero { color: var(--vermelho); }
 .cartao-resumo.alerta { border-color: #e3b9b1; }
 
+/* Cartão de KPI no estilo do mockup: ícone + rótulo no topo, número grande e
+   uma linha descritiva embaixo. Usado nos relatórios. */
+.cartao-kpi {
+  background: var(--papel-elevado);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-cartao);
+  box-shadow: var(--sombra-cartao);
+  padding: 15px 17px;
+}
+.cartao-kpi .rot { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--cinza-texto); }
+.cartao-kpi .rot svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .8; }
+.cartao-kpi .num {
+  font-family: var(--fonte-titulo);
+  font-size: 27px; font-weight: 600; line-height: 1;
+  color: var(--selo-escuro); margin-top: 9px; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+.cartao-kpi .num.aviso { color: var(--ambar); }
+.cartao-kpi .num.critico { color: var(--vermelho); }
+.cartao-kpi .sub { font-size: 11.5px; color: var(--cinza-texto); margin-top: 5px; }
+
+/* Etiqueta do TIPO da solicitação (JS/AS/JM/ASM) na tabela — caixinha mono. */
+.tag-tipo {
+  font-family: var(--fonte-mono); font-size: 11px; font-weight: 600;
+  padding: 2px 7px; border-radius: var(--raio-peq);
+  background: var(--papel); border: 1px solid var(--linha); color: var(--cinza-texto);
+  white-space: nowrap;
+}
+
 /* ---------- FILTROS ---------- */
 
 .barra-filtros {
@@ -518,24 +745,43 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 
 .barra-filtros input[type="text"],
 .barra-filtros select {
-  padding: 8px 10px;
+  height: var(--alt-controle);
+  padding: 8px 11px;
   border: 1px solid var(--linha);
-  border-radius: 4px;
+  border-radius: var(--raio);
   background: var(--papel-elevado);
   font-size: 13px;
   font-family: var(--fonte-corpo);
   color: var(--tinta);
+  transition: border-color .12s, box-shadow .12s;
+}
+.barra-filtros input[type="text"]:focus,
+.barra-filtros select:focus {
+  outline: none;
+  border-color: var(--selo);
+  box-shadow: 0 0 0 3px rgba(31, 92, 82, 0.15);
 }
 
 .barra-filtros input[type="text"] { min-width: 240px; flex: 1; }
 
+.botao-secundario,
+.botao-primario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: var(--alt-controle);
+  padding: 0 15px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--raio);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
 .botao-secundario {
   background: var(--papel-elevado);
-  border: 1px solid var(--linha);
+  border: 1px solid var(--linha-forte);
   color: var(--tinta);
-  padding: 8px 14px;
-  font-size: 13px;
-  border-radius: 4px;
 }
 .botao-secundario:hover { border-color: var(--selo); color: var(--selo-escuro); }
 .botao-secundario:disabled { opacity: .55; cursor: not-allowed; }
@@ -543,19 +789,19 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 
 .botao-primario {
   background: var(--selo);
+  border: 1px solid var(--selo);
   color: #fdfdfb;
-  padding: 8px 14px;
-  font-size: 13px;
-  border-radius: 4px;
 }
-.botao-primario:hover { background: var(--selo-escuro); }
+.botao-primario:hover { background: var(--selo-escuro); border-color: var(--selo-escuro); }
+.botao-primario:disabled { opacity: .55; cursor: not-allowed; }
 
 /* ---------- TABELA ---------- */
 
 .tabela-wrap {
   background: var(--papel-elevado);
   border: 1px solid var(--linha);
-  border-radius: 6px;
+  border-radius: var(--raio-cartao);
+  box-shadow: var(--sombra-cartao);
   overflow: hidden;
 }
 
@@ -570,7 +816,7 @@ thead th {
   font-weight: 600;
   padding: 10px 14px;
   border-bottom: 1px solid var(--linha);
-  background: #fbfaf6;
+  background: var(--papel);
 }
 
 /* Contêiner com rolagem horizontal, para tabelas largas (muitas colunas) */
@@ -611,7 +857,7 @@ thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f2efe6;
+  background: var(--papel);
   box-shadow: inset 0 -1px 0 var(--linha);
 }
 
@@ -627,10 +873,10 @@ thead th {
 /* O canto (cabeçalho da 1ª coluna) precisa ficar acima de ambos */
 .tabela-rolavel-x thead th:first-child {
   z-index: 3;
-  background: #f2efe6;
+  background: var(--papel);
 }
 /* Mantém o destaque da linha sob hover também na coluna congelada */
-.tabela-rolavel-x tbody tr:hover td:first-child { background: #e9f2ee; }
+.tabela-rolavel-x tbody tr:hover td:first-child { background: var(--realce-tabela); }
 
 /* Contêiner com rolagem própria + cabeçalho fixo (usado na tabela de estoque).
    A altura máxima cria a área rolável; o thead "gruda" no topo ao rolar. */
@@ -795,12 +1041,15 @@ thead th {
 
 tbody td {
   padding: 11px 14px;
-  border-bottom: 1px solid #ece8db;
+  border-bottom: 1px solid var(--linha-tabela);
   vertical-align: top;
 }
 
 tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: #fbfaf3; }
+/* Zebra sutil + realce no hover (padrão de tabela corporativa). O realce vem
+   depois na cascata para vencer a zebra. */
+tbody tr:nth-child(even) td { background: var(--zebra); }
+tbody tr:hover td { background: var(--realce-tabela); }
 
 .col-codigo { font-family: var(--fonte-mono); font-size: 12px; color: var(--cinza-texto); }
 .col-data { font-family: var(--fonte-mono); font-size: 12px; white-space: nowrap; }
@@ -814,8 +1063,8 @@ tbody tr:hover { background: #fbfaf3; }
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 3px 8px;
-  border-radius: 3px;
+  padding: 3px 9px;
+  border-radius: 20px;
   white-space: nowrap;
 }
 
@@ -1001,6 +1250,10 @@ tbody tr:hover { background: #fbfaf3; }
   .nav-lateral { flex-direction: row; }
   .rodape-lateral { display: none; }
   .conteudo { padding: 20px; }
+  .topbar { margin: -20px -20px 18px; padding: 10px 20px; flex-wrap: wrap; gap: 10px; }
+  .busca-topo input { width: 100%; }
+  .busca-topo { flex: 1; }
+  .busca-topo-resultados { width: 100%; }
   .grade-form { grid-template-columns: 1fr; }
 }
 
@@ -1108,4 +1361,167 @@ body.tem-faixa-ambiente { padding-top: 30px; }
   -webkit-box-orient: vertical;
   overflow: hidden;
   line-height: 1.35;
+}
+
+/* ===================== Painel geral (dashboard) ===================== */
+
+/* Banner de alerta no topo do painel */
+.painel-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--ambar-fundo);
+  border: 1px solid #eccfa0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 22px;
+}
+.painel-banner .texto { color: #7a4a12; font-size: 14px; line-height: 1.4; }
+.painel-banner .texto strong { color: var(--ambar); }
+.painel-banner button {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--ambar);
+  color: var(--ambar);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.painel-banner button:hover { background: var(--ambar); color: #fff; }
+
+/* Cards grandes de números (KPIs) */
+.painel-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin: 22px 0;
+}
+.painel-tile {
+  background: var(--papel-elevado);
+  border: 1px solid var(--linha);
+  border-radius: 14px;
+  padding: 20px 22px;
+}
+.painel-tile .numero {
+  font-family: var(--fonte-titulo);
+  font-size: 40px;
+  line-height: 1;
+  color: var(--tinta);
+  margin-bottom: 10px;
+}
+.painel-tile .rotulo { color: var(--cinza-texto); font-size: 13.5px; }
+.painel-tile.critico .numero { color: var(--vermelho); }
+.painel-tile.aviso .numero { color: var(--ambar); }
+
+/* Duas colunas: status + alertas recentes */
+.painel-duas-colunas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.painel-cartao {
+  background: var(--papel-elevado);
+  border: 1px solid var(--linha);
+  border-radius: 14px;
+  padding: 22px 24px;
+}
+.painel-cartao .cartao-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.painel-cartao .cartao-cabecalho h3 {
+  font-family: var(--fonte-titulo);
+  font-size: 18px;
+  color: var(--tinta);
+  margin: 0;
+}
+.painel-link {
+  background: none;
+  border: none;
+  color: var(--selo);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.painel-link:hover { text-decoration: underline; }
+
+/* Barras "Compras por status" */
+.barra-status { margin-bottom: 14px; }
+.barra-status:last-child { margin-bottom: 0; }
+.barra-status .linha-topo {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13.5px;
+  color: var(--tinta-suave);
+  margin-bottom: 6px;
+}
+.barra-status .linha-topo .valor { font-weight: 600; color: var(--tinta); }
+.barra-status .trilho {
+  height: 8px;
+  background: #ece7d9;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.barra-status .preenchido {
+  height: 100%;
+  background: var(--selo);
+  border-radius: 6px;
+}
+.barra-status .preenchido.andamento { background: var(--ambar); }
+.barra-status .preenchido.final { background: var(--verde-ok); }
+
+/* Lista de alertas recentes */
+.lista-alertas { display: flex; flex-direction: column; }
+.item-alerta {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--linha);
+}
+.item-alerta:first-child { border-top: none; padding-top: 0; }
+.item-alerta .ponto {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+  background: var(--ambar);
+}
+.item-alerta .ponto.critico { background: var(--vermelho); }
+.item-alerta .alerta-txt { font-size: 13.5px; color: var(--tinta-suave); line-height: 1.4; }
+.item-alerta .data { color: var(--cinza-texto); font-size: 12px; margin-top: 3px; }
+
+/* Tabela de compras em andamento (painel) */
+.painel-tabela { width: 100%; border-collapse: collapse; }
+.painel-tabela th {
+  text-align: left;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cinza-texto);
+  font-weight: 600;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--linha);
+}
+.painel-tabela td {
+  padding: 13px 10px;
+  border-bottom: 1px solid var(--linha);
+  font-size: 14px;
+  color: var(--tinta-suave);
+}
+.painel-tabela tr:last-child td { border-bottom: none; }
+.painel-tabela .medicamento { font-weight: 600; color: var(--tinta); }
+.painel-tabela .cod-item { font-family: var(--fonte-mono); font-size: 12.5px; color: var(--cinza-texto); }
+.painel-tabela .painel-vazio { color: var(--cinza-texto); text-align: center; padding: 22px; }
+
+@media (max-width: 900px) {
+  .painel-tiles { grid-template-columns: repeat(2, 1fr); }
+  .painel-duas-colunas { grid-template-columns: 1fr; }
 }

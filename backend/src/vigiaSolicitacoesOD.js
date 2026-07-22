@@ -45,6 +45,29 @@ function tentarImportar(motivo) {
   }
 }
 
+// Importação manual "agora" (botão admin nas telas de Compras OD / Aquisição
+// em Andamento OD). Ignora a assinatura: importa sempre a versão mais recente.
+function forcarImportacaoSolicitacoesOD(usuarioEmail) {
+  const assin = assinaturaArquivo();
+  if (!assin) {
+    const err = new Error('Arquivo do Relatório de Compras OD não encontrado na pasta de rede.');
+    err.codigo = 'ARQUIVO_NAO_ENCONTRADO';
+    throw err;
+  }
+  const buffer = fs.readFileSync(CAMINHO);
+  if (assinaturaArquivo() !== assin) {
+    const err = new Error('O arquivo está sendo gravado neste momento. Tente de novo em alguns segundos.');
+    err.codigo = 'ARQUIVO_EM_GRAVACAO';
+    throw err;
+  }
+  const { gravarImportacao } = require('./routes.solicitacoesOD');
+  const resumo = gravarImportacao(buffer, 'RELATÓRIO DE COMPRAS OUTRAS DEMANDAS - Macro.xlsm', usuarioEmail || 'atualizacao-manual');
+  ultimaAssinatura = assin;
+  salvarAssinatura('solicitacoes_od', ultimaAssinatura);
+  console.log(`[VIGIA SOLICITAÇÕES OD] Atualização manual por ${usuarioEmail}: ${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados.`);
+  return resumo;
+}
+
 function iniciarVigiaSolicitacoesOD() {
   if (process.env.AUTO_IMPORTAR_SOLICITACOES_OD === 'false') {
     console.log('[VIGIA SOLICITAÇÕES OD] Desativado (AUTO_IMPORTAR_SOLICITACOES_OD=false).');
@@ -56,4 +79,4 @@ function iniciarVigiaSolicitacoesOD() {
   console.log('[VIGIA SOLICITAÇÕES OD] Agendado para checar às 12h e 19h. Arquivo:', CAMINHO);
 }
 
-module.exports = { iniciarVigiaSolicitacoesOD };
+module.exports = { iniciarVigiaSolicitacoesOD, forcarImportacaoSolicitacoesOD };

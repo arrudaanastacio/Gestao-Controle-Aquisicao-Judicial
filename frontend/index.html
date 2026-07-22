@@ -22,39 +22,65 @@
       <nav class="nav-lateral" style="margin-top:24px;">
         <a href="#" data-pagina="painel" class="ativo">Painel</a>
 
+        <div class="nav-favoritos" id="navFavoritos" hidden></div>
+
         <div class="nav-grupo">
-          <p class="nav-grupo-titulo">🏥 Tenente Pena</p>
-          <a href="#" data-pagina="relatorio">Relatório de Compras TP</a>
-          <a href="#" data-pagina="solicitacoes">Tabela Análise TP</a>
-          <a href="#" data-pagina="estoque">Estoque Tenente Pena</a>
-          <a href="#" data-pagina="validades">Consultar Validades TP</a>
-          <a href="#" data-pagina="historico">Histórico de Estoque</a>
-          <a href="#" data-pagina="evolucao">Evolução de Estoque</a>
-          <a href="#" data-pagina="autores">Listagem de Autores Tenente Pena</a>
-          <a href="#" data-pagina="relatorioReq">Relatório de Primeiro Atendimento</a>
-          <a href="#" data-pagina="comparativoAutores">Comparativo de Autores</a>
-          <a href="#" data-pagina="entradaLotes">Movimentação de Entrada Estoque</a>
-          <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
+          <p class="nav-grupo-titulo nav-unidade-titulo">📦 Tenente Pena</p>
+
+          <div class="nav-subgrupo">
+            <p class="nav-grupo-titulo nav-subgrupo-titulo">📊 Estoque</p>
+            <a href="#" data-pagina="estoque">Estoque Tenente Pena</a>
+            <a href="#" data-pagina="evolucao">Evolução de Estoque</a>
+            <a href="#" data-pagina="historico">Histórico de Estoque</a>
+            <a href="#" data-pagina="entradaLotes">Movimentação de Entrada</a>
+            <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
+          </div>
+
+          <div class="nav-subgrupo">
+            <p class="nav-grupo-titulo nav-subgrupo-titulo">🛒 Compras</p>
+            <a href="#" data-pagina="solicitacoes">Tabela Análise TP</a>
+            <a href="#" data-pagina="relatorio">Relatório de Compras TP</a>
+            <a href="#" data-pagina="comparativoAutores">Comparativo de Autores</a>
+            <a href="#" data-pagina="relatorioReq">Relatório de Primeiro Atendimento</a>
+          </div>
+
+          <div class="nav-subgrupo">
+            <p class="nav-grupo-titulo nav-subgrupo-titulo">👥 Autores</p>
+            <a href="#" data-pagina="autores">Listagem de Autores</a>
+            <a href="#" data-pagina="validades">Consultar Validades TP</a>
+          </div>
         </div>
 
         <div class="nav-grupo">
-          <p class="nav-grupo-titulo">🏢 Outras Demandas</p>
-          <a href="#" data-pagina="solicitacoesOD">Relatório de Compras OD</a>
-          <a href="#" data-pagina="aquisicaoODAndamento">Aquisição em Andamento OD</a>
-          <a href="#" data-pagina="estoqueGeral">Itens em Estoque Geral</a>
-          <a href="#" data-pagina="autoresGeral">Listagem de Autores Demais Unidades</a>
-          <a href="#" data-pagina="estoqueOD">Estoque GSNET/IBL</a>
-          <a href="#" data-pagina="distribuicao">Distribuição</a>
+          <p class="nav-grupo-titulo nav-unidade-titulo">🏢 Outras Demandas</p>
+
+          <div class="nav-subgrupo">
+            <p class="nav-grupo-titulo nav-subgrupo-titulo">📊 Estoque</p>
+            <a href="#" data-pagina="estoqueGeral">Itens em Estoque Geral</a>
+            <a href="#" data-pagina="estoqueOD">Estoque GSNET/IBL</a>
+            <a href="#" data-pagina="distribuicao">Distribuição</a>
+          </div>
+
+          <div class="nav-subgrupo">
+            <p class="nav-grupo-titulo nav-subgrupo-titulo">🛒 Compras</p>
+            <a href="#" data-pagina="aquisicaoODAndamento">Aquisição em Andamento</a>
+            <a href="#" data-pagina="solicitacoesOD">Relatório de Compras OD</a>
+          </div>
+
+          <div class="nav-subgrupo">
+            <p class="nav-grupo-titulo nav-subgrupo-titulo">👥 Autores</p>
+            <a href="#" data-pagina="autoresGeral">Listagem de Autores Demais Unidades</a>
+          </div>
         </div>
 
         <div class="nav-grupo">
-          <p class="nav-grupo-titulo">🔍 Consultas</p>
+          <p class="nav-grupo-titulo nav-unidade-titulo">📑 Consultas</p>
           <a href="#" data-pagina="relatorioItens">Relatório de Itens</a>
           <a href="#" data-pagina="atas">Atas de Registro de Preço</a>
         </div>
 
         <div class="nav-grupo" id="grupoAdministracao">
-          <p class="nav-grupo-titulo">⚙️ Administração</p>
+          <p class="nav-grupo-titulo nav-unidade-titulo">⚙️ Administração</p>
           <a href="#" data-pagina="usuarios" id="linkUsuarios" hidden>Usuários</a>
           <a href="#" data-pagina="importadores" id="linkImportadores" hidden>Importação</a>
         </div>
@@ -77,15 +103,32 @@
     </aside>
 
     <main class="conteudo">
+      <header class="topbar">
+        <nav class="trilha" id="trilha" aria-label="Caminho de navegação"></nav>
+        <div class="topbar-dir">
+          <div class="busca-topo">
+            <svg class="lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input id="buscaTelas" type="text" placeholder="Ir para tela…" autocomplete="off" aria-label="Buscar tela">
+            <div class="busca-topo-resultados" id="buscaTelasResultados" hidden></div>
+          </div>
+          <button class="ico-tema" id="botaoTema" type="button" aria-label="Alternar tema claro/escuro" title="Alternar tema claro/escuro">☀️</button>
+        </div>
+      </header>
       <div class="banner-alerta-oracle" id="bannerAlertaOracle" hidden></div>
       <section id="paginaPainel">
+        <div class="painel-banner" id="painelBanner" hidden></div>
         <div class="cabecalho-pagina">
           <div>
             <h2>Painel geral</h2>
-            <p>Visão consolidada de todas as solicitações de compra por status</p>
+            <p>Visão consolidada de compras judiciais, estoque e alertas — Unidade Tenente Pena</p>
           </div>
         </div>
-        <div class="grade-resumo" id="grideResumo"></div>
+        <div class="painel-tiles" id="painelTiles"></div>
+        <div class="painel-duas-colunas">
+          <div class="painel-cartao" id="painelStatus"></div>
+          <div class="painel-cartao" id="painelAlertas"></div>
+        </div>
+        <div class="painel-cartao" id="painelComprasRecentes"></div>
       </section>
 
       <section id="paginaSolicitacoes" hidden>
@@ -103,6 +146,8 @@
         <p class="somente-leitura-aviso" id="avisoSomenteLeitura" hidden>
           Seu perfil tem acesso somente de consulta.
         </p>
+
+        <div class="grade-resumo" id="kpisSolicitacoes"></div>
 
         <div class="barra-filtros">
           <input type="text" id="filtroBusca" placeholder="Buscar por código, siafísico, descrição, ofício, requisição GSNET ou empenho…">
@@ -189,12 +234,15 @@
           </div>
           <div style="display:flex; gap:10px; align-items:center;">
             <span class="atualizado-em" id="atualizadoRelatorio"></span>
+            <button class="botao-primario botao-atualizar-agora" id="btnAtualizarAgoraRelatorio" data-fonte="tp" hidden>↻ Atualizar agora</button>
             <select id="filtroAnoRelatorio">
               <option value="">Todos os anos</option>
             </select>
             <button class="botao-secundario" id="botaoExportarRelatorio">Exportar CSV</button>
           </div>
         </div>
+
+        <div class="grade-resumo" id="kpisRelatorio"></div>
 
         <div class="barra-filtros">
           <input type="text" id="filtroBuscaRelatorio" placeholder="Buscar por código, siafísico, descrição, ofício, requisição GSNET ou empenho…">
@@ -811,7 +859,10 @@
             <h2>Relatório de Compras OD</h2>
             <p>Solicitações de compra de medicamentos de Outras Demandas</p>
           </div>
-          <span class="atualizado-em" id="atualizadoSolicitacoesOD"></span>
+          <div class="cabecalho-direita">
+            <span class="atualizado-em" id="atualizadoSolicitacoesOD"></span>
+            <button class="botao-primario botao-atualizar-agora" id="btnAtualizarAgoraSolicitacoesOD" data-fonte="od" hidden>↻ Atualizar agora</button>
+          </div>
         </div>
 
         <div class="grade-resumo" id="grideResumoSolicitacoesOD"></div>
