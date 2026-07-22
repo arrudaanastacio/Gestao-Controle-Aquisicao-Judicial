@@ -803,10 +803,23 @@ router.get('/item/:codigo', (req, res) => {
     ? db.prepare(`SELECT * FROM estoque_itens WHERE codigo_item = ? AND data_referencia = ?${andEsc}`).get(codigo, ultima.data_referencia)
     : null;
 
-  // Evolução do estoque ao longo do tempo (histórico)
-  const historicoEstoque = db.prepare(
-    'SELECT data_referencia, estoque, autonomia, demandas, consumo_mensal_total FROM estoque_itens WHERE codigo_item = ? ORDER BY data_referencia'
-  ).all(codigo);
+  // Evolução do estoque ao longo do tempo (histórico).
+  // Duas correções em relação à versão anterior:
+  //  1) respeita o MESMO filtro de unidade do estoque atual (antes não
+  //     filtrava, então misturava unidades);
+  //  2) agrupa por data — a tabela guarda uma linha por item POR UNIDADE,
+  //     então sem o GROUP BY a mesma data aparecia repetida várias vezes.
+  const historicoEstoque = db.prepare(`
+    SELECT data_referencia,
+           SUM(estoque) AS estoque,
+           MAX(autonomia) AS autonomia,
+           SUM(demandas) AS demandas,
+           SUM(consumo_mensal_total) AS consumo_mensal_total
+      FROM estoque_itens
+     WHERE codigo_item = ?${andEsc}
+     GROUP BY data_referencia
+     ORDER BY data_referencia
+  `).all(codigo);
 
   // Compras judiciais do item
   const compras = db.prepare(`

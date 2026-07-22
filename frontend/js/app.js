@@ -2983,30 +2983,35 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
   document.getElementById('tituloModalEstoque').textContent = e ? (e.descricao || dados.codigo) : dados.codigo;
   document.getElementById('codigoModalEstoque').textContent = dados.codigo;
 
+  // Montagem no mesmo formato do modal de Reservas: KPIs no topo, depois as
+  // duas tabelas ESTREITAS lado a lado (lotes | evolução) e, por fim, as
+  // tabelas LARGAS em largura total. Evita a rolagem vertical enorme que a
+  // versão empilhada gerava.
   let html = '';
 
   if (e) {
     html += `
       <div class="grade-resumo" style="grid-template-columns: repeat(4, 1fr); margin-bottom:18px;">
-        <div class="cartao-resumo"><div class="numero" style="font-size:22px;">${fmtNumero(e.estoque)}</div><div class="rotulo">Estoque</div></div>
-        <div class="cartao-resumo"><div class="numero" style="font-size:22px;">${fmtNumero(e.autonomia)}</div><div class="rotulo">Autonomia (meses)</div></div>
-        <div class="cartao-resumo"><div class="numero" style="font-size:22px;">${fmtNumero(e.demandas)}</div><div class="rotulo">Demandas</div></div>
-        <div class="cartao-resumo"><div class="numero" style="font-size:22px;">${fmtNumero(e.consumo_mensal_total)}</div><div class="rotulo">Consumo/mês</div></div>
+        ${kpiCard('chart', fmtNumero(e.estoque), 'Estoque', 'saldo atual')}
+        ${kpiCard('relogio', fmtNumero(e.autonomia), 'Autonomia', 'meses de cobertura')}
+        ${kpiCard('list', fmtNumero(e.demandas), 'Demandas', 'pacientes com demanda')}
+        ${kpiCard('doc', fmtNumero(e.consumo_mensal_total), 'Consumo/mês', 'média mensal')}
       </div>
     `;
   } else {
     html += '<p class="texto-apoio">Este item não consta no relatório de estoque mais recente.</p>';
   }
 
-  // Lotes e validades (vindos do relatório de estoque)
+  // ----- coluna 1: lotes e validades -----
+  let colLotes = '';
   if (e) {
     const lotes = parsearLotes(e.lotes);
-    html += '<h4>Lotes e validades</h4>';
+    colLotes += `<h4>Lotes e validades ${lotes.length ? `<span class="texto-apoio">(${lotes.length})</span>` : ''}</h4>`;
     if (lotes.length === 0) {
-      html += '<p class="texto-apoio">Sem informação de lote para este item no relatório.</p>';
+      colLotes += '<p class="texto-apoio">Sem informação de lote para este item no relatório.</p>';
     } else {
-      html += `<table><thead><tr><th>Lote</th><th>Validade</th><th>Quantidade</th><th>Fabricante</th></tr></thead><tbody>`;
-      html += lotes.map((l) => {
+      colLotes += `<table><thead><tr><th>Lote</th><th>Validade</th><th>Quantidade</th><th>Fabricante</th></tr></thead><tbody>`;
+      colLotes += lotes.map((l) => {
         const cls = classeValidade(l.validade);
         const tag = cls === 'vencido'
           ? `<span class="etiqueta-status cancelado">${l.validade} · vencido</span>`
@@ -3017,22 +3022,43 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
           <td class="col-codigo">${l.lote}</td>
           <td class="col-data">${tag}</td>
           <td>${l.qtde ? fmtNumero(Number(String(l.qtde).replace(/\./g, '').replace(',', '.'))) : '—'}</td>
-          <td style="font-size:11.5px; color:var(--cinza-texto);">${l.fabricante}</td>
+          <td class="texto-apoio">${l.fabricante}</td>
         </tr>`;
       }).join('');
-      html += '</tbody></table>';
+      colLotes += '</tbody></table>';
     }
   }
 
-  // Situação de compra judicial
+  // ----- coluna 2: evolução do estoque -----
+  let colEvolucao = '';
+  if (dados.historicoEstoque.length > 1) {
+    colEvolucao += `<h4>Evolução do estoque <span class="texto-apoio">(${dados.historicoEstoque.length} datas)</span></h4>`;
+    colEvolucao += `<table><thead><tr><th>Data</th><th>Estoque</th><th>Autonomia</th><th>Demanda</th></tr></thead><tbody>`;
+    colEvolucao += dados.historicoEstoque.map((h) => `
+      <tr>
+        <td class="col-data">${formatarData(h.data_referencia)}</td>
+        <td>${fmtNumero(h.estoque)}</td>
+        <td>${fmtNumero(h.autonomia)}</td>
+        <td>${fmtNumero(h.demandas)}</td>
+      </tr>
+    `).join('');
+    colEvolucao += '</tbody></table>';
+  }
+
+  // As duas estreitas lado a lado (viram uma embaixo da outra em tela pequena)
+  if (colLotes || colEvolucao) {
+    html += `<div class="detalhe-colunas"><div>${colLotes}</div><div>${colEvolucao}</div></div>`;
+  }
+
+  // ----- largura total: compras judiciais -----
   html += '<h4>Compras no controle judicial</h4>';
   if (dados.compras.length === 0) {
     html += '<p class="texto-apoio">Nenhuma compra registrada para este item no controle judicial.</p>';
   } else {
     if (dados.temCompraAberta) {
-      html += '<p style="font-size:12.5px; color:var(--selo); margin:0 0 8px;">✓ Este item tem compra em aberto (em andamento).</p>';
+      html += '<p class="aviso-compra-aberta">✓ Este item tem compra em aberto (em andamento).</p>';
     }
-    html += `<table><thead><tr><th>Período</th><th>Modalidade</th><th>Qtd. solicitada</th><th>Empenho</th><th>Previsão</th><th>Status</th></tr></thead><tbody>`;
+    html += `<div class="rolagem-tabela"><table><thead><tr><th>Período</th><th>Modalidade</th><th>Qtd. solicitada</th><th>Empenho</th><th>Previsão</th><th>Status</th></tr></thead><tbody>`;
     html += dados.compras.map((c) => {
       const classe = classeStatus(c.status, c.data_previsao_entrega);
       const rotulo = rotuloStatus(c.status, c.data_previsao_entrega);
@@ -3045,15 +3071,15 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
         <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
       </tr>`;
     }).join('');
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
   }
 
-  // Pacientes (Listagem de Autores) cadastrados com este item, na Tenente Pena
-  html += '<h4>Pacientes</h4>';
+  // ----- largura total: pacientes -----
+  html += `<h4>Pacientes ${dados.pacientes && dados.pacientes.length ? `<span class="texto-apoio">(${dados.pacientes.length})</span>` : ''}</h4>`;
   if (!dados.pacientes || dados.pacientes.length === 0) {
     html += '<p class="texto-apoio">Nenhum paciente cadastrado com este item na Tenente Pena.</p>';
   } else {
-    html += `<table><thead><tr><th>Nome</th><th>Protocolo</th><th>Qtde. Consumo</th><th>Prazo</th><th>Periodicidade</th><th>Data de retirada</th><th>Próx. data de retorno</th></tr></thead><tbody>`;
+    html += `<div class="rolagem-tabela"><table><thead><tr><th>Nome</th><th>Protocolo</th><th>Qtde. Consumo</th><th>Prazo</th><th>Periodicidade</th><th>Data de retirada</th><th>Próx. data de retorno</th></tr></thead><tbody>`;
     html += dados.pacientes.map((p) => `
       <tr>
         <td>${p.autor || '—'}</td>
@@ -3065,22 +3091,7 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
         <td class="col-data">${p.data_ultimo_retorno || '—'}</td>
       </tr>
     `).join('');
-    html += '</tbody></table>';
-  }
-
-  // Histórico de estoque (evolução)
-  if (dados.historicoEstoque.length > 1) {
-    html += '<h4>Evolução do estoque</h4>';
-    html += `<table><thead><tr><th>Data</th><th>Estoque</th><th>Autonomia</th><th>Demanda</th></tr></thead><tbody>`;
-    html += dados.historicoEstoque.map((h) => `
-      <tr>
-        <td class="col-data">${formatarData(h.data_referencia)}</td>
-        <td>${fmtNumero(h.estoque)}</td>
-        <td>${fmtNumero(h.autonomia)}</td>
-        <td>${fmtNumero(h.demandas)}</td>
-      </tr>
-    `).join('');
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
   }
 
   conteudo.innerHTML = html;

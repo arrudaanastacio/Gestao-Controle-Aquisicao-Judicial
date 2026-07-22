@@ -1588,3 +1588,16 @@ body.tem-faixa-ambiente { padding-top: 30px; }
 
 /* Tabela larga dentro do modal rola sozinha, sem esticar o card. */
 .modal .rolagem-tabela { overflow-x: auto; }
+
+/* Aviso "tem compra em aberto" dentro do modal de detalhe do item. */
+.modal .aviso-compra-aberta {
+  font-size: 12.5px;
+  color: var(--selo);
+  margin: 0 0 8px;
+}
+/* No modal, os cartões de KPI ficam mais compactos: o card é estreito e
+   quatro deles lado a lado não podem empurrar a largura. */
+.modal .cartao-kpi { padding: 10px 12px; }
+.modal .cartao-kpi .num { font-size: 22px; }
+.modal .cartao-kpi .rot { font-size: 11px; }
+.modal .cartao-kpi .sub { font-size: 10.5px; }
