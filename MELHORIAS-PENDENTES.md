@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | _Nenhum item pendente. Tudo publicado até a v1.6.0._ | — | — | — |
+| 35 | **Recuperação na inicialização dos agendadores (fim do "não atualizou porque o PC estava desligado no horário").** Os agendadores só disparavam no horário exato **se o sistema estivesse rodando naquele momento** — sem recuperação, se o horário já tinha passado ao subir, pulava para o dia seguinte. Agora, ao iniciar, se o horário do dia já passou e ainda não sincronizou hoje, roda na hora: **Oracle diário (Estoque/Autores/Entrada/Rel. Itens, 6h)** com trava "já importou estoque hoje?" (não repuxa o Oracle a cada reinício) e **Solicitações TP e OD (12h)** relendo o arquivo (a assinatura evita reimportar se nada mudou). | 01e4f2b | 22/07/2026 | ✅ Lógica testada (4 cenários) — a conferir em homologação com o sistema no ar |
 
 ## Publicadas recentemente
 
