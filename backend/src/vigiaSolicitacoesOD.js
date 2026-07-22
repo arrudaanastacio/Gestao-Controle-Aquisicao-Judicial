@@ -74,7 +74,9 @@ function iniciarVigiaSolicitacoesOD() {
     return;
   }
   ultimaAssinatura = lerAssinatura('solicitacoes_od');
-  agendarDiariamente('VIGIA SOLICITAÇÕES OD 12h', 12, 0, () => tentarImportar('Verificação das 12h'));
+  // Recuperação na inicialização só na janela das 12h (idem TP): relê o arquivo
+  // se o sistema subir depois do horário; a assinatura evita reimportar à toa.
+  agendarDiariamente('VIGIA SOLICITAÇÕES OD 12h', 12, 0, () => tentarImportar('Verificação das 12h'), { recuperarSePerdido: true });
   agendarDiariamente('VIGIA SOLICITAÇÕES OD 19h', 19, 0, () => tentarImportar('Verificação das 19h'));
   console.log('[VIGIA SOLICITAÇÕES OD] Agendado para checar às 12h e 19h. Arquivo:', CAMINHO);
 }

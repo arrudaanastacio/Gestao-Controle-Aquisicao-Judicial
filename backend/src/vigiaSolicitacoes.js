@@ -77,7 +77,10 @@ function iniciarVigiaSolicitacoes() {
     return;
   }
   ultimaAssinatura = lerAssinatura('solicitacoes');
-  agendarDiariamente('VIGIA SOLICITAÇÕES 12h', 12, 0, () => tentarImportar('Verificação das 12h'));
+  // A recuperação na inicialização fica só na janela das 12h (a primeira do
+  // dia): se o sistema subir depois das 12h, ela relê o arquivo na hora. Como
+  // tentarImportar só importa se a assinatura mudou, é seguro e não duplica.
+  agendarDiariamente('VIGIA SOLICITAÇÕES 12h', 12, 0, () => tentarImportar('Verificação das 12h'), { recuperarSePerdido: true });
   agendarDiariamente('VIGIA SOLICITAÇÕES 19h', 19, 0, () => tentarImportar('Verificação das 19h'));
   console.log('[VIGIA SOLICITAÇÕES] Agendado para checar às 12h e 19h. Arquivo:', CAMINHO);
 }
