@@ -14,6 +14,7 @@ const db = require('./db');
 const { agendarDiariamente } = require('./agendadorUtil');
 const { credenciaisConfiguradas } = require('./udtpApi');
 const { importarReservasMaisRecente } = require('./reservasUdtp');
+const { importarEstoqueMaisRecente } = require('./estoqueUdtp');
 
 // Já rodou uma importação há pouco? Evita repuxar a API a cada reinício do
 // sistema. Olhamos QUANDO a importação rodou (criado_em), e não a data de
@@ -21,12 +22,18 @@ const { importarReservasMaisRecente } = require('./reservasUdtp');
 // geral), então comparar com "hoje" nunca casaria.
 // Usa uma janela de 18h em vez de "data igual a hoje" para não depender do
 // fuso (criado_em é gravado em UTC pelo SQLite).
+// Só considera "já rodou" se AS DUAS fontes (reservas e estoque por lote)
+// foram importadas na janela. Se uma delas falhou ou nunca rodou, a
+// recuperação deve acontecer — senão uma fonte quebrada ficaria para trás.
 function importouRecentemente() {
   try {
-    const r = db.prepare(
+    const reservas = db.prepare(
       "SELECT 1 FROM reservas_importacoes WHERE criado_em >= datetime('now', '-18 hours') LIMIT 1"
     ).get();
-    return !!r;
+    const estoque = db.prepare(
+      "SELECT 1 FROM estoque_udtp_importacoes WHERE criado_em >= datetime('now', '-18 hours') LIMIT 1"
+    ).get();
+    return !!reservas && !!estoque;
   } catch (e) {
     console.error('[VIGIA RESERVAS] Não consegui checar a última importação:', e.message);
     return false;
@@ -38,19 +45,31 @@ async function importarHoje() {
     console.log('[VIGIA RESERVAS] Pulado: credenciais da API UDTP não configuradas no .env.');
     return;
   }
+  // A API só publica o dia depois que ele fecha (consultar "hoje" devolve
+  // 404), então importamos a data mais recente que existir.
+  // São duas fontes: reservas (quantidade separada por paciente) e estoque
+  // por lote (lote/validade/unidade). Uma falha não impede a outra.
   try {
-    // A API só publica o dia depois que ele fecha (consultar "hoje" devolve
-    // 404), então importamos a data mais recente que existir.
     const r = await importarReservasMaisRecente('auto-importador');
     console.log(`[VIGIA RESERVAS] ${r.dataReferencia}: ${r.totalRegistros} reserva(s) importada(s).`);
     if (r.semCodigoItem > 0) {
       console.warn(`[VIGIA RESERVAS] Atenção: ${r.semCodigoItem} registro(s) sem código do item (mapeamento pode precisar de ajuste).`);
     }
     if (r.camposNaoMapeados.length) {
-      console.warn('[VIGIA RESERVAS] Campos da API ainda não mapeados:', r.camposNaoMapeados.join(', '));
+      console.warn('[VIGIA RESERVAS] Campos novos na API de reservas:', r.camposNaoMapeados.join(', '));
     }
   } catch (e) {
-    console.error(`[VIGIA RESERVAS] Falha ao importar [${e.codigo || 'ERRO'}]:`, e.message);
+    console.error(`[VIGIA RESERVAS] Falha ao importar reservas [${e.codigo || 'ERRO'}]:`, e.message);
+  }
+
+  try {
+    const e2 = await importarEstoqueMaisRecente('auto-importador');
+    console.log(`[VIGIA ESTOQUE UDTP] ${e2.dataReferencia}: ${e2.totalRegistros} linha(s), ${e2.comLote} com lote/validade.`);
+    if (e2.camposNaoMapeados.length) {
+      console.warn('[VIGIA ESTOQUE UDTP] Campos novos na API de estoque:', e2.camposNaoMapeados.join(', '));
+    }
+  } catch (e) {
+    console.error(`[VIGIA ESTOQUE UDTP] Falha ao importar estoque [${e.codigo || 'ERRO'}]:`, e.message);
   }
 }
 

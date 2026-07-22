@@ -194,6 +194,45 @@ CREATE TABLE IF NOT EXISTS reservas_itens (
 
 db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_item ON reservas_itens(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_protocolo ON reservas_itens(codigo_protocolo);`);
+
+// ---------------------------------------------------------------------
+// ESTOQUE POR LOTE (API UDTP /api/estoque/{data}) — fonte de LOTE,
+// VALIDADE e UNIDADE DE MEDIDA, que a API de reservas não traz.
+// Granularidade: uma linha por lote. Itens sem saldo vêm numa linha única
+// com lote/validade nulos. Liga-se às reservas por codigo_item.
+// Guardado à parte do estoque do Oracle (estoque_itens), que tem outra
+// origem, outra granularidade (por unidade) e outros campos.
+// ---------------------------------------------------------------------
+db.exec(`
+CREATE TABLE IF NOT EXISTS estoque_udtp_importacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT NOT NULL,
+  origem TEXT,
+  usuario_email TEXT,
+  total_itens INTEGER,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS estoque_udtp_lotes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  importacao_id INTEGER NOT NULL,
+  data_referencia TEXT NOT NULL,
+  codigo_item TEXT,
+  descricao TEXT,
+  lote TEXT,
+  validade TEXT,                           -- yyyy-mm-dd
+  saldo REAL,
+  unidade_medida TEXT,
+  com_marca INTEGER,                       -- 0/1
+  FOREIGN KEY (importacao_id) REFERENCES estoque_udtp_importacoes(id)
+);
+`);
+
+db.exec(`CREATE INDEX IF NOT EXISTS idx_estudtp_item ON estoque_udtp_lotes(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_estudtp_data ON estoque_udtp_lotes(data_referencia);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_estudtp_validade ON estoque_udtp_lotes(validade);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_data ON reservas_itens(data_referencia);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_importacao ON reservas_itens(importacao_id);`);
 

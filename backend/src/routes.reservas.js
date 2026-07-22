@@ -8,6 +8,7 @@
 const express = require('express');
 const db = require('./db');
 const { importarReservasDoDia, importarReservasMaisRecente } = require('./reservasUdtp');
+const { importarEstoqueDoDia, importarEstoqueMaisRecente } = require('./estoqueUdtp');
 const { credenciaisConfiguradas } = require('./udtpApi');
 
 const router = express.Router();
@@ -126,7 +127,19 @@ router.post('/importar-agora', async (req, res) => {
     const resumo = data
       ? await importarReservasDoDia(data, email)
       : await importarReservasMaisRecente(email);
-    res.json({ ok: true, ...resumo });
+
+    // Atualiza também o estoque por lote (lote/validade/unidade). É a outra
+    // metade do dado; se falhar, a tela de reservas ainda fica correta.
+    let estoque = null;
+    try {
+      estoque = data
+        ? await importarEstoqueDoDia(data, email)
+        : await importarEstoqueMaisRecente(email);
+    } catch (e) {
+      estoque = { erro: e.message, codigo: e.codigo || 'ERRO' };
+    }
+
+    res.json({ ok: true, ...resumo, estoque });
   } catch (e) {
     const porCodigo = {
       SEM_CREDENCIAL: 400, NAO_AUTORIZADO: 401, SEM_PERMISSAO: 403,

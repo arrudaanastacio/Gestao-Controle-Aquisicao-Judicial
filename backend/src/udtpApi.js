@@ -134,4 +134,13 @@ async function buscarReservas(data) {
   return chamar(`/api/reservas/${dia}`);
 }
 
-module.exports = { buscarReservas, credenciaisConfiguradas, normalizarData };
+// Busca o estoque POR LOTE de uma data (AAAA-MM-DD). É a fonte de lote,
+// validade e unidade de medida — campos que a API de reservas não traz.
+// Observado em 22/07/2026: ~8.4k linhas/dia, uma por lote; itens sem saldo
+// vêm numa única linha com lote/validade nulos.
+async function buscarEstoque(data) {
+  const dia = normalizarData(data);
+  return chamar(`/api/estoque/${dia}`);
+}
+
+module.exports = { buscarReservas, buscarEstoque, credenciaisConfiguradas, normalizarData };
