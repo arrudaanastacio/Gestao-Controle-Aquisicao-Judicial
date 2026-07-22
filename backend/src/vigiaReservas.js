@@ -15,6 +15,7 @@ const { agendarDiariamente } = require('./agendadorUtil');
 const { credenciaisConfiguradas } = require('./udtpApi');
 const { importarReservasMaisRecente } = require('./reservasUdtp');
 const { importarEstoqueMaisRecente } = require('./estoqueUdtp');
+const { importarUltimos30Dias } = require('./rupturasUdtp');
 
 // Já rodou uma importação há pouco? Evita repuxar a API a cada reinício do
 // sistema. Olhamos QUANDO a importação rodou (criado_em), e não a data de
@@ -22,8 +23,8 @@ const { importarEstoqueMaisRecente } = require('./estoqueUdtp');
 // geral), então comparar com "hoje" nunca casaria.
 // Usa uma janela de 18h em vez de "data igual a hoje" para não depender do
 // fuso (criado_em é gravado em UTC pelo SQLite).
-// Só considera "já rodou" se AS DUAS fontes (reservas e estoque por lote)
-// foram importadas na janela. Se uma delas falhou ou nunca rodou, a
+// Só considera "já rodou" se AS TRÊS fontes (reservas, estoque por lote e
+// rupturas) foram importadas na janela. Se uma delas falhou ou nunca rodou, a
 // recuperação deve acontecer — senão uma fonte quebrada ficaria para trás.
 function importouRecentemente() {
   try {
@@ -33,7 +34,8 @@ function importouRecentemente() {
     const estoque = db.prepare(
       "SELECT 1 FROM estoque_udtp_importacoes WHERE criado_em >= datetime('now', '-18 hours') LIMIT 1"
     ).get();
-    return !!reservas && !!estoque;
+    const rupturas = db.prepare("SELECT 1 FROM rupturas_importacoes WHERE criado_em >= datetime('now', '-18 hours') LIMIT 1").get();
+    return !!reservas && !!estoque && !!rupturas;
   } catch (e) {
     console.error('[VIGIA RESERVAS] Não consegui checar a última importação:', e.message);
     return false;
@@ -70,6 +72,17 @@ async function importarHoje() {
     }
   } catch (e) {
     console.error(`[VIGIA ESTOQUE UDTP] Falha ao importar estoque [${e.codigo || 'ERRO'}]:`, e.message);
+  }
+
+  // Rupturas: janela móvel dos últimos 30 dias (a API aceita intervalo).
+  try {
+    const e3 = await importarUltimos30Dias('auto-importador');
+    console.log(`[VIGIA RUPTURAS] ${e3.periodoInicio} a ${e3.periodoFim}: ${e3.totalRegistros} ruptura(s), ${e3.pacientes} paciente(s), ${e3.itens} item(ns).`);
+    if (e3.semCodigoItem > 0 || e3.semProtocolo > 0) {
+      console.warn(`[VIGIA RUPTURAS] Atenção: ${e3.semCodigoItem} sem código de item, ${e3.semProtocolo} sem protocolo.`);
+    }
+  } catch (e) {
+    console.error(`[VIGIA RUPTURAS] Falha ao importar rupturas [${e.codigo || 'ERRO'}]:`, e.message);
   }
 }
 

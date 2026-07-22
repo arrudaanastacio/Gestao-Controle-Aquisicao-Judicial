@@ -143,4 +143,18 @@ async function buscarEstoque(data) {
   return chamar(`/api/estoque/${dia}`);
 }
 
-module.exports = { buscarReservas, buscarEstoque, credenciaisConfiguradas, normalizarData };
+// Busca as RUPTURAS de um período (dispensações que não puderam ser
+// atendidas). Diferente dos outros dois endpoints, este recebe um INTERVALO
+// por query string e devolve 200 com lista vazia quando não há nada (em vez
+// de 404). Campos: codigoItem, descricao, unidadeMedida, ruptura (quantidade
+// que faltou), numeroDocumentoSaida (= protocolo do paciente), demandaId, data.
+async function buscarRupturas(inicio, fim) {
+  const i = normalizarData(inicio);
+  const f = normalizarData(fim);
+  return chamar(`/api/rupturas?periodoInicio=${i}&periodoFim=${f}`);
+}
+
+module.exports = {
+  buscarReservas, buscarEstoque, buscarRupturas,
+  credenciaisConfiguradas, normalizarData,
+};

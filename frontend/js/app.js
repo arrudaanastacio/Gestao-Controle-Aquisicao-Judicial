@@ -211,6 +211,7 @@ function aplicarPermissoesNav() {
     atas: 'atas',
     entradaLotes: 'entradaLotes',
     reservas: 'reservas',
+    rupturas: 'rupturas',
     alertas: 'alertas',
   };
   for (const [pagina, modulo] of Object.entries(mapa)) {
@@ -460,6 +461,7 @@ const TRILHAS = {
   historico: ['Tenente Pena', 'Estoque', 'Histórico de Estoque'],
   entradaLotes: ['Tenente Pena', 'Estoque', 'Movimentação de Entrada'],
   reservas: ['Tenente Pena', 'Estoque', 'Reservas de Estoque'],
+  rupturas: ['Tenente Pena', 'Estoque', 'Rupturas'],
   alertas: ['Tenente Pena', 'Estoque', 'Alertas'],
   autores: ['Tenente Pena', 'Autores', 'Listagem de Autores'],
   validades: ['Tenente Pena', 'Autores', 'Consultar Validades TP'],
@@ -511,6 +513,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaAtas').hidden = pagina !== 'atas';
   document.getElementById('paginaEntradaLotes').hidden = pagina !== 'entradaLotes';
   document.getElementById('paginaReservas').hidden = pagina !== 'reservas';
+  document.getElementById('paginaRupturas').hidden = pagina !== 'rupturas';
   document.getElementById('paginaRelatorioItens').hidden = pagina !== 'relatorioItens';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
@@ -537,6 +540,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'atas') await carregarAtas();
     if (pagina === 'entradaLotes') await carregarEntradaLotes();
     if (pagina === 'reservas') await carregarReservas();
+    if (pagina === 'rupturas') await carregarRupturas();
     if (pagina === 'relatorioItens') await carregarRelatorioItens();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
@@ -5704,5 +5708,174 @@ document.getElementById('botaoAtualizarReservas').addEventListener('click', asyn
   } finally {
     botao.disabled = false;
     botao.textContent = textoOriginal;
+  }
+});
+
+// ==================== Rupturas (API UDTP) ====================
+// Ruptura = o paciente veio buscar e o item faltou. É o fato consumado,
+// diferente do alerta "estoque_ruptura", que o sistema calcula.
+// A tela abre nos últimos 30 dias e cruza com o Relatório de Itens
+// (categoria, tipo, importado, outras demandas) e com a Listagem de Autores
+// (nome do paciente, pelo protocolo).
+const estadoRupturas = { inicio: null, fim: null };
+
+function paramsRupturas() {
+  const p = new URLSearchParams();
+  const ini = document.getElementById('filtroInicioRupturas').value;
+  const fim = document.getElementById('filtroFimRupturas').value;
+  if (ini) p.set('inicio', ini);
+  if (fim) p.set('fim', fim);
+  const busca = document.getElementById('filtroBuscaRupturas').value.trim();
+  if (busca) p.set('busca', busca);
+  const cat = document.getElementById('filtroCategoriaRupturas').value;
+  if (cat) p.set('categoria', cat);
+  const tipo = document.getElementById('filtroTipoRupturas').value;
+  if (tipo) p.set('tipoItem', tipo);
+  const imp = document.getElementById('filtroImportadoRupturas').value;
+  if (imp) p.set('importado', imp);
+  const outras = document.getElementById('filtroOutrasRupturas').value;
+  if (outras) p.set('outrasDemandas', outras);
+  return p;
+}
+
+async function carregarRupturas() {
+  const btn = document.getElementById('botaoAtualizarRupturas');
+  if (btn) btn.hidden = !temPermissao('rupturas', 'importar');
+  await buscarRupturas();
+}
+
+async function buscarRupturas() {
+  const d = await api('/rupturas?' + paramsRupturas().toString());
+  renderRupturas(d);
+}
+
+// Monta um cartão de quebra (por categoria / por tipo de item).
+function quebraRupturas(titulo, dados, rotuloColuna, campo) {
+  if (!dados || !dados.length) return '';
+  const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
+  const max = Math.max(1, ...dados.map((x) => x.rupturas));
+  const linhas = dados.map((x) => {
+    const largura = Math.round((x.rupturas / max) * 100);
+    return '<tr>'
+      + '<td><div class="rotulo-quebra">' + escHtml(x[campo]) + '</div>'
+      + '<div class="trilho-quebra"><span style="width:' + largura + '%"></span></div></td>'
+      + '<td><strong>' + nf(x.rupturas) + '</strong></td>'
+      + '<td>' + nf(x.itens) + '</td>'
+      + '<td>' + nf(x.pacientes) + '</td>'
+      + '</tr>';
+  }).join('');
+  return '<div class="cartao-quebra"><h4>' + titulo + '</h4>'
+    + '<table><thead><tr><th>' + rotuloColuna + '</th><th>Rupturas</th><th>Itens</th><th>Pacientes</th></tr></thead>'
+    + '<tbody>' + linhas + '</tbody></table></div>';
+}
+
+function renderRupturas(d) {
+  // Na primeira carga o servidor devolve o período padrão (30 dias) — só
+  // então preenchemos os campos de data, para não sobrescrever depois o que
+  // o usuário tiver escolhido.
+  const campoIni = document.getElementById('filtroInicioRupturas');
+  const campoFim = document.getElementById('filtroFimRupturas');
+  if (!campoIni.value) campoIni.value = d.periodo.inicio;
+  if (!campoFim.value) campoFim.value = d.periodo.fim;
+  estadoRupturas.inicio = d.periodo.inicio;
+  estadoRupturas.fim = d.periodo.fim;
+
+  const nunca = !d.atualizadoEm;
+  document.getElementById('conteudoRupturas').hidden = nunca;
+  const aviso = document.getElementById('avisoSemRupturas');
+  aviso.hidden = !nunca;
+  if (nunca) {
+    aviso.textContent = d.credenciaisConfiguradas
+      ? 'Nenhuma ruptura importada ainda. Use o botão "Atualizar agora" para consultar a API.'
+      : 'A integração com a API UDTP ainda não está configurada (falta usuário/senha no .env do servidor). Fale com o administrador.';
+    document.getElementById('atualizadoEmRupturas').textContent = '';
+    return;
+  }
+
+  document.getElementById('atualizadoEmRupturas').textContent =
+    'Atualizado em ' + formatarDataHora(d.atualizadoEm);
+
+  const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
+  const k = d.kpis || {};
+  document.getElementById('kpisRupturas').innerHTML = [
+    kpiCard('list', nf(k.totalRupturas), 'Rupturas', 'ocorrências no período', k.totalRupturas > 0 ? 'critico' : ''),
+    kpiCard('chart', nf(k.quantidadeTotal), 'Quantidade em falta', 'soma do que não foi entregue'),
+    kpiCard('relogio', nf(k.pacientes), 'Pacientes impactados', 'pessoas que não levaram o item'),
+    kpiCard('doc', nf(k.itens), 'Itens', 'medicamentos/materiais distintos'),
+  ].join('');
+
+  document.getElementById('quebrasRupturas').innerHTML =
+    quebraRupturas('Por categoria', d.porCategoria, 'Categoria', 'categoria')
+    + quebraRupturas('Por tipo de item', d.porTipo, 'Tipo', 'tipo');
+
+  // Preenche as opções dos filtros, mantendo a seleção atual.
+  const encher = (id, valores, rotulo) => {
+    const sel = document.getElementById(id);
+    const atual = sel.value;
+    sel.innerHTML = '<option value="">' + rotulo + '</option>'
+      + valores.map((v) => '<option value="' + escAttr(v) + '">' + escHtml(v) + '</option>').join('');
+    if (valores.includes(atual)) sel.value = atual;
+  };
+  encher('filtroCategoriaRupturas', d.opcoes.categorias || [], 'Categoria: todas');
+  encher('filtroTipoRupturas', d.opcoes.tiposItem || [], 'Tipo de item: todos');
+
+  const corpo = document.getElementById('corpoTabelaRupturas');
+  corpo.innerHTML = d.linhas.map((l) => '<tr>'
+    + '<td class="col-data">' + formatarData(l.data) + '</td>'
+    + '<td>' + escHtml(l.descricao) + '</td>'
+    + '<td class="col-codigo">' + escHtml(l.codigoItem) + '</td>'
+    + '<td><strong>' + nf(l.quantidade) + '</strong></td>'
+    + '<td>' + escHtml(l.unidade) + '</td>'
+    + '<td>' + escHtml(l.paciente) + '</td>'
+    + '<td>' + escHtml(l.protocolo) + '</td>'
+    + '<td>' + escHtml(l.categoria) + '</td>'
+    + '<td>' + (l.tipoItem ? '<span class="tag-tipo">' + escHtml(l.tipoItem) + '</span>' : '—') + '</td>'
+    + '<td>' + escHtml(l.importado) + '</td>'
+    + '<td>' + escHtml(l.outrasDemandas) + '</td>'
+    + '</tr>').join('');
+  document.getElementById('estadoVazioRupturas').hidden = d.linhas.length > 0;
+}
+
+// --- eventos da tela de Rupturas ---
+let tempoBuscaRupturas = null;
+document.getElementById('filtroBuscaRupturas').addEventListener('input', () => {
+  clearTimeout(tempoBuscaRupturas);
+  tempoBuscaRupturas = setTimeout(() => {
+    buscarRupturas().catch((e) => alert('Erro: ' + e.message));
+  }, 300);
+});
+['filtroInicioRupturas', 'filtroFimRupturas', 'filtroCategoriaRupturas',
+  'filtroTipoRupturas', 'filtroImportadoRupturas', 'filtroOutrasRupturas'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => {
+    buscarRupturas().catch((e) => alert('Erro: ' + e.message));
+  });
+});
+document.getElementById('botaoLimparFiltrosRupturas').addEventListener('click', () => {
+  document.getElementById('filtroBuscaRupturas').value = '';
+  ['filtroCategoriaRupturas', 'filtroTipoRupturas', 'filtroImportadoRupturas', 'filtroOutrasRupturas']
+    .forEach((id) => { document.getElementById(id).value = ''; });
+  document.getElementById('filtroInicioRupturas').value = '';
+  document.getElementById('filtroFimRupturas').value = '';
+  buscarRupturas().catch((e) => alert('Erro: ' + e.message));
+});
+document.getElementById('botaoExportarRupturas').addEventListener('click', () => {
+  window.location.href = '/api/rupturas/csv?' + paramsRupturas().toString();
+});
+document.getElementById('botaoAtualizarRupturas').addEventListener('click', async () => {
+  const botao = document.getElementById('botaoAtualizarRupturas');
+  const txt = botao.textContent;
+  botao.disabled = true;
+  botao.textContent = '⏳ Consultando a API…';
+  try {
+    const r = await api('/rupturas/importar-agora', { method: 'POST', body: JSON.stringify({}) });
+    alert('Rupturas atualizadas: ' + r.totalRegistros + ' ocorrência(s) de '
+      + formatarData(r.periodoInicio) + ' a ' + formatarData(r.periodoFim)
+      + '.\n\n' + r.pacientes + ' paciente(s) e ' + r.itens + ' item(ns) impactados.');
+    await buscarRupturas();
+  } catch (e) {
+    alert('Não foi possível atualizar as rupturas.\n\n' + e.message);
+  } finally {
+    botao.disabled = false;
+    botao.textContent = txt;
   }
 });

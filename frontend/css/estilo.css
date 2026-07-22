@@ -650,6 +650,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaAquisicaoODAndamento:not([hidden])),
 .conteudo:has(> #paginaEntradaLotes:not([hidden])),
 .conteudo:has(> #paginaReservas:not([hidden])),
+.conteudo:has(> #paginaRupturas:not([hidden])),
 .conteudo:has(> #paginaPainel:not([hidden])),
 .conteudo:has(> #paginaDistribuicao:not([hidden])) {
   max-width: none;
@@ -1629,3 +1630,45 @@ body.tem-faixa-ambiente { padding-top: 30px; }
 /* Cabeçalho do cartão com mais de um botão: agrupa à direita. */
 .painel-cartao .cartao-cabecalho { gap: 10px; }
 .painel-cartao .cartao-cabecalho h3 { margin-right: auto; }
+
+/* ---------- Rupturas: quebras por categoria / tipo de item ---------- */
+.grade-quebras {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.cartao-quebra {
+  background: var(--papel-elevado);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-cartao);
+  box-shadow: var(--sombra-cartao);
+  padding: 14px 16px;
+}
+.cartao-quebra h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-family: var(--fonte-titulo);
+}
+.cartao-quebra table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.cartao-quebra th, .cartao-quebra td {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--linha-tabela);
+  text-align: right;
+  white-space: nowrap;
+}
+.cartao-quebra th:first-child, .cartao-quebra td:first-child { text-align: left; width: 55%; }
+.cartao-quebra th { font-weight: 600; color: var(--cinza-texto); }
+.rotulo-quebra { margin-bottom: 3px; }
+.trilho-quebra {
+  height: 5px;
+  background: var(--linha-tabela);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.trilho-quebra span {
+  display: block;
+  height: 100%;
+  background: var(--vermelho);   /* ruptura é sempre algo negativo */
+  border-radius: 4px;
+}

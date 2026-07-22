@@ -34,6 +34,7 @@
             <a href="#" data-pagina="historico">Histórico de Estoque</a>
             <a href="#" data-pagina="entradaLotes">Movimentação de Entrada</a>
             <a href="#" data-pagina="reservas">Reservas de Estoque</a>
+            <a href="#" data-pagina="rupturas">Rupturas</a>
             <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
           </div>
 
@@ -1081,6 +1082,75 @@
               </table>
             </div>
             <div class="estado-vazio" id="estadoVazioReservas" hidden>Nenhuma reserva encontrada com estes filtros.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaRupturas" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Rupturas</h2>
+            <p id="subtituloRupturas">Dispensações que não puderam ser atendidas — o paciente veio e o item faltou (fonte: API UDTP)</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <span class="atualizado-em" id="atualizadoEmRupturas"></span>
+            <button id="botaoAtualizarRupturas" class="botao-primario" type="button" hidden title="Consulta a API agora e refaz os últimos 30 dias">🔄 Atualizar agora</button>
+          </div>
+        </div>
+
+        <div id="avisoSemRupturas" class="estado-vazio" hidden>
+          Nenhuma ruptura importada ainda. Use o botão "Atualizar agora" para consultar a API.
+        </div>
+
+        <div id="conteudoRupturas" hidden>
+          <div class="grade-resumo" id="kpisRupturas"></div>
+
+          <div class="barra-filtros">
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px;">De
+              <input type="date" id="filtroInicioRupturas" title="Início do período"></label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px;">até
+              <input type="date" id="filtroFimRupturas" title="Fim do período"></label>
+            <input type="text" id="filtroBuscaRupturas" placeholder="Buscar por medicamento, código, protocolo ou paciente…" style="min-width:300px;">
+            <select id="filtroCategoriaRupturas"><option value="">Categoria: todas</option></select>
+            <select id="filtroTipoRupturas"><option value="">Tipo de item: todos</option></select>
+            <select id="filtroImportadoRupturas">
+              <option value="">Importado: todos</option>
+              <option value="Sim">Importado: Sim</option>
+              <option value="Não">Importado: Não</option>
+            </select>
+            <select id="filtroOutrasRupturas">
+              <option value="">Outras demandas: todas</option>
+              <option value="Sim">Outras demandas: Sim</option>
+              <option value="Não">Outras demandas: Não</option>
+            </select>
+            <button id="botaoLimparFiltrosRupturas" class="botao-secundario" type="button">Limpar filtros</button>
+            <button id="botaoExportarRupturas" class="botao-secundario" type="button">⬇ Exportar CSV</button>
+          </div>
+
+          <div class="grade-quebras" id="quebrasRupturas"></div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Medicamento</th>
+                    <th>Código do Item</th>
+                    <th>Qtde em falta</th>
+                    <th>Unidade</th>
+                    <th>Paciente</th>
+                    <th>Protocolo</th>
+                    <th>Categoria</th>
+                    <th>Tipo</th>
+                    <th>Importado</th>
+                    <th>Outras dem.</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaRupturas"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioRupturas" hidden>Nenhuma ruptura encontrada com estes filtros.</div>
           </div>
         </div>
       </section>

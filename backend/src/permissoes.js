@@ -39,6 +39,8 @@ const MODULOS = [
   // "Importar" aqui é o botão "Atualizar agora" da tela de Reservas: marque
   // essa ação para os usuários que puderem forçar a consulta à API UDTP.
   { chave: 'reservas', rotulo: 'Reservas de Estoque', acoes: ['visualizar', 'exportar', 'importar'] },
+  // "Importar" = botão "Atualizar agora" da tela de Rupturas.
+  { chave: 'rupturas', rotulo: 'Rupturas', acoes: ['visualizar', 'exportar', 'importar'] },
   { chave: 'alertas', rotulo: 'Alertas', acoes: ['visualizar', 'editar'] },
 
   // 🏢 Outras Demandas

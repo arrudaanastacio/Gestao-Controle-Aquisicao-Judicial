@@ -233,6 +233,54 @@ CREATE TABLE IF NOT EXISTS estoque_udtp_lotes (
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estudtp_item ON estoque_udtp_lotes(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estudtp_data ON estoque_udtp_lotes(data_referencia);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_estudtp_validade ON estoque_udtp_lotes(validade);`);
+
+// ---------------------------------------------------------------------
+// RUPTURAS (API UDTP /api/rupturas?periodoInicio=&periodoFim=)
+// Dispensação que o paciente veio buscar e NÃO pôde ser atendida — é o
+// fato consumado, diferente do alerta "estoque_ruptura", que é calculado.
+//
+// Ligações confirmadas com dado real (22/07/2026):
+//   codigo_item          -> estoque / relatorio_itens.codigo   (100%)
+//   protocolo_norm       -> autores_itens.protocolo sem "N: "  (100%)
+// O campo demandaId da API NÃO é o id_demanda dos autores (só 6% coincidem),
+// por isso é guardado apenas como referência, sem servir de chave.
+//
+// Categoria, tipo de item, importado e outras demandas NÃO são copiados para
+// cá: vêm por junção com relatorio_itens na hora da consulta, assim
+// acompanham automaticamente qualquer correção feita naquele cadastro.
+// ---------------------------------------------------------------------
+db.exec(`
+CREATE TABLE IF NOT EXISTS rupturas_importacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  periodo_inicio TEXT NOT NULL,
+  periodo_fim TEXT NOT NULL,
+  origem TEXT,
+  usuario_email TEXT,
+  total_itens INTEGER,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS rupturas_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  importacao_id INTEGER NOT NULL,
+  data TEXT NOT NULL,                      -- dia da ruptura (yyyy-mm-dd)
+  codigo_item TEXT,
+  descricao TEXT,
+  unidade_medida TEXT,
+  quantidade REAL,                         -- quanto faltou
+  protocolo TEXT,                          -- numeroDocumentoSaida, como veio
+  protocolo_norm TEXT,                     -- sem "N: " e sem espaços (chave)
+  demanda_id TEXT,
+  com_marca INTEGER,
+  FOREIGN KEY (importacao_id) REFERENCES rupturas_importacoes(id)
+);
+`);
+
+db.exec(`CREATE INDEX IF NOT EXISTS idx_rupt_data ON rupturas_itens(data);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_rupt_item ON rupturas_itens(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_rupt_prot ON rupturas_itens(protocolo_norm);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_data ON reservas_itens(data_referencia);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_importacao ON reservas_itens(importacao_id);`);
 
