@@ -1055,8 +1055,7 @@
 
           <div class="barra-filtros">
             <select id="filtroDataReservas" title="Dia da consulta"></select>
-            <input type="text" id="filtroBuscaReservas" placeholder="Buscar por medicamento, código SCODES ou lote…" style="min-width:320px;">
-            <select id="filtroUnidadeReservas"><option value="">Unidade: todas</option></select>
+            <input type="text" id="filtroBuscaReservas" placeholder="Buscar por medicamento, código do item, protocolo ou recebedor…" style="min-width:360px;">
             <button id="botaoLimparFiltrosReservas" class="botao-secundario" type="button">Limpar filtros</button>
             <button id="botaoExportarReservas" class="botao-secundario" type="button">⬇ Exportar CSV</button>
           </div>
@@ -1066,12 +1065,11 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Código SCODES</th>
+                    <th>Código do Item</th>
                     <th>Medicamento</th>
-                    <th>Lote</th>
-                    <th>Validade</th>
-                    <th>Qtde reservada</th>
-                    <th>Unidade</th>
+                    <th>Protocolo</th>
+                    <th>Recebedor</th>
+                    <th>Saldo reservado</th>
                   </tr>
                 </thead>
                 <tbody id="corpoTabelaReservas"></tbody>

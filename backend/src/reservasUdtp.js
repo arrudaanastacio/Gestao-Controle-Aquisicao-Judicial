@@ -24,13 +24,15 @@ function normalizarChave(k) {
 }
 
 // Para cada campo do nosso banco, os nomes que aceitamos vindos da API.
+// Confirmado em 22/07/2026 contra a API real: codigoItem, codigoProtocolo,
+// descricao, recebedor, saldoReservado. Os demais nomes ficam como tolerância
+// caso a API mude a nomenclatura.
 const SINONIMOS = {
-  codigo_scodes: ['codigoscodes', 'scodes', 'codscodes', 'codigoscode', 'codigo', 'codigoproduto', 'codigoitem', 'codigomedicamento'],
-  descricao: ['nomemedicamento', 'nomedomedicamento', 'medicamento', 'descricao', 'descricaoitem', 'nome', 'produto'],
-  lote: ['lote', 'numerolote', 'nrolote', 'numlote'],
-  validade: ['validade', 'datavalidade', 'dtvalidade', 'vencimento', 'datavencimento', 'dtvencimento'],
-  quantidade: ['quantidade', 'qtd', 'qtde', 'qt', 'quantidadereservada', 'qtdreservada', 'quantidadeseparada'],
-  unidade: ['unidade', 'unidademedida', 'und', 'unid', 'um', 'embalagem'],
+  codigo_item: ['codigoitem', 'codigo', 'codigoproduto', 'codigomedicamento', 'coditem'],
+  codigo_protocolo: ['codigoprotocolo', 'protocolo', 'codprotocolo', 'numeroprotocolo'],
+  descricao: ['descricao', 'nomemedicamento', 'nomedomedicamento', 'medicamento', 'descricaoitem', 'nome', 'produto'],
+  recebedor: ['recebedor', 'paciente', 'nomepaciente', 'autor', 'beneficiario'],
+  saldo_reservado: ['saldoreservado', 'saldo', 'quantidade', 'qtd', 'qtde', 'quantidadereservada', 'qtdreservada'],
 };
 
 // Converte número em formato brasileiro ou americano para Number.
@@ -110,9 +112,8 @@ function mapearRegistro(regBruto) {
     if (!(campo in linha)) linha[campo] = null;
   }
 
-  linha.quantidade = paraNumero(linha.quantidade);
-  linha.validade = paraDataISO(linha.validade);
-  for (const c of ['codigo_scodes', 'descricao', 'lote', 'unidade']) {
+  linha.saldo_reservado = paraNumero(linha.saldo_reservado);
+  for (const c of ['codigo_item', 'codigo_protocolo', 'descricao', 'recebedor']) {
     linha[c] = linha[c] === null || linha[c] === undefined ? null : String(linha[c]).trim();
   }
 
@@ -140,7 +141,11 @@ function gravarSnapshot(dataISO, registros, usuarioEmail) {
     linhas.push(linha);
   }
 
-  const gravar = db.transaction(() => {
+  // Transação no padrão do projeto (node:sqlite não tem db.transaction()):
+  // se qualquer passo falhar, a foto do dia não fica gravada pela metade.
+  let importacaoId;
+  db.exec('BEGIN');
+  try {
     const antigas = db.prepare('SELECT id FROM reservas_importacoes WHERE data_referencia = ?').all(dataISO);
     for (const a of antigas) {
       db.prepare('DELETE FROM reservas_itens WHERE importacao_id = ?').run(a.id);
@@ -150,28 +155,29 @@ function gravarSnapshot(dataISO, registros, usuarioEmail) {
     const info = db.prepare(
       'INSERT INTO reservas_importacoes (data_referencia, origem, usuario_email, total_itens) VALUES (?, ?, ?, ?)'
     ).run(dataISO, 'API UDTP', usuarioEmail || 'sistema', linhas.length);
-    const importacaoId = info.lastInsertRowid;
+    importacaoId = info.lastInsertRowid;
 
     const ins = db.prepare(`
       INSERT INTO reservas_itens
-        (importacao_id, data_referencia, codigo_scodes, descricao, lote, validade, quantidade, unidade)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (importacao_id, data_referencia, codigo_item, codigo_protocolo, descricao, recebedor, saldo_reservado)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     for (const l of linhas) {
-      ins.run(importacaoId, dataISO, l.codigo_scodes, l.descricao, l.lote, l.validade, l.quantidade, l.unidade);
+      ins.run(importacaoId, dataISO, l.codigo_item, l.codigo_protocolo, l.descricao, l.recebedor, l.saldo_reservado);
     }
-    return importacaoId;
-  });
-
-  const importacaoId = gravar();
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
 
   // Quantos registros ficaram sem a chave de ligação — sinal de mapeamento errado.
-  const semCodigo = linhas.filter((l) => !l.codigo_scodes).length;
+  const semCodigo = linhas.filter((l) => !l.codigo_item).length;
   return {
     dataReferencia: dataISO,
     importacaoId,
     totalRegistros: linhas.length,
-    semCodigoScodes: semCodigo,
+    semCodigoItem: semCodigo,
     camposNaoMapeados: [...camposNaoMapeados],
   };
 }
@@ -193,8 +199,38 @@ async function importarReservasDoDia(data, usuarioEmail) {
   return resumo;
 }
 
+// A API só publica as reservas de um dia depois que ele "fecha": consultar a
+// data de HOJE devolve 404. Por isso, em vez de exigir uma data exata, esta
+// função anda para trás a partir de hoje e importa a PRIMEIRA data que existir
+// (por padrão, olha até 7 dias atrás). É o que o agendador diário e o botão
+// "Atualizar agora" usam — assim o usuário sempre recebe o dado mais fresco
+// disponível, em vez de um erro.
+async function importarReservasMaisRecente(usuarioEmail, diasParaTras = 7) {
+  const tentativas = [];
+  const hoje = new Date();
+  for (let i = 0; i <= diasParaTras; i++) {
+    const d = new Date(hoje);
+    d.setDate(d.getDate() - i);
+    const dia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    try {
+      const resumo = await importarReservasDoDia(dia, usuarioEmail);
+      return { ...resumo, diasTentados: tentativas.length, tentativas };
+    } catch (e) {
+      tentativas.push(`${dia}: ${e.codigo || 'ERRO'}`);
+      // Só faz sentido continuar procurando quando a data não existe.
+      if (e.codigo !== 'NAO_ENCONTRADO') throw e;
+    }
+  }
+  const err = new Error(
+    `Nenhuma data com reservas encontrada nos últimos ${diasParaTras + 1} dias. Tentativas: ${tentativas.join(' | ')}`
+  );
+  err.codigo = 'SEM_DATA_DISPONIVEL';
+  throw err;
+}
+
 module.exports = {
   importarReservasDoDia,
+  importarReservasMaisRecente,
   gravarSnapshot,   // exportado para teste sem rede
   mapearRegistro,
   extrairLista,

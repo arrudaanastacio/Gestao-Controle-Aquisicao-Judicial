@@ -13,22 +13,22 @@
 const db = require('./db');
 const { agendarDiariamente } = require('./agendadorUtil');
 const { credenciaisConfiguradas } = require('./udtpApi');
-const { importarReservasDoDia } = require('./reservasUdtp');
+const { importarReservasMaisRecente } = require('./reservasUdtp');
 
-function hojeISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-// Já existe foto de reservas de hoje? (evita repuxar a API a cada reinício)
-function jaImportouHoje() {
+// Já rodou uma importação há pouco? Evita repuxar a API a cada reinício do
+// sistema. Olhamos QUANDO a importação rodou (criado_em), e não a data de
+// referência — porque a data importada é a do último dia fechado (ontem, em
+// geral), então comparar com "hoje" nunca casaria.
+// Usa uma janela de 18h em vez de "data igual a hoje" para não depender do
+// fuso (criado_em é gravado em UTC pelo SQLite).
+function importouRecentemente() {
   try {
     const r = db.prepare(
-      'SELECT 1 FROM reservas_importacoes WHERE data_referencia = ? LIMIT 1'
-    ).get(hojeISO());
+      "SELECT 1 FROM reservas_importacoes WHERE criado_em >= datetime('now', '-18 hours') LIMIT 1"
+    ).get();
     return !!r;
   } catch (e) {
-    console.error('[VIGIA RESERVAS] Não consegui checar se já importou hoje:', e.message);
+    console.error('[VIGIA RESERVAS] Não consegui checar a última importação:', e.message);
     return false;
   }
 }
@@ -38,18 +38,19 @@ async function importarHoje() {
     console.log('[VIGIA RESERVAS] Pulado: credenciais da API UDTP não configuradas no .env.');
     return;
   }
-  const dia = hojeISO();
   try {
-    const r = await importarReservasDoDia(dia, 'auto-importador');
-    console.log(`[VIGIA RESERVAS] ${dia}: ${r.totalRegistros} reserva(s) importada(s).`);
-    if (r.semCodigoScodes > 0) {
-      console.warn(`[VIGIA RESERVAS] Atenção: ${r.semCodigoScodes} registro(s) sem código SCODES (mapeamento pode precisar de ajuste).`);
+    // A API só publica o dia depois que ele fecha (consultar "hoje" devolve
+    // 404), então importamos a data mais recente que existir.
+    const r = await importarReservasMaisRecente('auto-importador');
+    console.log(`[VIGIA RESERVAS] ${r.dataReferencia}: ${r.totalRegistros} reserva(s) importada(s).`);
+    if (r.semCodigoItem > 0) {
+      console.warn(`[VIGIA RESERVAS] Atenção: ${r.semCodigoItem} registro(s) sem código do item (mapeamento pode precisar de ajuste).`);
     }
     if (r.camposNaoMapeados.length) {
       console.warn('[VIGIA RESERVAS] Campos da API ainda não mapeados:', r.camposNaoMapeados.join(', '));
     }
   } catch (e) {
-    console.error(`[VIGIA RESERVAS] Falha ao importar ${dia} [${e.codigo || 'ERRO'}]:`, e.message);
+    console.error(`[VIGIA RESERVAS] Falha ao importar [${e.codigo || 'ERRO'}]:`, e.message);
   }
 }
 
@@ -67,7 +68,7 @@ function iniciarVigiaReservas() {
   console.log(`[VIGIA RESERVAS] Ativo — atualização diária às ${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}.`);
   agendarDiariamente('VIGIA RESERVAS', hora, minuto, importarHoje, {
     recuperarSePerdido: true,
-    jaRodouHoje: jaImportouHoje,
+    jaRodouHoje: importouRecentemente,
   });
 }
 

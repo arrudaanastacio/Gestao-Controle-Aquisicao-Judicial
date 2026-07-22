@@ -7,7 +7,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('./db');
-const { importarReservasDoDia } = require('./reservasUdtp');
+const { importarReservasDoDia, importarReservasMaisRecente } = require('./reservasUdtp');
 const { credenciaisConfiguradas } = require('./udtpApi');
 
 const router = express.Router();
@@ -45,34 +45,29 @@ router.get('/', (req, res) => {
   }
 
   const busca = (req.query.busca || '').trim();
-  const unidade = (req.query.unidade || '').trim();
 
   const filtros = ['r.data_referencia = ?'];
   const params = [data];
   if (busca) {
-    filtros.push('(r.codigo_scodes LIKE ? OR r.descricao LIKE ? OR r.lote LIKE ?)');
+    filtros.push('(r.codigo_item LIKE ? OR r.descricao LIKE ? OR r.codigo_protocolo LIKE ? OR r.recebedor LIKE ?)');
     const like = `%${busca}%`;
-    params.push(like, like, like);
-  }
-  if (unidade) {
-    filtros.push('r.unidade = ?');
-    params.push(unidade);
+    params.push(like, like, like, like);
   }
   const onde = filtros.join(' AND ');
 
   const linhas = db.prepare(`
-    SELECT r.codigo_scodes AS codigoScodes, r.descricao, r.lote,
-           r.validade, r.quantidade, r.unidade
+    SELECT r.codigo_item AS codigoItem, r.codigo_protocolo AS codigoProtocolo,
+           r.descricao, r.recebedor, r.saldo_reservado AS saldoReservado
       FROM reservas_itens r
      WHERE ${onde}
-     ORDER BY r.descricao COLLATE NOCASE, r.validade, r.lote
+     ORDER BY r.descricao COLLATE NOCASE, r.recebedor COLLATE NOCASE
   `).all(...params);
 
   const resumo = db.prepare(`
     SELECT COUNT(*) AS total,
-           COUNT(DISTINCT r.codigo_scodes) AS itensDistintos,
-           COUNT(DISTINCT r.lote) AS lotesDistintos,
-           COALESCE(SUM(r.quantidade), 0) AS quantidadeTotal
+           COUNT(DISTINCT r.codigo_item) AS itensDistintos,
+           COUNT(DISTINCT r.codigo_protocolo) AS protocolosDistintos,
+           COALESCE(SUM(r.saldo_reservado), 0) AS quantidadeTotal
       FROM reservas_itens r
      WHERE ${onde}
   `).get(...params);
@@ -81,19 +76,13 @@ router.get('/', (req, res) => {
     'SELECT criado_em FROM reservas_importacoes WHERE data_referencia = ? ORDER BY id DESC LIMIT 1'
   ).get(data);
 
-  // Unidades presentes na data (para o filtro da tela)
-  const unidades = db.prepare(
-    'SELECT DISTINCT unidade FROM reservas_itens WHERE data_referencia = ? AND unidade IS NOT NULL AND unidade <> "" ORDER BY unidade'
-  ).all(data).map((u) => u.unidade);
-
   res.json({
     dataReferencia: data,
     atualizadoEm: cab ? cab.criado_em : null,
     linhas,
-    unidades,
     total: resumo.total,
     itensDistintos: resumo.itensDistintos,
-    lotesDistintos: resumo.lotesDistintos,
+    protocolosDistintos: resumo.protocolosDistintos,
     quantidadeTotal: resumo.quantidadeTotal,
     credenciaisConfiguradas: credenciaisConfiguradas(),
   });
@@ -105,19 +94,19 @@ router.get('/csv', (req, res) => {
   if (!data) return res.status(404).json({ erro: 'Nenhuma reserva importada ainda.' });
 
   const linhas = db.prepare(`
-    SELECT codigo_scodes, descricao, lote, validade, quantidade, unidade
+    SELECT codigo_item, codigo_protocolo, descricao, recebedor, saldo_reservado
       FROM reservas_itens
      WHERE data_referencia = ?
-     ORDER BY descricao COLLATE NOCASE, validade, lote
+     ORDER BY descricao COLLATE NOCASE, recebedor COLLATE NOCASE
   `).all(data);
 
   const esc = (v) => {
     const t = v === null || v === undefined ? '' : String(v);
     return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
   };
-  const cabecalho = 'Codigo SCODES;Medicamento;Lote;Validade;Quantidade;Unidade';
+  const cabecalho = 'Codigo do Item;Protocolo;Medicamento;Recebedor;Saldo Reservado';
   const corpo = linhas.map((l) => [
-    l.codigo_scodes, l.descricao, l.lote, l.validade, l.quantidade, l.unidade,
+    l.codigo_item, l.codigo_protocolo, l.descricao, l.recebedor, l.saldo_reservado,
   ].map(esc).join(';')).join('\n');
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -130,19 +119,19 @@ router.get('/csv', (req, res) => {
 // que pode ser liberada por usuário na tela de Administração > Permissões.
 router.post('/importar-agora', async (req, res) => {
   const data = (req.body && req.body.data) || null;
-  const alvo = data || (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  })();
-
+  const email = req.usuario ? req.usuario.email : 'sistema';
   try {
-    const resumo = await importarReservasDoDia(alvo, req.usuario ? req.usuario.email : 'sistema');
+    // Sem data explícita, busca a mais recente disponível: a API só publica o
+    // dia depois que ele fecha, então "hoje" costuma devolver 404.
+    const resumo = data
+      ? await importarReservasDoDia(data, email)
+      : await importarReservasMaisRecente(email);
     res.json({ ok: true, ...resumo });
   } catch (e) {
     const porCodigo = {
       SEM_CREDENCIAL: 400, NAO_AUTORIZADO: 401, SEM_PERMISSAO: 403,
       NAO_ENCONTRADO: 404, TIMEOUT: 504, FALHA_CONEXAO: 502,
-      FORMATO_INESPERADO: 502, DATA_INVALIDA: 400,
+      FORMATO_INESPERADO: 502, DATA_INVALIDA: 400, SEM_DATA_DISPONIVEL: 404,
     };
     res.status(porCodigo[e.codigo] || 500).json({ erro: e.message, codigo: e.codigo || 'ERRO' });
   }

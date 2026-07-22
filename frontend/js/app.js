@@ -5416,7 +5416,17 @@ document.getElementById('botaoAtualizarEntradaLotes').addEventListener('click', 
 // Reserva = quantidade que está no estoque mas já foi separada para um
 // paciente. A tela mostra a foto de um dia; o botão "Atualizar agora"
 // consulta a API na hora (requer a ação "importar" no módulo "reservas").
-const estadoReservas = { data: null, unidades: [] };
+const estadoReservas = { data: null };
+
+// Escapa texto vindo da API antes de jogar no HTML. Importante aqui porque
+// "recebedor" é nome de pessoa vindo de fora: sem isso, um caractere como
+// "<" quebraria a tabela (ou pior).
+function escHtml(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  return String(v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 async function carregarReservas() {
   const btn = document.getElementById('botaoAtualizarReservas');
@@ -5442,11 +5452,9 @@ async function carregarReservas() {
 
 async function buscarReservas() {
   const busca = document.getElementById('filtroBuscaReservas').value.trim();
-  const unidade = document.getElementById('filtroUnidadeReservas').value;
   const p = new URLSearchParams();
   if (estadoReservas.data) p.set('data', estadoReservas.data);
   if (busca) p.set('busca', busca);
-  if (unidade) p.set('unidade', unidade);
 
   const dados = await api('/reservas?' + p.toString());
   renderReservas(dados);
@@ -5468,34 +5476,22 @@ function renderReservas(d) {
   document.getElementById('atualizadoEmReservas').textContent =
     'Atualizado em ' + formatarDataHora(d.atualizadoEm);
 
-  // Filtro de unidade (preenchido conforme o dia selecionado)
-  const selUnid = document.getElementById('filtroUnidadeReservas');
-  const unidAtual = selUnid.value;
-  const novas = (d.unidades || []).join('|');
-  if (novas !== estadoReservas.unidades.join('|')) {
-    estadoReservas.unidades = d.unidades || [];
-    selUnid.innerHTML = '<option value="">Unidade: todas</option>' +
-      estadoReservas.unidades.map((u) => `<option value="${u}">${u}</option>`).join('');
-    selUnid.value = estadoReservas.unidades.includes(unidAtual) ? unidAtual : '';
-  }
-
   const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
   document.getElementById('kpisReservas').innerHTML = [
     kpiCard('list', nf(d.total), 'Reservas', 'linhas no dia selecionado'),
     kpiCard('doc', nf(d.itensDistintos), 'Medicamentos', 'itens distintos com reserva'),
-    kpiCard('chart', nf(d.quantidadeTotal), 'Quantidade reservada', 'soma das quantidades'),
-    kpiCard('relogio', nf(d.lotesDistintos), 'Lotes', 'lotes distintos envolvidos'),
+    kpiCard('chart', nf(d.quantidadeTotal), 'Saldo reservado', 'soma das quantidades separadas'),
+    kpiCard('relogio', nf(d.protocolosDistintos), 'Protocolos', 'pacientes/demandas atendidos'),
   ].join('');
 
   const corpo = document.getElementById('corpoTabelaReservas');
   corpo.innerHTML = d.linhas.map((l) => `
     <tr>
-      <td>${l.codigoScodes || '—'}</td>
-      <td>${l.descricao || '—'}</td>
-      <td>${l.lote || '—'}</td>
-      <td>${l.validade ? formatarData(l.validade) : '—'}</td>
-      <td>${nf(l.quantidade)}</td>
-      <td>${l.unidade || '—'}</td>
+      <td>${escHtml(l.codigoItem)}</td>
+      <td>${escHtml(l.descricao)}</td>
+      <td>${escHtml(l.codigoProtocolo)}</td>
+      <td>${escHtml(l.recebedor)}</td>
+      <td>${nf(l.saldoReservado)}</td>
     </tr>`).join('');
   document.getElementById('estadoVazioReservas').hidden = d.linhas.length > 0;
 }
@@ -5503,9 +5499,6 @@ function renderReservas(d) {
 // --- eventos da tela de Reservas ---
 document.getElementById('filtroDataReservas').addEventListener('change', (e) => {
   estadoReservas.data = e.target.value;
-  buscarReservas().catch((err) => alert('Erro: ' + err.message));
-});
-document.getElementById('filtroUnidadeReservas').addEventListener('change', () => {
   buscarReservas().catch((err) => alert('Erro: ' + err.message));
 });
 let tempoBuscaReservas = null;
@@ -5517,7 +5510,6 @@ document.getElementById('filtroBuscaReservas').addEventListener('input', () => {
 });
 document.getElementById('botaoLimparFiltrosReservas').addEventListener('click', () => {
   document.getElementById('filtroBuscaReservas').value = '';
-  document.getElementById('filtroUnidadeReservas').value = '';
   buscarReservas().catch((err) => alert('Erro: ' + err.message));
 });
 document.getElementById('botaoExportarReservas').addEventListener('click', () => {

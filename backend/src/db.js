@@ -168,22 +168,32 @@ CREATE TABLE IF NOT EXISTS reservas_importacoes (
 );
 `);
 
+// Ajuste de formato ANTES da 1ª publicação: o desenho inicial supunha
+// lote/validade/unidade, mas a API devolve codigoItem/codigoProtocolo/
+// descricao/recebedor/saldoReservado. Como a tela nunca foi publicada e o
+// conteúdo é uma foto re-obtenível da API, a tabela antiga é descartada.
+const colsReservasAntigas = db.prepare("PRAGMA table_info(reservas_itens)").all().map((c) => c.name);
+if (colsReservasAntigas.includes('codigo_scodes')) {
+  db.exec('DROP TABLE IF EXISTS reservas_itens');
+  db.exec('DELETE FROM reservas_importacoes');
+}
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS reservas_itens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   importacao_id INTEGER NOT NULL,
   data_referencia TEXT NOT NULL,
-  codigo_scodes TEXT,                      -- chave de ligação com o estoque
+  codigo_item TEXT,                        -- chave de ligação (casa com estoque_itens.codigo_item)
+  codigo_protocolo TEXT,                   -- protocolo da ação/demanda do paciente
   descricao TEXT,                          -- nome do medicamento
-  lote TEXT,
-  validade TEXT,                           -- yyyy-mm-dd
-  quantidade REAL,
-  unidade TEXT,
+  recebedor TEXT,                          -- para quem a quantidade foi separada
+  saldo_reservado REAL,
   FOREIGN KEY (importacao_id) REFERENCES reservas_importacoes(id)
 );
 `);
 
-db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_scodes ON reservas_itens(codigo_scodes);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_item ON reservas_itens(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_protocolo ON reservas_itens(codigo_protocolo);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_data ON reservas_itens(data_referencia);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_reservas_importacao ON reservas_itens(importacao_id);`);
 
