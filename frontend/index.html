@@ -1055,7 +1055,8 @@
 
           <div class="barra-filtros">
             <select id="filtroDataReservas" title="Dia da consulta"></select>
-            <input type="text" id="filtroBuscaReservas" placeholder="Buscar por medicamento, código do item, protocolo ou recebedor…" style="min-width:360px;">
+            <input type="text" id="filtroBuscaReservas" placeholder="Buscar por medicamento ou código do item…" style="min-width:320px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; white-space:nowrap;" title="Mostra só itens em que o estoque já está todo comprometido"><input type="checkbox" id="filtroComprometidosReservas"> Só comprometidos (disponível ≤ 0)</label>
             <button id="botaoLimparFiltrosReservas" class="botao-secundario" type="button">Limpar filtros</button>
             <button id="botaoExportarReservas" class="botao-secundario" type="button">⬇ Exportar CSV</button>
           </div>
@@ -1065,11 +1066,15 @@
               <table>
                 <thead>
                   <tr>
+                    <th style="width:34px;"></th>
                     <th>Código do Item</th>
                     <th>Medicamento</th>
-                    <th>Protocolo</th>
-                    <th>Recebedor</th>
-                    <th>Saldo reservado</th>
+                    <th>Unidade</th>
+                    <th>Estoque</th>
+                    <th>Reservado</th>
+                    <th>Disponível</th>
+                    <th>Validade + próxima</th>
+                    <th>Pacientes</th>
                   </tr>
                 </thead>
                 <tbody id="corpoTabelaReservas"></tbody>

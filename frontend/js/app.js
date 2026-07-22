@@ -5452,9 +5452,11 @@ async function carregarReservas() {
 
 async function buscarReservas() {
   const busca = document.getElementById('filtroBuscaReservas').value.trim();
+  const soComp = document.getElementById('filtroComprometidosReservas').checked;
   const p = new URLSearchParams();
   if (estadoReservas.data) p.set('data', estadoReservas.data);
   if (busca) p.set('busca', busca);
+  if (soComp) p.set('comprometidos', 'true');
 
   const dados = await api('/reservas?' + p.toString());
   renderReservas(dados);
@@ -5478,22 +5480,109 @@ function renderReservas(d) {
 
   const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
   document.getElementById('kpisReservas').innerHTML = [
-    kpiCard('list', nf(d.total), 'Reservas', 'linhas no dia selecionado'),
-    kpiCard('doc', nf(d.itensDistintos), 'Medicamentos', 'itens distintos com reserva'),
+    kpiCard('doc', nf(d.itensDistintos), 'Medicamentos', 'itens com reserva no dia'),
     kpiCard('chart', nf(d.quantidadeTotal), 'Saldo reservado', 'soma das quantidades separadas'),
-    kpiCard('relogio', nf(d.protocolosDistintos), 'Protocolos', 'pacientes/demandas atendidos'),
+    kpiCard('relogio', nf(d.protocolosDistintos), 'Reservas', 'protocolos/pacientes atendidos'),
+    kpiCard('check', nf(d.comprometidos), 'Comprometidos', 'itens com disponível ≤ 0',
+      d.comprometidos > 0 ? 'critico' : ''),
   ].join('');
 
   const corpo = document.getElementById('corpoTabelaReservas');
-  corpo.innerHTML = d.linhas.map((l) => `
-    <tr>
+  corpo.innerHTML = d.linhas.map((l) => {
+    // Disponível negativo/zero = estoque já todo comprometido: destaca.
+    const classeDisp = l.disponivel < 0 ? 'texto-vermelho' : (l.disponivel === 0 ? 'texto-ambar' : '');
+    return `
+    <tr class="linha-reserva" data-item="${escAttr(l.codigoItem)}">
+      <td><button class="botao-expandir" type="button" data-item="${escAttr(l.codigoItem)}" title="Ver lotes e pacientes">▸</button></td>
       <td>${escHtml(l.codigoItem)}</td>
       <td>${escHtml(l.descricao)}</td>
-      <td>${escHtml(l.codigoProtocolo)}</td>
-      <td>${escHtml(l.recebedor)}</td>
-      <td>${nf(l.saldoReservado)}</td>
-    </tr>`).join('');
+      <td>${escHtml(l.unidade)}</td>
+      <td>${nf(l.estoque)}</td>
+      <td>${nf(l.reservado)}</td>
+      <td class="${classeDisp}"><strong>${nf(l.disponivel)}</strong></td>
+      <td>${l.validadeMaisProxima ? formatarData(l.validadeMaisProxima) : '—'}</td>
+      <td>${nf(l.protocolos)}</td>
+    </tr>
+    <tr class="detalhe-reserva" data-detalhe="${escAttr(l.codigoItem)}" hidden>
+      <td colspan="9"><div class="painel-detalhe">Carregando…</div></td>
+    </tr>`;
+  }).join('');
   document.getElementById('estadoVazioReservas').hidden = d.linhas.length > 0;
+
+  // Expandir/recolher: busca os lotes e os pacientes daquele item sob demanda.
+  corpo.querySelectorAll('.botao-expandir').forEach((b) => {
+    b.addEventListener('click', () => alternarDetalheReserva(b));
+  });
+}
+
+async function alternarDetalheReserva(botao) {
+  const item = botao.dataset.item;
+  const linha = document.querySelector(`[data-detalhe="${CSS.escape(item)}"]`);
+  if (!linha) return;
+
+  if (!linha.hidden) {           // já aberto -> fecha
+    linha.hidden = true;
+    botao.textContent = '▸';
+    return;
+  }
+  linha.hidden = false;
+  botao.textContent = '▾';
+
+  if (linha.dataset.carregado === '1') return;
+  const painel = linha.querySelector('.painel-detalhe');
+  try {
+    const p = new URLSearchParams({ codigoItem: item });
+    if (estadoReservas.data) p.set('data', estadoReservas.data);
+    const d = await api('/reservas/detalhe?' + p.toString());
+    painel.innerHTML = montarDetalheReserva(d);
+    linha.dataset.carregado = '1';
+  } catch (e) {
+    painel.innerHTML = `<p class="texto-vermelho">Não consegui carregar o detalhe: ${escHtml(e.message)}</p>`;
+  }
+}
+
+function montarDetalheReserva(d) {
+  const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
+
+  const lotes = d.lotes.length ? `
+    <table class="tabela-mini">
+      <thead><tr><th>Lote</th><th>Validade</th><th>Saldo</th></tr></thead>
+      <tbody>${d.lotes.map((l) => `
+        <tr><td>${escHtml(l.lote)}</td><td>${l.validade ? formatarData(l.validade) : '—'}</td><td>${nf(l.saldo)}</td></tr>`).join('')}
+      </tbody>
+    </table>` : '<p class="texto-apoio">Sem lotes com saldo nesta data.</p>';
+
+  const reservas = d.reservas.length ? `
+    <table class="tabela-mini">
+      <thead><tr><th>Recebedor</th><th>Protocolo</th><th>Qtde</th><th>Lote(s) — FEFO</th></tr></thead>
+      <tbody>${d.reservas.map((r) => `
+        <tr>
+          <td>${escHtml(r.recebedor)}</td>
+          <td>${escHtml(r.codigoProtocolo)}</td>
+          <td>${nf(r.saldoReservado)}</td>
+          <td>${r.lotesFefo && r.lotesFefo.length
+            ? r.lotesFefo.map((x) => `${escHtml(x.lote)} <span class="texto-apoio">(${formatarData(x.validade)}) ${nf(x.quantidade)}</span>`).join('<br>')
+            : '<span class="texto-apoio">—</span>'}
+            ${r.naoCoberto ? `<br><span class="texto-vermelho">sem lote para ${nf(r.naoCoberto)}</span>` : ''}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>` : '<p class="texto-apoio">Sem reservas.</p>';
+
+  return `
+    <div class="detalhe-colunas">
+      <div>
+        <h4>Lotes em estoque <span class="texto-apoio">(ordem de validade — FEFO)</span></h4>
+        ${lotes}
+      </div>
+      <div>
+        <h4>Pacientes com reserva <span class="texto-apoio">(${d.reservas.length})</span></h4>
+        ${reservas}
+      </div>
+    </div>
+    <p class="texto-apoio" style="margin-top:8px;">
+      A API não informa o lote de cada reserva; a coluna "Lote(s)" é uma indicação calculada pela regra FEFO
+      (consome primeiro o que vence antes). Estoque da foto de ${formatarData(d.dataEstoque)}.
+    </p>`;
 }
 
 // --- eventos da tela de Reservas ---
@@ -5508,8 +5597,12 @@ document.getElementById('filtroBuscaReservas').addEventListener('input', () => {
     buscarReservas().catch((err) => alert('Erro: ' + err.message));
   }, 300);
 });
+document.getElementById('filtroComprometidosReservas').addEventListener('change', () => {
+  buscarReservas().catch((err) => alert('Erro: ' + err.message));
+});
 document.getElementById('botaoLimparFiltrosReservas').addEventListener('click', () => {
   document.getElementById('filtroBuscaReservas').value = '';
+  document.getElementById('filtroComprometidosReservas').checked = false;
   buscarReservas().catch((err) => alert('Erro: ' + err.message));
 });
 document.getElementById('botaoExportarReservas').addEventListener('click', () => {

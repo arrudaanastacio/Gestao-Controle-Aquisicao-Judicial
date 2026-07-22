@@ -19,6 +19,25 @@ function dataMaisRecente() {
   return r && r.d ? r.d : null;
 }
 
+// Qual foto de estoque por lote usar para uma data de reservas: a do mesmo
+// dia, se existir; senão a mais recente que não seja posterior; senão a mais
+// recente que houver. Evita ficar sem lote/validade se uma das duas
+// importações tiver falhado num dia.
+function dataEstoqueUsar(dataReservas) {
+  const igual = db.prepare(
+    'SELECT 1 FROM estoque_udtp_lotes WHERE data_referencia = ? LIMIT 1'
+  ).get(dataReservas);
+  if (igual) return dataReservas;
+
+  const anterior = db.prepare(
+    'SELECT MAX(data_referencia) AS d FROM estoque_udtp_lotes WHERE data_referencia <= ?'
+  ).get(dataReservas);
+  if (anterior && anterior.d) return anterior.d;
+
+  const qualquer = db.prepare('SELECT MAX(data_referencia) AS d FROM estoque_udtp_lotes').get();
+  return qualquer && qualquer.d ? qualquer.d : dataReservas;
+}
+
 // ---------- Datas disponíveis (para o seletor da tela) ----------
 router.get('/datas', (req, res) => {
   const linhas = db.prepare(`
@@ -46,32 +65,53 @@ router.get('/', (req, res) => {
   }
 
   const busca = (req.query.busca || '').trim();
+  const soComprometidos = req.query.comprometidos === 'true';
 
-  const filtros = ['r.data_referencia = ?'];
-  const params = [data];
+  // Snapshot de estoque a usar: o do mesmo dia, se existir; senão o mais
+  // recente disponível (as duas fontes são importadas juntas, mas uma pode
+  // ter falhado num dia).
+  const dataEstoque = dataEstoqueUsar(data);
+
+  const like = `%${busca}%`;
+  const params = [data, dataEstoque];
+  let filtroBusca = '';
   if (busca) {
-    filtros.push('(r.codigo_item LIKE ? OR r.descricao LIKE ? OR r.codigo_protocolo LIKE ? OR r.recebedor LIKE ?)');
-    const like = `%${busca}%`;
-    params.push(like, like, like, like);
+    filtroBusca = 'AND (res.codigoItem LIKE ? OR res.descricao LIKE ?)';
+    params.push(like, like);
   }
-  const onde = filtros.join(' AND ');
+  const filtroComp = soComprometidos ? 'AND (COALESCE(est.estoque, 0) - res.reservado) <= 0' : '';
 
+  // Uma linha por ITEM: quantidade reservada somada, estoque total do dia e o
+  // DISPONÍVEL (estoque - reservado). A validade mais próxima é a que atende a
+  // reserva, já que a separação segue FEFO (confirmado pelo Rafael em 22/07).
   const linhas = db.prepare(`
-    SELECT r.codigo_item AS codigoItem, r.codigo_protocolo AS codigoProtocolo,
-           r.descricao, r.recebedor, r.saldo_reservado AS saldoReservado
-      FROM reservas_itens r
-     WHERE ${onde}
-     ORDER BY r.descricao COLLATE NOCASE, r.recebedor COLLATE NOCASE
+    WITH res AS (
+      SELECT codigo_item AS codigoItem, MAX(descricao) AS descricao,
+             SUM(saldo_reservado) AS reservado,
+             COUNT(*) AS qtdReservas,
+             COUNT(DISTINCT codigo_protocolo) AS protocolos
+        FROM reservas_itens
+       WHERE data_referencia = ?
+       GROUP BY codigo_item
+    ),
+    est AS (
+      SELECT codigo_item,
+             SUM(COALESCE(saldo, 0)) AS estoque,
+             MIN(CASE WHEN lote IS NOT NULL AND saldo > 0 THEN validade END) AS validadeMaisProxima,
+             MAX(unidade_medida) AS unidade,
+             SUM(CASE WHEN lote IS NOT NULL THEN 1 ELSE 0 END) AS lotes
+        FROM estoque_udtp_lotes
+       WHERE data_referencia = ?
+       GROUP BY codigo_item
+    )
+    SELECT res.codigoItem, res.descricao, res.reservado, res.qtdReservas, res.protocolos,
+           COALESCE(est.estoque, 0) AS estoque,
+           COALESCE(est.estoque, 0) - res.reservado AS disponivel,
+           est.validadeMaisProxima, est.unidade, COALESCE(est.lotes, 0) AS lotes
+      FROM res LEFT JOIN est ON est.codigo_item = res.codigoItem
+     WHERE 1=1 ${filtroBusca} ${filtroComp}
+     ORDER BY res.descricao COLLATE NOCASE
   `).all(...params);
-
-  const resumo = db.prepare(`
-    SELECT COUNT(*) AS total,
-           COUNT(DISTINCT r.codigo_item) AS itensDistintos,
-           COUNT(DISTINCT r.codigo_protocolo) AS protocolosDistintos,
-           COALESCE(SUM(r.saldo_reservado), 0) AS quantidadeTotal
-      FROM reservas_itens r
-     WHERE ${onde}
-  `).get(...params);
 
   const cab = db.prepare(
     'SELECT criado_em FROM reservas_importacoes WHERE data_referencia = ? ORDER BY id DESC LIMIT 1'
@@ -79,14 +119,64 @@ router.get('/', (req, res) => {
 
   res.json({
     dataReferencia: data,
+    dataEstoque,
     atualizadoEm: cab ? cab.criado_em : null,
     linhas,
-    total: resumo.total,
-    itensDistintos: resumo.itensDistintos,
-    protocolosDistintos: resumo.protocolosDistintos,
-    quantidadeTotal: resumo.quantidadeTotal,
+    total: linhas.length,
+    itensDistintos: linhas.length,
+    protocolosDistintos: linhas.reduce((s, l) => s + l.protocolos, 0),
+    quantidadeTotal: linhas.reduce((s, l) => s + (l.reservado || 0), 0),
+    comprometidos: linhas.filter((l) => l.disponivel <= 0).length,
     credenciaisConfiguradas: credenciaisConfiguradas(),
   });
+});
+
+// ---------- Detalhe de um item (linha expansível da tela) ----------
+// Devolve os LOTES em ordem FEFO (vence primeiro em cima) e as RESERVAS
+// (pacientes) daquele item. Como a separação segue FEFO, dá para indicar
+// qual lote atende cada reserva: consumimos os lotes na ordem de validade.
+router.get('/detalhe', (req, res) => {
+  const codigoItem = (req.query.codigoItem || '').trim();
+  if (!codigoItem) return res.status(400).json({ erro: 'Informe o codigoItem.' });
+  const data = req.query.data || dataMaisRecente();
+  if (!data) return res.status(404).json({ erro: 'Nenhuma reserva importada ainda.' });
+  const dataEstoque = dataEstoqueUsar(data);
+
+  const lotes = db.prepare(`
+    SELECT lote, validade, saldo, unidade_medida AS unidade
+      FROM estoque_udtp_lotes
+     WHERE codigo_item = ? AND data_referencia = ? AND lote IS NOT NULL
+     ORDER BY validade IS NULL, validade, lote
+  `).all(codigoItem, dataEstoque);
+
+  const reservas = db.prepare(`
+    SELECT codigo_protocolo AS codigoProtocolo, recebedor,
+           saldo_reservado AS saldoReservado
+      FROM reservas_itens
+     WHERE codigo_item = ? AND data_referencia = ?
+     ORDER BY saldo_reservado DESC, recebedor COLLATE NOCASE
+  `).all(codigoItem, data);
+
+  // Atribuição FEFO: distribui as reservas nos lotes que vencem primeiro.
+  // É uma indicação (a API não diz o lote da reserva), mas reflete a regra
+  // real de separação confirmada com a operação.
+  const restante = lotes.map((l) => ({ lote: l.lote, validade: l.validade, resta: Number(l.saldo) || 0 }));
+  for (const r of reservas) {
+    let falta = Number(r.saldoReservado) || 0;
+    const usados = [];
+    for (const l of restante) {
+      if (falta <= 0) break;
+      if (l.resta <= 0) continue;
+      const usa = Math.min(l.resta, falta);
+      l.resta -= usa;
+      falta -= usa;
+      usados.push({ lote: l.lote, validade: l.validade, quantidade: usa });
+    }
+    r.lotesFefo = usados;
+    r.naoCoberto = falta > 0 ? falta : 0;
+  }
+
+  res.json({ codigoItem, dataReferencia: data, dataEstoque, lotes, reservas });
 });
 
 // ---------- Exportar CSV ----------

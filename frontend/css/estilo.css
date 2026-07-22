@@ -1525,3 +1525,50 @@ body.tem-faixa-ambiente { padding-top: 30px; }
   .painel-tiles { grid-template-columns: repeat(2, 1fr); }
   .painel-duas-colunas { grid-template-columns: 1fr; }
 }
+
+/* ---------- Tela de Reservas de Estoque (linha expansível) ---------- */
+/* Usa os tokens do tema para funcionar no claro e no escuro. */
+.texto-vermelho { color: var(--vermelho); }
+.texto-ambar    { color: var(--ambar); }
+.texto-apoio    { color: var(--cinza-texto); font-size: 12px; font-weight: 400; }
+
+.botao-expandir {
+  background: transparent;
+  border: 1px solid var(--linha);
+  color: var(--tinta);
+  border-radius: var(--raio);
+  width: 26px; height: 26px;
+  line-height: 1;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+}
+.botao-expandir:hover { background: var(--realce-tabela); }
+
+.painel-detalhe {
+  padding: 12px 14px;
+  background: var(--papel-elevado);
+  border-radius: var(--raio-cartao);
+  max-height: 420px;
+  overflow: auto;              /* itens com muitas reservas não esticam a página */
+}
+.detalhe-colunas {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(280px, 2fr);
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .detalhe-colunas { grid-template-columns: 1fr; }
+}
+.detalhe-colunas h4 { margin: 0 0 8px; font-size: 13px; }
+
+.tabela-mini { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tabela-mini th, .tabela-mini td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--linha-tabela);
+  text-align: left;
+  white-space: nowrap;
+}
+.tabela-mini th { font-weight: 600; color: var(--cinza-texto); }
+.tabela-mini tbody tr:nth-child(even) { background: var(--zebra); }
