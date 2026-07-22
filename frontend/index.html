@@ -33,6 +33,7 @@
             <a href="#" data-pagina="evolucao">Evolução de Estoque</a>
             <a href="#" data-pagina="historico">Histórico de Estoque</a>
             <a href="#" data-pagina="entradaLotes">Movimentação de Entrada</a>
+            <a href="#" data-pagina="reservas">Reservas de Estoque</a>
             <a href="#" data-pagina="alertas" id="linkAlertas" hidden>Alertas <span class="badge-alerta" id="badgeAlertas" hidden>0</span></a>
           </div>
 
@@ -1029,6 +1030,54 @@
                 <button id="botaoProximoEntradaLotes">Próximo →</button>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaReservas" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Reservas de Estoque</h2>
+            <p id="subtituloReservas">Quantidades que estão no estoque mas já foram separadas para pacientes (fonte: API UDTP)</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <span class="atualizado-em" id="atualizadoEmReservas"></span>
+            <button id="botaoAtualizarReservas" class="botao-primario" type="button" hidden title="Consulta a API UDTP agora e atualiza a movimentação do dia">🔄 Atualizar agora</button>
+          </div>
+        </div>
+
+        <div id="avisoSemReservas" class="estado-vazio" hidden>
+          Nenhuma reserva importada ainda. Use o botão "Atualizar agora" para consultar a API.
+        </div>
+
+        <div id="conteudoReservas" hidden>
+          <div class="grade-resumo" id="kpisReservas"></div>
+
+          <div class="barra-filtros">
+            <select id="filtroDataReservas" title="Dia da consulta"></select>
+            <input type="text" id="filtroBuscaReservas" placeholder="Buscar por medicamento, código SCODES ou lote…" style="min-width:320px;">
+            <select id="filtroUnidadeReservas"><option value="">Unidade: todas</option></select>
+            <button id="botaoLimparFiltrosReservas" class="botao-secundario" type="button">Limpar filtros</button>
+            <button id="botaoExportarReservas" class="botao-secundario" type="button">⬇ Exportar CSV</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Código SCODES</th>
+                    <th>Medicamento</th>
+                    <th>Lote</th>
+                    <th>Validade</th>
+                    <th>Qtde reservada</th>
+                    <th>Unidade</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaReservas"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioReservas" hidden>Nenhuma reserva encontrada com estes filtros.</div>
           </div>
         </div>
       </section>

@@ -36,6 +36,9 @@ const MODULOS = [
   { chave: 'relatorioReqTP', rotulo: 'Relatório de Primeiro Atendimento', acoes: ['visualizar', 'inserir', 'editar', 'excluir'] },
   { chave: 'comparativoAutoresTP', rotulo: 'Comparativo de Autores', acoes: ['visualizar'] },
   { chave: 'entradaLotes', rotulo: 'Movimentação de Entrada Estoque', acoes: ['visualizar', 'exportar', 'importar'] },
+  // "Importar" aqui é o botão "Atualizar agora" da tela de Reservas: marque
+  // essa ação para os usuários que puderem forçar a consulta à API UDTP.
+  { chave: 'reservas', rotulo: 'Reservas de Estoque', acoes: ['visualizar', 'exportar', 'importar'] },
   { chave: 'alertas', rotulo: 'Alertas', acoes: ['visualizar', 'editar'] },
 
   // 🏢 Outras Demandas

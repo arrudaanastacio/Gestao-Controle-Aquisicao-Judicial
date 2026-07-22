@@ -27,6 +27,7 @@ const solicitacoesODRoutes = require('./routes.solicitacoesOD');
 const entradaLotesRoutes = require('./routes.entradaLotes');
 const importacoesInfoRoutes = require('./routes.importacoesInfo');
 const distribuicaoRoutes = require('./routes.distribuicao');
+const reservasRoutes = require('./routes.reservas');
 const configRoutes = require('./routes.config');
 const { autenticar, exigirModulo, exigirModuloDinamico } = require('./auth');
 
@@ -96,6 +97,7 @@ app.use('/api/solicitacoes-od', autenticar, exigirModuloDinamico((req) =>
 
 app.use('/api/entrada-lotes', autenticar, exigirModulo('entradaLotes'), entradaLotesRoutes);
 app.use('/api/distribuicao', autenticar, exigirModulo('distribuicao'), distribuicaoRoutes);
+app.use('/api/reservas', autenticar, exigirModulo('reservas'), reservasRoutes);
 
 // Serve o frontend estático (build simples, sem framework)
 const PASTA_FRONT = path.join(__dirname, '..', '..', 'frontend');
@@ -146,6 +148,8 @@ app.listen(PORT, '0.0.0.0', () => {
   iniciarVigiaSolicitacoesOD();
   const { iniciarVigiaDistribuicao } = require('./vigiaDistribuicao');
   iniciarVigiaDistribuicao();
+  const { iniciarVigiaReservas } = require('./vigiaReservas');
+  iniciarVigiaReservas();
 
   // Atualização automática diária via Oracle (SCODES): Estoque primeiro,
   // Autores em seguida (encadeado, nunca ao mesmo tempo).

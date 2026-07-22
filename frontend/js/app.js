@@ -210,6 +210,7 @@ function aplicarPermissoesNav() {
     comparativoAutores: 'comparativoAutoresTP', relatorioReq: 'relatorioReqTP',
     atas: 'atas',
     entradaLotes: 'entradaLotes',
+    reservas: 'reservas',
     alertas: 'alertas',
   };
   for (const [pagina, modulo] of Object.entries(mapa)) {
@@ -458,6 +459,7 @@ const TRILHAS = {
   evolucao: ['Tenente Pena', 'Estoque', 'Evolução de Estoque'],
   historico: ['Tenente Pena', 'Estoque', 'Histórico de Estoque'],
   entradaLotes: ['Tenente Pena', 'Estoque', 'Movimentação de Entrada'],
+  reservas: ['Tenente Pena', 'Estoque', 'Reservas de Estoque'],
   alertas: ['Tenente Pena', 'Estoque', 'Alertas'],
   autores: ['Tenente Pena', 'Autores', 'Listagem de Autores'],
   validades: ['Tenente Pena', 'Autores', 'Consultar Validades TP'],
@@ -508,6 +510,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
   document.getElementById('paginaAtas').hidden = pagina !== 'atas';
   document.getElementById('paginaEntradaLotes').hidden = pagina !== 'entradaLotes';
+  document.getElementById('paginaReservas').hidden = pagina !== 'reservas';
   document.getElementById('paginaRelatorioItens').hidden = pagina !== 'relatorioItens';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
@@ -533,6 +536,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
     if (pagina === 'atas') await carregarAtas();
     if (pagina === 'entradaLotes') await carregarEntradaLotes();
+    if (pagina === 'reservas') await carregarReservas();
     if (pagina === 'relatorioItens') await carregarRelatorioItens();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
@@ -5407,3 +5411,138 @@ document.getElementById('botaoAtualizarEntradaLotes').addEventListener('click', 
     }
   }
 })();
+
+// ==================== Reservas de Estoque (API UDTP) ====================
+// Reserva = quantidade que está no estoque mas já foi separada para um
+// paciente. A tela mostra a foto de um dia; o botão "Atualizar agora"
+// consulta a API na hora (requer a ação "importar" no módulo "reservas").
+const estadoReservas = { data: null, unidades: [] };
+
+async function carregarReservas() {
+  const btn = document.getElementById('botaoAtualizarReservas');
+  if (btn) btn.hidden = !temPermissao('reservas', 'importar');
+
+  // Datas já importadas (para o seletor)
+  const { datas } = await api('/reservas/datas');
+  const seletor = document.getElementById('filtroDataReservas');
+  if (datas.length) {
+    const atual = estadoReservas.data && datas.some((d) => d.data === estadoReservas.data)
+      ? estadoReservas.data : datas[0].data;
+    estadoReservas.data = atual;
+    seletor.innerHTML = datas
+      .map((d) => `<option value="${d.data}"${d.data === atual ? ' selected' : ''}>${formatarData(d.data)}</option>`)
+      .join('');
+  } else {
+    seletor.innerHTML = '';
+    estadoReservas.data = null;
+  }
+
+  await buscarReservas();
+}
+
+async function buscarReservas() {
+  const busca = document.getElementById('filtroBuscaReservas').value.trim();
+  const unidade = document.getElementById('filtroUnidadeReservas').value;
+  const p = new URLSearchParams();
+  if (estadoReservas.data) p.set('data', estadoReservas.data);
+  if (busca) p.set('busca', busca);
+  if (unidade) p.set('unidade', unidade);
+
+  const dados = await api('/reservas?' + p.toString());
+  renderReservas(dados);
+}
+
+function renderReservas(d) {
+  const temDados = !!d.dataReferencia;
+  document.getElementById('conteudoReservas').hidden = !temDados;
+  const aviso = document.getElementById('avisoSemReservas');
+  aviso.hidden = temDados;
+  if (!temDados) {
+    aviso.textContent = d.credenciaisConfiguradas
+      ? 'Nenhuma reserva importada ainda. Use o botão "Atualizar agora" para consultar a API.'
+      : 'A integração com a API UDTP ainda não está configurada (falta usuário/senha no .env do servidor). Fale com o administrador.';
+    document.getElementById('atualizadoEmReservas').textContent = '';
+    return;
+  }
+
+  document.getElementById('atualizadoEmReservas').textContent =
+    'Atualizado em ' + formatarDataHora(d.atualizadoEm);
+
+  // Filtro de unidade (preenchido conforme o dia selecionado)
+  const selUnid = document.getElementById('filtroUnidadeReservas');
+  const unidAtual = selUnid.value;
+  const novas = (d.unidades || []).join('|');
+  if (novas !== estadoReservas.unidades.join('|')) {
+    estadoReservas.unidades = d.unidades || [];
+    selUnid.innerHTML = '<option value="">Unidade: todas</option>' +
+      estadoReservas.unidades.map((u) => `<option value="${u}">${u}</option>`).join('');
+    selUnid.value = estadoReservas.unidades.includes(unidAtual) ? unidAtual : '';
+  }
+
+  const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
+  document.getElementById('kpisReservas').innerHTML = [
+    kpiCard('list', nf(d.total), 'Reservas', 'linhas no dia selecionado'),
+    kpiCard('doc', nf(d.itensDistintos), 'Medicamentos', 'itens distintos com reserva'),
+    kpiCard('chart', nf(d.quantidadeTotal), 'Quantidade reservada', 'soma das quantidades'),
+    kpiCard('relogio', nf(d.lotesDistintos), 'Lotes', 'lotes distintos envolvidos'),
+  ].join('');
+
+  const corpo = document.getElementById('corpoTabelaReservas');
+  corpo.innerHTML = d.linhas.map((l) => `
+    <tr>
+      <td>${l.codigoScodes || '—'}</td>
+      <td>${l.descricao || '—'}</td>
+      <td>${l.lote || '—'}</td>
+      <td>${l.validade ? formatarData(l.validade) : '—'}</td>
+      <td>${nf(l.quantidade)}</td>
+      <td>${l.unidade || '—'}</td>
+    </tr>`).join('');
+  document.getElementById('estadoVazioReservas').hidden = d.linhas.length > 0;
+}
+
+// --- eventos da tela de Reservas ---
+document.getElementById('filtroDataReservas').addEventListener('change', (e) => {
+  estadoReservas.data = e.target.value;
+  buscarReservas().catch((err) => alert('Erro: ' + err.message));
+});
+document.getElementById('filtroUnidadeReservas').addEventListener('change', () => {
+  buscarReservas().catch((err) => alert('Erro: ' + err.message));
+});
+let tempoBuscaReservas = null;
+document.getElementById('filtroBuscaReservas').addEventListener('input', () => {
+  clearTimeout(tempoBuscaReservas);
+  tempoBuscaReservas = setTimeout(() => {
+    buscarReservas().catch((err) => alert('Erro: ' + err.message));
+  }, 300);
+});
+document.getElementById('botaoLimparFiltrosReservas').addEventListener('click', () => {
+  document.getElementById('filtroBuscaReservas').value = '';
+  document.getElementById('filtroUnidadeReservas').value = '';
+  buscarReservas().catch((err) => alert('Erro: ' + err.message));
+});
+document.getElementById('botaoExportarReservas').addEventListener('click', () => {
+  if (!estadoReservas.data) return;
+  window.location.href = '/api/reservas/csv?data=' + encodeURIComponent(estadoReservas.data);
+});
+document.getElementById('botaoAtualizarReservas').addEventListener('click', async () => {
+  const botao = document.getElementById('botaoAtualizarReservas');
+  const textoOriginal = botao.textContent;
+  botao.disabled = true;
+  botao.textContent = '⏳ Consultando a API…';
+  try {
+    const r = await api('/reservas/importar-agora', { method: 'POST', body: JSON.stringify({}) });
+    let msg = `Reservas atualizadas: ${r.totalRegistros} registro(s) em ${formatarData(r.dataReferencia)}.`;
+    if (r.semCodigoScodes > 0) msg += `\n\nAtenção: ${r.semCodigoScodes} registro(s) vieram sem código SCODES.`;
+    if (r.camposNaoMapeados && r.camposNaoMapeados.length) {
+      msg += `\n\nCampos novos na API (ainda não usados): ${r.camposNaoMapeados.join(', ')}.`;
+    }
+    alert(msg);
+    estadoReservas.data = r.dataReferencia;
+    await carregarReservas();
+  } catch (e) {
+    alert('Não foi possível atualizar as reservas.\n\n' + e.message);
+  } finally {
+    botao.disabled = false;
+    botao.textContent = textoOriginal;
+  }
+});
