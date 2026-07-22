@@ -2046,7 +2046,7 @@ async function carregarValidadesEstoqueOD() {
 async function abrirDetalheEstoqueODItem(skuEncoded) {
   const modal = document.getElementById('modalEstoqueODItem');
   const conteudo = document.getElementById('conteudoModalEstoqueOD');
-  conteudo.innerHTML = '<p style="color:var(--cinza-texto);">Carregando…</p>';
+  conteudo.innerHTML = '<p class="texto-apoio">Carregando…</p>';
   modal.hidden = false;
 
   const params = new URLSearchParams();
@@ -2073,11 +2073,11 @@ async function abrirDetalheEstoqueODItem(skuEncoded) {
     `;
   }
 
-  html += '<h4 style="margin:18px 0 8px; font-size:14px; font-family:var(--fonte-titulo);">Lotes</h4>';
+  html += '<h4>Lotes</h4>';
   if (dados.lotes.length === 0) {
-    html += '<p style="color:var(--cinza-texto); font-size:13px;">Sem lotes para este item na data selecionada.</p>';
+    html += '<p class="texto-apoio">Sem lotes para este item na data selecionada.</p>';
   } else {
-    html += `<table style="font-size:12.5px;"><thead><tr><th>Lote</th><th>Validade</th><th>Múltiplo Distribuição</th><th>Disponível</th><th>Bloqueado</th><th>Motivo do Bloqueio</th></tr></thead><tbody>`;
+    html += `<table><thead><tr><th>Lote</th><th>Validade</th><th>Múltiplo Distribuição</th><th>Disponível</th><th>Bloqueado</th><th>Motivo do Bloqueio</th></tr></thead><tbody>`;
     html += dados.lotes.map((l) => {
       const naoInformado = (v) => !v || String(v).trim().toLowerCase() === 'não informado';
       const partes = [naoInformado(l.tipo_bloqueio) ? null : l.tipo_bloqueio, naoInformado(l.obs_bloqueio) ? null : l.obs_bloqueio].filter(Boolean);
@@ -2974,7 +2974,7 @@ async function carregarTabelaAquisicaoODAndamento() {
 async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
   const modal = document.getElementById('modalEstoqueItem');
   const conteudo = document.getElementById('conteudoModalEstoque');
-  conteudo.innerHTML = '<p style="color:var(--cinza-texto);">Carregando…</p>';
+  conteudo.innerHTML = '<p class="texto-apoio">Carregando…</p>';
   modal.hidden = false;
 
   const dados = await api(`/estoque/item/${codigoEncoded}?escopoUnidade=${escopo}`);
@@ -2995,17 +2995,17 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
       </div>
     `;
   } else {
-    html += '<p style="color:var(--cinza-texto);">Este item não consta no relatório de estoque mais recente.</p>';
+    html += '<p class="texto-apoio">Este item não consta no relatório de estoque mais recente.</p>';
   }
 
   // Lotes e validades (vindos do relatório de estoque)
   if (e) {
     const lotes = parsearLotes(e.lotes);
-    html += '<h4 style="margin:18px 0 8px; font-size:14px; font-family:var(--fonte-titulo);">Lotes e validades</h4>';
+    html += '<h4>Lotes e validades</h4>';
     if (lotes.length === 0) {
-      html += '<p style="color:var(--cinza-texto); font-size:13px;">Sem informação de lote para este item no relatório.</p>';
+      html += '<p class="texto-apoio">Sem informação de lote para este item no relatório.</p>';
     } else {
-      html += `<table style="font-size:12.5px;"><thead><tr><th>Lote</th><th>Validade</th><th>Quantidade</th><th>Fabricante</th></tr></thead><tbody>`;
+      html += `<table><thead><tr><th>Lote</th><th>Validade</th><th>Quantidade</th><th>Fabricante</th></tr></thead><tbody>`;
       html += lotes.map((l) => {
         const cls = classeValidade(l.validade);
         const tag = cls === 'vencido'
@@ -3025,14 +3025,14 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
   }
 
   // Situação de compra judicial
-  html += '<h4 style="margin:18px 0 8px; font-size:14px; font-family:var(--fonte-titulo);">Compras no controle judicial</h4>';
+  html += '<h4>Compras no controle judicial</h4>';
   if (dados.compras.length === 0) {
-    html += '<p style="color:var(--cinza-texto); font-size:13px;">Nenhuma compra registrada para este item no controle judicial.</p>';
+    html += '<p class="texto-apoio">Nenhuma compra registrada para este item no controle judicial.</p>';
   } else {
     if (dados.temCompraAberta) {
       html += '<p style="font-size:12.5px; color:var(--selo); margin:0 0 8px;">✓ Este item tem compra em aberto (em andamento).</p>';
     }
-    html += `<table style="font-size:12.5px;"><thead><tr><th>Período</th><th>Modalidade</th><th>Qtd. solicitada</th><th>Empenho</th><th>Previsão</th><th>Status</th></tr></thead><tbody>`;
+    html += `<table><thead><tr><th>Período</th><th>Modalidade</th><th>Qtd. solicitada</th><th>Empenho</th><th>Previsão</th><th>Status</th></tr></thead><tbody>`;
     html += dados.compras.map((c) => {
       const classe = classeStatus(c.status, c.data_previsao_entrega);
       const rotulo = rotuloStatus(c.status, c.data_previsao_entrega);
@@ -3049,11 +3049,11 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
   }
 
   // Pacientes (Listagem de Autores) cadastrados com este item, na Tenente Pena
-  html += '<h4 style="margin:18px 0 8px; font-size:14px; font-family:var(--fonte-titulo);">Pacientes</h4>';
+  html += '<h4>Pacientes</h4>';
   if (!dados.pacientes || dados.pacientes.length === 0) {
-    html += '<p style="color:var(--cinza-texto); font-size:13px;">Nenhum paciente cadastrado com este item na Tenente Pena.</p>';
+    html += '<p class="texto-apoio">Nenhum paciente cadastrado com este item na Tenente Pena.</p>';
   } else {
-    html += `<table style="font-size:12.5px;"><thead><tr><th>Nome</th><th>Protocolo</th><th>Qtde. Consumo</th><th>Prazo</th><th>Periodicidade</th><th>Data de retirada</th><th>Próx. data de retorno</th></tr></thead><tbody>`;
+    html += `<table><thead><tr><th>Nome</th><th>Protocolo</th><th>Qtde. Consumo</th><th>Prazo</th><th>Periodicidade</th><th>Data de retirada</th><th>Próx. data de retorno</th></tr></thead><tbody>`;
     html += dados.pacientes.map((p) => `
       <tr>
         <td>${p.autor || '—'}</td>
@@ -3070,8 +3070,8 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
 
   // Histórico de estoque (evolução)
   if (dados.historicoEstoque.length > 1) {
-    html += '<h4 style="margin:18px 0 8px; font-size:14px; font-family:var(--fonte-titulo);">Evolução do estoque</h4>';
-    html += `<table style="font-size:12.5px;"><thead><tr><th>Data</th><th>Estoque</th><th>Autonomia</th><th>Demanda</th></tr></thead><tbody>`;
+    html += '<h4>Evolução do estoque</h4>';
+    html += `<table><thead><tr><th>Data</th><th>Estoque</th><th>Autonomia</th><th>Demanda</th></tr></thead><tbody>`;
     html += dados.historicoEstoque.map((h) => `
       <tr>
         <td class="col-data">${formatarData(h.data_referencia)}</td>
@@ -3265,7 +3265,7 @@ document.getElementById('botaoFecharModalValidade').addEventListener('click', ()
 async function abrirDetalheValidade(codigo) {
   const modal = document.getElementById('modalValidadeItem');
   const conteudo = document.getElementById('conteudoModalValidade');
-  conteudo.innerHTML = '<p style="color:var(--cinza-texto);">Carregando…</p>';
+  conteudo.innerHTML = '<p class="texto-apoio">Carregando…</p>';
   document.getElementById('tituloModalValidade').textContent = 'Detalhe do item';
   document.getElementById('codigoModalValidade').textContent = codigo;
   modal.hidden = false;
@@ -3280,7 +3280,7 @@ async function abrirDetalheValidade(codigo) {
   const reais = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
   if (lotes.length === 0) {
-    conteudo.innerHTML = '<p style="color:var(--cinza-texto);">Sem lotes com validade para este item.</p>';
+    conteudo.innerHTML = '<p class="texto-apoio">Sem lotes com validade para este item.</p>';
     return;
   }
 
@@ -3299,7 +3299,7 @@ async function abrirDetalheValidade(codigo) {
     <p style="font-size:12.5px; color:var(--cinza-texto); margin:0 0 12px;">Categoria: <strong>${it.categoria || '—'}</strong>${it.marca ? ' · Marca: <strong>' + it.marca + '</strong>' : ''}</p>
   `;
 
-  html += `<table style="font-size:12.5px;"><thead><tr>
+  html += `<table><thead><tr>
     <th>Lote</th><th>Validade</th><th>Dias p/ vencer</th><th>Quantidade</th><th>Valor</th><th>Fornecedor</th>
   </tr></thead><tbody>`;
   html += lotes.map((l) => {
@@ -5541,7 +5541,7 @@ function montarDetalheReserva(d) {
   const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
 
   const lotes = d.lotes.length ? `
-    <table class="tabela-mini">
+    <table>
       <thead><tr><th>Lote</th><th>Validade</th><th>Saldo</th></tr></thead>
       <tbody>${d.lotes.map((l) => `
         <tr><td>${escHtml(l.lote)}</td><td>${l.validade ? formatarData(l.validade) : '—'}</td><td>${nf(l.saldo)}</td></tr>`).join('')}
@@ -5549,7 +5549,7 @@ function montarDetalheReserva(d) {
     </table>` : '<p class="texto-apoio">Sem lotes com saldo nesta data.</p>';
 
   const reservas = d.reservas.length ? `
-    <table class="tabela-mini">
+    <table>
       <thead><tr><th>Recebedor</th><th>Protocolo</th><th>Qtde</th><th>Lote(s) — FEFO</th></tr></thead>
       <tbody>${d.reservas.map((r) => `
         <tr>
@@ -5594,10 +5594,17 @@ document.getElementById('filtroBuscaReservas').addEventListener('input', () => {
   }, 300);
 });
 document.getElementById('botaoFecharModalReserva').addEventListener('click', fecharModalReserva);
-// Clicar no fundo escurecido também fecha (só no fundo, não dentro do card).
-document.getElementById('modalReservaItem').addEventListener('click', (ev) => {
-  if (ev.target.id === 'modalReservaItem') fecharModalReserva();
-});
+
+// Clicar no fundo escurecido fecha o card — mas SÓ nos modais de leitura.
+// Nos de formulário (solicitação, usuário, permissões, requisição) isso fica
+// de fora de propósito: um clique fora acidental jogaria fora o que a pessoa
+// digitou. Fecha apenas quando o clique é no próprio fundo, não dentro do card.
+['modalReservaItem', 'modalEstoqueItem', 'modalEstoqueODItem', 'modalAtaItem', 'modalValidadeItem']
+  .forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('click', (ev) => { if (ev.target === el) el.hidden = true; });
+  });
 document.getElementById('filtroComprometidosReservas').addEventListener('change', () => {
   buscarReservas().catch((err) => alert('Erro: ' + err.message));
 });

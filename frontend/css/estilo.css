@@ -1552,12 +1552,39 @@ body.tem-faixa-ambiente { padding-top: 30px; }
 }
 .detalhe-colunas h4 { margin: 0 0 8px; font-size: 13px; }
 
-.tabela-mini { width: 100%; border-collapse: collapse; font-size: 12px; }
-.tabela-mini th, .tabela-mini td {
-  padding: 5px 8px;
+
+
+/* ---------- Conteúdo dos modais: estilo unificado ----------
+   Antes, cada modal de detalhe montava suas tabelas e títulos com estilos
+   embutidos no JS (font-size:12.5px, h4 com margens inline...), o que dava
+   um resultado diferente em cada tela. Aqui a aparência fica num lugar só,
+   usando os tokens do tema (funciona no claro e no escuro). */
+.modal h4 {
+  margin: 18px 0 8px;
+  font-size: 14px;
+  font-family: var(--fonte-titulo);
+}
+.modal h4:first-child { margin-top: 0; }
+
+.modal table:not(.tabela) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.modal table:not(.tabela) th,
+.modal table:not(.tabela) td {
+  padding: 6px 9px;
   border-bottom: 1px solid var(--linha-tabela);
   text-align: left;
+  vertical-align: top;
+}
+.modal table:not(.tabela) th {
+  font-weight: 600;
+  color: var(--cinza-texto);
   white-space: nowrap;
 }
-.tabela-mini th { font-weight: 600; color: var(--cinza-texto); }
-.tabela-mini tbody tr:nth-child(even) { background: var(--zebra); }
+.modal table:not(.tabela) tbody tr:nth-child(even) { background: var(--zebra); }
+.modal table:not(.tabela) tbody tr:hover { background: var(--realce-tabela); }
+
+/* Tabela larga dentro do modal rola sozinha, sem esticar o card. */
+.modal .rolagem-tabela { overflow-x: auto; }
