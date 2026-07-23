@@ -1722,6 +1722,15 @@ body.tem-faixa-ambiente { padding-top: 30px; }
   background: var(--papel-elevado);
 }
 
+/* Bloco recolhível "Ver histórico completo" no modal de andamento de compra. */
+.detalhe-historico { margin-top: 6px; }
+.detalhe-historico > summary {
+  cursor: pointer; font-size: 13px; font-weight: 600; color: var(--selo);
+  padding: 6px 0; user-select: none;
+}
+.detalhe-historico > summary:hover { text-decoration: underline; }
+.detalhe-historico[open] > summary { margin-bottom: 8px; }
+
 /* Gráfico de faixas de autonomia (aba "Andamento de compra") — barras
    horizontais que são botões: clicar filtra a lista pela faixa. */
 .barra-faixa-aut {

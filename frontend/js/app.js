@@ -6223,32 +6223,51 @@ function montarDetalheCompraRuptura(d) {
     + kpiCard('doc', est.autonomia == null ? '—' : nf(est.autonomia), 'Autonomia', 'meses de cobertura')
     + '</div>';
 
-  // Histórico de compra — o miolo do modal.
-  html += '<h4>Andamento de compra <span class="texto-apoio">(' + d.compras.length + ' registro(s))</span></h4>';
+  // Andamento de compra. O FOCO é a compra em aberto (Planejamento, Adjucado,
+  // Empenhado, Entrega Parcial) — é o que responde "está sendo comprado?". O
+  // restante (Finalizado, Cancelado, etc.) vira histórico recolhível, para não
+  // roubar a atenção mas continuar acessível.
+  const STATUS_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+  const abertas = d.compras.filter((c) => STATUS_ABERTO.includes(c.status));
+  const encerradas = d.compras.filter((c) => !STATUS_ABERTO.includes(c.status));
+
+  const tabelaCompras = (linhas) => '<div class="lista-rolavel"><table><thead><tr>'
+    + '<th>Fluxo</th><th>Competência</th><th>Status</th><th>Ofício</th><th>Empenho</th>'
+    + '<th>Solicitado</th><th>Entregue</th><th>Pendente</th><th>Previsão</th></tr></thead><tbody>'
+    + linhas.map((c) => {
+      const classe = classeStatus(c.status, c.data_previsao_entrega);
+      const rotulo = rotuloStatus(c.status, c.data_previsao_entrega);
+      return '<tr>'
+        + '<td><span class="tag-tipo">' + escHtml(c.fluxo) + '</span></td>'
+        + '<td>' + escHtml(c.mes || '') + '/' + escHtml(c.ano || '') + '</td>'
+        + '<td><span class="etiqueta-status ' + classe + '">' + escHtml(rotulo) + '</span></td>'
+        + '<td>' + escHtml(c.n_oficio || '—') + '</td>'
+        + '<td>' + escHtml(c.n_empenho || '—') + '</td>'
+        + '<td>' + nf(c.qtde_solicitada) + '</td>'
+        + '<td>' + nf(c.qtde_entregue) + '</td>'
+        + '<td>' + nf(c.qtde_pendente) + '</td>'
+        + '<td class="col-data">' + (c.data_previsao_entrega ? formatarData(c.data_previsao_entrega) : '—') + '</td>'
+        + '</tr>';
+    }).join('')
+    + '</tbody></table></div>';
+
+  html += '<h4>Compra em andamento <span class="texto-apoio">(' + abertas.length + ' em aberto)</span></h4>';
   if (!d.compras.length) {
     html += '<p class="texto-apoio">Nenhuma compra registrada para este item, em nenhum dos dois fluxos '
       + '(Tenente Pena e Outras Demandas). Vale conferir se ele é adquirido por outra via '
       + 'ou se está faltando cadastro.</p>';
+  } else if (!abertas.length) {
+    html += '<p class="texto-apoio">Nenhuma compra em aberto agora — todas as ' + encerradas.length
+      + ' registrada(s) já estão encerradas (Finalizado, Cancelado, etc.). Veja o histórico abaixo.</p>';
   } else {
-    html += '<div class="lista-rolavel"><table><thead><tr>'
-      + '<th>Fluxo</th><th>Competência</th><th>Status</th><th>Ofício</th><th>Empenho</th>'
-      + '<th>Solicitado</th><th>Entregue</th><th>Pendente</th><th>Previsão</th></tr></thead><tbody>'
-      + d.compras.map((c) => {
-        const classe = classeStatus(c.status, c.data_previsao_entrega);
-        const rotulo = rotuloStatus(c.status, c.data_previsao_entrega);
-        return '<tr>'
-          + '<td><span class="tag-tipo">' + escHtml(c.fluxo) + '</span></td>'
-          + '<td>' + escHtml(c.mes || '') + '/' + escHtml(c.ano || '') + '</td>'
-          + '<td><span class="etiqueta-status ' + classe + '">' + escHtml(rotulo) + '</span></td>'
-          + '<td>' + escHtml(c.n_oficio || '—') + '</td>'
-          + '<td>' + escHtml(c.n_empenho || '—') + '</td>'
-          + '<td>' + nf(c.qtde_solicitada) + '</td>'
-          + '<td>' + nf(c.qtde_entregue) + '</td>'
-          + '<td>' + nf(c.qtde_pendente) + '</td>'
-          + '<td class="col-data">' + (c.data_previsao_entrega ? formatarData(c.data_previsao_entrega) : '—') + '</td>'
-          + '</tr>';
-      }).join('')
-      + '</tbody></table></div>';
+    html += tabelaCompras(abertas);
+  }
+
+  // Histórico completo (encerradas), recolhido por padrão.
+  if (encerradas.length) {
+    html += '<details class="detalhe-historico"><summary>Ver histórico completo ('
+      + encerradas.length + ' compra(s) encerrada(s))</summary>'
+      + tabelaCompras(encerradas) + '</details>';
   }
 
   // Quem ficou sem o item.
