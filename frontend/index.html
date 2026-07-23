@@ -1186,7 +1186,12 @@
                 <button type="button" class="chip-faixa" data-situacao="semAberta">Sem compra em aberto</button>
                 <button type="button" class="chip-faixa" data-situacao="aberta">Compra em andamento</button>
               </div>
+              <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+                <input type="checkbox" id="incluirNormalizadosRupturas" style="width:auto;">
+                Incluir itens já normalizados
+              </label>
             </div>
+            <div id="avisoNormalizadosRupturas" class="recorte-ativo" hidden></div>
             <div class="tabela-wrap">
               <div class="tabela-rolavel-x">
                 <table>
@@ -1197,6 +1202,7 @@
                       <th>Categoria</th>
                       <th>Rupturas</th>
                       <th>Pacientes</th>
+                      <th>Autonomia hoje</th>
                       <th>Situação da compra</th>
                       <th>Última compra</th>
                       <th></th>

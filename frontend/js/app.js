@@ -6050,8 +6050,28 @@ const ROTULO_SITUACAO = {
 };
 
 async function carregarComprasRupturas() {
-  const d = await api('/rupturas/compras?' + paramsRupturas().toString());
+  const p = paramsRupturas();
+  const incluir = document.getElementById('incluirNormalizadosRupturas').checked;
+  if (incluir) p.set('incluirNormalizados', '1');
+  const d = await api('/rupturas/compras?' + p.toString());
   comprasRupturasCache = d.itens || [];
+
+  // A ruptura é um fato do passado: se o item já voltou a ter autonomia, ele
+  // saiu da lista. O aviso deixa isso explícito — lista curta demais sem
+  // explicação levanta a suspeita de que o sistema perdeu dados.
+  const aviso = document.getElementById('avisoNormalizadosRupturas');
+  const n = d.normalizados || {};
+  if (!n.itens) {
+    aviso.hidden = true;
+  } else {
+    aviso.hidden = false;
+    aviso.innerHTML = n.incluidos
+      ? '<strong>Mostrando tudo:</strong> ' + n.itens + ' item(ns) já normalizado(s) '
+        + '(com autonomia na foto de ' + formatarData(d.dataEstoque) + ') estão incluídos na lista.'
+      : '<strong>' + n.itens + ' item(ns) fora da lista</strong> — romperam no período, mas já têm '
+        + 'autonomia na foto de ' + formatarData(d.dataEstoque) + ', ou seja, o estoque foi reposto. '
+        + 'Marque "Incluir itens já normalizados" para vê-los.';
+  }
 
   const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
   const r = d.resumo;
@@ -6081,6 +6101,9 @@ function desenharComprasRupturas() {
       + '<td>' + escHtml(i.categoria || '—') + '</td>'
       + '<td>' + nf(i.rupturas) + '</td>'
       + '<td><strong>' + nf(i.pacientes) + '</strong></td>'
+      + '<td>' + (Number(i.autonomiaHoje) > 0
+        ? '<span class="selo-situacao ok">' + nf(i.autonomiaHoje) + ' m</span>'
+        : '<span class="selo-situacao critico">0</span>') + '</td>'
       + '<td><span class="selo-situacao ' + s.classe + '">' + s.texto + '</span>' + detalhe + '</td>'
       + '<td>' + escHtml(i.ultimaCompra || '—') + '</td>'
       + '<td><button type="button" class="botao-secundario botao-ver-compra" data-codigo="'
@@ -6175,6 +6198,10 @@ function fecharCompraRuptura() {
 document.getElementById('botaoFecharCompraRuptura').addEventListener('click', fecharCompraRuptura);
 document.getElementById('modalCompraRuptura').addEventListener('click', (e) => {
   if (e.target.id === 'modalCompraRuptura') fecharCompraRuptura();
+});
+
+document.getElementById('incluirNormalizadosRupturas').addEventListener('change', () => {
+  carregarComprasRupturas().catch((e) => alert('Erro: ' + e.message));
 });
 
 document.querySelectorAll('#situacaoComprasRupturas .chip-faixa').forEach((btn) => {

@@ -218,6 +218,11 @@ const EM_ABERTO_SQL = STATUS_ABERTO.map(() => '?').join(',');
 // primeiro marcaria como "nunca comprado" itens que estão sendo comprados
 // pelo outro — conferido no dado real: 10 itens caíam nessa armadilha.
 // A coluna `fluxo` preserva a origem, para a tela poder mostrar de onde vem.
+// Escopo Tenente Pena no estoque (mesma regra das telas de estoque: linhas sem
+// unidade ou da própria unidade). Sem isso, o estoque de OUTRAS unidades
+// entraria na conta e mascararia a falta aqui.
+const ESCOPO_TP = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
+
 const COMPRAS_CTE = `
   WITH compras AS (
     SELECT codigo_item, status, ano, mes, 'TP' AS fluxo FROM solicitacoes
@@ -245,6 +250,7 @@ router.get('/compras', (req, res) => {
     outrasDemandas: (req.query.outrasDemandas || '').trim(),
   };
   const { onde, params } = montarFiltros(q, dAut);
+  const dEstoque = ultimaData('estoque_importacoes');
 
   const itens = db.prepare(`
     ${COMPRAS_CTE}
@@ -269,17 +275,34 @@ router.get('/compras', (req, res) => {
              ORDER BY c.ano DESC, ${ordemMes('c.mes')} DESC LIMIT 1) AS fluxoAtual,
            (SELECT c.ano || '/' || c.mes FROM compras c
              WHERE c.codigo_item = r.codigo_item
-             ORDER BY c.ano DESC, ${ordemMes('c.mes')} DESC LIMIT 1) AS ultimaCompra
+             ORDER BY c.ano DESC, ${ordemMes('c.mes')} DESC LIMIT 1) AS ultimaCompra,
+           (SELECT MAX(e.autonomia) FROM estoque_itens e
+             WHERE e.codigo_item = r.codigo_item AND e.data_referencia = ?
+               AND ${ESCOPO_TP}) AS autonomiaHoje,
+           (SELECT SUM(e.estoque) FROM estoque_itens e
+             WHERE e.codigo_item = r.codigo_item AND e.data_referencia = ?
+               AND ${ESCOPO_TP}) AS estoqueHoje
     ${baseConsulta()}
      WHERE ${onde}
      GROUP BY r.codigo_item
      ORDER BY pacientes DESC, rupturas DESC
   `).all(
     // ATENÇÃO: os ? são posicionais e as subconsultas do SELECT vêm ANTES do
-    // FROM. Ordem: os três blocos de status, a data do relatorio_itens (JOIN)
-    // e só então os filtros do WHERE.
-    ...STATUS_ABERTO, ...STATUS_ABERTO, ...STATUS_ABERTO, dRel, ...params,
+    // FROM. Ordem: os três blocos de status, as duas datas de estoque, a data
+    // do relatorio_itens (JOIN) e só então os filtros do WHERE.
+    ...STATUS_ABERTO, ...STATUS_ABERTO, ...STATUS_ABERTO,
+    dEstoque, dEstoque, dRel, ...params,
   );
+
+  // REGRA DE NEGÓCIO (pedido do Rafael): a ruptura é um fato do passado. Se
+  // hoje o item já tem autonomia, ele deixou de estar em falta e não deve
+  // poluir a fila de trabalho — ex.: rompeu em 01/07 e em 23/07 já repôs.
+  // Os itens normalizados não somem do sistema: continuam na aba Lista e
+  // podem ser trazidos de volta com "incluirNormalizados".
+  const incluirNormalizados = req.query.incluirNormalizados === '1';
+  const jaNormalizado = (i) => Number(i.autonomiaHoje) > 0;
+  const normalizados = itens.filter(jaNormalizado);
+  const visiveis = incluirNormalizados ? itens : itens.filter((i) => !jaNormalizado(i));
 
   // Três situações, porque exigem ações diferentes:
   //   aberta    -> o processo existe; cobrar prazo/entrega.
@@ -292,7 +315,7 @@ router.get('/compras', (req, res) => {
     semAberta: { itens: 0, rupturas: 0, pacientes: 0 },
     nunca: { itens: 0, rupturas: 0, pacientes: 0 },
   };
-  for (const i of itens) {
+  for (const i of visiveis) {
     i.situacao = situacaoDe(i);
     const alvo = resumo[i.situacao];
     alvo.itens += 1;
@@ -300,7 +323,17 @@ router.get('/compras', (req, res) => {
     alvo.pacientes += i.pacientes;   // soma por item (um paciente pode contar em 2 itens)
   }
 
-  res.json({ periodo: { inicio, fim }, itens, resumo });
+  res.json({
+    periodo: { inicio, fim },
+    itens: visiveis,
+    resumo,
+    dataEstoque: dEstoque,
+    normalizados: {
+      itens: normalizados.length,
+      pacientes: normalizados.reduce((s, i) => s + i.pacientes, 0),
+      incluidos: incluirNormalizados,
+    },
+  });
 });
 
 // Detalhe de UM item para o modal: rupturas do período + histórico de compra.
@@ -353,8 +386,10 @@ router.get('/compras/detalhe', (req, res) => {
   // Situação de estoque na foto mais recente, para dar contexto ao modal.
   const ultEstoque = ultimaData('estoque_importacoes');
   const estoque = ultEstoque ? db.prepare(`
-    SELECT SUM(estoque) AS estoque, MAX(autonomia) AS autonomia, SUM(demandas) AS demandas
-      FROM estoque_itens WHERE codigo_item = ? AND data_referencia = ?
+    SELECT SUM(e.estoque) AS estoque, MAX(e.autonomia) AS autonomia,
+           SUM(e.demandas) AS demandas
+      FROM estoque_itens e
+     WHERE e.codigo_item = ? AND e.data_referencia = ? AND ${ESCOPO_TP}
   `).get(codigo, ultEstoque) : null;
 
   res.json({ item, rupturas, compras, estoque, dataEstoque: ultEstoque, periodo: { inicio, fim } });
