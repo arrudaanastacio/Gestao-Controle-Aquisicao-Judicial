@@ -4,6 +4,11 @@ node_modules/
 # Configuração local com senhas/segredos — NUNCA versionar
 .env
 backend/.env
+# Cópias de segurança do .env (mesmos segredos dentro) — também nunca versionar
+.env.*
+backend/.env.*
+!.env.example
+!backend/.env.example
 
 # Banco de dados com os dados reais do dia a dia.
 # Ficar de fora do versionamento para que voltar uma versão do CÓDIGO
