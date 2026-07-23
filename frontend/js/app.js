@@ -4728,7 +4728,7 @@ async function carregarEvolucao(codigoEncoded) {
       <td>${fmtNumero(s.estoque)}</td>
       <td>${fmtNumero(s.autonomia)}</td>
       <td>${fmtNumero(s.demandas)}</td>
-      <td>${fmtNumero(s.consumo_mensal_total)}</td>
+      <td>${fmtNumero(Math.round(Number(s.consumo_mensal_total) || 0))}</td>
       <td>${reais(s.valor)}</td>
     </tr>
   `).join('');
