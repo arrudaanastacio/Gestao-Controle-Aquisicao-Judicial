@@ -1703,6 +1703,22 @@ body.tem-faixa-ambiente { padding-top: 30px; }
 .grafico-svg .g-ponto { fill: var(--selo); }
 .grafico-svg .g-valor { font-size: 10px; fill: var(--tinta); }
 
+/* Faixa "Recorte: ..." acima dos indicadores — lembra qual filtro está
+   desenhado, já que os filtros ficam na outra aba. */
+.recorte-ativo {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--tinta);
+  padding: 8px 12px; margin-bottom: 14px;
+  background: var(--realce-tabela);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+}
+.recorte-ativo .tag-recorte {
+  display: inline-block; padding: 1px 8px; border-radius: var(--raio-peq);
+  background: var(--papel-elevado); border: 1px solid var(--linha-forte);
+  font-size: 12px; font-weight: 600;
+}
+
 /* Barras horizontais do "top itens" */
 .barra-top {
   display: grid;

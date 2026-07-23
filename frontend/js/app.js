@@ -5815,8 +5815,13 @@ function graficoDiaRupturas(porDia) {
   }
   const max = Math.max(...porDia.map((d) => d.rupturas), 1);
   const pico = porDia.reduce((a, b) => (b.rupturas > a.rupturas ? b : a));
-  const media = porDia.reduce((s, d) => s + d.rupturas, 0) / porDia.length;
-  legenda.textContent = `${porDia.length} dias · média ${media.toFixed(1)}/dia · pico ${pico.rupturas} em ${formatarData(pico.data)}`;
+  const soma = porDia.reduce((s, d) => s + d.rupturas, 0);
+  const media = soma / porDia.length;
+  // O total entra na legenda de propósito: como cada gráfico é redimensionado
+  // pelo próprio máximo, ao filtrar o DESENHO muda pouco (mesmos dias, forma
+  // parecida) mesmo com muito menos rupturas. Sem o total, dá a impressão de
+  // que o gráfico "não atualizou".
+  legenda.textContent = `${soma.toLocaleString('pt-BR')} rupturas · ${porDia.length} dias · média ${media.toFixed(1)}/dia · pico ${pico.rupturas} em ${formatarData(pico.data)}`;
 
   const L = 900, A = 240, mEsq = 40, mDir = 10, mTopo = 16, mBaixo = 54;
   const util = L - mEsq - mDir;
@@ -5906,6 +5911,28 @@ function renderRupturas(d) {
   document.getElementById('quebrasRupturas').innerHTML =
     quebraRupturas('Por categoria', d.porCategoria, 'Categoria', 'categoria')
     + quebraRupturas('Por tipo de item', d.porTipo, 'Tipo', 'tipo');
+
+  // Deixa explícito, na aba de indicadores, QUAL recorte está desenhado —
+  // os filtros ficam na outra aba, então sem isso o usuário olha o gráfico
+  // sem lembrar que há um filtro ativo.
+  const rotuloFiltro = (id) => {
+    const sel = document.getElementById(id);
+    return sel && sel.value ? sel.options[sel.selectedIndex].text : '';
+  };
+  const recortes = [
+    rotuloFiltro('filtroCategoriaRupturas'),
+    rotuloFiltro('filtroTipoRupturas'),
+    rotuloFiltro('filtroImportadoRupturas'),
+    rotuloFiltro('filtroOutrasRupturas'),
+  ].filter(Boolean);
+  const buscaAtual = document.getElementById('filtroBuscaRupturas').value.trim();
+  if (buscaAtual) recortes.push('Busca: "' + buscaAtual + '"');
+  const elRecorte = document.getElementById('recorteRupturas');
+  elRecorte.innerHTML = '<strong>Recorte:</strong> '
+    + formatarData(d.periodo.inicio) + ' a ' + formatarData(d.periodo.fim)
+    + (recortes.length
+      ? ' · ' + recortes.map((r) => '<span class="tag-recorte">' + escHtml(r) + '</span>').join(' ')
+      : ' · <span class="texto-apoio">sem filtros (todos os dados)</span>');
 
   graficoDiaRupturas(d.porDia);
   graficoTopRupturas(d.topItens);
