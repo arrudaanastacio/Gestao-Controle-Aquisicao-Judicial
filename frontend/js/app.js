@@ -4053,9 +4053,22 @@ function renderAbaComparativo(aba) {
     corpo.innerHTML = ''; vazio.hidden = false;
   } else {
     vazio.hidden = true;
-    corpo.innerHTML = linhas.slice(0, 2000).map((l) =>
-      '<tr>' + l.map((celula) => `<td>${celula}</td>`).join('') + '</tr>'
-    ).join('');
+    // Na aba "novos", cada linha é clicável e abre o detalhe do item (o
+    // código e o protocolo vão em data-* para o modal saber o que buscar).
+    const meta = aba === 'novos' ? dadosComparativo.novos : null;
+    corpo.innerHTML = linhas.slice(0, 2000).map((l, idx) => {
+      const attrs = meta
+        ? ` class="linha-clicavel" data-codigo="${escAttr(meta[idx].codigo_item)}"`
+          + ` data-protocolo="${escAttr(meta[idx].protocolo || '')}"`
+          + ` data-descricao="${escAttr(meta[idx].descricao_item || '')}" title="Ver estoque, autonomia e compras deste item"`
+        : '';
+      return `<tr${attrs}>` + l.map((celula) => `<td>${celula}</td>`).join('') + '</tr>';
+    }).join('');
+    if (meta) {
+      corpo.querySelectorAll('.linha-clicavel').forEach((tr) => {
+        tr.addEventListener('click', () => abrirPacienteNovo(tr.dataset.codigo, tr.dataset.protocolo, tr.dataset.descricao));
+      });
+    }
   }
   document.getElementById('contagemComparativo').textContent = `${fmtNumero(linhas.length)} registro(s)`;
 }
@@ -6304,4 +6317,134 @@ document.querySelectorAll('#situacaoComprasRupturas .chip-faixa').forEach((btn) 
       .forEach((b) => b.classList.toggle('ativo', b === btn));
     desenharComprasRupturas();
   });
+});
+
+// ==================== Comparativo: modal do paciente novo + envio ====================
+// Ao clicar numa linha de "Pacientes Novos", mostra o andamento de compra
+// daquele item: demanda, consumo total, estoque, autonomia e as compras em
+// aberto (Tenente Pena + Outras Demandas).
+async function abrirPacienteNovo(codigo, protocolo, descricao) {
+  const corpo = document.getElementById('conteudoPacienteNovo');
+  document.getElementById('tituloPacienteNovo').textContent = descricao || 'Detalhe do item';
+  document.getElementById('codigoPacienteNovo').textContent = codigo || '';
+  corpo.innerHTML = '<p class="texto-apoio">Carregando…</p>';
+  document.getElementById('modalPacienteNovo').hidden = false;
+
+  try {
+    const p = new URLSearchParams({ codigo });
+    if (protocolo) p.set('protocolo', protocolo);
+    const d = await api('/autores/comparacao/item-detalhe?' + p.toString());
+    corpo.innerHTML = montarDetalhePacienteNovo(d);
+  } catch (e) {
+    corpo.innerHTML = '<p class="texto-vermelho">Não consegui carregar o detalhe: ' + escHtml(e.message) + '</p>';
+  }
+}
+
+function montarDetalhePacienteNovo(d) {
+  const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
+  const est = d.estoque || {};
+  const dem = d.demanda || {};
+
+  let html = '<div class="grade-resumo">'
+    + kpiCard('chart', est.estoque == null ? '—' : nf(est.estoque), 'Estoque',
+        d.dataEstoque ? 'foto de ' + formatarData(d.dataEstoque) : 'sem foto',
+        Number(est.estoque) <= 0 ? 'critico' : '')
+    + kpiCard('doc', est.autonomia == null ? '—' : nf(est.autonomia), 'Autonomia', 'meses de cobertura',
+        (est.autonomia != null && Number(est.autonomia) < limiarAutonomiaRupturas) ? 'alerta' : '')
+    + kpiCard('list', est.consumoMensalTotal == null ? '—' : nf(Math.round(Number(est.consumoMensalTotal))), 'Consumo mensal total', 'do relatório de estoque')
+    + kpiCard('relogio', est.demandas == null ? '—' : nf(est.demandas), 'Demanda', 'no estoque')
+    + '</div>';
+
+  // Informação de demanda do paciente/item.
+  if (dem && (dem.tipo_demanda || dem.status_demanda || dem.qtde_consumo)) {
+    html += '<h4>Demanda</h4><div class="lista-rolavel"><table><tbody>'
+      + '<tr><th>Tipo da demanda</th><td>' + escHtml(dem.tipo_demanda || '—') + '</td></tr>'
+      + '<tr><th>Status da demanda</th><td>' + escHtml(dem.status_demanda || '—') + '</td></tr>'
+      + '<tr><th>Status do item</th><td>' + escHtml(dem.status_item || '—') + '</td></tr>'
+      + '<tr><th>Consumo (autor)</th><td>' + escHtml(dem.qtde_consumo || '—') + '</td></tr>'
+      + '<tr><th>Dispensações</th><td>' + escHtml(dem.dispensacoes || '—') + '</td></tr>'
+      + '<tr><th>Periodicidade</th><td>' + escHtml(dem.periodicidade || '—') + '</td></tr>'
+      + '</tbody></table></div>';
+  }
+
+  // Compras em aberto (foco), nos dois fluxos.
+  html += '<h4>Compra em andamento <span class="texto-apoio">(' + d.compras.length + ' em aberto)</span></h4>';
+  if (!d.compras.length) {
+    html += '<p class="texto-apoio">Nenhuma compra em aberto para este item nos dois fluxos '
+      + '(Tenente Pena e Outras Demandas).</p>';
+  } else {
+    html += '<div class="lista-rolavel"><table><thead><tr>'
+      + '<th>Fluxo</th><th>Competência</th><th>Status</th><th>Ofício</th><th>Empenho</th>'
+      + '<th>Solicitado</th><th>Entregue</th><th>Pendente</th><th>Previsão</th></tr></thead><tbody>'
+      + d.compras.map((c) => {
+        const classe = classeStatus(c.status, c.data_previsao_entrega);
+        const rotulo = rotuloStatus(c.status, c.data_previsao_entrega);
+        return '<tr>'
+          + '<td><span class="tag-tipo">' + escHtml(c.fluxo) + '</span></td>'
+          + '<td>' + escHtml(c.mes || '') + '/' + escHtml(c.ano || '') + '</td>'
+          + '<td><span class="etiqueta-status ' + classe + '">' + escHtml(rotulo) + '</span></td>'
+          + '<td>' + escHtml(c.n_oficio || '—') + '</td>'
+          + '<td>' + escHtml(c.n_empenho || '—') + '</td>'
+          + '<td>' + nf(c.qtde_solicitada) + '</td>'
+          + '<td>' + nf(c.qtde_entregue) + '</td>'
+          + '<td>' + nf(c.qtde_pendente) + '</td>'
+          + '<td class="col-data">' + (c.data_previsao_entrega ? formatarData(c.data_previsao_entrega) : '—') + '</td>'
+          + '</tr>';
+      }).join('')
+      + '</tbody></table></div>';
+  }
+  return html;
+}
+
+function fecharPacienteNovo() { document.getElementById('modalPacienteNovo').hidden = true; }
+document.getElementById('botaoFecharPacienteNovo').addEventListener('click', fecharPacienteNovo);
+document.getElementById('modalPacienteNovo').addEventListener('click', (e) => {
+  if (e.target.id === 'modalPacienteNovo') fecharPacienteNovo();
+});
+
+// ---- Enviar relatório por e-mail ----
+document.getElementById('botaoEnviarRelatorioComparativo').addEventListener('click', () => {
+  if (!dadosComparativo || !dadosComparativo.temAnterior) {
+    alert('Ainda não há comparativo para enviar.');
+    return;
+  }
+  const campo = document.getElementById('emailDestinoRelatorio');
+  if (!campo.value) campo.value = dadosComparativo.emailPadrao || '';
+  document.getElementById('avisoEnviarRelatorio').hidden = true;
+  document.getElementById('modalEnviarRelatorio').hidden = false;
+  campo.focus();
+});
+function fecharEnviarRelatorio() { document.getElementById('modalEnviarRelatorio').hidden = true; }
+document.getElementById('botaoCancelarEnviarRelatorio').addEventListener('click', fecharEnviarRelatorio);
+document.getElementById('modalEnviarRelatorio').addEventListener('click', (e) => {
+  if (e.target.id === 'modalEnviarRelatorio') fecharEnviarRelatorio();
+});
+
+document.getElementById('botaoConfirmarEnviarRelatorio').addEventListener('click', async () => {
+  const botao = document.getElementById('botaoConfirmarEnviarRelatorio');
+  const aviso = document.getElementById('avisoEnviarRelatorio');
+  const para = document.getElementById('emailDestinoRelatorio').value.trim();
+  if (!para) {
+    aviso.hidden = false;
+    aviso.innerHTML = '<strong>Informe ao menos um e-mail de destino.</strong>';
+    return;
+  }
+  botao.disabled = true;
+  const txt = botao.textContent;
+  botao.textContent = 'Enviando…';
+  aviso.hidden = true;
+  try {
+    const r = await api('/autores/comparacao/enviar-relatorio', {
+      method: 'POST', body: JSON.stringify({ para }),
+    });
+    fecharEnviarRelatorio();
+    alert('Relatório enviado para ' + r.destinatarios.join(', ') + '.\n\n'
+      + r.novos + ' pacientes novos, ' + r.inativos + ' inativos e ' + r.alteracoes + ' alterações.');
+  } catch (e) {
+    aviso.hidden = false;
+    aviso.innerHTML = '<strong>Não foi possível enviar:</strong> ' + escHtml(e.message);
+  } finally {
+    botao.disabled = false;
+    botao.textContent = txt;
+  }
 });

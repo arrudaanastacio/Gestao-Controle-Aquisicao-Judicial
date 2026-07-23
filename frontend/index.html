@@ -1548,6 +1548,7 @@
             <div class="estado-vazio" id="vazioComparativo" hidden>Nenhum registro nesta aba.</div>
             <div class="paginacao">
               <span id="contagemComparativo">—</span>
+              <button id="botaoEnviarRelatorioComparativo" class="botao-secundario" type="button">✉️ Enviar relatório</button>
               <button id="botaoExportarComparativo" class="botao-primario" type="button">📊 Exportar Excel</button>
             </div>
           </div>
@@ -2057,6 +2058,35 @@
       <div id="conteudoCompraRuptura"></div>
       <div class="acoes-modal">
         <button type="button" class="botao-secundario" id="botaoFecharCompraRuptura">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detalhe do item de um paciente novo (Comparativo de Autores) -->
+  <div class="fundo-modal" id="modalPacienteNovo" hidden>
+    <div class="modal" style="max-width:1000px;">
+      <h3 id="tituloPacienteNovo">Detalhe do item</h3>
+      <p class="descricao-item" id="codigoPacienteNovo"></p>
+      <div id="conteudoPacienteNovo"></div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="botaoFecharPacienteNovo">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enviar o comparativo por e-mail -->
+  <div class="fundo-modal" id="modalEnviarRelatorio" hidden>
+    <div class="modal" style="max-width:520px;">
+      <h3>Enviar relatório por e-mail</h3>
+      <p class="texto-apoio">O e-mail leva um resumo no corpo e as três listas completas
+        (pacientes novos, inativos e alterações) como planilhas anexas.</p>
+      <label style="display:block; margin:12px 0 6px; font-size:13px; font-weight:600;">Destinatário(s)</label>
+      <input type="text" id="emailDestinoRelatorio" placeholder="nome@dominio.gov.br; outro@dominio.gov.br" style="width:100%;">
+      <p class="texto-apoio" style="margin-top:6px;">Separe vários e-mails por ponto e vírgula.</p>
+      <div id="avisoEnviarRelatorio" class="recorte-ativo" hidden style="margin-top:10px;"></div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="botaoCancelarEnviarRelatorio">Cancelar</button>
+        <button type="button" class="botao-primario" id="botaoConfirmarEnviarRelatorio">Enviar</button>
       </div>
     </div>
   </div>

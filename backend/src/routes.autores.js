@@ -563,13 +563,14 @@ router.get('/requisicoes/:id', (req, res) => {
 });
 
 // ---------- Comparação entre a versão anterior e a atual ----------
-router.get('/comparacao', (req, res) => {
+// Extraída em função para poder ser reaproveitada pelo envio por e-mail.
+function calcularComparacao() {
   const datas = db.prepare(
     'SELECT DISTINCT data_referencia FROM autores_itens WHERE data_referencia IS NOT NULL ORDER BY data_referencia DESC LIMIT 2'
   ).all().map((r) => r.data_referencia);
 
   if (datas.length < 2) {
-    return res.json({ temAnterior: false, atual: datas[0] || null });
+    return { temAnterior: false, atual: datas[0] || null };
   }
 
   const atual = datas[0];
@@ -662,7 +663,7 @@ router.get('/comparacao', (req, res) => {
   encerrados.sort((a, b) => a.autor.localeCompare(b.autor));
   alteracoes.sort((a, b) => a.autor.localeCompare(b.autor));
 
-  res.json({
+  return {
     temAnterior: true,
     anterior,
     atual,
@@ -672,7 +673,40 @@ router.get('/comparacao', (req, res) => {
     novos,
     encerrados,
     alteracoes,
-  });
+  };
+}
+
+router.get('/comparacao', (req, res) => {
+  const dados = calcularComparacao();
+  // O e-mail padrão (destinatário) ajuda a pré-preencher a caixa no front.
+  dados.emailPadrao = process.env.ALERTA_EMAIL_PARA || '';
+  res.json(dados);
+});
+
+// ---------- Detalhe de um item (modal do paciente novo) ----------
+// Estoque, autonomia, consumo total, demanda e compras EM ABERTO do item.
+router.get('/comparacao/item-detalhe', (req, res) => {
+  const codigo = (req.query.codigo || '').trim();
+  if (!codigo) return res.status(400).json({ erro: 'Informe o código do item.' });
+  const protocolo = (req.query.protocolo || '').trim() || null;
+  const { detalheItem } = require('./andamentoCompraItem');
+  res.json(detalheItem(codigo, protocolo));
+});
+
+// ---------- Enviar o comparativo por e-mail ----------
+// Corpo: { para: "a@x;b@y" }. Anexa as 3 listas (novos, inativos, alterações)
+// como CSV e resume no corpo. Sending real de e-mail: por segurança, exige
+// perfil admin (a trava de módulo já barra não-admins em POST; esta é explícita).
+router.post('/comparacao/enviar-relatorio', exigirPerfil('admin'), async (req, res) => {
+  const { enviarComparativoPorEmail } = require('./enviarComparativoEmail');
+  const para = (req.body && req.body.para ? String(req.body.para) : '').trim();
+  if (!para) return res.status(400).json({ erro: 'Informe ao menos um e-mail de destino.' });
+  try {
+    const r = await enviarComparativoPorEmail(para, req.usuario ? req.usuario.email : 'sistema');
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    res.status(e.status || 500).json({ erro: e.message, codigo: e.codigo || 'ERRO' });
+  }
 });
 
 module.exports = router;
@@ -680,4 +714,5 @@ module.exports.importarAutoresDeBuffer = importarAutoresDeBuffer;
 module.exports.importarAutoresDeLinhas = importarAutoresDeLinhas;
 module.exports.CAMPOS = CAMPOS;
 module.exports.iniciarAtualizacaoOracle = iniciarAtualizacaoOracle;
+module.exports.calcularComparacao = calcularComparacao;
 module.exports.executarAtualizacaoOracle = executarAtualizacaoOracle;

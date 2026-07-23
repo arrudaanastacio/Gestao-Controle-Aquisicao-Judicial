@@ -45,4 +45,9 @@ async function enviarAlertaFalhaSincronizacao(nomeTarefa, mensagemErro) {
   }
 }
 
-module.exports = { enviarAlertaFalhaSincronizacao };
+// Verdadeiro só quando há SMTP configurado (para o front esconder/avisar).
+function emailConfigurado() {
+  return !!obterTransportador();
+}
+
+module.exports = { enviarAlertaFalhaSincronizacao, obterTransportador, emailConfigurado };

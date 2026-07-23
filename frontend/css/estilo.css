@@ -951,6 +951,12 @@ thead th {
 
 /* Linhas de lote clicáveis */
 .linha-clicavel { cursor: pointer; }
+.linha-clicavel:hover { background: var(--realce-tabela); }
+/* Tabela chave/valor no modal (ex.: bloco "Demanda"): rótulo à esquerda. */
+.lista-rolavel th[scope], .lista-rolavel tbody th {
+  text-align: left; white-space: nowrap; width: 1%; padding-right: 16px;
+  color: var(--cinza-texto); font-weight: 600;
+}
 
 /* Requisição de compra: cartões de paciente e itens */
 .req-paciente-card {
