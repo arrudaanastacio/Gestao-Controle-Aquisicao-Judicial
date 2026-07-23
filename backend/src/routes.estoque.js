@@ -656,6 +656,7 @@ router.get('/evolucao', (req, res) => {
            SUM(it.estoque) AS estoque,
            AVG(it.autonomia) AS autonomia,
            SUM(it.demandas) AS demandas,
+           SUM(it.consumo_mensal_total) AS consumo_mensal_total,
            ROUND(SUM(it.estoque * COALESCE(it.valor_medio_unitario, it.custo_unitario, 0)), 2) AS valor
     FROM estoque_importacoes ei
     JOIN estoque_itens it ON it.importacao_id = ei.id AND it.codigo_item = ?
