@@ -330,6 +330,27 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_autor ON autores_itens(autor);`)
 db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_codigo ON autores_itens(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_unidade ON autores_itens(unidade_dispensadora);`);
 
+// Protocolo normalizado (sem o prefixo "N: " e sem espaços) guardado em coluna
+// própria. É a chave que liga a RUPTURA ao paciente. Antes a normalização era
+// feita na hora da consulta, com REPLACE sobre as ~217 mil linhas da data —
+// varredura completa, repetida em cada uma das 8 consultas da tela (48s no
+// total). Com a coluna gravada e indexada, vira busca por índice.
+const colunasAutores = db.prepare("PRAGMA table_info(autores_itens)").all().map((c) => c.name);
+if (!colunasAutores.includes('protocolo_norm')) {
+  db.exec("ALTER TABLE autores_itens ADD COLUMN protocolo_norm TEXT");
+}
+// Preenche o que ainda estiver vazio (linhas importadas antes desta versão).
+const faltando = db.prepare(
+  'SELECT COUNT(*) AS c FROM autores_itens WHERE protocolo_norm IS NULL AND protocolo IS NOT NULL'
+).get().c;
+if (faltando > 0) {
+  console.log(`[BANCO] Normalizando o protocolo de ${faltando} linha(s) de autores_itens...`);
+  db.exec(`UPDATE autores_itens
+              SET protocolo_norm = REPLACE(REPLACE(REPLACE(protocolo, 'N: ', ''), 'N:', ''), ' ', '')
+            WHERE protocolo_norm IS NULL AND protocolo IS NOT NULL`);
+}
+db.exec(`CREATE INDEX IF NOT EXISTS idx_autores_data_prot ON autores_itens(data_referencia, protocolo_norm);`);
+
 // Atas de Registro de Preço (SISCOA) — cada linha é um item registrado numa
 // Ata. Guarda só as 2 fotos mais recentes (mesmo padrão de autores_itens),
 // já que o relatório sempre traz o que está vigente no momento da extração.

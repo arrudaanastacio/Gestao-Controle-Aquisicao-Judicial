@@ -119,13 +119,20 @@ function importarAutoresDeLinhas(linhas, opcoes = {}) {
     // Substitui a versão da mesma data (se reimportar no mesmo dia)
     db.prepare('DELETE FROM autores_itens WHERE data_referencia = ?').run(dataReferencia);
 
-    const cols = ['data_referencia', ...CAMPOS];
+    // protocolo_norm: protocolo sem o prefixo "N: " e sem espaços. É a chave
+    // que liga o paciente à ruptura; gravada aqui (e não calculada na consulta)
+    // porque normalizar 217 mil linhas a cada consulta inviabilizava a tela.
+    const cols = ['data_referencia', ...CAMPOS, 'protocolo_norm'];
     const stmt = db.prepare(
       `INSERT INTO autores_itens (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`
     );
+    const normProt = (v) => (v === null || v === undefined
+      ? null
+      : String(v).replace(/^N:\s*/i, '').replace(/\s/g, ''));
     for (const l of linhas) {
       // undefined não pode ser vinculado no SQLite; normaliza para null.
-      stmt.run(dataReferencia, ...CAMPOS.map((c) => (l[c] === undefined ? null : l[c])));
+      stmt.run(dataReferencia, ...CAMPOS.map((c) => (l[c] === undefined ? null : l[c])),
+        normProt(l.protocolo));
     }
 
     // Mantém só as 2 versões mais recentes (atual + anterior, para o comparativo)

@@ -18,43 +18,54 @@ const { credenciaisConfiguradas } = require('./udtpApi');
 
 const router = express.Router();
 
-// Normalização do protocolo do lado do cadastro de autores (o da ruptura já
-// vem normalizado na coluna protocolo_norm).
-const PROT_NORM = "REPLACE(REPLACE(REPLACE(protocolo, 'N: ', ''), 'N:', ''), ' ', '')";
-
 function ultimaData(tabela) {
   const r = db.prepare(`SELECT MAX(data_referencia) AS d FROM ${tabela}`).get();
   return r && r.d ? r.d : null;
 }
 
-// Monta o FROM/JOIN comum às consultas (lista, KPIs e quebra por categoria).
-// Os dois ? do FROM são preenchidos com a data do relatorio_itens e a dos
-// autores, NESSA ordem, antes dos parâmetros do WHERE.
+// Monta o FROM/JOIN comum às consultas.
+//
+// DESEMPENHO: a tabela de autores tem ~217 mil linhas por data. A versão
+// anterior juntava uma subconsulta que normalizava o protocolo com REPLACE e
+// agrupava TODAS essas linhas — varredura completa, repetida nas 8 consultas
+// da tela (48 s no total). Duas mudanças resolveram:
+//   1. o protocolo normalizado passou a ser COLUNA indexada em autores_itens
+//      (ver db.js), então a busca do paciente vira acesso por índice;
+//   2. a tabela de autores só entra quando é realmente necessária — os KPIs,
+//      as quebras e os gráficos não usam o nome do paciente.
+// O ? do FROM é a data do relatorio_itens, antes dos parâmetros do WHERE.
 function baseConsulta() {
   return `
     FROM rupturas_itens r
     LEFT JOIN relatorio_itens ri
            ON ri.codigo = r.codigo_item AND ri.data_referencia = ?
-    LEFT JOIN (
-      SELECT ${PROT_NORM} AS pnorm,
-             MIN(autor) AS autor,
-             MIN(unidade_dispensadora) AS unidade
-        FROM autores_itens
-       WHERE data_referencia = ?
-       GROUP BY pnorm
-    ) a ON a.pnorm = r.protocolo_norm
   `;
 }
 
+// Subconsulta escalar que traz um campo do autor pelo protocolo. Usada só na
+// lista; por ser escalar, não multiplica linhas quando o mesmo protocolo
+// aparece em vários itens da demanda (era para isso que servia o GROUP BY).
+function campoAutor(coluna, apelido) {
+  return `(SELECT x.${coluna} FROM autores_itens x
+            WHERE x.data_referencia = ? AND x.protocolo_norm = r.protocolo_norm
+            LIMIT 1) AS ${apelido}`;
+}
+
 // Filtros vindos da tela. Devolve { onde, params } para concatenar.
-function montarFiltros(q) {
+// `dAut` é a data dos autores, necessária só quando a busca pode casar com o
+// nome do paciente.
+function montarFiltros(q, dAut) {
   const cond = ['r.data >= ?', 'r.data <= ?'];
   const params = [q.inicio, q.fim];
 
   if (q.busca) {
-    cond.push('(r.descricao LIKE ? OR r.codigo_item LIKE ? OR r.protocolo LIKE ? OR a.autor LIKE ?)');
     const like = `%${q.busca}%`;
-    params.push(like, like, like, like);
+    cond.push(`(r.descricao LIKE ? OR r.codigo_item LIKE ? OR r.protocolo LIKE ?
+                OR EXISTS (SELECT 1 FROM autores_itens x
+                            WHERE x.data_referencia = ?
+                              AND x.protocolo_norm = r.protocolo_norm
+                              AND x.autor LIKE ?))`);
+    params.push(like, like, like, dAut, like);
   }
   if (q.categoria) { cond.push('ri.categoria = ?'); params.push(q.categoria); }
   if (q.tipoItem) { cond.push('ri.tipo_item = ?'); params.push(q.tipoItem); }
@@ -85,21 +96,24 @@ router.get('/', (req, res) => {
     importado: (req.query.importado || '').trim(),
     outrasDemandas: (req.query.outrasDemandas || '').trim(),
   };
-  const { onde, params } = montarFiltros(q);
+  const { onde, params } = montarFiltros(q, dAut);
   const base = baseConsulta();
-  const pre = [dRel, dAut];       // parâmetros dos JOINs (vêm antes do WHERE)
+  const pre = [dRel];             // parâmetro do JOIN (vem antes do WHERE)
 
+  // Aqui as duas subconsultas do autor entram no SELECT, então as datas delas
+  // vêm ANTES do parâmetro do JOIN de relatorio_itens.
   const linhas = db.prepare(`
     SELECT r.data, r.codigo_item AS codigoItem, r.descricao,
-           r.unidade_medida AS unidade, r.quantidade,
-           r.protocolo, a.autor AS paciente, a.unidade AS unidadePaciente,
+           r.unidade_medida AS unidade, r.quantidade, r.protocolo,
+           ${campoAutor('autor', 'paciente')},
+           ${campoAutor('unidade_dispensadora', 'unidadePaciente')},
            ri.categoria, ri.tipo_item AS tipoItem,
            ri.importado, ri.outras_demandas AS outrasDemandas
     ${base}
      WHERE ${onde}
      ORDER BY r.data DESC, r.descricao COLLATE NOCASE
      LIMIT 3000
-  `).all(...pre, ...params);
+  `).all(dAut, dAut, ...pre, ...params);
 
   const kpis = db.prepare(`
     SELECT COUNT(*) AS totalRupturas,
@@ -168,9 +182,9 @@ router.get('/', (req, res) => {
   // Opções dos filtros, a partir do que existe no período
   const opcoes = {
     categorias: db.prepare(`SELECT DISTINCT ri.categoria AS v ${base} WHERE r.data >= ? AND r.data <= ? AND ri.categoria IS NOT NULL AND ri.categoria <> '' ORDER BY v`)
-      .all(dRel, dAut, inicio, fim).map((x) => x.v),
+      .all(dRel, inicio, fim).map((x) => x.v),
     tiposItem: db.prepare(`SELECT DISTINCT ri.tipo_item AS v ${base} WHERE r.data >= ? AND r.data <= ? AND ri.tipo_item IS NOT NULL AND ri.tipo_item <> '' ORDER BY v`)
-      .all(dRel, dAut, inicio, fim).map((x) => x.v),
+      .all(dRel, inicio, fim).map((x) => x.v),
   };
 
   res.json({
@@ -202,16 +216,16 @@ router.get('/csv', (req, res) => {
     importado: (req.query.importado || '').trim(),
     outrasDemandas: (req.query.outrasDemandas || '').trim(),
   };
-  const { onde, params } = montarFiltros(q);
+  const { onde, params } = montarFiltros(q, dAut);
 
   const linhas = db.prepare(`
     SELECT r.data, r.codigo_item, r.descricao, r.unidade_medida, r.quantidade,
-           r.protocolo, a.autor, ri.categoria, ri.tipo_item, ri.importado,
-           ri.outras_demandas
+           r.protocolo, ${campoAutor('autor', 'autor')},
+           ri.categoria, ri.tipo_item, ri.importado, ri.outras_demandas
     ${baseConsulta()}
      WHERE ${onde}
      ORDER BY r.data DESC, r.descricao COLLATE NOCASE
-  `).all(dRel, dAut, ...params);
+  `).all(dAut, dRel, ...params);
 
   const esc = (v) => {
     const t = v === null || v === undefined ? '' : String(v);
