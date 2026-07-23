@@ -6037,8 +6037,8 @@ document.getElementById('botaoAtualizarRupturas').addEventListener('click', asyn
 });
 
 // ---- Aba "Andamento de compra" dos itens que romperam ----
-// Responde Ã  pergunta que a lista de rupturas nÃ£o responde: o item que faltou
-// para o paciente estÃ¡ sendo comprado? Olha os DOIS fluxos (Tenente Pena e
+// Responde à pergunta que a lista de rupturas não responde: o item que faltou
+// para o paciente está sendo comprado? Olha os DOIS fluxos (Tenente Pena e
 // Outras Demandas), porque o mesmo item pode ser comprado por qualquer um.
 let comprasRupturasCache = [];
 let situacaoComprasRupturas = '';
@@ -6056,9 +6056,9 @@ async function carregarComprasRupturas() {
   const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
   const r = d.resumo;
   document.getElementById('resumoComprasRupturas').innerHTML = [
-    kpiCard('doc', nf(r.nunca.itens), 'Nunca comprado', nf(r.nunca.pacientes) + ' pacientes Â· sem registro de compra', 'critico'),
-    kpiCard('list', nf(r.semAberta.itens), 'Sem compra em aberto', nf(r.semAberta.pacientes) + ' pacientes Â· jÃ¡ comprado antes', 'alerta'),
-    kpiCard('chart', nf(r.aberta.itens), 'Compra em andamento', nf(r.aberta.pacientes) + ' pacientes Â· processo em curso'),
+    kpiCard('doc', nf(r.nunca.itens), 'Nunca comprado', nf(r.nunca.pacientes) + ' pacientes · sem registro de compra', 'critico'),
+    kpiCard('list', nf(r.semAberta.itens), 'Sem compra em aberto', nf(r.semAberta.pacientes) + ' pacientes · já comprado antes', 'alerta'),
+    kpiCard('chart', nf(r.aberta.itens), 'Compra em andamento', nf(r.aberta.pacientes) + ' pacientes · processo em curso'),
   ].join('');
 
   desenharComprasRupturas();
@@ -6073,16 +6073,16 @@ function desenharComprasRupturas() {
   document.getElementById('corpoComprasRupturas').innerHTML = lista.map((i) => {
     const s = ROTULO_SITUACAO[i.situacao] || ROTULO_SITUACAO.nunca;
     const detalhe = i.statusAtual
-      ? ' <span class="texto-apoio">' + escHtml(i.fluxoAtual) + ' Â· ' + escHtml(i.statusAtual) + '</span>'
+      ? ' <span class="texto-apoio">' + escHtml(i.fluxoAtual) + ' · ' + escHtml(i.statusAtual) + '</span>'
       : '';
     return '<tr>'
       + '<td>' + escHtml(i.descricao) + '</td>'
       + '<td class="col-codigo">' + escHtml(i.codigoItem) + '</td>'
-      + '<td>' + escHtml(i.categoria || 'â€”') + '</td>'
+      + '<td>' + escHtml(i.categoria || '—') + '</td>'
       + '<td>' + nf(i.rupturas) + '</td>'
       + '<td><strong>' + nf(i.pacientes) + '</strong></td>'
       + '<td><span class="selo-situacao ' + s.classe + '">' + s.texto + '</span>' + detalhe + '</td>'
-      + '<td>' + escHtml(i.ultimaCompra || 'â€”') + '</td>'
+      + '<td>' + escHtml(i.ultimaCompra || '—') + '</td>'
       + '<td><button type="button" class="botao-secundario botao-ver-compra" data-codigo="'
         + escAttr(i.codigoItem) + '">Ver</button></td>'
       + '</tr>';
@@ -6098,7 +6098,7 @@ async function abrirCompraRuptura(codigo) {
   const corpo = document.getElementById('conteudoCompraRuptura');
   document.getElementById('tituloCompraRuptura').textContent = 'Andamento de compra';
   document.getElementById('codigoCompraRuptura').textContent = codigo;
-  corpo.innerHTML = '<p class="texto-apoio">Carregandoâ€¦</p>';
+  corpo.innerHTML = '<p class="texto-apoio">Carregando…</p>';
   document.getElementById('modalCompraRuptura').hidden = false;
 
   try {
@@ -6108,10 +6108,10 @@ async function abrirCompraRuptura(codigo) {
     const it = d.item || {};
     document.getElementById('tituloCompraRuptura').textContent = it.descricao || codigo;
     document.getElementById('codigoCompraRuptura').textContent = codigo
-      + (it.categoria ? ' Â· ' + it.categoria : '') + (it.tipoItem ? ' Â· ' + it.tipoItem : '');
+      + (it.categoria ? ' · ' + it.categoria : '') + (it.tipoItem ? ' · ' + it.tipoItem : '');
     corpo.innerHTML = montarDetalheCompraRuptura(d);
   } catch (e) {
-    corpo.innerHTML = '<p class="texto-vermelho">NÃ£o consegui carregar o andamento: ' + escHtml(e.message) + '</p>';
+    corpo.innerHTML = '<p class="texto-vermelho">Não consegui carregar o andamento: ' + escHtml(e.message) + '</p>';
   }
 }
 
@@ -6121,22 +6121,22 @@ function montarDetalheCompraRuptura(d) {
   const est = d.estoque || {};
 
   let html = '<div class="grade-resumo">'
-    + kpiCard('list', nf(it.rupturas), 'Rupturas', 'no perÃ­odo filtrado', 'critico')
-    + kpiCard('relogio', nf(it.pacientes), 'Pacientes', 'nÃ£o levaram o item')
+    + kpiCard('list', nf(it.rupturas), 'Rupturas', 'no período filtrado', 'critico')
+    + kpiCard('relogio', nf(it.pacientes), 'Pacientes', 'não levaram o item')
     + kpiCard('chart', nf(est.estoque), 'Estoque', d.dataEstoque ? 'foto de ' + formatarData(d.dataEstoque) : 'sem foto')
-    + kpiCard('doc', est.autonomia == null ? 'â€”' : nf(est.autonomia), 'Autonomia', 'meses de cobertura')
+    + kpiCard('doc', est.autonomia == null ? '—' : nf(est.autonomia), 'Autonomia', 'meses de cobertura')
     + '</div>';
 
-  // HistÃ³rico de compra â€” o miolo do modal.
+  // Histórico de compra — o miolo do modal.
   html += '<h4>Andamento de compra <span class="texto-apoio">(' + d.compras.length + ' registro(s))</span></h4>';
   if (!d.compras.length) {
     html += '<p class="texto-apoio">Nenhuma compra registrada para este item, em nenhum dos dois fluxos '
-      + '(Tenente Pena e Outras Demandas). Vale conferir se ele Ã© adquirido por outra via '
-      + 'ou se estÃ¡ faltando cadastro.</p>';
+      + '(Tenente Pena e Outras Demandas). Vale conferir se ele é adquirido por outra via '
+      + 'ou se está faltando cadastro.</p>';
   } else {
     html += '<div class="lista-rolavel"><table><thead><tr>'
-      + '<th>Fluxo</th><th>CompetÃªncia</th><th>Status</th><th>OfÃ­cio</th><th>Empenho</th>'
-      + '<th>Solicitado</th><th>Entregue</th><th>Pendente</th><th>PrevisÃ£o</th></tr></thead><tbody>'
+      + '<th>Fluxo</th><th>Competência</th><th>Status</th><th>Ofício</th><th>Empenho</th>'
+      + '<th>Solicitado</th><th>Entregue</th><th>Pendente</th><th>Previsão</th></tr></thead><tbody>'
       + d.compras.map((c) => {
         const classe = classeStatus(c.status, c.data_previsao_entrega);
         const rotulo = rotuloStatus(c.status, c.data_previsao_entrega);
@@ -6144,24 +6144,24 @@ function montarDetalheCompraRuptura(d) {
           + '<td><span class="tag-tipo">' + escHtml(c.fluxo) + '</span></td>'
           + '<td>' + escHtml(c.mes || '') + '/' + escHtml(c.ano || '') + '</td>'
           + '<td><span class="etiqueta-status ' + classe + '">' + escHtml(rotulo) + '</span></td>'
-          + '<td>' + escHtml(c.n_oficio || 'â€”') + '</td>'
-          + '<td>' + escHtml(c.n_empenho || 'â€”') + '</td>'
+          + '<td>' + escHtml(c.n_oficio || '—') + '</td>'
+          + '<td>' + escHtml(c.n_empenho || '—') + '</td>'
           + '<td>' + nf(c.qtde_solicitada) + '</td>'
           + '<td>' + nf(c.qtde_entregue) + '</td>'
           + '<td>' + nf(c.qtde_pendente) + '</td>'
-          + '<td class="col-data">' + (c.data_previsao_entrega ? formatarData(c.data_previsao_entrega) : 'â€”') + '</td>'
+          + '<td class="col-data">' + (c.data_previsao_entrega ? formatarData(c.data_previsao_entrega) : '—') + '</td>'
           + '</tr>';
       }).join('')
       + '</tbody></table></div>';
   }
 
   // Quem ficou sem o item.
-  html += '<h4>Pacientes que ficaram sem <span class="texto-apoio">(' + d.rupturas.length + ' ocorrÃªncia(s))</span></h4>'
+  html += '<h4>Pacientes que ficaram sem <span class="texto-apoio">(' + d.rupturas.length + ' ocorrência(s))</span></h4>'
     + '<div class="lista-rolavel"><table><thead><tr><th>Data</th><th>Paciente</th><th>Protocolo</th><th>Qtde em falta</th></tr></thead><tbody>'
     + d.rupturas.map((r) => '<tr>'
       + '<td class="col-data">' + formatarData(r.data) + '</td>'
-      + '<td>' + escHtml(r.paciente || 'â€”') + '</td>'
-      + '<td>' + escHtml(r.protocolo || 'â€”') + '</td>'
+      + '<td>' + escHtml(r.paciente || '—') + '</td>'
+      + '<td>' + escHtml(r.protocolo || '—') + '</td>'
       + '<td>' + nf(r.quantidade) + '</td>'
       + '</tr>').join('')
     + '</tbody></table></div>';
