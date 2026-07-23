@@ -223,6 +223,27 @@ const EM_ABERTO_SQL = STATUS_ABERTO.map(() => '?').join(',');
 // entraria na conta e mascararia a falta aqui.
 const ESCOPO_TP = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
 
+// Faixas de autonomia usadas no gráfico da aba "Andamento de compra".
+// A faixa "2+" é a que a regra de negócio esconde por padrão (item já
+// normalizado). A faixa "0" é a mais crítica: estoque zerado, segue em falta.
+// `min` é o piso da faixa em meses — usado para saber quais faixas caem
+// inteiras acima do limiar (e portanto são escondidas por padrão).
+const FAIXAS_AUTONOMIA = [
+  { chave: '0', rotulo: 'Sem estoque (0)', min: 0 },
+  { chave: '<0.5', rotulo: 'Menos de 0,5 mês', min: 0.0001 },
+  { chave: '0.5-1', rotulo: '0,5 a 1 mês', min: 0.5 },
+  { chave: '1-2', rotulo: '1 a 2 meses', min: 1 },
+  { chave: '2+', rotulo: '2 meses ou mais', min: 2 },
+];
+function faixaDeAutonomia(a) {
+  const v = Number(a) || 0;
+  if (v <= 0) return '0';
+  if (v < 0.5) return '<0.5';
+  if (v < 1) return '0.5-1';
+  if (v < 2) return '1-2';
+  return '2+';
+}
+
 const COMPRAS_CTE = `
   WITH compras AS (
     SELECT codigo_item, status, ano, mes, 'TP' AS fluxo FROM solicitacoes
@@ -305,40 +326,40 @@ router.get('/compras', (req, res) => {
   const limiarAutonomia = Number(
     db.prepare("SELECT valor FROM configuracoes WHERE chave = 'autonomia_minima_meses'").get()?.valor || '2'
   );
-  const jaNormalizado = (i) => Number(i.autonomiaHoje) >= limiarAutonomia;
-  const incluirNormalizados = req.query.incluirNormalizados === '1';
-  const normalizados = itens.filter(jaNormalizado);
-  const visiveis = incluirNormalizados ? itens : itens.filter((i) => !jaNormalizado(i));
 
-  // Três situações, porque exigem ações diferentes:
-  //   aberta    -> o processo existe; cobrar prazo/entrega.
-  //   semAberta -> já se comprou antes e hoje não há nada; recomprar.
-  //   nunca     -> nunca passou por compra; pode ser item de outro fluxo
-  //                ou cadastro faltando. Merece conferência antes de agir.
+  // Situação de compra (exige ações diferentes) e faixa de autonomia de cada
+  // item são calculadas para TODOS — a tela filtra/esconde a partir daí, para
+  // o gráfico de autonomia ficar clicável sem novas idas ao servidor.
   const situacaoDe = (i) => (i.comprasAbertas > 0 ? 'aberta' : (i.comprasTotal > 0 ? 'semAberta' : 'nunca'));
-  const resumo = {
-    aberta: { itens: 0, rupturas: 0, pacientes: 0 },
-    semAberta: { itens: 0, rupturas: 0, pacientes: 0 },
-    nunca: { itens: 0, rupturas: 0, pacientes: 0 },
-  };
-  for (const i of visiveis) {
+  for (const i of itens) {
     i.situacao = situacaoDe(i);
-    const alvo = resumo[i.situacao];
-    alvo.itens += 1;
-    alvo.rupturas += i.rupturas;
-    alvo.pacientes += i.pacientes;   // soma por item (um paciente pode contar em 2 itens)
+    i.faixaAutonomia = faixaDeAutonomia(Number(i.autonomiaHoje));
   }
+
+  // Distribuição por faixa de autonomia (para o gráfico). Calculada sobre a
+  // lista COMPLETA, para o gráfico mostrar o quadro inteiro — inclusive os
+  // já normalizados (faixa 2+), que por padrão saem da lista.
+  const faixas = FAIXAS_AUTONOMIA.map((f) => {
+    const dela = itens.filter((i) => i.faixaAutonomia === f.chave);
+    return {
+      chave: f.chave, rotulo: f.rotulo,
+      itens: dela.length,
+      pacientes: dela.reduce((s, i) => s + i.pacientes, 0),
+      normalizada: f.min >= limiarAutonomia,   // faixa escondida por padrão
+    };
+  });
+
+  const normalizados = itens.filter((i) => Number(i.autonomiaHoje) >= limiarAutonomia);
 
   res.json({
     periodo: { inicio, fim },
-    itens: visiveis,
-    resumo,
+    itens,                       // lista completa; a tela aplica a regra
     dataEstoque: dEstoque,
     limiarAutonomia,
+    faixas,
     normalizados: {
       itens: normalizados.length,
       pacientes: normalizados.reduce((s, i) => s + i.pacientes, 0),
-      incluidos: incluirNormalizados,
     },
   });
 });

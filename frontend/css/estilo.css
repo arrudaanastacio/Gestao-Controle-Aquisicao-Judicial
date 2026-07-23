@@ -1722,6 +1722,29 @@ body.tem-faixa-ambiente { padding-top: 30px; }
   background: var(--papel-elevado);
 }
 
+/* Gráfico de faixas de autonomia (aba "Andamento de compra") — barras
+   horizontais que são botões: clicar filtra a lista pela faixa. */
+.barra-faixa-aut {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.4fr) 3fr minmax(150px, auto);
+  gap: 12px; align-items: center; width: 100%;
+  padding: 7px 10px; margin-bottom: 4px;
+  background: transparent; border: 1px solid transparent; border-radius: var(--raio);
+  cursor: pointer; text-align: left; font: inherit; color: var(--tinta);
+}
+.barra-faixa-aut:hover { background: var(--realce-tabela); }
+.barra-faixa-aut.ativa { border-color: var(--selo); background: var(--realce-tabela); }
+.barra-faixa-rotulo { font-size: 13px; font-weight: 600; }
+.barra-faixa-trilho {
+  height: 16px; border-radius: 8px; overflow: hidden;
+  background: var(--linha-tabela);
+}
+.barra-faixa-trilho > span {
+  display: block; height: 100%; border-radius: 8px;
+  background: var(--selo); min-width: 2px;
+}
+.barra-faixa-valor { font-size: 13px; text-align: right; white-space: nowrap; }
+
 /* Faixa "Recorte: ..." acima dos indicadores — lembra qual filtro está
    desenhado, já que os filtros ficam na outra aba. */
 .recorte-ativo {

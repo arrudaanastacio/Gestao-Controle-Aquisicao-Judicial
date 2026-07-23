@@ -6040,9 +6040,12 @@ document.getElementById('botaoAtualizarRupturas').addEventListener('click', asyn
 // Responde à pergunta que a lista de rupturas não responde: o item que faltou
 // para o paciente está sendo comprado? Olha os DOIS fluxos (Tenente Pena e
 // Outras Demandas), porque o mesmo item pode ser comprado por qualquer um.
-let comprasRupturasCache = [];
+let comprasRupturasCache = [];      // lista COMPLETA vinda do servidor
 let situacaoComprasRupturas = '';
+let faixaComprasRupturas = '';      // faixa de autonomia clicada no gráfico
 let limiarAutonomiaRupturas = 2;
+let dataEstoqueRupturas = null;
+let faixasAutonomiaRupturas = [];
 
 // Realce da autonomia na tabela, coerente com a regra que esconde itens:
 //   0            -> crítico (segue em falta total)
@@ -6063,47 +6066,104 @@ const ROTULO_SITUACAO = {
 };
 
 async function carregarComprasRupturas() {
-  const p = paramsRupturas();
-  const incluir = document.getElementById('incluirNormalizadosRupturas').checked;
-  if (incluir) p.set('incluirNormalizados', '1');
-  const d = await api('/rupturas/compras?' + p.toString());
-  comprasRupturasCache = d.itens || [];
+  const d = await api('/rupturas/compras?' + paramsRupturas().toString());
+  comprasRupturasCache = d.itens || [];       // lista completa
   limiarAutonomiaRupturas = Number(d.limiarAutonomia) || 2;
-
-  // A ruptura é um fato do passado: se o item já voltou a ter autonomia, ele
-  // saiu da lista. O aviso deixa isso explícito — lista curta demais sem
-  // explicação levanta a suspeita de que o sistema perdeu dados.
-  const aviso = document.getElementById('avisoNormalizadosRupturas');
-  const n = d.normalizados || {};
-  if (!n.itens) {
-    aviso.hidden = true;
-  } else {
-    aviso.hidden = false;
-    const lim = Number(d.limiarAutonomia || 2).toLocaleString('pt-BR');
-    aviso.innerHTML = n.incluidos
-      ? '<strong>Mostrando tudo:</strong> ' + n.itens + ' item(ns) já normalizado(s) '
-        + '(autonomia ≥ ' + lim + ' meses na foto de ' + formatarData(d.dataEstoque) + ') estão incluídos na lista.'
-      : '<strong>' + n.itens + ' item(ns) fora da lista</strong> — romperam no período, mas já têm '
-        + 'autonomia de ' + lim + ' meses ou mais na foto de ' + formatarData(d.dataEstoque) + ', ou seja, '
-        + 'o estoque foi reposto. Marque "Incluir itens já normalizados" para vê-los.';
-  }
-
-  const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
-  const r = d.resumo;
-  document.getElementById('resumoComprasRupturas').innerHTML = [
-    kpiCard('doc', nf(r.nunca.itens), 'Nunca comprado', nf(r.nunca.pacientes) + ' pacientes · sem registro de compra', 'critico'),
-    kpiCard('list', nf(r.semAberta.itens), 'Sem compra em aberto', nf(r.semAberta.pacientes) + ' pacientes · já comprado antes', 'alerta'),
-    kpiCard('chart', nf(r.aberta.itens), 'Compra em andamento', nf(r.aberta.pacientes) + ' pacientes · processo em curso'),
-  ].join('');
-
+  dataEstoqueRupturas = d.dataEstoque || null;
+  faixasAutonomiaRupturas = d.faixas || [];
+  desenharGraficoAutonomiaRupturas();
   desenharComprasRupturas();
+}
+
+// Lista efetivamente mostrada, aplicando (nesta ordem):
+//   1. faixa clicada no gráfico — se houver, MANDA e ignora a regra de esconder
+//      (o usuário pediu explicitamente aquela faixa, mesmo a 2+);
+//   2. senão, a regra de negócio: esconde os já normalizados (autonomia ≥
+//      limiar), a menos que "Incluir itens já normalizados" esteja marcado;
+//   3. o filtro de situação de compra (Nunca / Sem aberto / Em andamento).
+function listaComprasFiltrada() {
+  let lista = comprasRupturasCache;
+  if (faixaComprasRupturas) {
+    lista = lista.filter((i) => i.faixaAutonomia === faixaComprasRupturas);
+  } else if (!document.getElementById('incluirNormalizadosRupturas').checked) {
+    lista = lista.filter((i) => Number(i.autonomiaHoje) < limiarAutonomiaRupturas);
+  }
+  if (situacaoComprasRupturas) lista = lista.filter((i) => i.situacao === situacaoComprasRupturas);
+  return lista;
+}
+
+// Gráfico de barras horizontais das faixas de autonomia. Cada barra é um botão.
+function desenharGraficoAutonomiaRupturas() {
+  const alvo = document.getElementById('graficoAutonomiaRupturas');
+  if (!faixasAutonomiaRupturas.length) { alvo.innerHTML = '<p class="texto-apoio">Sem dados no período.</p>'; return; }
+  const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
+  const max = Math.max(...faixasAutonomiaRupturas.map((f) => f.itens), 1);
+  alvo.innerHTML = faixasAutonomiaRupturas.map((f) => {
+    const pct = (f.itens / max) * 100;
+    const ativa = f.chave === faixaComprasRupturas;
+    return '<button type="button" class="barra-faixa-aut' + (ativa ? ' ativa' : '')
+      + '" data-faixa="' + escAttr(f.chave) + '"'
+      + ' title="' + escAttr(f.rotulo + ' — ' + f.itens + ' itens, ' + f.pacientes + ' pacientes') + '">'
+      + '<span class="barra-faixa-rotulo">' + escHtml(f.rotulo)
+        + (f.normalizada ? ' <span class="texto-apoio">(reposto)</span>' : '') + '</span>'
+      + '<span class="barra-faixa-trilho"><span style="width:' + pct.toFixed(1) + '%"></span></span>'
+      + '<span class="barra-faixa-valor">' + nf(f.itens) + ' <span class="texto-apoio">itens · '
+        + nf(f.pacientes) + ' pac.</span></span>'
+      + '</button>';
+  }).join('');
+  alvo.querySelectorAll('.barra-faixa-aut').forEach((b) => {
+    b.addEventListener('click', () => {
+      // clicar de novo na mesma faixa desliga o filtro
+      faixaComprasRupturas = (faixaComprasRupturas === b.dataset.faixa) ? '' : b.dataset.faixa;
+      desenharGraficoAutonomiaRupturas();
+      desenharComprasRupturas();
+    });
+  });
 }
 
 function desenharComprasRupturas() {
   const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
-  const lista = situacaoComprasRupturas
-    ? comprasRupturasCache.filter((i) => i.situacao === situacaoComprasRupturas)
-    : comprasRupturasCache;
+  const lista = listaComprasFiltrada();
+
+  // KPIs de situação — refletem a lista atual SEM o filtro de situação (senão
+  // clicar "Nunca comprado" zeraria os outros dois cartões).
+  const baseKpi = faixaComprasRupturas
+    ? comprasRupturasCache.filter((i) => i.faixaAutonomia === faixaComprasRupturas)
+    : (document.getElementById('incluirNormalizadosRupturas').checked
+        ? comprasRupturasCache
+        : comprasRupturasCache.filter((i) => Number(i.autonomiaHoje) < limiarAutonomiaRupturas));
+  const soma = (sit) => baseKpi.filter((i) => i.situacao === sit)
+    .reduce((a, i) => ({ itens: a.itens + 1, pac: a.pac + i.pacientes }), { itens: 0, pac: 0 });
+  const kn = soma('nunca'); const ks = soma('semAberta'); const ka = soma('aberta');
+  document.getElementById('resumoComprasRupturas').innerHTML = [
+    kpiCard('doc', nf(kn.itens), 'Nunca comprado', nf(kn.pac) + ' pacientes · sem registro de compra', 'critico'),
+    kpiCard('list', nf(ks.itens), 'Sem compra em aberto', nf(ks.pac) + ' pacientes · já comprado antes', 'alerta'),
+    kpiCard('chart', nf(ka.itens), 'Compra em andamento', nf(ka.pac) + ' pacientes · processo em curso'),
+  ].join('');
+
+  // Aviso sobre os itens normalizados / faixa selecionada.
+  const aviso = document.getElementById('avisoNormalizadosRupturas');
+  const norm = faixasAutonomiaRupturas.filter((f) => f.normalizada).reduce((s, f) => s + f.itens, 0);
+  const lim = limiarAutonomiaRupturas.toLocaleString('pt-BR');
+  const dataTxt = dataEstoqueRupturas ? formatarData(dataEstoqueRupturas) : '—';
+  if (faixaComprasRupturas) {
+    const f = faixasAutonomiaRupturas.find((x) => x.chave === faixaComprasRupturas);
+    aviso.hidden = false;
+    aviso.innerHTML = '<strong>Filtrando pela faixa:</strong> ' + escHtml(f ? f.rotulo : faixaComprasRupturas)
+      + ' — ' + lista.length + ' item(ns). Clique na faixa de novo (ou aqui) para limpar. '
+      + '<a href="#" id="limparFaixaAut">Limpar filtro</a>';
+    document.getElementById('limparFaixaAut').addEventListener('click', (e) => {
+      e.preventDefault(); faixaComprasRupturas = '';
+      desenharGraficoAutonomiaRupturas(); desenharComprasRupturas();
+    });
+  } else if (norm && !document.getElementById('incluirNormalizadosRupturas').checked) {
+    aviso.hidden = false;
+    aviso.innerHTML = '<strong>' + norm + ' item(ns) fora da lista</strong> — romperam no período, '
+      + 'mas já têm autonomia de ' + lim + ' meses ou mais na foto de ' + dataTxt + ' (estoque reposto). '
+      + 'Marque "Incluir itens já normalizados" ou clique na faixa "2 meses ou mais" para vê-los.';
+  } else {
+    aviso.hidden = true;
+  }
 
   document.getElementById('corpoComprasRupturas').innerHTML = lista.map((i) => {
     const s = ROTULO_SITUACAO[i.situacao] || ROTULO_SITUACAO.nunca;
@@ -6214,7 +6274,8 @@ document.getElementById('modalCompraRuptura').addEventListener('click', (e) => {
 });
 
 document.getElementById('incluirNormalizadosRupturas').addEventListener('change', () => {
-  carregarComprasRupturas().catch((e) => alert('Erro: ' + e.message));
+  // A lista completa já está em memória; é só redesenhar (sem nova ida ao servidor).
+  desenharComprasRupturas();
 });
 
 document.querySelectorAll('#situacaoComprasRupturas .chip-faixa').forEach((btn) => {
