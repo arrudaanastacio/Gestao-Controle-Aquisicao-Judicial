@@ -1696,6 +1696,12 @@ body.tem-faixa-ambiente { padding-top: 30px; }
 .grafico-svg .g-eixo { font-size: 10px; fill: var(--cinza-texto); }
 .grafico-svg .g-barra { fill: var(--vermelho); opacity: 0.85; }
 .grafico-svg .g-barra:hover { opacity: 1; }
+/* Gráfico de linha (Evolução de Estoque) — tudo por token, para o tema
+   escuro funcionar sozinho. */
+.grafico-svg .g-eixo-linha { stroke: var(--linha-forte); stroke-width: 1; }
+.grafico-svg .g-linha { fill: none; stroke: var(--selo); stroke-width: 2; }
+.grafico-svg .g-ponto { fill: var(--selo); }
+.grafico-svg .g-valor { font-size: 10px; fill: var(--tinta); }
 
 /* Barras horizontais do "top itens" */
 .barra-top {

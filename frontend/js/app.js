@@ -1012,7 +1012,7 @@ async function buscarMedicamento() {
     const semHistorico = r.historico.length === 0;
     return `
     <div class="tabela-wrap" style="margin-bottom:18px;">
-      <div style="padding:14px 16px; border-bottom:1px solid var(--linha); background:#fbfaf6;">
+      <div style="padding:14px 16px; border-bottom:1px solid var(--linha); background:var(--zebra);">
         <strong>${r.item.descricao}</strong>
         <div class="col-codigo" style="margin-top:2px;">${r.item.codigo_item}${r.item.codigo_siafisico ? ' · SIAFI ' + r.item.codigo_siafisico : ''}</div>
       </div>
@@ -4234,7 +4234,7 @@ async function selecionarPaciente(autor) {
       badge = `<span class="etiqueta-status ${cls}">estoque: ${fmtNumero(it.estoque_atual)} · autonomia ${fmtNumero(aut)} m</span>`;
     }
     const chip = (rotulo, valor) => (valor !== null && valor !== undefined && String(valor).trim() !== '')
-      ? `<span style="display:inline-block; background:#f0ece0; border:1px solid #e2dcc9; border-radius:4px; padding:1px 7px; margin:2px 4px 0 0; font-size:11px;"><strong>${rotulo}:</strong> ${valor}</span>`
+      ? `<span style="display:inline-block; background:var(--realce-tabela); border:1px solid var(--linha); border-radius:4px; padding:1px 7px; margin:2px 4px 0 0; font-size:11px;"><strong>${rotulo}:</strong> ${valor}</span>`
       : '';
     const detalhes = [
       chip('Tipo de demanda', it.tipo_demanda),
@@ -4245,7 +4245,7 @@ async function selecionarPaciente(autor) {
     ].join('');
     const consumoNum = parseNumeroReq(it.qtde_consumo);
     return `
-      <label class="req-item" style="display:grid; grid-template-columns:24px 1fr 95px 110px; gap:10px; align-items:center; padding:9px 6px; border-bottom:1px solid #ece8db; cursor:pointer;">
+      <label class="req-item" style="display:grid; grid-template-columns:24px 1fr 95px 110px; gap:10px; align-items:center; padding:9px 6px; border-bottom:1px solid var(--linha-tabela); cursor:pointer;">
         <input type="checkbox" class="req-check" data-idx="${idx}" style="width:auto;">
         <div>
           <div style="font-size:13px;">${it.descricao_item || '—'}</div>
@@ -4259,7 +4259,7 @@ async function selecionarPaciente(autor) {
         </div>
         <div>
           <label style="font-size:10px; color:var(--cinza-texto); display:block;">Qtde de Aquisição</label>
-          <input type="number" class="req-qtd" data-idx="${idx}" value="${consumoNum}" readonly title="Consumo × Autonomia de compra" style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px; background:#f3f1e8; font-weight:600;">
+          <input type="number" class="req-qtd" data-idx="${idx}" value="${consumoNum}" readonly title="Consumo × Autonomia de compra" style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px; background:var(--realce-tabela); font-weight:600;">
         </div>
       </label>`;
   }).join('');
@@ -4774,23 +4774,23 @@ function desenharGraficoEvolucao() {
   for (let g = 0; g <= 4; g++) {
     const v = minV + (faixa * g) / 4;
     const yy = y(v);
-    grade += `<line x1="${mEsq}" y1="${yy}" x2="${L - mDir}" y2="${yy}" stroke="#ece8db" stroke-width="1"/>`;
-    grade += `<text x="${mEsq - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#8a8676">${fmt(v)}</text>`;
+    grade += `<line class="g-grade" x1="${mEsq}" y1="${yy}" x2="${L - mDir}" y2="${yy}"/>`;
+    grade += `<text class="g-eixo" x="${mEsq - 8}" y="${yy + 4}" text-anchor="end">${fmt(v)}</text>`;
   }
 
   const linhaPontos = pontos.map((p, i) => `${x(i)},${y(p.valor)}`).join(' ');
   const bolinhas = pontos.map((p, i) => `
-    <circle cx="${x(i)}" cy="${y(p.valor)}" r="4" fill="#2f6f57"/>
-    <text x="${x(i)}" y="${y(p.valor) - 9}" text-anchor="middle" font-size="10" fill="#2f4f43">${fmt(p.valor)}</text>
-    <text x="${x(i)}" y="${A - mBaixo + 18}" text-anchor="middle" font-size="10" fill="#8a8676">${p.label}</text>
+    <circle class="g-ponto" cx="${x(i)}" cy="${y(p.valor)}" r="4"><title>${p.label}: ${fmt(p.valor)}</title></circle>
+    <text class="g-valor" x="${x(i)}" y="${y(p.valor) - 9}" text-anchor="middle">${fmt(p.valor)}</text>
+    <text class="g-eixo" x="${x(i)}" y="${A - mBaixo + 18}" text-anchor="middle">${p.label}</text>
   `).join('');
 
   cont.innerHTML = `
-    <svg viewBox="0 0 ${L} ${A}" style="width:100%; min-width:${pontos.length > 6 ? L : 0}px; height:auto;">
+    <svg class="grafico-svg" viewBox="0 0 ${L} ${A}" style="min-width:${pontos.length > 6 ? L : 0}px;">
       ${grade}
-      <line x1="${mEsq}" y1="${mTopo}" x2="${mEsq}" y2="${A - mBaixo}" stroke="#cfc9b8" stroke-width="1"/>
-      <line x1="${mEsq}" y1="${A - mBaixo}" x2="${L - mDir}" y2="${A - mBaixo}" stroke="#cfc9b8" stroke-width="1"/>
-      ${pontos.length > 1 ? `<polyline points="${linhaPontos}" fill="none" stroke="#2f6f57" stroke-width="2"/>` : ''}
+      <line class="g-eixo-linha" x1="${mEsq}" y1="${mTopo}" x2="${mEsq}" y2="${A - mBaixo}"/>
+      <line class="g-eixo-linha" x1="${mEsq}" y1="${A - mBaixo}" x2="${L - mDir}" y2="${A - mBaixo}"/>
+      ${pontos.length > 1 ? `<polyline class="g-linha" points="${linhaPontos}"/>` : ''}
       ${bolinhas}
     </svg>
     ${pontos.length === 1 ? '<div style="text-align:center; color:var(--cinza-texto); font-size:12px; margin-top:6px;">Só há 1 ponto na série por enquanto. O gráfico ganha forma conforme os snapshots de dia 01 e 15 forem sendo guardados.</div>' : ''}
