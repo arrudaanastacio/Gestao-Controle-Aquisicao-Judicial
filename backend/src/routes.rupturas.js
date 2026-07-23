@@ -295,12 +295,18 @@ router.get('/compras', (req, res) => {
   );
 
   // REGRA DE NEGÓCIO (pedido do Rafael): a ruptura é um fato do passado. Se
-  // hoje o item já tem autonomia, ele deixou de estar em falta e não deve
-  // poluir a fila de trabalho — ex.: rompeu em 01/07 e em 23/07 já repôs.
+  // hoje o item já voltou a ter autonomia SUFICIENTE, deixou de estar em falta
+  // e não deve poluir a fila de trabalho — ex.: rompeu em 01/07 e em 23/07 já
+  // repôs. O corte NÃO é "autonomia > 0", e sim o mesmo limiar configurável
+  // usado pelos alertas de estoque (padrão 2 meses): um item com estoque para
+  // poucos dias tecnicamente tem autonomia, mas na prática rompe de novo já.
   // Os itens normalizados não somem do sistema: continuam na aba Lista e
   // podem ser trazidos de volta com "incluirNormalizados".
+  const limiarAutonomia = Number(
+    db.prepare("SELECT valor FROM configuracoes WHERE chave = 'autonomia_minima_meses'").get()?.valor || '2'
+  );
+  const jaNormalizado = (i) => Number(i.autonomiaHoje) >= limiarAutonomia;
   const incluirNormalizados = req.query.incluirNormalizados === '1';
-  const jaNormalizado = (i) => Number(i.autonomiaHoje) > 0;
   const normalizados = itens.filter(jaNormalizado);
   const visiveis = incluirNormalizados ? itens : itens.filter((i) => !jaNormalizado(i));
 
@@ -328,6 +334,7 @@ router.get('/compras', (req, res) => {
     itens: visiveis,
     resumo,
     dataEstoque: dEstoque,
+    limiarAutonomia,
     normalizados: {
       itens: normalizados.length,
       pacientes: normalizados.reduce((s, i) => s + i.pacientes, 0),

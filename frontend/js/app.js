@@ -6042,6 +6042,19 @@ document.getElementById('botaoAtualizarRupturas').addEventListener('click', asyn
 // Outras Demandas), porque o mesmo item pode ser comprado por qualquer um.
 let comprasRupturasCache = [];
 let situacaoComprasRupturas = '';
+let limiarAutonomiaRupturas = 2;
+
+// Realce da autonomia na tabela, coerente com a regra que esconde itens:
+//   0            -> crítico (segue em falta total)
+//   abaixo do limiar -> alerta (tem estoque, mas rompe de novo em breve)
+//   >= limiar    -> ok (só aparece se "incluir normalizados" estiver marcado)
+function seloAutonomiaRuptura(valor) {
+  const a = Number(valor) || 0;
+  const txt = a.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' m';
+  if (a <= 0) return '<span class="selo-situacao critico">0</span>';
+  if (a < limiarAutonomiaRupturas) return '<span class="selo-situacao alerta">' + txt + '</span>';
+  return '<span class="selo-situacao ok">' + txt + '</span>';
+}
 
 const ROTULO_SITUACAO = {
   aberta: { texto: 'Compra em andamento', classe: 'ok' },
@@ -6055,6 +6068,7 @@ async function carregarComprasRupturas() {
   if (incluir) p.set('incluirNormalizados', '1');
   const d = await api('/rupturas/compras?' + p.toString());
   comprasRupturasCache = d.itens || [];
+  limiarAutonomiaRupturas = Number(d.limiarAutonomia) || 2;
 
   // A ruptura é um fato do passado: se o item já voltou a ter autonomia, ele
   // saiu da lista. O aviso deixa isso explícito — lista curta demais sem
@@ -6065,12 +6079,13 @@ async function carregarComprasRupturas() {
     aviso.hidden = true;
   } else {
     aviso.hidden = false;
+    const lim = Number(d.limiarAutonomia || 2).toLocaleString('pt-BR');
     aviso.innerHTML = n.incluidos
       ? '<strong>Mostrando tudo:</strong> ' + n.itens + ' item(ns) já normalizado(s) '
-        + '(com autonomia na foto de ' + formatarData(d.dataEstoque) + ') estão incluídos na lista.'
+        + '(autonomia ≥ ' + lim + ' meses na foto de ' + formatarData(d.dataEstoque) + ') estão incluídos na lista.'
       : '<strong>' + n.itens + ' item(ns) fora da lista</strong> — romperam no período, mas já têm '
-        + 'autonomia na foto de ' + formatarData(d.dataEstoque) + ', ou seja, o estoque foi reposto. '
-        + 'Marque "Incluir itens já normalizados" para vê-los.';
+        + 'autonomia de ' + lim + ' meses ou mais na foto de ' + formatarData(d.dataEstoque) + ', ou seja, '
+        + 'o estoque foi reposto. Marque "Incluir itens já normalizados" para vê-los.';
   }
 
   const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
@@ -6101,9 +6116,7 @@ function desenharComprasRupturas() {
       + '<td>' + escHtml(i.categoria || '—') + '</td>'
       + '<td>' + nf(i.rupturas) + '</td>'
       + '<td><strong>' + nf(i.pacientes) + '</strong></td>'
-      + '<td>' + (Number(i.autonomiaHoje) > 0
-        ? '<span class="selo-situacao ok">' + nf(i.autonomiaHoje) + ' m</span>'
-        : '<span class="selo-situacao critico">0</span>') + '</td>'
+      + '<td>' + seloAutonomiaRuptura(i.autonomiaHoje) + '</td>'
       + '<td><span class="selo-situacao ' + s.classe + '">' + s.texto + '</span>' + detalhe + '</td>'
       + '<td>' + escHtml(i.ultimaCompra || '—') + '</td>'
       + '<td><button type="button" class="botao-secundario botao-ver-compra" data-codigo="'
