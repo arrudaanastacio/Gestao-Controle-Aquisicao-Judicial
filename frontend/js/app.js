@@ -5773,6 +5773,9 @@ async function carregarRupturas() {
 async function buscarRupturas() {
   const d = await api('/rupturas?' + paramsRupturas().toString());
   renderRupturas(d);
+  // Se a aba de compras estiver aberta, ela também precisa acompanhar o filtro.
+  const abaCompras = document.getElementById('abaRupturasCompras');
+  if (abaCompras && !abaCompras.hidden) await carregarComprasRupturas();
 }
 
 // Monta um cartão de quebra (por categoria / por tipo de item).
@@ -5975,6 +5978,17 @@ document.querySelectorAll('#abasRupturas .chip-faixa').forEach((btn) => {
       .forEach((b) => b.classList.toggle('ativo', b === btn));
     document.getElementById('abaRupturasLista').hidden = aba !== 'lista';
     document.getElementById('abaRupturasIndicadores').hidden = aba !== 'indicadores';
+    document.getElementById('abaRupturasCompras').hidden = aba !== 'compras';
+    // A aba de compras usa outra consulta (mais pesada, por cruzar os dois
+    // fluxos de compra); só busca quando é realmente aberta.
+    if (aba === 'compras') {
+      carregarComprasRupturas().catch((e) => {
+        document.getElementById('corpoComprasRupturas').innerHTML = '';
+        const vazio = document.getElementById('estadoVazioComprasRupturas');
+        vazio.hidden = false;
+        vazio.textContent = 'Não consegui carregar o andamento de compra: ' + e.message;
+      });
+    }
   });
 });
 
@@ -6020,4 +6034,154 @@ document.getElementById('botaoAtualizarRupturas').addEventListener('click', asyn
     botao.disabled = false;
     botao.textContent = txt;
   }
+});
+
+// ---- Aba "Andamento de compra" dos itens que romperam ----
+// Responde Ã  pergunta que a lista de rupturas nÃ£o responde: o item que faltou
+// para o paciente estÃ¡ sendo comprado? Olha os DOIS fluxos (Tenente Pena e
+// Outras Demandas), porque o mesmo item pode ser comprado por qualquer um.
+let comprasRupturasCache = [];
+let situacaoComprasRupturas = '';
+
+const ROTULO_SITUACAO = {
+  aberta: { texto: 'Compra em andamento', classe: 'ok' },
+  semAberta: { texto: 'Sem compra em aberto', classe: 'alerta' },
+  nunca: { texto: 'Nunca comprado', classe: 'critico' },
+};
+
+async function carregarComprasRupturas() {
+  const d = await api('/rupturas/compras?' + paramsRupturas().toString());
+  comprasRupturasCache = d.itens || [];
+
+  const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
+  const r = d.resumo;
+  document.getElementById('resumoComprasRupturas').innerHTML = [
+    kpiCard('doc', nf(r.nunca.itens), 'Nunca comprado', nf(r.nunca.pacientes) + ' pacientes Â· sem registro de compra', 'critico'),
+    kpiCard('list', nf(r.semAberta.itens), 'Sem compra em aberto', nf(r.semAberta.pacientes) + ' pacientes Â· jÃ¡ comprado antes', 'alerta'),
+    kpiCard('chart', nf(r.aberta.itens), 'Compra em andamento', nf(r.aberta.pacientes) + ' pacientes Â· processo em curso'),
+  ].join('');
+
+  desenharComprasRupturas();
+}
+
+function desenharComprasRupturas() {
+  const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
+  const lista = situacaoComprasRupturas
+    ? comprasRupturasCache.filter((i) => i.situacao === situacaoComprasRupturas)
+    : comprasRupturasCache;
+
+  document.getElementById('corpoComprasRupturas').innerHTML = lista.map((i) => {
+    const s = ROTULO_SITUACAO[i.situacao] || ROTULO_SITUACAO.nunca;
+    const detalhe = i.statusAtual
+      ? ' <span class="texto-apoio">' + escHtml(i.fluxoAtual) + ' Â· ' + escHtml(i.statusAtual) + '</span>'
+      : '';
+    return '<tr>'
+      + '<td>' + escHtml(i.descricao) + '</td>'
+      + '<td class="col-codigo">' + escHtml(i.codigoItem) + '</td>'
+      + '<td>' + escHtml(i.categoria || 'â€”') + '</td>'
+      + '<td>' + nf(i.rupturas) + '</td>'
+      + '<td><strong>' + nf(i.pacientes) + '</strong></td>'
+      + '<td><span class="selo-situacao ' + s.classe + '">' + s.texto + '</span>' + detalhe + '</td>'
+      + '<td>' + escHtml(i.ultimaCompra || 'â€”') + '</td>'
+      + '<td><button type="button" class="botao-secundario botao-ver-compra" data-codigo="'
+        + escAttr(i.codigoItem) + '">Ver</button></td>'
+      + '</tr>';
+  }).join('');
+  document.getElementById('estadoVazioComprasRupturas').hidden = lista.length > 0;
+
+  document.querySelectorAll('.botao-ver-compra').forEach((b) => {
+    b.addEventListener('click', () => abrirCompraRuptura(b.dataset.codigo));
+  });
+}
+
+async function abrirCompraRuptura(codigo) {
+  const corpo = document.getElementById('conteudoCompraRuptura');
+  document.getElementById('tituloCompraRuptura').textContent = 'Andamento de compra';
+  document.getElementById('codigoCompraRuptura').textContent = codigo;
+  corpo.innerHTML = '<p class="texto-apoio">Carregandoâ€¦</p>';
+  document.getElementById('modalCompraRuptura').hidden = false;
+
+  try {
+    const p = paramsRupturas();
+    p.set('codigo', codigo);
+    const d = await api('/rupturas/compras/detalhe?' + p.toString());
+    const it = d.item || {};
+    document.getElementById('tituloCompraRuptura').textContent = it.descricao || codigo;
+    document.getElementById('codigoCompraRuptura').textContent = codigo
+      + (it.categoria ? ' Â· ' + it.categoria : '') + (it.tipoItem ? ' Â· ' + it.tipoItem : '');
+    corpo.innerHTML = montarDetalheCompraRuptura(d);
+  } catch (e) {
+    corpo.innerHTML = '<p class="texto-vermelho">NÃ£o consegui carregar o andamento: ' + escHtml(e.message) + '</p>';
+  }
+}
+
+function montarDetalheCompraRuptura(d) {
+  const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
+  const it = d.item || {};
+  const est = d.estoque || {};
+
+  let html = '<div class="grade-resumo">'
+    + kpiCard('list', nf(it.rupturas), 'Rupturas', 'no perÃ­odo filtrado', 'critico')
+    + kpiCard('relogio', nf(it.pacientes), 'Pacientes', 'nÃ£o levaram o item')
+    + kpiCard('chart', nf(est.estoque), 'Estoque', d.dataEstoque ? 'foto de ' + formatarData(d.dataEstoque) : 'sem foto')
+    + kpiCard('doc', est.autonomia == null ? 'â€”' : nf(est.autonomia), 'Autonomia', 'meses de cobertura')
+    + '</div>';
+
+  // HistÃ³rico de compra â€” o miolo do modal.
+  html += '<h4>Andamento de compra <span class="texto-apoio">(' + d.compras.length + ' registro(s))</span></h4>';
+  if (!d.compras.length) {
+    html += '<p class="texto-apoio">Nenhuma compra registrada para este item, em nenhum dos dois fluxos '
+      + '(Tenente Pena e Outras Demandas). Vale conferir se ele Ã© adquirido por outra via '
+      + 'ou se estÃ¡ faltando cadastro.</p>';
+  } else {
+    html += '<div class="lista-rolavel"><table><thead><tr>'
+      + '<th>Fluxo</th><th>CompetÃªncia</th><th>Status</th><th>OfÃ­cio</th><th>Empenho</th>'
+      + '<th>Solicitado</th><th>Entregue</th><th>Pendente</th><th>PrevisÃ£o</th></tr></thead><tbody>'
+      + d.compras.map((c) => {
+        const classe = classeStatus(c.status, c.data_previsao_entrega);
+        const rotulo = rotuloStatus(c.status, c.data_previsao_entrega);
+        return '<tr>'
+          + '<td><span class="tag-tipo">' + escHtml(c.fluxo) + '</span></td>'
+          + '<td>' + escHtml(c.mes || '') + '/' + escHtml(c.ano || '') + '</td>'
+          + '<td><span class="etiqueta-status ' + classe + '">' + escHtml(rotulo) + '</span></td>'
+          + '<td>' + escHtml(c.n_oficio || 'â€”') + '</td>'
+          + '<td>' + escHtml(c.n_empenho || 'â€”') + '</td>'
+          + '<td>' + nf(c.qtde_solicitada) + '</td>'
+          + '<td>' + nf(c.qtde_entregue) + '</td>'
+          + '<td>' + nf(c.qtde_pendente) + '</td>'
+          + '<td class="col-data">' + (c.data_previsao_entrega ? formatarData(c.data_previsao_entrega) : 'â€”') + '</td>'
+          + '</tr>';
+      }).join('')
+      + '</tbody></table></div>';
+  }
+
+  // Quem ficou sem o item.
+  html += '<h4>Pacientes que ficaram sem <span class="texto-apoio">(' + d.rupturas.length + ' ocorrÃªncia(s))</span></h4>'
+    + '<div class="lista-rolavel"><table><thead><tr><th>Data</th><th>Paciente</th><th>Protocolo</th><th>Qtde em falta</th></tr></thead><tbody>'
+    + d.rupturas.map((r) => '<tr>'
+      + '<td class="col-data">' + formatarData(r.data) + '</td>'
+      + '<td>' + escHtml(r.paciente || 'â€”') + '</td>'
+      + '<td>' + escHtml(r.protocolo || 'â€”') + '</td>'
+      + '<td>' + nf(r.quantidade) + '</td>'
+      + '</tr>').join('')
+    + '</tbody></table></div>';
+
+  return html;
+}
+
+function fecharCompraRuptura() {
+  document.getElementById('modalCompraRuptura').hidden = true;
+}
+document.getElementById('botaoFecharCompraRuptura').addEventListener('click', fecharCompraRuptura);
+document.getElementById('modalCompraRuptura').addEventListener('click', (e) => {
+  if (e.target.id === 'modalCompraRuptura') fecharCompraRuptura();
+});
+
+document.querySelectorAll('#situacaoComprasRupturas .chip-faixa').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    situacaoComprasRupturas = btn.dataset.situacao || '';
+    document.querySelectorAll('#situacaoComprasRupturas .chip-faixa')
+      .forEach((b) => b.classList.toggle('ativo', b === btn));
+    desenharComprasRupturas();
+  });
 });

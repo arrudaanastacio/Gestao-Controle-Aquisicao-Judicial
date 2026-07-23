@@ -1703,6 +1703,25 @@ body.tem-faixa-ambiente { padding-top: 30px; }
 .grafico-svg .g-ponto { fill: var(--selo); }
 .grafico-svg .g-valor { font-size: 10px; fill: var(--tinta); }
 
+/* Selo da situação de compra (aba "Andamento de compra" das Rupturas).
+   Três estados, do mais grave ao mais tranquilo. */
+.selo-situacao {
+  display: inline-block; padding: 2px 9px; border-radius: var(--raio-peq);
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.selo-situacao.critico { background: var(--vermelho-fundo); color: var(--vermelho); }
+.selo-situacao.alerta { background: var(--ambar-fundo); color: var(--ambar); }
+.selo-situacao.ok { background: var(--verde-ok-fundo); color: var(--verde-ok); }
+
+/* Tabela com rolagem própria dentro de um modal (listas que podem ser longas:
+   histórico de compra, lista de pacientes). */
+.lista-rolavel { max-height: 300px; overflow-y: auto; margin-bottom: 14px; }
+.lista-rolavel table { width: 100%; }
+.lista-rolavel thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--papel-elevado);
+}
+
 /* Faixa "Recorte: ..." acima dos indicadores — lembra qual filtro está
    desenhado, já que os filtros ficam na outra aba. */
 .recorte-ativo {

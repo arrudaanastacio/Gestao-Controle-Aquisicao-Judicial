@@ -1128,6 +1128,7 @@
           <div class="abas-tela" id="abasRupturas">
             <button type="button" class="chip-faixa ativo" data-aba="lista">📋 Lista de rupturas</button>
             <button type="button" class="chip-faixa" data-aba="indicadores">📊 Indicadores e gráficos</button>
+            <button type="button" class="chip-faixa" data-aba="compras">🛒 Andamento de compra</button>
           </div>
 
           <!-- ABA 1: lista -->
@@ -1173,8 +1174,43 @@
               <div id="graficoTopRupturas"></div>
             </div>
           </div>
+
+          <!-- ABA 3: andamento de compra dos itens que romperam -->
+          <div id="abaRupturasCompras" hidden>
+            <div class="grade-resumo" id="resumoComprasRupturas"></div>
+            <div class="barra-filtros" style="margin-bottom:12px;">
+              <span style="font-size:13px; color:var(--cinza-texto);">Mostrar:</span>
+              <div class="abas-tela" id="situacaoComprasRupturas" style="margin:0;">
+                <button type="button" class="chip-faixa ativo" data-situacao="">Todos</button>
+                <button type="button" class="chip-faixa" data-situacao="nunca">Nunca comprado</button>
+                <button type="button" class="chip-faixa" data-situacao="semAberta">Sem compra em aberto</button>
+                <button type="button" class="chip-faixa" data-situacao="aberta">Compra em andamento</button>
+              </div>
+            </div>
+            <div class="tabela-wrap">
+              <div class="tabela-rolavel-x">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Medicamento</th>
+                      <th>Código do Item</th>
+                      <th>Categoria</th>
+                      <th>Rupturas</th>
+                      <th>Pacientes</th>
+                      <th>Situação da compra</th>
+                      <th>Última compra</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="corpoComprasRupturas"></tbody>
+                </table>
+              </div>
+              <div class="estado-vazio" id="estadoVazioComprasRupturas" hidden>Nenhum item nesta situação.</div>
+            </div>
+          </div>
         </div>
       </section>
+
 
       <section id="paginaValidades" hidden>
         <div class="cabecalho-pagina">
@@ -1998,6 +2034,18 @@
       <div id="conteudoModalReserva"></div>
       <div class="acoes-modal">
         <button type="button" class="botao-secundario" id="botaoFecharModalReserva">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Andamento de compra de um item que rompeu (aba 3 de Rupturas) -->
+  <div class="fundo-modal" id="modalCompraRuptura" hidden>
+    <div class="modal" style="max-width:1000px;">
+      <h3 id="tituloCompraRuptura">Andamento de compra</h3>
+      <p class="descricao-item" id="codigoCompraRuptura"></p>
+      <div id="conteudoCompraRuptura"></div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="botaoFecharCompraRuptura">Fechar</button>
       </div>
     </div>
   </div>

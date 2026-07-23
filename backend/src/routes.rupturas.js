@@ -203,6 +203,163 @@ router.get('/', (req, res) => {
   });
 });
 
+// ---------- Aba "Andamento de compra" ----------
+// Lista os ITENS que romperam no período (uma linha por item, não por
+// ocorrência) e diz, para cada um, se existe compra em andamento.
+//
+// A separação que interessa na prática:
+//   - SEM compra em aberto -> ninguém está resolvendo; é fila de trabalho.
+//   - COM compra em aberto -> o processo existe, o que falta é prazo/entrega.
+const STATUS_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+const EM_ABERTO_SQL = STATUS_ABERTO.map(() => '?').join(',');
+
+// A compra do mesmo item pode estar em QUALQUER um dos dois fluxos: Tenente
+// Pena (solicitacoes) ou Outras Demandas (solicitacoes_od). Olhar só o
+// primeiro marcaria como "nunca comprado" itens que estão sendo comprados
+// pelo outro — conferido no dado real: 10 itens caíam nessa armadilha.
+// A coluna `fluxo` preserva a origem, para a tela poder mostrar de onde vem.
+const COMPRAS_CTE = `
+  WITH compras AS (
+    SELECT codigo_item, status, ano, mes, 'TP' AS fluxo FROM solicitacoes
+    UNION ALL
+    SELECT codigo_item, status, ano, mes, 'OD' AS fluxo FROM solicitacoes_od
+  )`;
+
+// Ordem cronológica do mês, que no banco é o NOME por extenso.
+const ordemMes = (col = 'mes') => `CASE ${col}
+    WHEN 'Janeiro' THEN 1 WHEN 'Fevereiro' THEN 2 WHEN 'Março' THEN 3 WHEN 'Abril' THEN 4
+    WHEN 'Maio' THEN 5 WHEN 'Junho' THEN 6 WHEN 'Julho' THEN 7 WHEN 'Agosto' THEN 8
+    WHEN 'Setembro' THEN 9 WHEN 'Outubro' THEN 10 WHEN 'Novembro' THEN 11 WHEN 'Dezembro' THEN 12
+  END`;
+
+router.get('/compras', (req, res) => {
+  const { inicio, fim } = lerPeriodo(req);
+  const dRel = ultimaData('relatorio_itens');
+  const dAut = ultimaData('autores_itens');
+  const q = {
+    inicio, fim,
+    busca: (req.query.busca || '').trim(),
+    categoria: (req.query.categoria || '').trim(),
+    tipoItem: (req.query.tipoItem || '').trim(),
+    importado: (req.query.importado || '').trim(),
+    outrasDemandas: (req.query.outrasDemandas || '').trim(),
+  };
+  const { onde, params } = montarFiltros(q, dAut);
+
+  const itens = db.prepare(`
+    ${COMPRAS_CTE}
+    SELECT r.codigo_item AS codigoItem,
+           MAX(r.descricao) AS descricao,
+           COUNT(*) AS rupturas,
+           COUNT(DISTINCT r.protocolo_norm) AS pacientes,
+           COALESCE(SUM(r.quantidade), 0) AS quantidade,
+           MAX(r.data) AS ultimaRuptura,
+           MAX(ri.categoria) AS categoria,
+           MAX(ri.tipo_item) AS tipoItem,
+           (SELECT COUNT(*) FROM compras c
+             WHERE c.codigo_item = r.codigo_item
+               AND c.status IN (${EM_ABERTO_SQL})) AS comprasAbertas,
+           (SELECT COUNT(*) FROM compras c
+             WHERE c.codigo_item = r.codigo_item) AS comprasTotal,
+           (SELECT c.status FROM compras c
+             WHERE c.codigo_item = r.codigo_item AND c.status IN (${EM_ABERTO_SQL})
+             ORDER BY c.ano DESC, ${ordemMes('c.mes')} DESC LIMIT 1) AS statusAtual,
+           (SELECT c.fluxo FROM compras c
+             WHERE c.codigo_item = r.codigo_item AND c.status IN (${EM_ABERTO_SQL})
+             ORDER BY c.ano DESC, ${ordemMes('c.mes')} DESC LIMIT 1) AS fluxoAtual,
+           (SELECT c.ano || '/' || c.mes FROM compras c
+             WHERE c.codigo_item = r.codigo_item
+             ORDER BY c.ano DESC, ${ordemMes('c.mes')} DESC LIMIT 1) AS ultimaCompra
+    ${baseConsulta()}
+     WHERE ${onde}
+     GROUP BY r.codigo_item
+     ORDER BY pacientes DESC, rupturas DESC
+  `).all(
+    // ATENÇÃO: os ? são posicionais e as subconsultas do SELECT vêm ANTES do
+    // FROM. Ordem: os três blocos de status, a data do relatorio_itens (JOIN)
+    // e só então os filtros do WHERE.
+    ...STATUS_ABERTO, ...STATUS_ABERTO, ...STATUS_ABERTO, dRel, ...params,
+  );
+
+  // Três situações, porque exigem ações diferentes:
+  //   aberta    -> o processo existe; cobrar prazo/entrega.
+  //   semAberta -> já se comprou antes e hoje não há nada; recomprar.
+  //   nunca     -> nunca passou por compra; pode ser item de outro fluxo
+  //                ou cadastro faltando. Merece conferência antes de agir.
+  const situacaoDe = (i) => (i.comprasAbertas > 0 ? 'aberta' : (i.comprasTotal > 0 ? 'semAberta' : 'nunca'));
+  const resumo = {
+    aberta: { itens: 0, rupturas: 0, pacientes: 0 },
+    semAberta: { itens: 0, rupturas: 0, pacientes: 0 },
+    nunca: { itens: 0, rupturas: 0, pacientes: 0 },
+  };
+  for (const i of itens) {
+    i.situacao = situacaoDe(i);
+    const alvo = resumo[i.situacao];
+    alvo.itens += 1;
+    alvo.rupturas += i.rupturas;
+    alvo.pacientes += i.pacientes;   // soma por item (um paciente pode contar em 2 itens)
+  }
+
+  res.json({ periodo: { inicio, fim }, itens, resumo });
+});
+
+// Detalhe de UM item para o modal: rupturas do período + histórico de compra.
+// O código vai por query string (e não na URL) porque contém barras.
+router.get('/compras/detalhe', (req, res) => {
+  const codigo = req.query.codigo;
+  if (!codigo) return res.status(400).json({ erro: 'Informe o código do item.' });
+  const { inicio, fim } = lerPeriodo(req);
+  const dAut = ultimaData('autores_itens');
+  const dRel = ultimaData('relatorio_itens');
+
+  const item = db.prepare(`
+    SELECT r.codigo_item AS codigoItem, MAX(r.descricao) AS descricao,
+           COUNT(*) AS rupturas, COUNT(DISTINCT r.protocolo_norm) AS pacientes,
+           COALESCE(SUM(r.quantidade), 0) AS quantidade,
+           MAX(ri.categoria) AS categoria, MAX(ri.tipo_item) AS tipoItem,
+           MAX(ri.importado) AS importado, MAX(ri.outras_demandas) AS outrasDemandas
+    ${baseConsulta()}
+     WHERE r.codigo_item = ? AND r.data >= ? AND r.data <= ?
+  `).get(dRel, codigo, inicio, fim);
+
+  const rupturas = db.prepare(`
+    SELECT r.data, r.quantidade, r.protocolo,
+           ${campoAutor('autor', 'paciente')}
+      FROM rupturas_itens r
+     WHERE r.codigo_item = ? AND r.data >= ? AND r.data <= ?
+     ORDER BY r.data DESC
+  `).all(dAut, codigo, inicio, fim);
+
+  // Histórico dos DOIS fluxos numa lista só, marcando a origem.
+  // (solicitacoes_od não tem a coluna quantidade_empenho; vai como NULL para
+  //  as duas metades terem o mesmo formato no UNION.)
+  const compras = db.prepare(`
+    SELECT * FROM (
+      SELECT 'TP' AS fluxo, ano, mes, tipo, modalidade_compra, n_oficio,
+             qtde_solicitada, data_solicitacao, n_empenho, quantidade_empenho,
+             data_previsao_entrega, data_entrega, qtde_entregue, qtde_pendente,
+             status, observacao
+        FROM solicitacoes WHERE codigo_item = ?
+      UNION ALL
+      SELECT 'OD' AS fluxo, ano, mes, tipo, modalidade_compra, n_oficio,
+             qtde_solicitada, data_solicitacao, n_empenho, NULL AS quantidade_empenho,
+             data_previsao_entrega, data_entrega, qtde_entregue, qtde_pendente,
+             status, observacao
+        FROM solicitacoes_od WHERE codigo_item = ?
+    )
+     ORDER BY ano DESC, ${ordemMes()} DESC
+  `).all(codigo, codigo);
+
+  // Situação de estoque na foto mais recente, para dar contexto ao modal.
+  const ultEstoque = ultimaData('estoque_importacoes');
+  const estoque = ultEstoque ? db.prepare(`
+    SELECT SUM(estoque) AS estoque, MAX(autonomia) AS autonomia, SUM(demandas) AS demandas
+      FROM estoque_itens WHERE codigo_item = ? AND data_referencia = ?
+  `).get(codigo, ultEstoque) : null;
+
+  res.json({ item, rupturas, compras, estoque, dataEstoque: ultEstoque, periodo: { inicio, fim } });
+});
+
 // ---------- Exportar CSV ----------
 router.get('/csv', (req, res) => {
   const { inicio, fim } = lerPeriodo(req);
