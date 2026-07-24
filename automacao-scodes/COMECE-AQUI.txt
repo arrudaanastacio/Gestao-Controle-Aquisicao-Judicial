@@ -1,0 +1,48 @@
+============================================================
+ AUTOMACAO SCODES - Baixar "Itens em Estoque" automaticamente
+============================================================
+
+O QUE ISTO FAZ
+--------------
+Abre o SCODES, faz login, responde o cartao de seguranca, entra no
+relatorio "Itens em Estoque", marca TODAS as unidades e exporta o
+Excel para a sua pasta de rede. Tudo sozinho.
+
+
+PRIMEIRA VEZ (so precisa fazer uma vez)
+---------------------------------------
+1) Ter o Python instalado (https://www.python.org/downloads/ ).
+   Na instalacao, marque "Add Python to PATH".
+
+2) Preencher seus dados de acesso:
+   - Abra o arquivo ".env" (ja vem preenchido com seus dados).
+   - Se um dia mudar a senha ou o cartao, edite so o ".env".
+   - Esse arquivo NAO vai para o GitHub (fica so na sua maquina).
+
+3) Duplo clique em  "1 - instalar.bat"  e espere terminar.
+
+
+USO DO DIA A DIA
+----------------
+Duplo clique em  "2 - BAIXAR ESTOQUE.bat".
+Uma janela do Chrome vai abrir e fazer tudo. Ao final, o arquivo
+aparece na pasta de rede (ver caminho no .env), com nome tipo
+  Rel_ItensEmEstoque_DDMMAAAA.xls
+Depois e so importar esse arquivo no sistema Compras Judiciais, como
+voce ja faz hoje.
+
+
+SE DER ALGUM ERRO
+-----------------
+- Confira se o drive G: (rede) esta conectado.
+- Confira usuario/senha/cartao no arquivo ".env".
+- Veja os prints salvos na pasta "logs" (ajudam a entender o erro).
+
+
+SEGURANCA (importante)
+----------------------
+- Usuario, senha e o cartao inteiro ficam no arquivo ".env".
+  NUNCA cole esses dados dentro do baixar_estoque.py nem mande o .env
+  para ninguem. O cartao e o seu 2o fator de seguranca.
+- Este computador deve ficar so com voce. Quem tiver acesso ao .env
+  tem acesso total ao seu SCODES.

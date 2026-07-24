@@ -17,6 +17,10 @@ backend/.env.*
 *.db-journal
 *.db-wal
 *.db-shm
+# Backups do banco (contêm dados reais de pacientes) — NUNCA versionar.
+# Cobre nomes como medicamentos_judicial.db.pre-vX-DATA.bak
+*.bak
+*.db.*
 
 # Exportações/dumps do banco (contêm dados e senhas) — não versionar
 backend/data/export/
@@ -30,6 +34,11 @@ desktop.ini
 backend/data/_vigia_estado.json
 backend/_log.txt
 backend/_err.txt
+
+# Logs de saida/erro do servidor (gerados ao iniciar em homologacao/producao)
+backend/homolog.log
+backend/homolog.log.err
+*.log.err
 
 # Script auxiliar só para a ferramenta de preview do Claude Code
 iniciar-preview.bat

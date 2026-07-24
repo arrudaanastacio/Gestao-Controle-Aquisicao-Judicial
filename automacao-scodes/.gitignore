@@ -1,0 +1,9 @@
+# Segredos (usuario, senha, cartao) — NUNCA versionar
+.env
+
+# Prints de erro (podem conter dados da tela)
+logs/
+
+# Cache do Python
+__pycache__/
+*.pyc
