@@ -6,9 +6,35 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 56 | **Tela "Status dos Serviços"** (só admin): monitora os 11 serviços automáticos — vigias de arquivo, agendadores, integração UDTP e backup. Cartões de indicadores, tabela com busca/ordenação/filtros, painel lateral de detalhes, abas Histórico e Logs (com exportação CSV), faixa de alertas, botão "Executar agora" e atualização automática a cada 30 s. | a definir | 27/07/2026 | Testado em homologação |
+| — | _Nada pendente. Tudo publicado na v1.8.0 em 27/07/2026._ | | | |
 
 ## Publicadas recentemente
+
+### v1.8.0 — 27/07/2026 (item 56)
+
+Tela **Status dos Serviços** (Administração, só admin): monitoramento dos 11
+serviços automáticos que rodam sozinhos — os vigias de arquivo (Estoque TP,
+Autores, Relatório de Itens, Atas, Estoque GSNET/IBL, Distribuição,
+Solicitações TP e OD), os agendadores (integração UDTP e Oracle/SCODES) e o
+backup diário do banco.
+
+| # | Melhoria | Publicado |
+|---|----------|-----------|
+| 56 | Tela "Status dos Serviços": cartões de indicadores, tabela com busca/ordenação/filtros, painel lateral de detalhes, abas Histórico e Logs (com exportação CSV), faixa de alertas, botão "Executar agora" e atualização automática a cada 30 s (só a linha que mudou). | v1.8.0 — 27/07/2026 |
+
+Decisões registradas:
+
+- **Só número real.** Disponibilidade e tempo médio vêm do histórico de
+  execuções; enquanto não houver histórico, a tela mostra "sem histórico" em
+  vez de um valor inventado. Campos de datacenter que não se aplicam a um
+  único PC (servidor, frota de máquinas) ficaram de fora.
+- **Serviço desligado no `.env`** entra como UM alerta agregado, não um por
+  serviço — senão a faixa de alertas afoga o erro que realmente importa.
+- **Vigia de arquivo parado não é defeito** (só roda quando o arquivo muda),
+  então a cobrança de pontualidade vale apenas para os serviços de hora
+  marcada.
+- O histórico de execuções tem **retenção de 180 dias**, limpa na subida do
+  sistema, para a tabela não crescer sem limite.
 
 ### v1.7.0 — 24/07/2026 (itens 35–55)
 
