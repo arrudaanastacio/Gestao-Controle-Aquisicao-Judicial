@@ -1663,6 +1663,8 @@
             <p id="subtituloRelatorioItens">Catálogo completo dos itens</p>
           </div>
           <div style="display:flex; gap:10px; align-items:center;">
+            <button id="botaoImportarClassificacao" class="botao-secundario" type="button" hidden title="Atualiza Dose Certa, Doença Rara, Unidade de Fornecimento e Embalagem de Conversão a partir da aba Status-Siafisico. Não apaga o restante do catálogo.">🏷️ Importar classificação</button>
+            <input type="file" id="arquivoClassificacao" accept=".xlsx,.xlsm,.xls" hidden>
             <button id="botaoAtualizarRelatorioItens" class="botao-secundario" type="button" hidden title="Puxa o catálogo completo direto do Oracle (SCODES). Pode demorar alguns minutos.">🔄 Atualizar via Oracle</button>
             <span id="statusOracleRelatorioItens" class="status-oracle" hidden></span>
           </div>
@@ -1676,6 +1678,9 @@
           <select id="riFiltroTipo"><option value="">Tipo item: todos</option></select>
           <select id="riFiltroImportado"><option value="">Importado: todos</option></select>
           <select id="riFiltroOutrasDemandas"><option value="">Outras demandas: todas</option></select>
+          <select id="riFiltroDoseCerta"><option value="">Dose Certa: todos</option><option value="Sim">Dose Certa: Sim</option><option value="Não">Dose Certa: Não</option></select>
+          <select id="riFiltroDoencaRara"><option value="">Doença Rara: todos</option><option value="Sim">Doença Rara: Sim</option><option value="Não">Doença Rara: Não</option></select>
+          <select id="riFiltroClassificacao"><option value="">Classificação: todas</option><option value="pendentes">Classificação: pendentes (Estoque TP)</option><option value="ok">Classificação: preenchidas</option></select>
           <button id="riLimparFiltros" class="botao-secundario" type="button">Limpar</button>
         </div>
 
@@ -1693,6 +1698,11 @@
                   <th>Importado</th>
                   <th>Tipo Item</th>
                   <th>Outras Demandas</th>
+                  <th>Dose Certa</th>
+                  <th>Doença Rara</th>
+                  <th>Unid. Fornecimento</th>
+                  <th>Emb. Conversão</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody id="corpoTabelaRelItens"></tbody>
@@ -2160,6 +2170,34 @@
       <div id="conteudoModalReserva"></div>
       <div class="acoes-modal">
         <button type="button" class="botao-secundario" id="botaoFecharModalReserva">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Editar classificação permanente do item (Relatório de Itens) -->
+  <div class="fundo-modal" id="modalClassificacao" hidden>
+    <div class="modal" style="max-width:520px;">
+      <h3>Classificação do item</h3>
+      <p class="descricao-item" id="descClassificacao"></p>
+      <p class="descricao-item" id="codigoClassificacao" style="font-family:monospace;"></p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px;">
+        <label>Dose Certa (PDC)
+          <select id="clasDoseCerta"><option value="">—</option><option value="Sim">Sim</option><option value="Não">Não</option></select>
+        </label>
+        <label>Doença Rara
+          <select id="clasDoencaRara"><option value="">—</option><option value="Sim">Sim</option><option value="Não">Não</option></select>
+        </label>
+        <label style="grid-column:1 / -1;">Unidade de Fornecimento
+          <input type="text" id="clasUnidadeForn" placeholder="ex.: Frasco 100 Mililitro">
+        </label>
+        <label style="grid-column:1 / -1;">Embalagem de Conversão
+          <input type="number" id="clasEmbConversao" step="any" min="0" placeholder="ex.: 100 (múltiplo do arredondamento)">
+          <small style="color:var(--texto-suave); display:block; margin-top:4px;">Pesquisada na BEC pela unidade de fornecimento. Usada no Planejamento.</small>
+        </label>
+      </div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="botaoFecharClassificacao">Cancelar</button>
+        <button type="button" class="botao-primario" id="botaoSalvarClassificacao">Salvar</button>
       </div>
     </div>
   </div>

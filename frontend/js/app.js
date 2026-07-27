@@ -168,6 +168,7 @@ async function carregarUsuario() {
     document.getElementById('botaoAtualizarEntradaLotes').hidden = false;
     verificarStatusOracleEntradaLotes();
     document.getElementById('botaoAtualizarRelatorioItens').hidden = false;
+    document.getElementById('botaoImportarClassificacao').hidden = false;
     verificarStatusOracleRelatorioItens();
     document.querySelectorAll('.botao-atualizar-agora').forEach((b) => { b.hidden = false; });
     atualizarBadgeAlertas();
@@ -3833,16 +3834,90 @@ document.getElementById('riFiltroBusca').addEventListener('input', () => {
   clearTimeout(debounceRelItens);
   debounceRelItens = setTimeout(() => { estadoRelItens.pagina = 1; carregarTabelaRelItens(); }, 350);
 });
-['riFiltroCategoria', 'riFiltroTipo', 'riFiltroImportado', 'riFiltroOutrasDemandas'].forEach((id) => {
+['riFiltroCategoria', 'riFiltroTipo', 'riFiltroImportado', 'riFiltroOutrasDemandas', 'riFiltroDoseCerta', 'riFiltroDoencaRara', 'riFiltroClassificacao'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => { estadoRelItens.pagina = 1; carregarTabelaRelItens(); });
 });
 document.getElementById('riLimparFiltros').addEventListener('click', () => {
   document.getElementById('riFiltroBusca').value = '';
-  ['riFiltroCategoria', 'riFiltroTipo', 'riFiltroImportado', 'riFiltroOutrasDemandas'].forEach((id) => { document.getElementById(id).value = ''; });
+  ['riFiltroCategoria', 'riFiltroTipo', 'riFiltroImportado', 'riFiltroOutrasDemandas', 'riFiltroDoseCerta', 'riFiltroDoencaRara', 'riFiltroClassificacao'].forEach((id) => { document.getElementById(id).value = ''; });
   estadoRelItens.pagina = 1; carregarTabelaRelItens();
 });
 document.getElementById('riAnterior').addEventListener('click', () => { if (estadoRelItens.pagina > 1) { estadoRelItens.pagina--; carregarTabelaRelItens(); } });
 document.getElementById('riProximo').addEventListener('click', () => { estadoRelItens.pagina++; carregarTabelaRelItens(); });
+
+// ---------- Importar classificação (aba Status-Siafisico) ----------
+document.getElementById('botaoImportarClassificacao').addEventListener('click', () => {
+  document.getElementById('arquivoClassificacao').click();
+});
+document.getElementById('arquivoClassificacao').addEventListener('change', async (ev) => {
+  const arq = ev.target.files[0];
+  if (!arq) return;
+  const botao = document.getElementById('botaoImportarClassificacao');
+  const rotuloOriginal = botao.textContent;
+  botao.disabled = true; botao.textContent = '⏳ Importando…';
+  try {
+    const fd = new FormData();
+    fd.append('arquivo', arq);
+    const resp = await fetch('/api/relatorio-itens/classificacao/importar', { method: 'POST', body: fd });
+    const dados = await resp.json();
+    if (!resp.ok) throw new Error(dados.erro || 'Falha na importação.');
+    alert(`Classificação importada: ${dados.total} itens (${dados.novos} novos, ${dados.atualizados} atualizados).`);
+    carregarTabelaRelItens();
+  } catch (e) {
+    alert('Erro ao importar classificação: ' + e.message);
+  } finally {
+    botao.disabled = false; botao.textContent = rotuloOriginal;
+    ev.target.value = '';
+  }
+});
+
+// ---------- Editar classificação de um item ----------
+let codigoClassificacaoAtual = null;
+async function abrirModalClassificacao(codigo, descricao) {
+  codigoClassificacaoAtual = codigo;
+  document.getElementById('descClassificacao').textContent = descricao || '';
+  document.getElementById('codigoClassificacao').textContent = codigo;
+  // valores em branco enquanto carrega
+  document.getElementById('clasDoseCerta').value = '';
+  document.getElementById('clasDoencaRara').value = '';
+  document.getElementById('clasUnidadeForn').value = '';
+  document.getElementById('clasEmbConversao').value = '';
+  document.getElementById('modalClassificacao').hidden = false;
+  try {
+    const c = await api(`/relatorio-itens/classificacao/${encodeURIComponent(codigo)}`);
+    document.getElementById('clasDoseCerta').value = c.dose_certa || '';
+    document.getElementById('clasDoencaRara').value = c.doenca_rara || '';
+    document.getElementById('clasUnidadeForn').value = c.unidade_fornecimento || '';
+    document.getElementById('clasEmbConversao').value = c.embalagem_conversao != null ? c.embalagem_conversao : '';
+  } catch (e) { /* mantém em branco */ }
+}
+function fecharModalClassificacao() {
+  document.getElementById('modalClassificacao').hidden = true;
+  codigoClassificacaoAtual = null;
+}
+document.getElementById('botaoFecharClassificacao').addEventListener('click', fecharModalClassificacao);
+document.getElementById('botaoSalvarClassificacao').addEventListener('click', async () => {
+  if (!codigoClassificacaoAtual) return;
+  const botao = document.getElementById('botaoSalvarClassificacao');
+  botao.disabled = true;
+  try {
+    await api(`/relatorio-itens/classificacao/${encodeURIComponent(codigoClassificacaoAtual)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        dose_certa: document.getElementById('clasDoseCerta').value || null,
+        doenca_rara: document.getElementById('clasDoencaRara').value || null,
+        unidade_fornecimento: document.getElementById('clasUnidadeForn').value.trim() || null,
+        embalagem_conversao: document.getElementById('clasEmbConversao').value || null,
+      }),
+    });
+    fecharModalClassificacao();
+    carregarTabelaRelItens();
+  } catch (e) {
+    alert('Erro ao salvar: ' + e.message);
+  } finally {
+    botao.disabled = false;
+  }
+});
 
 async function carregarRelatorioItens() {
   if (!estadoRelItens.filtrosCarregados) {
@@ -3866,7 +3941,8 @@ async function carregarTabelaRelItens() {
   const params = new URLSearchParams({ page: estadoRelItens.pagina, pageSize: estadoRelItens.pageSize });
   const q = document.getElementById('riFiltroBusca').value.trim();
   if (q) params.set('q', q);
-  const mapa = { categoria: 'riFiltroCategoria', tipo_item: 'riFiltroTipo', importado: 'riFiltroImportado', outras_demandas: 'riFiltroOutrasDemandas' };
+  const mapa = { categoria: 'riFiltroCategoria', tipo_item: 'riFiltroTipo', importado: 'riFiltroImportado', outras_demandas: 'riFiltroOutrasDemandas',
+    dose_certa: 'riFiltroDoseCerta', doenca_rara: 'riFiltroDoencaRara', classificacao: 'riFiltroClassificacao' };
   for (const [param, id] of Object.entries(mapa)) { const v = document.getElementById(id).value; if (v) params.set(param, v); }
 
   const dados = await api(`/relatorio-itens?${params.toString()}`);
@@ -3882,6 +3958,12 @@ async function carregarTabelaRelItens() {
     corpo.innerHTML = ''; vazio.hidden = false;
   } else {
     vazio.hidden = true;
+    const ehAdmin = estado.usuario && estado.usuario.perfil === 'admin';
+    const marca = (v) => {
+      if (v === 'Sim') return '<span class="etiqueta-status finalizado">Sim</span>';
+      if (v === 'Não') return '<span class="etiqueta-status">Não</span>';
+      return '—';
+    };
     corpo.innerHTML = dados.itens.map((i) => `
       <tr>
         <td class="col-codigo">${i.codigo || '—'}</td>
@@ -3893,8 +3975,18 @@ async function carregarTabelaRelItens() {
         <td>${i.importado || '—'}</td>
         <td>${i.tipo_item || '—'}</td>
         <td>${i.outras_demandas || '—'}</td>
+        <td>${marca(i.clas_dose_certa)}</td>
+        <td>${marca(i.clas_doenca_rara)}</td>
+        <td>${i.clas_unidade_fornecimento || '—'}</td>
+        <td style="text-align:right;">${i.clas_embalagem_conversao != null ? fmtNumero(i.clas_embalagem_conversao) : '<span style="color:var(--aviso,#b8860b);">pendente</span>'}</td>
+        <td>${ehAdmin
+          ? `<button class="botao-editar" data-codigo="${encodeURIComponent(i.codigo || '')}" data-desc="${(i.descricao_item || '').replace(/"/g, '&quot;')}">Editar</button>`
+          : '—'}</td>
       </tr>
     `).join('');
+    corpo.querySelectorAll('.botao-editar').forEach((btn) => {
+      btn.addEventListener('click', () => abrirModalClassificacao(decodeURIComponent(btn.dataset.codigo), btn.dataset.desc));
+    });
   }
 
   const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);

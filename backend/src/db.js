@@ -757,6 +757,23 @@ CREATE TABLE IF NOT EXISTS relatorio_itens (
 db.exec(`CREATE INDEX IF NOT EXISTS idx_relitens_codigo ON relatorio_itens(codigo);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_relitens_descricao ON relatorio_itens(descricao_item);`);
 
+// Classificação PERMANENTE do item (não é apagada pela reimportação diária do
+// relatório de itens). Dados manuais, mantidos pelo usuário, cruzados por
+// codigo_item: Dose Certa (PDC), Doença Rara, Unidade de Fornecimento e
+// Embalagem de Conversão (o múltiplo usado no arredondamento do Planejamento).
+// Origem: aba "Status-Siafisico" (importação) ou edição manual pela tela.
+db.exec(`
+CREATE TABLE IF NOT EXISTS item_classificacao (
+  codigo_item TEXT PRIMARY KEY,
+  dose_certa TEXT,             -- 'Sim' / 'Não'
+  doenca_rara TEXT,           -- 'Sim' / 'Não'
+  unidade_fornecimento TEXT,
+  embalagem_conversao REAL,
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  usuario_email TEXT
+);
+`);
+
 // Configurações gerais do sistema (ex: limiar de autonomia para alerta de estoque baixo)
 db.exec(`
 CREATE TABLE IF NOT EXISTS configuracoes (
@@ -847,6 +864,132 @@ try {
     "DELETE FROM servico_execucoes WHERE iniciado_em < datetime('now', 'localtime', '-180 days')"
   ).run();
 } catch { /* tabela recém-criada, nada a limpar */ }
+
+// =====================================================================
+// MÓDULO DE PLANEJAMENTO DE COMPRAS
+// =====================================================================
+// O planejamento é um DOCUMENTO próprio do sistema, com histórico e versão,
+// que a reimportação das solicitações (12h/19h, que apaga e refaz o mês) NUNCA
+// toca. Guarda o que o Rafael decidiu, não o espelho da planilha do G:.
+//
+// Fluxo: cada relatório abaixo alimenta o cálculo; o resultado vira um
+// `planejamento` (cabeçalho) com N `planejamento_itens` (linhas), separado por
+// unidade e modalidade de aquisição (ATA / PREGAO / INEX).
+
+// --- Insumos importados (relatórios que o Rafael exporta e salva na rede) ----
+
+// Consumo Médio (LOIS): (Σ consumo 6 meses + Σ ruptura 6 meses) / nº de meses.
+// Guardamos o valor final já calculado pelo relatório + os componentes, para
+// rastreabilidade. Uma foto por data de referência (histórico preservado).
+db.exec(`
+CREATE TABLE IF NOT EXISTS plan_consumo_medio (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT NOT NULL,        -- data de geração do relatório
+  codigo_item TEXT NOT NULL,
+  consumo_medio REAL,                   -- coluna "Consumo Médio" (LOIS)
+  consumo_scodes REAL,                  -- coluna "Consumo SCODES"
+  autonomia_scodes REAL,
+  autonomia_lois REAL,
+  saldo REAL,
+  meses_consolidados INTEGER,           -- parâmetro do topo do relatório (ex.: 6)
+  considera_rupturas INTEGER,           -- 1/0 (parâmetro do topo)
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_plan_consumo_data_item ON plan_consumo_medio(data_referencia, codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_plan_consumo_item ON plan_consumo_medio(codigo_item);`);
+
+// Carta de Troca: quantidade que entra por carta de troca (reduz a compra).
+db.exec(`
+CREATE TABLE IF NOT EXISTS plan_carta_troca (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT NOT NULL,
+  codigo_item TEXT NOT NULL,
+  quantidade_carta REAL,                -- "Quantidade Carta de Troca"
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_plan_carta_data_item ON plan_carta_troca(data_referencia, codigo_item);`);
+
+// Demanda Irregular: itens marcados como irregulares (S/N) e a quantidade.
+db.exec(`
+CREATE TABLE IF NOT EXISTS plan_demanda_irregular (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT NOT NULL,
+  codigo_item TEXT NOT NULL,
+  irregular INTEGER NOT NULL DEFAULT 0, -- 1 quando ORP_IRREGULAR = 'S'
+  quantidade REAL,                      -- coluna "Total"
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_plan_irregular_data_item ON plan_demanda_irregular(data_referencia, codigo_item);`);
+
+// --- Documento do planejamento ------------------------------------------------
+
+// Cabeçalho: uma linha por planejamento gerado. `unidade` = TP | OD | HE.
+// `modalidade` = ATA | PREGAO | INEX. `autonomia_alvo` é o padrão daquele
+// documento (6 para ATA, 9 para Pregão/Inex) — mas cada item pode divergir.
+db.exec(`
+CREATE TABLE IF NOT EXISTS planejamentos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  unidade TEXT NOT NULL DEFAULT 'TP',
+  modalidade TEXT NOT NULL,             -- ATA | PREGAO | INEX
+  titulo TEXT,                          -- ex.: "Planejamento Julho/2026 - Pregão"
+  data_base TEXT NOT NULL,              -- data de referência dos dados usados
+  autonomia_alvo REAL NOT NULL,         -- meses-alvo padrão do documento
+  corte_pouca_demanda INTEGER NOT NULL DEFAULT 3, -- até N demandas = pouca
+  status TEXT NOT NULL DEFAULT 'rascunho', -- rascunho | finalizado | exportado
+  versao INTEGER NOT NULL DEFAULT 1,
+  usuario_id INTEGER,
+  usuario_email TEXT,
+  observacao TEXT,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_planejamentos_unid_mod ON planejamentos(unidade, modalidade, criado_em DESC);`);
+
+// Itens do planejamento: a linha calculada e o que o Rafael ajustou.
+// Guardamos os INSUMOS usados (estoque, consumo, compras em aberto, embalagem,
+// ata) junto com o RESULTADO, para o documento ser auto-explicativo mesmo que
+// os dados de origem mudem depois. `autonomia_sugerida` vem do motor;
+// `autonomia_ajustada` é o que o Rafael digitou (NULL = usa a sugerida).
+db.exec(`
+CREATE TABLE IF NOT EXISTS planejamento_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  planejamento_id INTEGER NOT NULL,
+  codigo_item TEXT NOT NULL,
+  descricao TEXT,
+  siafisico TEXT,
+  catmat TEXT,
+  -- insumos (foto no momento do cálculo)
+  consumo_mensal REAL,
+  estoque REAL,
+  empenhado REAL,
+  solicitado REAL,
+  carta_troca REAL,
+  reservado REAL,
+  embalagem_conversao REAL DEFAULT 1,
+  unidade_fornecimento TEXT,
+  demanda_total REAL,
+  irregular INTEGER DEFAULT 0,
+  ata_numero TEXT,
+  ata_validade TEXT,
+  preco_unitario REAL,
+  -- cobertura já existente (meses) = (estoque+empenhado+solicitado)/consumo
+  autonomia_existente REAL,
+  -- decisão
+  autonomia_sugerida REAL,
+  autonomia_ajustada REAL,              -- NULL = usa a sugerida
+  quantidade_calculada REAL,            -- MROUND(autonomia*consumo*conv, emb)
+  custo_total REAL,
+  comprar INTEGER NOT NULL DEFAULT 1,   -- 1 entra na compra, 0 excluído pelo Rafael
+  observacao TEXT,
+  FOREIGN KEY (planejamento_id) REFERENCES planejamentos(id)
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_plan_itens_plano ON planejamento_itens(planejamento_id);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_plan_itens_item ON planejamento_itens(codigo_item);`);
 
 module.exports = db;
 module.exports.garantirPermissoesPadrao = garantirPermissoesPadrao;
