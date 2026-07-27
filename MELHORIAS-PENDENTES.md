@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | _Nada pendente. Tudo publicado na v1.8.0 em 27/07/2026._ | | | |
+| 57 | **Relatório de Itens — classificação permanente do item**: 4 campos manuais (Dose Certa/PDC, Doença Rara, Unidade de Fornecimento, Embalagem de Conversão) em tabela própria (`item_classificacao`) que a reimportação diária do catálogo não apaga. Importação em massa pela aba "Status-Siafisico" (botão, só admin), edição item a item (modal), 4 colunas novas na tela e filtros (Dose Certa, Doença Rara, Classificação). O filtro "pendentes" cruza o código SCODES do Estoque TP (demanda > 0) para mostrar só os itens de TP que faltam classificar. A Embalagem de Conversão alimenta o futuro módulo de Planejamento. | `6f9d890` | 27/07/2026 | ✅ testado em homologação |
 
 ## Publicadas recentemente
 
