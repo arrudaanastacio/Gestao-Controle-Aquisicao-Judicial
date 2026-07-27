@@ -152,6 +152,9 @@ async function carregarUsuario() {
     document.getElementById('linkUsuarios').hidden = false;
     document.getElementById('linkImportadores').hidden = false;
     document.getElementById('linkAlertas').hidden = false;
+    // Status dos Serviços é exclusiva de admin (a API também exige o perfil).
+    document.getElementById('linkStatusServicos').hidden = false;
+    configurarStatusServicos();
     // "Nova solicitação" fica ESCONDIDO de propósito: as telas de compras
     // TP/OD são espelho da planilha do G: (fonte da verdade). Um cadastro
     // manual aqui seria apagado na próxima importação "refaz o mês" (12h/19h
@@ -475,6 +478,7 @@ const TRILHAS = {
   atas: ['Consultas', 'Atas de Registro de Preço'],
   usuarios: ['Administração', 'Usuários'],
   importadores: ['Administração', 'Importação'],
+  statusServicos: ['Administração', 'Status dos Serviços'],
   elenco: ['Administração', 'Elenco'],
   busca: ['Busca de medicamento'],
 };
@@ -519,6 +523,10 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
   document.getElementById('paginaAlertas').hidden = pagina !== 'alertas';
   document.getElementById('paginaUsuarios').hidden = pagina !== 'usuarios';
+  document.getElementById('paginaStatusServicos').hidden = pagina !== 'statusServicos';
+
+  // O monitoramento só consulta o servidor enquanto a tela está aberta.
+  if (pagina !== 'statusServicos') pararPollingServicos();
 
   try {
     if (pagina === 'painel') await carregarPainel();
@@ -544,6 +552,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'relatorioItens') await carregarRelatorioItens();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
+    if (pagina === 'statusServicos') { await carregarStatusServicos(); iniciarPollingServicos(); }
   } catch (e) {
     if (!window.location.href.includes('login.html')) {
       mostrarErroPagina('pagina' + pagina.charAt(0).toUpperCase() + pagina.slice(1),
@@ -6448,3 +6457,488 @@ document.getElementById('botaoConfirmarEnviarRelatorio').addEventListener('click
     botao.textContent = txt;
   }
 });
+
+
+// ==================== Status dos Serviços (admin) ====================
+// Tela de operação: mostra a saúde dos vigias, agendadores e backup.
+// Atualiza sozinha a cada 30s por polling, trocando SÓ as linhas que
+// mudaram (a página inteira não recarrega).
+
+const estadoServicos = {
+  linhas: [],
+  aba: 'servicos',
+  ordem: { campo: 'nome', desc: false },
+  timer: null,
+  executando: new Set(),   // ids com "Executar agora" em curso
+  gavetaId: null,          // serviço aberto no painel lateral
+  assinaturas: new Map(),  // id -> retrato do estado, para detectar mudança
+};
+
+// As datas dos serviços são gravadas em horário LOCAL (ver registroServicos.js),
+// diferente das tabelas antigas que gravam em UTC. Por isso este formatador
+// próprio: usar formatarDataHora() aqui mostraria 3 horas a mais.
+function dataHoraServico(texto) {
+  if (!texto) return '—';
+  const m = String(texto).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return texto;
+  return `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`;
+}
+
+function duracaoServico(ms) {
+  if (ms === null || ms === undefined) return '—';
+  if (ms < 1000) return `${ms} ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(s < 10 ? 1 : 0)} s`;
+  const min = Math.floor(s / 60);
+  return `${min} min ${Math.round(s % 60)} s`;
+}
+
+function numeroServico(n) {
+  return (n === null || n === undefined) ? '—' : n.toLocaleString('pt-BR');
+}
+
+function seloSituacao(l) {
+  return `<span class="selo-servico ${l.situacao}">${escaparHtml(l.situacaoRotulo)}</span>`;
+}
+
+function escaparHtml(t) {
+  return String(t === null || t === undefined ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+async function carregarStatusServicos({ silencioso = false } = {}) {
+  try {
+    const d = await api('/servicos');
+    estadoServicos.linhas = d.servicos || [];
+    document.getElementById('atualizadoEmServicos').textContent =
+      'Atualizado em: ' + dataHoraServico(d.atualizadoEm);
+    montarCartoesServicos(d.indicadores, d.recursos);
+    montarAlertasServicos(d.alertas || []);
+    montarFiltrosServicos();
+    renderizarTabelaServicos({ animarMudancas: silencioso });
+    atualizarBadgeServicos(d.alertas || []);
+    if (estadoServicos.gavetaId && !silencioso) abrirGavetaServico(estadoServicos.gavetaId);
+  } catch (e) {
+    if (!silencioso) mostrarErroPagina('paginaStatusServicos', 'Erro ao carregar o status: ' + e.message);
+  }
+}
+
+// Marcador no menu lateral: quantos problemas existem agora.
+function atualizarBadgeServicos(alertas) {
+  const badge = document.getElementById('badgeServicos');
+  if (!badge) return;
+  const criticos = alertas.filter((a) => a.nivel === 'critico').length;
+  badge.textContent = criticos;
+  badge.hidden = criticos === 0;
+}
+
+function montarCartoesServicos(ind, rec) {
+  // Disponibilidade e tempo médio só aparecem com histórico real. Sem dado,
+  // mostramos "sem histórico" em vez de inventar um número.
+  const disp = ind.disponibilidade === null
+    ? '<span class="sem-dado">sem histórico</span>'
+    : `<span class="valor">${ind.disponibilidade.toFixed(2).replace('.', ',')}%</span>`;
+  const tempo = ind.tempoMedioMs === null
+    ? '<span class="sem-dado">sem histórico</span>'
+    : `<span class="valor">${duracaoServico(ind.tempoMedioMs)}</span>`;
+
+  const cartoes = [
+    { cls: 'ok', icone: '✅', valor: ind.ativos, rotulo: 'Serviços ativos' },
+    { cls: 'info', icone: '⏳', valor: ind.executando, rotulo: 'Em execução' },
+    { cls: 'aviso', icone: '⚠️', valor: ind.atencao, rotulo: 'Com alerta' },
+    { cls: 'erro', icone: '⛔', valor: ind.erro, rotulo: 'Com erro' },
+    { cls: 'neutro', icone: '⏸️', valor: ind.desabilitados, rotulo: 'Desabilitados' },
+    { cls: 'ok', icone: '📈', html: disp, rotulo: 'Disponibilidade (30 dias)' },
+    { cls: 'info', icone: '⏱️', html: tempo, rotulo: 'Tempo médio de execução' },
+    { cls: 'neutro', icone: '💾', html: `<span class="valor">${rec.memoriaMB} MB</span>`, rotulo: 'Memória do sistema' },
+  ];
+
+  document.getElementById('cartoesServicos').innerHTML = cartoes.map((c) => `
+    <div class="cartao-servico ${c.cls}">
+      <span class="icone">${c.icone}</span>
+      ${c.html || `<span class="valor">${c.valor}</span>`}
+      <span class="rotulo">${c.rotulo}</span>
+    </div>`).join('');
+}
+
+function montarAlertasServicos(alertas) {
+  const caixa = document.getElementById('alertasServicos');
+  if (!alertas.length) { caixa.hidden = true; caixa.innerHTML = ''; return; }
+  caixa.hidden = false;
+  caixa.innerHTML = alertas.map((a) => `
+    <div class="alerta-servico ${a.nivel}">
+      <span class="marca">${a.nivel === 'critico' ? '🔴' : '🟠'}</span>
+      <span>${escaparHtml(a.texto)}</span>
+      <button type="button" data-ver-servico="${a.servico}">Ver detalhes</button>
+    </div>`).join('');
+}
+
+function montarFiltrosServicos() {
+  const selSit = document.getElementById('filtroSituacaoServicos');
+  const selCat = document.getElementById('filtroCategoriaServicos');
+  const selHist = document.getElementById('filtroServicoHistorico');
+  if (selSit.options.length <= 1) {
+    const situacoes = [...new Set(estadoServicos.linhas.map((l) => l.situacaoRotulo))].sort();
+    situacoes.forEach((s) => selSit.add(new Option('Status: ' + s, s)));
+    const cats = [...new Set(estadoServicos.linhas.map((l) => l.categoria))].sort();
+    cats.forEach((c) => selCat.add(new Option('Categoria: ' + c, c)));
+    estadoServicos.linhas.forEach((l) => selHist.add(new Option(l.nome, l.id)));
+  }
+}
+
+function servicosFiltrados() {
+  const busca = (document.getElementById('filtroBuscaServicos').value || '').trim().toLowerCase();
+  const sit = document.getElementById('filtroSituacaoServicos').value;
+  const cat = document.getElementById('filtroCategoriaServicos').value;
+  let lista = estadoServicos.linhas.filter((l) => {
+    if (sit && l.situacaoRotulo !== sit) return false;
+    if (cat && l.categoria !== cat) return false;
+    if (busca && !((l.nome + ' ' + l.descricao).toLowerCase().includes(busca))) return false;
+    return true;
+  });
+  const { campo, desc } = estadoServicos.ordem;
+  lista = lista.slice().sort((a, b) => {
+    const va = a[campo], vb = b[campo];
+    if (va === null || va === undefined) return 1;   // vazios sempre no fim
+    if (vb === null || vb === undefined) return -1;
+    const r = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'pt-BR');
+    return desc ? -r : r;
+  });
+  return lista;
+}
+
+// Retrato do que é visível na linha. Se mudar entre dois polls, a linha pisca.
+function assinaturaLinha(l) {
+  return [l.situacao, l.ultimaExecucao, l.ultimaMensagem, l.ultimosRegistros, l.ultimaDuracaoMs].join('|');
+}
+
+function renderizarTabelaServicos({ animarMudancas = false } = {}) {
+  const lista = servicosFiltrados();
+  const corpo = document.getElementById('corpoTabelaServicos');
+  document.getElementById('estadoVazioServicos').hidden = lista.length > 0;
+
+  corpo.innerHTML = lista.map((l) => {
+    const rodando = estadoServicos.executando.has(l.id);
+    const mudou = animarMudancas && estadoServicos.assinaturas.has(l.id)
+      && estadoServicos.assinaturas.get(l.id) !== assinaturaLinha(l);
+    return `
+      <tr data-servico="${l.id}" class="${mudou ? 'linha-atualizada' : ''}">
+        <td>
+          <div class="nome-servico">${escaparHtml(l.nome)}</div>
+          <div class="desc-servico">${escaparHtml(l.descricao)}</div>
+        </td>
+        <td>${escaparHtml(l.categoria)}</td>
+        <td>${rodando ? '<span class="selo-servico executando">Executando</span>' : seloSituacao(l)}</td>
+        <td>${dataHoraServico(l.ultimaExecucao)}</td>
+        <td>${dataHoraServico(l.proximaExecucao)}</td>
+        <td class="numero">${duracaoServico(l.ultimaDuracaoMs)}</td>
+        <td class="numero">${numeroServico(l.ultimosRegistros)}</td>
+        <td><div class="msg-servico">${escaparHtml(l.ultimaMensagem || '—')}</div></td>
+        <td>
+          <div class="botoes-acao-servico">
+            <button type="button" class="botao-acao-mini" data-executar="${l.id}"
+              ${rodando || !l.habilitado ? 'disabled' : ''}
+              title="${l.habilitado ? 'Dispara o serviço agora' : 'Serviço desativado no .env'}">
+              ${rodando ? '⏳' : '▶'} Executar
+            </button>
+            <button type="button" class="botao-acao-mini" data-detalhe="${l.id}">📄 Detalhes</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  estadoServicos.assinaturas = new Map(estadoServicos.linhas.map((l) => [l.id, assinaturaLinha(l)]));
+  atualizarSetasOrdem();
+}
+
+function atualizarSetasOrdem() {
+  document.querySelectorAll('#paginaStatusServicos th.ordenavel').forEach((th) => {
+    const ativa = th.dataset.ordem === estadoServicos.ordem.campo;
+    th.querySelector('.seta')?.remove();
+    if (ativa) {
+      const s = document.createElement('span');
+      s.className = 'seta';
+      s.textContent = estadoServicos.ordem.desc ? '▼' : '▲';
+      th.appendChild(s);
+    }
+  });
+}
+
+// --- Executar agora ---
+async function executarServico(id) {
+  const l = estadoServicos.linhas.find((x) => x.id === id);
+  if (!l) return;
+  if (!confirm(`Executar agora "${l.nome}"?\n\nO serviço vai rodar imediatamente, fora do horário programado.`)) return;
+
+  estadoServicos.executando.add(id);
+  renderizarTabelaServicos();
+  try {
+    const r = await api(`/servicos/${encodeURIComponent(id)}/executar`, { method: 'POST' });
+    alert(r.mensagem || 'Execução concluída.');
+  } catch (e) {
+    alert('Falha ao executar: ' + e.message);
+  } finally {
+    estadoServicos.executando.delete(id);
+    await carregarStatusServicos();
+  }
+}
+
+// --- Painel lateral de detalhes ---
+async function abrirGavetaServico(id) {
+  estadoServicos.gavetaId = id;
+  const fundo = document.getElementById('gavetaServico');
+  fundo.hidden = false;
+  const corpo = document.getElementById('gavetaServicoCorpo');
+  corpo.innerHTML = '<p class="gaveta-sub">Carregando…</p>';
+
+  try {
+    const d = await api(`/servicos/${encodeURIComponent(id)}/detalhe`);
+    document.getElementById('gavetaServicoTitulo').textContent = d.nome;
+    document.getElementById('gavetaServicoDescricao').textContent = d.descricao;
+
+    const btnExec = document.getElementById('botaoExecutarDaGaveta');
+    btnExec.hidden = !d.podeExecutar;
+    btnExec.disabled = !d.habilitado || estadoServicos.executando.has(id);
+    btnExec.title = d.habilitado ? '' : 'Serviço desativado no .env';
+
+    const campo = (rot, val, largo) =>
+      `<div class="gaveta-campo ${largo ? 'largo' : ''}"><span class="rotulo">${rot}</span><span class="valor">${val}</span></div>`;
+
+    const disp = d.disponibilidade === null
+      ? '<span style="color:var(--cinza-texto)">sem histórico ainda</span>'
+      : d.disponibilidade.toFixed(2).replace('.', ',') + '%';
+
+    corpo.innerHTML = `
+      <div class="gaveta-secao">
+        <h4>Situação</h4>
+        <div class="gaveta-campos">
+          ${campo('Status atual', seloSituacao(d))}
+          ${campo('Categoria', escaparHtml(d.categoria))}
+          ${campo('Agendamento', escaparHtml(d.agendamento), true)}
+          ${campo('Versão do sistema', escaparHtml(d.versao || '—'))}
+          ${campo('Ativo na configuração', d.habilitado ? 'Sim' : 'Não (desligado no .env)')}
+        </div>
+      </div>
+
+      <div class="gaveta-secao">
+        <h4>Última execução</h4>
+        <div class="gaveta-campos">
+          ${campo('Quando', dataHoraServico(d.ultimaExecucao))}
+          ${campo('Resultado', d.ultimoResultado === 'erro' ? '<span style="color:var(--vermelho)">Erro</span>'
+            : d.ultimoResultado ? '<span style="color:var(--verde-ok)">Sucesso</span>' : '—')}
+          ${campo('Duração', duracaoServico(d.ultimaDuracaoMs))}
+          ${campo('Registros processados', numeroServico(d.ultimosRegistros))}
+          ${campo('Origem processada', escaparHtml(d.ultimoArquivo || '—'), true)}
+          ${campo('Disparado por', escaparHtml((d.ultimaExecucaoCompleta && d.ultimaExecucaoCompleta.usuario_email) || 'automático'))}
+          ${campo('Próxima execução', dataHoraServico(d.proximaExecucao))}
+        </div>
+      </div>
+
+      ${d.ultimaMensagem ? `<div class="gaveta-secao">
+        <h4>Mensagem</h4>
+        <div class="bloco-mensagem">${escaparHtml(d.ultimaMensagem)}</div>
+      </div>` : ''}
+
+      ${d.detalheErro ? `<div class="gaveta-secao">
+        <h4>Detalhe técnico do erro</h4>
+        <div class="bloco-stack">${escaparHtml(d.detalheErro)}</div>
+      </div>` : ''}
+
+      <div class="gaveta-secao">
+        <h4>Desempenho (últimos 30 dias)</h4>
+        <div class="gaveta-campos">
+          ${campo('Execuções registradas', numeroServico(d.execucoes30d))}
+          ${campo('Tempo médio', duracaoServico(d.duracaoMediaMs))}
+          ${campo('Disponibilidade', disp)}
+          ${campo('Última verificação', dataHoraServico(d.ultimaVerificacao))}
+        </div>
+      </div>
+
+      <div class="gaveta-secao">
+        <h4>Recursos do sistema</h4>
+        <div class="gaveta-campos">
+          ${campo('Memória em uso', d.recursos.memoriaMB + ' MB')}
+          ${campo('CPU (desde a última leitura)', d.recursos.cpuPercent + '%')}
+          ${campo('Sistema no ar há', duracaoServico(d.recursos.uptimeSegundos * 1000))}
+        </div>
+        <p class="gaveta-sub" style="margin-top:8px">
+          Estes números são do sistema inteiro (um único processo), não de cada serviço isoladamente.
+        </p>
+      </div>`;
+  } catch (e) {
+    corpo.innerHTML = `<p style="color:var(--vermelho)">Erro ao carregar: ${escaparHtml(e.message)}</p>`;
+  }
+}
+
+function fecharGavetaServico() {
+  document.getElementById('gavetaServico').hidden = true;
+  estadoServicos.gavetaId = null;
+}
+
+// --- Aba Histórico ---
+async function carregarHistoricoServicos() {
+  const servico = document.getElementById('filtroServicoHistorico').value;
+  const de = document.getElementById('filtroInicioHistorico').value;
+  const ate = document.getElementById('filtroFimHistorico').value;
+  const p = new URLSearchParams();
+  if (de) p.set('de', de);
+  if (ate) p.set('ate', ate);
+  const caminho = servico
+    ? `/servicos/${encodeURIComponent(servico)}/historico?${p}`
+    : `/servicos/logs?${p}`;
+  try {
+    const d = await api(caminho);
+    const linhas = d.linhas || [];
+    const nomes = Object.fromEntries(estadoServicos.linhas.map((l) => [l.id, l.nome]));
+    document.getElementById('estadoVazioHistoricoServicos').hidden = linhas.length > 0;
+    document.getElementById('corpoTabelaHistoricoServicos').innerHTML = linhas.map((l) => `
+      <tr>
+        <td>${dataHoraServico(l.iniciado_em)}</td>
+        <td>${escaparHtml(l.servicoNome || nomes[l.servico] || l.servico)}</td>
+        <td>${l.resultado === 'erro'
+          ? '<span class="selo-servico erro">Erro</span>'
+          : '<span class="selo-servico ativo">Sucesso</span>'}</td>
+        <td class="numero">${duracaoServico(l.duracao_ms)}</td>
+        <td class="numero">${numeroServico(l.registros)}</td>
+        <td>${l.origem === 'manual' ? 'Manual' : 'Automático'}</td>
+        <td>${escaparHtml(l.usuario_email || '—')}</td>
+        <td><div class="msg-servico">${escaparHtml(l.mensagem || '—')}</div></td>
+      </tr>`).join('');
+  } catch (e) {
+    alert('Erro ao carregar o histórico: ' + e.message);
+  }
+}
+
+// --- Aba Logs ---
+function parametrosLogs() {
+  const p = new URLSearchParams();
+  const busca = document.getElementById('filtroBuscaLogs').value.trim();
+  const nivel = document.getElementById('filtroNivelLogs').value;
+  const de = document.getElementById('filtroInicioLogs').value;
+  const ate = document.getElementById('filtroFimLogs').value;
+  if (busca) p.set('busca', busca);
+  if (nivel) p.set('nivel', nivel);
+  if (de) p.set('de', de);
+  if (ate) p.set('ate', ate);
+  return p;
+}
+
+async function carregarLogsServicos() {
+  try {
+    const d = await api('/servicos/logs?' + parametrosLogs());
+    const linhas = d.linhas || [];
+    document.getElementById('estadoVazioLogsServicos').hidden = linhas.length > 0;
+    document.getElementById('corpoTabelaLogsServicos').innerHTML = linhas.map((l) => `
+      <tr>
+        <td style="white-space:nowrap">${dataHoraServico(l.iniciado_em)}</td>
+        <td><span class="nivel-log ${escaparHtml(l.nivel)}">${escaparHtml(l.nivel)}</span></td>
+        <td>${escaparHtml(l.servicoNome || l.servico)}</td>
+        <td>${escaparHtml(l.mensagem || '—')}</td>
+      </tr>`).join('');
+  } catch (e) {
+    alert('Erro ao carregar os logs: ' + e.message);
+  }
+}
+
+// --- Abas ---
+function trocarAbaServicos(aba) {
+  estadoServicos.aba = aba;
+  document.querySelectorAll('#abasServicos .chip-faixa')
+    .forEach((b) => b.classList.toggle('ativo', b.dataset.aba === aba));
+  document.getElementById('abaServicosLista').hidden = aba !== 'servicos';
+  document.getElementById('abaServicosHistorico').hidden = aba !== 'historico';
+  document.getElementById('abaServicosLogs').hidden = aba !== 'logs';
+  if (aba === 'historico') carregarHistoricoServicos();
+  if (aba === 'logs') carregarLogsServicos();
+}
+
+// --- Polling de 30s: só roda enquanto a tela está aberta e visível ---
+function iniciarPollingServicos() {
+  pararPollingServicos();
+  estadoServicos.timer = setInterval(() => {
+    // Aba do navegador em segundo plano não precisa consultar o servidor.
+    if (document.hidden) return;
+    if (estadoServicos.aba === 'servicos') carregarStatusServicos({ silencioso: true });
+  }, 30000);
+}
+function pararPollingServicos() {
+  if (estadoServicos.timer) { clearInterval(estadoServicos.timer); estadoServicos.timer = null; }
+}
+
+function configurarStatusServicos() {
+  const secao = document.getElementById('paginaStatusServicos');
+  if (!secao) return;
+
+  document.getElementById('botaoAtualizarServicos')
+    .addEventListener('click', () => carregarStatusServicos());
+
+  document.getElementById('abasServicos').addEventListener('click', (ev) => {
+    const b = ev.target.closest('.chip-faixa');
+    if (b) trocarAbaServicos(b.dataset.aba);
+  });
+
+  // Filtros da lista: refazem só a tabela, sem ir ao servidor.
+  ['filtroBuscaServicos', 'filtroSituacaoServicos', 'filtroCategoriaServicos'].forEach((id) => {
+    const el = document.getElementById(id);
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => renderizarTabelaServicos());
+  });
+  document.getElementById('botaoLimparFiltrosServicos').addEventListener('click', () => {
+    document.getElementById('filtroBuscaServicos').value = '';
+    document.getElementById('filtroSituacaoServicos').value = '';
+    document.getElementById('filtroCategoriaServicos').value = '';
+    renderizarTabelaServicos();
+  });
+
+  secao.querySelectorAll('th.ordenavel').forEach((th) => {
+    th.addEventListener('click', () => {
+      const campo = th.dataset.ordem;
+      const o = estadoServicos.ordem;
+      o.desc = o.campo === campo ? !o.desc : false;
+      o.campo = campo;
+      renderizarTabelaServicos();
+    });
+  });
+
+  document.getElementById('corpoTabelaServicos').addEventListener('click', (ev) => {
+    const exec = ev.target.closest('[data-executar]');
+    if (exec) { executarServico(exec.dataset.executar); return; }
+    const det = ev.target.closest('[data-detalhe]');
+    if (det) abrirGavetaServico(det.dataset.detalhe);
+  });
+
+  document.getElementById('alertasServicos').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-ver-servico]');
+    if (b) abrirGavetaServico(b.dataset.verServico);
+  });
+
+  // Gaveta
+  document.getElementById('botaoFecharGaveta').addEventListener('click', fecharGavetaServico);
+  document.getElementById('gavetaServico').addEventListener('click', (ev) => {
+    if (ev.target.id === 'gavetaServico') fecharGavetaServico(); // clique fora fecha
+  });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !document.getElementById('gavetaServico').hidden) fecharGavetaServico();
+  });
+  document.getElementById('botaoExecutarDaGaveta').addEventListener('click', () => {
+    if (estadoServicos.gavetaId) executarServico(estadoServicos.gavetaId);
+  });
+  document.getElementById('botaoHistoricoDoServico').addEventListener('click', () => {
+    const id = estadoServicos.gavetaId;
+    fecharGavetaServico();
+    document.getElementById('filtroServicoHistorico').value = id;
+    trocarAbaServicos('historico');
+  });
+
+  // Histórico e Logs
+  document.getElementById('botaoAplicarHistorico').addEventListener('click', carregarHistoricoServicos);
+  document.getElementById('filtroServicoHistorico').addEventListener('change', carregarHistoricoServicos);
+  document.getElementById('botaoAplicarLogs').addEventListener('click', carregarLogsServicos);
+  document.getElementById('filtroNivelLogs').addEventListener('change', carregarLogsServicos);
+  document.getElementById('filtroBuscaLogs').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') carregarLogsServicos();
+  });
+  document.getElementById('botaoExportarLogs').addEventListener('click', () => {
+    window.location.href = '/api/servicos/logs/csv?' + parametrosLogs();
+  });
+}

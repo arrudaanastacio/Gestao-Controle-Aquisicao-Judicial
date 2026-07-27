@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | _Nada pendente. Tudo publicado na v1.7.0 em 24/07/2026._ | | | |
+| 56 | **Tela "Status dos Serviços"** (só admin): monitora os 11 serviços automáticos — vigias de arquivo, agendadores, integração UDTP e backup. Cartões de indicadores, tabela com busca/ordenação/filtros, painel lateral de detalhes, abas Histórico e Logs (com exportação CSV), faixa de alertas, botão "Executar agora" e atualização automática a cada 30 s. | a definir | 27/07/2026 | Testado em homologação |
 
 ## Publicadas recentemente
 

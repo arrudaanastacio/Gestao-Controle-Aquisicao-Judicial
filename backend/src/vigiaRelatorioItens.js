@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { importarRelatorioItensDeBuffer } = require('./routes.relatorioItens');
 const { lerAssinatura, salvarAssinatura } = require('./vigiaEstado');
+const reg = require('./registroServicos');
 
 const CAMINHO_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\RELATÓRIO DE COMPRAS\\2026\\MEDICAMENTO\\MACRO\\Relatório de Itens.csv';
 const CAMINHO = process.env.CAMINHO_RELATORIO_ITENS_CSV || CAMINHO_PADRAO;
@@ -17,6 +18,7 @@ function assinatura(st) { return `${st.mtimeMs}|${st.size}`; }
 
 function tentarImportar(motivo) {
   if (importando) return;
+  reg.marcarVerificacao('relatorioItens'); // sinal de vida para a tela de Status
   let st;
   try { st = fs.statSync(CAMINHO); } catch { return; }
   const assin = assinatura(st);
@@ -24,6 +26,7 @@ function tentarImportar(motivo) {
   if (st.size < 1000) return;
 
   importando = true;
+  const inicioMs = reg.marcarInicio('relatorioItens');
   try {
     const buffer = fs.readFileSync(CAMINHO);
     const st2 = fs.statSync(CAMINHO);
@@ -40,9 +43,21 @@ function tentarImportar(motivo) {
     ultimaAssinatura = assinatura(st2);
     salvarAssinatura('relatorio_itens', ultimaAssinatura);
     console.log(`[VIGIA RELATÓRIO ITENS] ${motivo}: ${resumo.totalItens} itens (ref ${resumo.dataReferencia}).`);
+    reg.registrarExecucao('relatorioItens', {
+      resultado: 'sucesso',
+      mensagem: `${resumo.totalItens} itens importados (referência ${resumo.dataReferencia}).`,
+      registros: resumo.totalItens,
+      arquivo: path.basename(CAMINHO),
+      inicioMs,
+    });
   } catch (e) {
     console.error('[VIGIA RELATÓRIO ITENS] Falha ao importar:', e.message);
+    reg.registrarExecucao('relatorioItens', {
+      resultado: 'erro', mensagem: e.message, detalhe: e.stack,
+      arquivo: path.basename(CAMINHO), inicioMs,
+    });
   } finally {
+    reg.marcarFim('relatorioItens');
     importando = false;
   }
 }
@@ -58,4 +73,10 @@ function iniciarVigiaRelatorioItens() {
   tentarImportar('Verificação ao iniciar');
 }
 
-module.exports = { iniciarVigiaRelatorioItens };
+// "Executar agora" da tela de Status dos Serviços.
+function executarAgora() {
+  ultimaAssinatura = null;
+  tentarImportar('Execução manual');
+}
+
+module.exports = { iniciarVigiaRelatorioItens, executarAgora };

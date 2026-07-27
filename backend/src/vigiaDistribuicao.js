@@ -7,6 +7,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { lerAssinatura, salvarAssinatura } = require('./vigiaEstado');
+const reg = require('./registroServicos');
 
 const PASTA_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\GRADES DISTRIBUIÇÕES\\2026\\BANCO DE DADOS\\RELATÓRIOS';
 const PASTA = process.env.CAMINHO_DISTRIBUICAO || PASTA_PADRAO;
@@ -47,10 +48,12 @@ function assinaturaConjunta() {
 
 function tentarImportar(motivo) {
   if (importando) return;
+  reg.marcarVerificacao('distribuicao'); // sinal de vida para a tela de Status
   const assin = assinaturaConjunta();
   if (!assin || assin === ultimaAssinatura) return;
 
   importando = true;
+  const inicioMs = reg.marcarInicio('distribuicao');
   try {
     const bufExtrato = fs.readFileSync(CAMINHO_EXTRATO);
     const bufStatus = fs.readFileSync(CAMINHO_STATUS_FATURA);
@@ -101,9 +104,22 @@ function tentarImportar(motivo) {
     salvarAssinatura('distribuicao', ultimaAssinatura);
     const textoHE = resumoHE ? `, Hospital Escola ${resumoHE.totalItens} itens/${resumoHE.totalUnidades} unidades` : '';
     console.log(`[VIGIA DISTRIBUIÇÃO] ${motivo}: Extrato ${resumoExtrato.totalLinhas} linhas, Status Fatura ${resumoStatus.totalLinhas} linhas, Elegíveis ${resumoElegiveis.totalLinhas} linhas, Conversão OD ${resumoConversaoOD.totalLinhas} linhas, Locais ${resumoLocais.totalLinhas} linhas${textoHE}.`);
+    reg.registrarExecucao('distribuicao', {
+      resultado: 'sucesso',
+      mensagem: `Extrato ${resumoExtrato.totalLinhas}, Status Fatura ${resumoStatus.totalLinhas}, Elegíveis ${resumoElegiveis.totalLinhas}, Conversão OD ${resumoConversaoOD.totalLinhas}, Locais ${resumoLocais.totalLinhas} linhas${textoHE}.`,
+      registros: resumoExtrato.totalLinhas + resumoStatus.totalLinhas + resumoElegiveis.totalLinhas
+        + resumoConversaoOD.totalLinhas + resumoLocais.totalLinhas,
+      arquivo: 'Distribuição (planilhas 1, 2, 6, 7, 8, 10)',
+      inicioMs,
+    });
   } catch (e) {
     console.error('[VIGIA DISTRIBUIÇÃO] Falha ao importar:', e.message);
+    reg.registrarExecucao('distribuicao', {
+      resultado: 'erro', mensagem: e.message, detalhe: e.stack,
+      arquivo: 'Distribuição (planilhas 1, 2, 6, 7, 8, 10)', inicioMs,
+    });
   } finally {
+    reg.marcarFim('distribuicao');
     importando = false;
   }
 }
@@ -121,4 +137,10 @@ function iniciarVigiaDistribuicao() {
   tentarImportar('Verificação ao iniciar');
 }
 
-module.exports = { iniciarVigiaDistribuicao };
+// "Executar agora" da tela de Status dos Serviços.
+function executarAgora() {
+  ultimaAssinatura = null;
+  tentarImportar('Execução manual');
+}
+
+module.exports = { iniciarVigiaDistribuicao, executarAgora };

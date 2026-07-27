@@ -6,6 +6,7 @@
 const fs = require('node:fs');
 const { lerAssinatura, salvarAssinatura } = require('./vigiaEstado');
 const { agendarDiariamente } = require('./agendadorUtil');
+const reg = require('./registroServicos');
 
 const CAMINHO_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\RELATÓRIO DE COMPRAS\\2026\\MEDICAMENTO\\RELATÓRIO DE COMPRAS TENENTE PENA - Macro.xlsm';
 const CAMINHO = process.env.CAMINHO_SOLICITACOES || CAMINHO_PADRAO;
@@ -22,9 +23,15 @@ function assinaturaArquivo() {
 }
 
 function tentarImportar(motivo) {
+  reg.marcarVerificacao('solicitacoesTP'); // sinal de vida para a tela de Status
   const assin = assinaturaArquivo();
   if (!assin) {
     console.log('[VIGIA SOLICITAÇÕES] Arquivo não encontrado em', CAMINHO);
+    reg.registrarExecucao('solicitacoesTP', {
+      resultado: 'erro',
+      nivel: 'WARNING',
+      mensagem: `Arquivo não encontrado na pasta de rede: ${CAMINHO}`,
+    });
     return;
   }
   if (assin === ultimaAssinatura) {
@@ -32,6 +39,7 @@ function tentarImportar(motivo) {
     return;
   }
 
+  const inicioMs = reg.marcarInicio('solicitacoesTP');
   try {
     const buffer = fs.readFileSync(CAMINHO);
     if (assinaturaArquivo() !== assin) return; // arquivo ainda sendo gravado
@@ -41,8 +49,24 @@ function tentarImportar(motivo) {
     ultimaAssinatura = assin;
     salvarAssinatura('solicitacoes', ultimaAssinatura);
     console.log(`[VIGIA SOLICITAÇÕES] ${motivo}: ${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados, ${resumo.itensInexistentes} itens não encontrados no elenco.`);
+    reg.registrarExecucao('solicitacoesTP', {
+      resultado: 'sucesso',
+      // Item fora do elenco não quebra a importação, mas merece destaque —
+      // vira aviso amarelo na tela em vez de passar despercebido.
+      nivel: resumo.itensInexistentes > 0 ? 'WARNING' : 'INFO',
+      mensagem: `${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados, ${resumo.itensInexistentes} itens não encontrados no elenco.`,
+      registros: resumo.inseridos + resumo.atualizados,
+      arquivo: 'RELATÓRIO DE COMPRAS TENENTE PENA - Macro.xlsm',
+      inicioMs,
+    });
   } catch (e) {
     console.error('[VIGIA SOLICITAÇÕES] Falha ao importar:', e.message);
+    reg.registrarExecucao('solicitacoesTP', {
+      resultado: 'erro', mensagem: e.message, detalhe: e.stack,
+      arquivo: 'RELATÓRIO DE COMPRAS TENENTE PENA - Macro.xlsm', inicioMs,
+    });
+  } finally {
+    reg.marcarFim('solicitacoesTP');
   }
 }
 
@@ -68,6 +92,15 @@ function forcarImportacaoSolicitacoes(usuarioEmail, usuarioId = null) {
   ultimaAssinatura = assin;
   salvarAssinatura('solicitacoes', ultimaAssinatura);
   console.log(`[VIGIA SOLICITAÇÕES] Atualização manual por ${usuarioEmail}: ${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados.`);
+  reg.registrarExecucao('solicitacoesTP', {
+    resultado: 'sucesso',
+    nivel: resumo.itensInexistentes > 0 ? 'WARNING' : 'INFO',
+    mensagem: `${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados, ${resumo.itensInexistentes} itens não encontrados no elenco.`,
+    registros: resumo.inseridos + resumo.atualizados,
+    arquivo: 'RELATÓRIO DE COMPRAS TENENTE PENA - Macro.xlsm',
+    origem: 'manual',
+    usuarioEmail,
+  });
   return resumo;
 }
 

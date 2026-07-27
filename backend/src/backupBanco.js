@@ -35,6 +35,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 const { agendarDiariamente } = require('./agendadorUtil');
+const reg = require('./registroServicos');
 
 const PASTA_BACKUPS = path.join(__dirname, '..', 'data', 'backups');
 const PASTA_MENSAIS = path.join(PASTA_BACKUPS, 'mensais');
@@ -140,27 +141,52 @@ function garantirBackupMensal(origem, manter) {
 
 // Roda o backup do dia. Se reimportar no mesmo dia, sobrescreve o arquivo
 // de hoje (não acumula vários backups no mesmo dia).
-function rodarBackup() {
-  fs.mkdirSync(PASTA_BACKUPS, { recursive: true });
-  const destino = path.join(PASTA_BACKUPS, nomeArquivoHoje());
-  if (fs.existsSync(destino)) fs.unlinkSync(destino);
+function rodarBackup(opcoesRegistro = {}) {
+  const inicioMs = reg.marcarInicio('backup');
+  try {
+    fs.mkdirSync(PASTA_BACKUPS, { recursive: true });
+    const destino = path.join(PASTA_BACKUPS, nomeArquivoHoje());
+    if (fs.existsSync(destino)) fs.unlinkSync(destino);
 
-  const t0 = Date.now();
-  // VACUUM INTO não aceita parâmetro (?) para o caminho — o valor é
-  // controlado pelo próprio sistema (nunca vem de entrada do usuário),
-  // então só escapamos aspas simples por segurança.
-  db.exec(`VACUUM INTO '${destino.replace(/'/g, "''")}'`);
-  const segundos = Math.round((Date.now() - t0) / 1000);
-  const tamanhoMB = (fs.statSync(destino).size / (1024 * 1024)).toFixed(1);
-  console.log(`[BACKUP BANCO] Backup salvo: ${nomeArquivoHoje()} (${tamanhoMB} MB, ${segundos}s).`);
+    const t0 = Date.now();
+    // VACUUM INTO não aceita parâmetro (?) para o caminho — o valor é
+    // controlado pelo próprio sistema (nunca vem de entrada do usuário),
+    // então só escapamos aspas simples por segurança.
+    db.exec(`VACUUM INTO '${destino.replace(/'/g, "''")}'`);
+    const segundos = Math.round((Date.now() - t0) / 1000);
+    const tamanhoMB = (fs.statSync(destino).size / (1024 * 1024)).toFixed(1);
+    console.log(`[BACKUP BANCO] Backup salvo: ${nomeArquivoHoje()} (${tamanhoMB} MB, ${segundos}s).`);
 
-  const retencaoDias = Math.max(1, parseInt(process.env.BACKUP_RETENCAO_DIAS, 10) || 14);
-  limparBackupsAntigos(PASTA_BACKUPS, retencaoDias);
-  copiarParaDrive(destino, nomeArquivoHoje(), retencaoDias);
+    const retencaoDias = Math.max(1, parseInt(process.env.BACKUP_RETENCAO_DIAS, 10) || 14);
+    limparBackupsAntigos(PASTA_BACKUPS, retencaoDias);
+    copiarParaDrive(destino, nomeArquivoHoje(), retencaoDias);
 
-  // Backup mensal de longo prazo (1 por mês, mantém os últimos N meses).
-  const mensalManter = Math.max(1, parseInt(process.env.BACKUP_MENSAL_MANTER, 10) || 12);
-  garantirBackupMensal(destino, mensalManter);
+    // Backup mensal de longo prazo (1 por mês, mantém os últimos N meses).
+    const mensalManter = Math.max(1, parseInt(process.env.BACKUP_MENSAL_MANTER, 10) || 12);
+    garantirBackupMensal(destino, mensalManter);
+
+    reg.registrarExecucao('backup', {
+      resultado: 'sucesso',
+      mensagem: `Backup salvo: ${nomeArquivoHoje()} (${tamanhoMB} MB, ${segundos}s). Retenção de ${retencaoDias} dias aplicada.`,
+      arquivo: nomeArquivoHoje(),
+      inicioMs,
+      ...opcoesRegistro,
+    });
+  } catch (e) {
+    console.error('[BACKUP BANCO] Falha ao gerar backup:', e.message);
+    reg.registrarExecucao('backup', {
+      resultado: 'erro',
+      // Backup é a última linha de defesa dos dados: falha aqui é crítica.
+      nivel: 'CRITICAL',
+      mensagem: e.message,
+      detalhe: e.stack,
+      inicioMs,
+      ...opcoesRegistro,
+    });
+    throw e;
+  } finally {
+    reg.marcarFim('backup');
+  }
 }
 
 function iniciarBackupDiario() {

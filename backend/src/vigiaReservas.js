@@ -16,6 +16,7 @@ const { credenciaisConfiguradas } = require('./udtpApi');
 const { importarReservasMaisRecente } = require('./reservasUdtp');
 const { importarEstoqueMaisRecente } = require('./estoqueUdtp');
 const { importarUltimos30Dias } = require('./rupturasUdtp');
+const reg = require('./registroServicos');
 
 // Já rodou uma importação há pouco? Evita repuxar a API a cada reinício do
 // sistema. Olhamos QUANDO a importação rodou (criado_em), e não a data de
@@ -42,11 +43,25 @@ function importouRecentemente() {
   }
 }
 
-async function importarHoje() {
+async function importarHoje(opcoesRegistro = {}) {
   if (!credenciaisConfiguradas()) {
     console.log('[VIGIA RESERVAS] Pulado: credenciais da API UDTP não configuradas no .env.');
+    reg.registrarExecucao('reservasUdtp', {
+      resultado: 'erro',
+      nivel: 'WARNING',
+      mensagem: 'Credenciais da API UDTP não configuradas no .env — importação pulada.',
+      ...opcoesRegistro,
+    });
     return;
   }
+
+  // As três fontes são independentes: uma falhar não impede as outras. Por isso
+  // acumulamos o resultado de cada uma e gravamos UMA execução no fim, com o
+  // panorama completo — é o que o administrador precisa ver de relance.
+  const inicioMs = reg.marcarInicio('reservasUdtp');
+  const partes = [];
+  const falhas = [];
+  let totalRegistros = 0;
   // A API só publica o dia depois que ele fecha (consultar "hoje" devolve
   // 404), então importamos a data mais recente que existir.
   // São duas fontes: reservas (quantidade separada por paciente) e estoque
@@ -60,8 +75,11 @@ async function importarHoje() {
     if (r.camposNaoMapeados.length) {
       console.warn('[VIGIA RESERVAS] Campos novos na API de reservas:', r.camposNaoMapeados.join(', '));
     }
+    partes.push(`Reservas: ${r.totalRegistros}`);
+    totalRegistros += r.totalRegistros;
   } catch (e) {
     console.error(`[VIGIA RESERVAS] Falha ao importar reservas [${e.codigo || 'ERRO'}]:`, e.message);
+    falhas.push(`Reservas: ${e.message}`);
   }
 
   try {
@@ -70,8 +88,11 @@ async function importarHoje() {
     if (e2.camposNaoMapeados.length) {
       console.warn('[VIGIA ESTOQUE UDTP] Campos novos na API de estoque:', e2.camposNaoMapeados.join(', '));
     }
+    partes.push(`Estoque por lote: ${e2.totalRegistros}`);
+    totalRegistros += e2.totalRegistros;
   } catch (e) {
     console.error(`[VIGIA ESTOQUE UDTP] Falha ao importar estoque [${e.codigo || 'ERRO'}]:`, e.message);
+    falhas.push(`Estoque por lote: ${e.message}`);
   }
 
   // Rupturas: janela móvel dos últimos 30 dias (a API aceita intervalo).
@@ -81,9 +102,28 @@ async function importarHoje() {
     if (e3.semCodigoItem > 0 || e3.semProtocolo > 0) {
       console.warn(`[VIGIA RUPTURAS] Atenção: ${e3.semCodigoItem} sem código de item, ${e3.semProtocolo} sem protocolo.`);
     }
+    partes.push(`Rupturas: ${e3.totalRegistros}`);
+    totalRegistros += e3.totalRegistros;
   } catch (e) {
     console.error(`[VIGIA RUPTURAS] Falha ao importar rupturas [${e.codigo || 'ERRO'}]:`, e.message);
+    falhas.push(`Rupturas: ${e.message}`);
   }
+
+  reg.marcarFim('reservasUdtp');
+  // Só é "erro" se TODAS as fontes falharam. Se parte funcionou, o serviço
+  // entregou algo — marcamos sucesso com aviso, para não pintar de vermelho
+  // uma sincronização que trouxe a maior parte dos dados.
+  const tudoFalhou = falhas.length === 3;
+  reg.registrarExecucao('reservasUdtp', {
+    resultado: tudoFalhou ? 'erro' : 'sucesso',
+    nivel: tudoFalhou ? 'ERROR' : (falhas.length ? 'WARNING' : 'INFO'),
+    mensagem: [partes.join(' | '), falhas.length ? `FALHAS — ${falhas.join(' | ')}` : '']
+      .filter(Boolean).join('  ||  ') || 'Nenhum dado retornado pela API.',
+    registros: totalRegistros,
+    arquivo: 'API UDTP',
+    inicioMs,
+    ...opcoesRegistro,
+  });
 }
 
 function iniciarVigiaReservas() {

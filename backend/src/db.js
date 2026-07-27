@@ -812,5 +812,41 @@ function garantirPermissoesPadrao() {
 }
 garantirPermissoesPadrao();
 
+// =====================================================================
+// Execuções dos serviços automáticos (vigias, agendadores, backup).
+// Alimenta a tela "Status dos Serviços". Uma linha por execução que de
+// fato FEZ algo (importou/falhou) — as verificações de rotina que não
+// encontram novidade NÃO são gravadas, senão a tabela cresceria ~2.880
+// linhas por dia por vigia sem informação útil.
+// =====================================================================
+db.exec(`
+CREATE TABLE IF NOT EXISTS servico_execucoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  servico TEXT NOT NULL,              -- id do serviço (ver registroServicos.js)
+  iniciado_em TEXT NOT NULL,          -- ISO local
+  finalizado_em TEXT,
+  duracao_ms INTEGER,
+  resultado TEXT NOT NULL,            -- 'sucesso' | 'erro'
+  nivel TEXT NOT NULL DEFAULT 'INFO', -- INFO | WARNING | ERROR | CRITICAL
+  mensagem TEXT,
+  registros INTEGER,                  -- quantidade de linhas processadas
+  arquivo TEXT,                       -- arquivo/origem processada
+  origem TEXT NOT NULL DEFAULT 'automatico', -- 'automatico' | 'manual'
+  usuario_email TEXT,
+  detalhe TEXT                        -- stack trace, quando houver
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_servexec_servico ON servico_execucoes(servico, iniciado_em DESC);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_servexec_data ON servico_execucoes(iniciado_em DESC);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_servexec_nivel ON servico_execucoes(nivel, iniciado_em DESC);`);
+
+// Retenção: mantém 180 dias de histórico de execuções. Roda uma vez na
+// subida do sistema — barato e evita crescimento indefinido da tabela.
+try {
+  db.prepare(
+    "DELETE FROM servico_execucoes WHERE iniciado_em < datetime('now', 'localtime', '-180 days')"
+  ).run();
+} catch { /* tabela recém-criada, nada a limpar */ }
+
 module.exports = db;
 module.exports.garantirPermissoesPadrao = garantirPermissoesPadrao;

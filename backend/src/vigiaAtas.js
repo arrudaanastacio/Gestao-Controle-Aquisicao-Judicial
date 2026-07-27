@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { importarAtasDeBuffer } = require('./routes.atas');
 const { lerAssinatura, salvarAssinatura } = require('./vigiaEstado');
+const reg = require('./registroServicos');
 
 const CAMINHO_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\RELATÓRIO DE COMPRAS\\2026\\MEDICAMENTO\\MACRO\\Atas SISCOA.xls';
 const CAMINHO = process.env.CAMINHO_ATAS_CSV || CAMINHO_PADRAO;
@@ -18,6 +19,7 @@ function assinatura(st) { return `${st.mtimeMs}|${st.size}`; }
 
 function tentarImportar(motivo) {
   if (importando) return;
+  reg.marcarVerificacao('atas'); // sinal de vida para a tela de Status
   let st;
   try { st = fs.statSync(CAMINHO); } catch { return; }
 
@@ -26,6 +28,7 @@ function tentarImportar(motivo) {
   if (st.size < 1000) return;
 
   importando = true;
+  const inicioMs = reg.marcarInicio('atas');
   try {
     const buffer = fs.readFileSync(CAMINHO);
     const st2 = fs.statSync(CAMINHO);
@@ -42,9 +45,21 @@ function tentarImportar(motivo) {
     ultimaAssinatura = assinatura(st2);
     salvarAssinatura('atas', ultimaAssinatura);
     console.log(`[VIGIA ATAS] ${motivo}: ${resumo.totalLinhas} linhas / ${resumo.totalAtas} atas (ref ${resumo.dataReferencia}).`);
+    reg.registrarExecucao('atas', {
+      resultado: 'sucesso',
+      mensagem: `${resumo.totalLinhas} linhas / ${resumo.totalAtas} atas (referência ${resumo.dataReferencia}).`,
+      registros: resumo.totalLinhas,
+      arquivo: path.basename(CAMINHO),
+      inicioMs,
+    });
   } catch (e) {
     console.error('[VIGIA ATAS] Falha ao importar:', e.message);
+    reg.registrarExecucao('atas', {
+      resultado: 'erro', mensagem: e.message, detalhe: e.stack,
+      arquivo: path.basename(CAMINHO), inicioMs,
+    });
   } finally {
+    reg.marcarFim('atas');
     importando = false;
   }
 }
@@ -60,4 +75,10 @@ function iniciarVigiaAtas() {
   tentarImportar('Verificação ao iniciar');
 }
 
-module.exports = { iniciarVigiaAtas };
+// "Executar agora" da tela de Status dos Serviços.
+function executarAgora() {
+  ultimaAssinatura = null;
+  tentarImportar('Execução manual');
+}
+
+module.exports = { iniciarVigiaAtas, executarAgora };

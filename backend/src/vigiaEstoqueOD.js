@@ -6,6 +6,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { lerAssinatura, salvarAssinatura } = require('./vigiaEstado');
+const reg = require('./registroServicos');
 
 // A partir de 2026 os 3 arquivos passaram a ficar juntos na pasta
 // "BANCO DE DADOS\RELATÓRIOS" (mesma pasta do módulo Distribuição), com
@@ -57,10 +58,12 @@ function lerArquivosEstoqueOD() {
 
 function tentarImportar(motivo) {
   if (importando) return;
+  reg.marcarVerificacao('estoqueOD'); // sinal de vida para a tela de Status
   const assin = assinaturaConjunta();
   if (!assin || assin === ultimaAssinatura) return;
 
   importando = true;
+  const inicioMs = reg.marcarInicio('estoqueOD');
   try {
     const arquivos = lerArquivosEstoqueOD();
     if (!arquivos) { importando = false; return; }
@@ -76,9 +79,24 @@ function tentarImportar(motivo) {
     ultimaAssinatura = assin;
     salvarAssinatura('estoque_od', ultimaAssinatura);
     console.log(`[VIGIA ESTOQUE OD] ${motivo}: ${resumo.totalItens} linhas (${resumo.totalDivergente} divergentes, ${resumo.totalSemCorrespondencia} sem correspondência).`);
+    reg.registrarExecucao('estoqueOD', {
+      resultado: 'sucesso',
+      // Itens sem correspondência entre GSNET e IBL indicam mapeamento a
+      // ajustar — vira aviso amarelo em vez de sumir no meio do log.
+      nivel: resumo.totalSemCorrespondencia > 0 ? 'WARNING' : 'INFO',
+      mensagem: `${resumo.totalItens} linhas (${resumo.totalDivergente} divergentes, ${resumo.totalSemCorrespondencia} sem correspondência).`,
+      registros: resumo.totalItens,
+      arquivo: 'Estoque Outras Demandas (GSNET + IBL)',
+      inicioMs,
+    });
   } catch (e) {
     console.error('[VIGIA ESTOQUE OD] Falha ao importar:', e.message);
+    reg.registrarExecucao('estoqueOD', {
+      resultado: 'erro', mensagem: e.message, detalhe: e.stack,
+      arquivo: 'Estoque Outras Demandas (GSNET + IBL)', inicioMs,
+    });
   } finally {
+    reg.marcarFim('estoqueOD');
     importando = false;
   }
 }
@@ -96,4 +114,10 @@ function iniciarVigiaEstoqueOD() {
   tentarImportar('Verificação ao iniciar');
 }
 
-module.exports = { iniciarVigiaEstoqueOD, lerArquivosEstoqueOD };
+// "Executar agora" da tela de Status dos Serviços.
+function executarAgora() {
+  ultimaAssinatura = null;
+  tentarImportar('Execução manual');
+}
+
+module.exports = { iniciarVigiaEstoqueOD, lerArquivosEstoqueOD, executarAgora };

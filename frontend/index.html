@@ -85,6 +85,7 @@
           <p class="nav-grupo-titulo nav-unidade-titulo">⚙️ Administração</p>
           <a href="#" data-pagina="usuarios" id="linkUsuarios" hidden>Usuários</a>
           <a href="#" data-pagina="importadores" id="linkImportadores" hidden>Importação</a>
+          <a href="#" data-pagina="statusServicos" id="linkStatusServicos" hidden>Status dos Serviços <span class="badge-alerta" id="badgeServicos" hidden>0</span></a>
         </div>
       </nav>
       <div class="rodape-lateral">
@@ -1848,6 +1849,119 @@
           </table>
         </div>
       </section>
+
+      <!-- ============ Status dos Serviços (somente admin) ============ -->
+      <section id="paginaStatusServicos" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Status dos Serviços</h2>
+            <p>Monitore em tempo real todos os serviços responsáveis pelo funcionamento do sistema.</p>
+          </div>
+          <div class="acoes-cabecalho">
+            <span class="atualizado-em" id="atualizadoEmServicos">—</span>
+            <button id="botaoAtualizarServicos" class="botao-secundario" type="button" title="Recarrega o status agora">🔄 Atualizar</button>
+          </div>
+        </div>
+
+        <!-- Faixa de alertas: só aparece quando existe problema de verdade -->
+        <div id="alertasServicos" class="faixa-alertas" hidden></div>
+
+        <!-- Cartões de indicadores -->
+        <div class="cartoes-servicos" id="cartoesServicos"></div>
+
+        <div class="abas-tela" id="abasServicos">
+          <button type="button" class="chip-faixa ativo" data-aba="servicos">🧩 Serviços</button>
+          <button type="button" class="chip-faixa" data-aba="historico">🕘 Histórico</button>
+          <button type="button" class="chip-faixa" data-aba="logs">📄 Logs</button>
+        </div>
+
+        <!-- ABA 1: tabela de serviços -->
+        <div id="abaServicosLista">
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaServicos" placeholder="Buscar por nome ou descrição…" style="min-width:260px;">
+            <select id="filtroSituacaoServicos"><option value="">Status: todos</option></select>
+            <select id="filtroCategoriaServicos"><option value="">Categoria: todas</option></select>
+            <button id="botaoLimparFiltrosServicos" class="botao-secundario" type="button">Limpar filtros</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table class="tabela-servicos">
+                <thead>
+                  <tr>
+                    <th class="ordenavel" data-ordem="nome">Serviço</th>
+                    <th class="ordenavel" data-ordem="categoria">Categoria</th>
+                    <th class="ordenavel" data-ordem="situacao">Status</th>
+                    <th class="ordenavel" data-ordem="ultimaExecucao">Última execução</th>
+                    <th class="ordenavel" data-ordem="proximaExecucao">Próxima execução</th>
+                    <th class="ordenavel" data-ordem="ultimaDuracaoMs">Tempo</th>
+                    <th class="ordenavel" data-ordem="ultimosRegistros">Registros</th>
+                    <th>Última mensagem</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaServicos"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioServicos" hidden>Nenhum serviço encontrado com estes filtros.</div>
+          </div>
+        </div>
+
+        <!-- ABA 2: histórico de execuções -->
+        <div id="abaServicosHistorico" hidden>
+          <div class="barra-filtros">
+            <select id="filtroServicoHistorico"><option value="">Serviço: todos</option></select>
+            <label class="rotulo-filtro">De <input type="date" id="filtroInicioHistorico"></label>
+            <label class="rotulo-filtro">até <input type="date" id="filtroFimHistorico"></label>
+            <button id="botaoAplicarHistorico" class="botao-secundario" type="button">Aplicar</button>
+          </div>
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data/Hora</th><th>Serviço</th><th>Resultado</th><th>Tempo</th>
+                    <th>Registros</th><th>Origem</th><th>Usuário</th><th>Mensagem</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaHistoricoServicos"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioHistoricoServicos" hidden>
+              Nenhuma execução registrada neste período.
+            </div>
+          </div>
+        </div>
+
+        <!-- ABA 3: logs -->
+        <div id="abaServicosLogs" hidden>
+          <div class="barra-filtros">
+            <input type="text" id="filtroBuscaLogs" placeholder="Pesquisar no texto da mensagem…" style="min-width:260px;">
+            <select id="filtroNivelLogs">
+              <option value="">Nível: todos</option>
+              <option value="INFO">INFO</option>
+              <option value="WARNING">WARNING</option>
+              <option value="ERROR">ERROR</option>
+              <option value="CRITICAL">CRITICAL</option>
+            </select>
+            <label class="rotulo-filtro">De <input type="date" id="filtroInicioLogs"></label>
+            <label class="rotulo-filtro">até <input type="date" id="filtroFimLogs"></label>
+            <button id="botaoAplicarLogs" class="botao-secundario" type="button">Aplicar</button>
+            <button id="botaoExportarLogs" class="botao-secundario" type="button">⬇ Exportar CSV</button>
+          </div>
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr><th>Data/Hora</th><th>Nível</th><th>Serviço</th><th>Mensagem</th></tr>
+                </thead>
+                <tbody id="corpoTabelaLogsServicos"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioLogsServicos" hidden>Nenhum registro encontrado com estes filtros.</div>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -2159,6 +2273,24 @@
         <button type="button" class="botao-primario" id="botaoGerarRequisicao" hidden>Gerar requisição →</button>
       </div>
     </div>
+  </div>
+
+  <!-- Painel lateral de detalhes do serviço (tela Status dos Serviços) -->
+  <div class="fundo-gaveta" id="gavetaServico" hidden>
+    <aside class="gaveta" role="dialog" aria-modal="true" aria-labelledby="gavetaServicoTitulo">
+      <header class="gaveta-topo">
+        <div>
+          <h3 id="gavetaServicoTitulo">Serviço</h3>
+          <p id="gavetaServicoDescricao" class="gaveta-sub"></p>
+        </div>
+        <button type="button" class="botao-fechar-gaveta" id="botaoFecharGaveta" aria-label="Fechar painel">✕</button>
+      </header>
+      <div class="gaveta-corpo" id="gavetaServicoCorpo"></div>
+      <footer class="gaveta-rodape">
+        <button type="button" class="botao-secundario" id="botaoHistoricoDoServico">🕘 Ver histórico</button>
+        <button type="button" class="botao-primario" id="botaoExecutarDaGaveta">▶ Executar agora</button>
+      </footer>
+    </aside>
   </div>
 
   <script>

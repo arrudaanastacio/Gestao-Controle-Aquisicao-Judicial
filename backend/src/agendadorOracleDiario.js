@@ -17,6 +17,7 @@ const { executarAtualizacaoOracle } = require('./routes.autores');
 const { executarAtualizacaoEntradaLotesOracle } = require('./routes.entradaLotes');
 const { executarAtualizacaoRelatorioItensOracle } = require('./routes.relatorioItens');
 const { agendarDiariamente } = require('./agendadorUtil');
+const reg = require('./registroServicos');
 const db = require('./db');
 
 // A cadeia diária é "ancorada" no Estoque (é a 1ª e a mais importante). Para a
@@ -37,38 +38,50 @@ function estoqueImportouHoje() {
   }
 }
 
-async function rodarCadeiaDiaria() {
+async function rodarCadeiaDiaria(opcoesRegistro = {}) {
+  // As quatro etapas são independentes (uma falhar não interrompe a cadeia).
+  // Acumulamos o resultado de cada uma e gravamos UMA execução no fim, para a
+  // tela de Status mostrar o panorama completo da sincronização.
+  const inicioMs = reg.marcarInicio('oracleDiario');
+  const partes = [];
+  const falhas = [];
+
+  async function etapa(rotulo, fn) {
+    try {
+      const r = await fn({ usuarioEmail: 'agendador-oracle' });
+      if (r && r.pulou) {
+        console.log(`[AGENDADOR ORACLE] ${rotulo} pulado:`, r.motivo);
+        partes.push(`${rotulo}: pulado (${r.motivo})`);
+      } else {
+        partes.push(`${rotulo}: ok`);
+      }
+    } catch (e) {
+      console.error(`[AGENDADOR ORACLE] ${rotulo} falhou:`, e.message);
+      falhas.push(`${rotulo}: ${e.message}`);
+    }
+  }
+
   console.log('[AGENDADOR ORACLE] Iniciando Estoque...');
-  try {
-    const r = await executarAtualizacaoEstoqueOracle({ usuarioEmail: 'agendador-oracle' });
-    if (r.pulou) console.log('[AGENDADOR ORACLE] Estoque pulado:', r.motivo);
-  } catch (e) {
-    console.error('[AGENDADOR ORACLE] Estoque falhou, seguindo para Autores mesmo assim:', e.message);
-  }
-
+  await etapa('Estoque', executarAtualizacaoEstoqueOracle);
   console.log('[AGENDADOR ORACLE] Estoque concluído. Iniciando Autores...');
-  try {
-    const r = await executarAtualizacaoOracle({ usuarioEmail: 'agendador-oracle' });
-    if (r.pulou) console.log('[AGENDADOR ORACLE] Autores pulado:', r.motivo);
-  } catch (e) {
-    console.error('[AGENDADOR ORACLE] Autores falhou:', e.message);
-  }
-
+  await etapa('Autores', executarAtualizacaoOracle);
   console.log('[AGENDADOR ORACLE] Autores concluído. Iniciando Movimentações de Entrada...');
-  try {
-    const r = await executarAtualizacaoEntradaLotesOracle({ usuarioEmail: 'agendador-oracle' });
-    if (r.pulou) console.log('[AGENDADOR ORACLE] Entrada (lotes) pulado:', r.motivo);
-  } catch (e) {
-    console.error('[AGENDADOR ORACLE] Entrada (lotes) falhou:', e.message);
-  }
+  await etapa('Entrada (lotes)', executarAtualizacaoEntradaLotesOracle);
   console.log('[AGENDADOR ORACLE] Entrada (lotes) concluído. Iniciando Relatório de Itens...');
-  try {
-    const r = await executarAtualizacaoRelatorioItensOracle({ usuarioEmail: 'agendador-oracle' });
-    if (r.pulou) console.log('[AGENDADOR ORACLE] Relatório de Itens pulado:', r.motivo);
-  } catch (e) {
-    console.error('[AGENDADOR ORACLE] Relatório de Itens falhou:', e.message);
-  }
+  await etapa('Relatório de Itens', executarAtualizacaoRelatorioItensOracle);
   console.log('[AGENDADOR ORACLE] Cadeia diária concluída.');
+
+  reg.marcarFim('oracleDiario');
+  const tudoFalhou = falhas.length === 4;
+  reg.registrarExecucao('oracleDiario', {
+    resultado: tudoFalhou ? 'erro' : 'sucesso',
+    nivel: tudoFalhou ? 'ERROR' : (falhas.length ? 'WARNING' : 'INFO'),
+    mensagem: [partes.join(' | '), falhas.length ? `FALHAS — ${falhas.join(' | ')}` : '']
+      .filter(Boolean).join('  ||  '),
+    arquivo: 'Banco Oracle (SCODES)',
+    inicioMs,
+    ...opcoesRegistro,
+  });
 }
 
 function iniciarAgendadorOracleDiario() {
@@ -85,4 +98,4 @@ function iniciarAgendadorOracleDiario() {
   });
 }
 
-module.exports = { iniciarAgendadorOracleDiario };
+module.exports = { iniciarAgendadorOracleDiario, rodarCadeiaDiaria };

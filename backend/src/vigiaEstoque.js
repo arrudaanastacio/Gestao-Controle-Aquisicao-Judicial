@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { importarEstoqueDeBuffer } = require('./routes.estoque');
 const { lerAssinatura, salvarAssinatura } = require('./vigiaEstado');
+const reg = require('./registroServicos');
 
 const CAMINHO_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\RELATÓRIO DE COMPRAS\\2026\\MEDICAMENTO\\MACRO\\itens em estoque.csv';
 const CAMINHO = process.env.CAMINHO_ESTOQUE_CSV || CAMINHO_PADRAO;
@@ -20,6 +21,7 @@ function assinatura(st) {
 
 function tentarImportar(motivo) {
   if (importando) return;
+  reg.marcarVerificacao('estoqueTP'); // sinal de vida para a tela de Status
 
   let st;
   try { st = fs.statSync(CAMINHO); }
@@ -30,6 +32,7 @@ function tentarImportar(motivo) {
   if (st.size < 1000) return;             // arquivo muito pequeno/incompleto
 
   importando = true;
+  const inicioMs = reg.marcarInicio('estoqueTP');
   try {
     // Confirma estabilidade: o tamanho não pode estar mudando (gravação em curso)
     const buffer = fs.readFileSync(CAMINHO);
@@ -49,9 +52,24 @@ function tentarImportar(motivo) {
     salvarAssinatura('estoque', ultimaAssinatura);
     const hist = resumo.arquivadoComoHistorico ? ` | ARQUIVADO histórico ref ${resumo.arquivadoComoHistorico}` : '';
     console.log(`[VIGIA ESTOQUE] ${motivo}: ${resumo.totalItens} itens importados (ref ${resumo.dataReferencia})${hist}.`);
+    reg.registrarExecucao('estoqueTP', {
+      resultado: 'sucesso',
+      mensagem: `${resumo.totalItens} itens importados (referência ${resumo.dataReferencia})${hist}.`,
+      registros: resumo.totalItens,
+      arquivo: path.basename(CAMINHO),
+      inicioMs,
+    });
   } catch (e) {
     console.error('[VIGIA ESTOQUE] Falha ao importar:', e.message);
+    reg.registrarExecucao('estoqueTP', {
+      resultado: 'erro',
+      mensagem: e.message,
+      detalhe: e.stack,
+      arquivo: path.basename(CAMINHO),
+      inicioMs,
+    });
   } finally {
+    reg.marcarFim('estoqueTP');
     importando = false;
   }
 }
@@ -71,4 +89,12 @@ function iniciarVigiaEstoque() {
   tentarImportar('Verificação ao iniciar');
 }
 
-module.exports = { iniciarVigiaEstoque };
+// "Executar agora" da tela de Status dos Serviços: reimporta mesmo que o
+// arquivo não tenha mudado (zerando a assinatura), que é justamente o que se
+// espera de um disparo manual.
+function executarAgora() {
+  ultimaAssinatura = null;
+  tentarImportar('Execução manual');
+}
+
+module.exports = { iniciarVigiaEstoque, executarAgora };

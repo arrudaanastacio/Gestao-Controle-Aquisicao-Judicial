@@ -5,6 +5,7 @@
 const fs = require('node:fs');
 const { lerAssinatura, salvarAssinatura } = require('./vigiaEstado');
 const { agendarDiariamente } = require('./agendadorUtil');
+const reg = require('./registroServicos');
 
 const CAMINHO_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\RELATÓRIO DE COMPRAS\\2026\\OUTRAS DEMANDAS\\RELATÓRIO DE COMPRAS OUTRAS DEMANDAS - Macro.xlsm';
 const CAMINHO = process.env.CAMINHO_SOLICITACOES_OD || CAMINHO_PADRAO;
@@ -21,9 +22,15 @@ function assinaturaArquivo() {
 }
 
 function tentarImportar(motivo) {
+  reg.marcarVerificacao('solicitacoesOD'); // sinal de vida para a tela de Status
   const assin = assinaturaArquivo();
   if (!assin) {
     console.log('[VIGIA SOLICITAÇÕES OD] Arquivo não encontrado em', CAMINHO);
+    reg.registrarExecucao('solicitacoesOD', {
+      resultado: 'erro',
+      nivel: 'WARNING',
+      mensagem: `Arquivo não encontrado na pasta de rede: ${CAMINHO}`,
+    });
     return;
   }
   if (assin === ultimaAssinatura) {
@@ -31,6 +38,7 @@ function tentarImportar(motivo) {
     return;
   }
 
+  const inicioMs = reg.marcarInicio('solicitacoesOD');
   try {
     const buffer = fs.readFileSync(CAMINHO);
     if (assinaturaArquivo() !== assin) return; // arquivo ainda sendo gravado
@@ -40,8 +48,21 @@ function tentarImportar(motivo) {
     ultimaAssinatura = assin;
     salvarAssinatura('solicitacoes_od', ultimaAssinatura);
     console.log(`[VIGIA SOLICITAÇÕES OD] ${motivo}: ${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados.`);
+    reg.registrarExecucao('solicitacoesOD', {
+      resultado: 'sucesso',
+      mensagem: `${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados.`,
+      registros: resumo.inseridos + resumo.atualizados,
+      arquivo: 'RELATÓRIO DE COMPRAS OUTRAS DEMANDAS - Macro.xlsm',
+      inicioMs,
+    });
   } catch (e) {
     console.error('[VIGIA SOLICITAÇÕES OD] Falha ao importar:', e.message);
+    reg.registrarExecucao('solicitacoesOD', {
+      resultado: 'erro', mensagem: e.message, detalhe: e.stack,
+      arquivo: 'RELATÓRIO DE COMPRAS OUTRAS DEMANDAS - Macro.xlsm', inicioMs,
+    });
+  } finally {
+    reg.marcarFim('solicitacoesOD');
   }
 }
 
@@ -65,6 +86,14 @@ function forcarImportacaoSolicitacoesOD(usuarioEmail) {
   ultimaAssinatura = assin;
   salvarAssinatura('solicitacoes_od', ultimaAssinatura);
   console.log(`[VIGIA SOLICITAÇÕES OD] Atualização manual por ${usuarioEmail}: ${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados.`);
+  reg.registrarExecucao('solicitacoesOD', {
+    resultado: 'sucesso',
+    mensagem: `${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados.`,
+    registros: resumo.inseridos + resumo.atualizados,
+    arquivo: 'RELATÓRIO DE COMPRAS OUTRAS DEMANDAS - Macro.xlsm',
+    origem: 'manual',
+    usuarioEmail,
+  });
   return resumo;
 }
 

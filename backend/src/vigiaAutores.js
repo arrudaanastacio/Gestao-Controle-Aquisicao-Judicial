@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { importarAutoresDeBuffer } = require('./routes.autores');
 const { lerAssinatura, salvarAssinatura } = require('./vigiaEstado');
+const reg = require('./registroServicos');
 
 const CAMINHO_PADRAO = 'G:\\CAF\\GAF\\GGAF\\PROGRAMAÇÃO\\CPDAE\\RELATÓRIO DE COMPRAS\\2026\\MEDICAMENTO\\MACRO\\Listagem de Autores.csv';
 const CAMINHO = process.env.CAMINHO_AUTORES_CSV || CAMINHO_PADRAO;
@@ -17,6 +18,7 @@ function assinatura(st) { return `${st.mtimeMs}|${st.size}`; }
 
 function tentarImportar(motivo) {
   if (importando) return;
+  reg.marcarVerificacao('autores'); // sinal de vida para a tela de Status
   let st;
   try { st = fs.statSync(CAMINHO); } catch { return; }
 
@@ -25,6 +27,7 @@ function tentarImportar(motivo) {
   if (st.size < 1000) return;
 
   importando = true;
+  const inicioMs = reg.marcarInicio('autores');
   try {
     const buffer = fs.readFileSync(CAMINHO);
     const st2 = fs.statSync(CAMINHO);
@@ -41,9 +44,21 @@ function tentarImportar(motivo) {
     ultimaAssinatura = assinatura(st2);
     salvarAssinatura('autores', ultimaAssinatura);
     console.log(`[VIGIA AUTORES] ${motivo}: ${resumo.totalLinhas} linhas / ${resumo.totalAutores} autores (ref ${resumo.dataReferencia}).`);
+    reg.registrarExecucao('autores', {
+      resultado: 'sucesso',
+      mensagem: `${resumo.totalLinhas} linhas / ${resumo.totalAutores} autores (referência ${resumo.dataReferencia}).`,
+      registros: resumo.totalLinhas,
+      arquivo: path.basename(CAMINHO),
+      inicioMs,
+    });
   } catch (e) {
     console.error('[VIGIA AUTORES] Falha ao importar:', e.message);
+    reg.registrarExecucao('autores', {
+      resultado: 'erro', mensagem: e.message, detalhe: e.stack,
+      arquivo: path.basename(CAMINHO), inicioMs,
+    });
   } finally {
+    reg.marcarFim('autores');
     importando = false;
   }
 }
@@ -59,4 +74,11 @@ function iniciarVigiaAutores() {
   tentarImportar('Verificação ao iniciar');
 }
 
-module.exports = { iniciarVigiaAutores };
+// "Executar agora" da tela de Status dos Serviços: reimporta mesmo sem
+// mudança no arquivo (é o que se espera de um disparo manual).
+function executarAgora() {
+  ultimaAssinatura = null;
+  tentarImportar('Execução manual');
+}
+
+module.exports = { iniciarVigiaAutores, executarAgora };

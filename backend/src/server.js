@@ -30,7 +30,7 @@ const distribuicaoRoutes = require('./routes.distribuicao');
 const reservasRoutes = require('./routes.reservas');
 const rupturasRoutes = require('./routes.rupturas');
 const configRoutes = require('./routes.config');
-const { autenticar, exigirModulo, exigirModuloDinamico } = require('./auth');
+const { autenticar, exigirModulo, exigirModuloDinamico, exigirPerfil } = require('./auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -100,6 +100,12 @@ app.use('/api/entrada-lotes', autenticar, exigirModulo('entradaLotes'), entradaL
 app.use('/api/distribuicao', autenticar, exigirModulo('distribuicao'), distribuicaoRoutes);
 app.use('/api/reservas', autenticar, exigirModulo('reservas'), reservasRoutes);
 app.use('/api/rupturas', autenticar, exigirModulo('rupturas'), rupturasRoutes);
+
+// Status dos Serviços: tela de operação do sistema (monitoramento dos vigias,
+// agendadores e backup). Exclusiva de administrador — não entra na matriz de
+// permissões por módulo porque não expõe dados de compra, e sim a saúde do
+// próprio sistema.
+app.use('/api/servicos', autenticar, exigirPerfil('admin'), require('./routes.servicos'));
 
 // Serve o frontend estático (build simples, sem framework)
 const PASTA_FRONT = path.join(__dirname, '..', '..', 'frontend');

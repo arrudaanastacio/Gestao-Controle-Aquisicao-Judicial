@@ -1810,3 +1810,181 @@ body.tem-faixa-ambiente { padding-top: 30px; }
   .barra-top { grid-template-columns: 1fr; gap: 2px; }
   .barra-top-valor { text-align: left; }
 }
+
+
+/* =====================================================================
+   Status dos Serviços (tela de administração)
+   Todas as cores saem dos tokens do tema — nada de hex fixo aqui, senão
+   o tema escuro quebra (foi o bug do gráfico de evolução, item 47).
+   ===================================================================== */
+
+.acoes-cabecalho { display: flex; gap: var(--esp-2); align-items: center; flex-wrap: wrap; }
+.rotulo-filtro { display: flex; align-items: center; gap: var(--esp-1); font-size: 13px; color: var(--cinza-texto); }
+
+/* --- Faixa de alertas do topo --- */
+.faixa-alertas { display: flex; flex-direction: column; gap: var(--esp-2); margin-bottom: var(--esp-4); }
+.alerta-servico {
+  display: flex; align-items: flex-start; gap: var(--esp-2);
+  padding: 10px var(--esp-3); border-radius: var(--raio);
+  border: 1px solid var(--linha); font-size: 13.5px; line-height: 1.45;
+}
+.alerta-servico .marca { flex: none; font-size: 15px; line-height: 1.2; }
+.alerta-servico.critico { background: var(--vermelho-fundo); border-color: var(--vermelho); color: var(--vermelho); }
+.alerta-servico.atencao { background: var(--ambar-fundo); border-color: var(--ambar); color: var(--ambar); }
+.alerta-servico button {
+  margin-left: auto; flex: none; background: none; border: 1px solid currentColor;
+  color: inherit; border-radius: var(--raio-peq); padding: 3px 10px; font-size: 12px; cursor: pointer;
+}
+.alerta-servico button:hover { background: rgba(0, 0, 0, 0.06); }
+
+/* --- Cartões de indicadores --- */
+.cartoes-servicos {
+  display: grid; gap: var(--esp-3); margin-bottom: var(--esp-4);
+  grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+}
+.cartao-servico {
+  background: var(--papel-elevado); border: 1px solid var(--linha);
+  border-radius: var(--raio-cartao); padding: var(--esp-3) var(--esp-4);
+  box-shadow: var(--sombra-cartao); display: flex; flex-direction: column; gap: 2px;
+  border-left: 3px solid var(--linha);
+}
+.cartao-servico .icone { font-size: 17px; line-height: 1; margin-bottom: 2px; }
+.cartao-servico .valor { font-size: 26px; font-weight: 650; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.cartao-servico .rotulo { font-size: 12px; color: var(--cinza-texto); letter-spacing: 0.01em; }
+.cartao-servico.ok      { border-left-color: var(--verde-ok); } .cartao-servico.ok .valor      { color: var(--verde-ok); }
+.cartao-servico.info    { border-left-color: var(--azul); }     .cartao-servico.info .valor    { color: var(--azul); }
+.cartao-servico.aviso   { border-left-color: var(--ambar); }    .cartao-servico.aviso .valor   { color: var(--ambar); }
+.cartao-servico.erro    { border-left-color: var(--vermelho); } .cartao-servico.erro .valor    { color: var(--vermelho); }
+.cartao-servico.neutro  { border-left-color: var(--linha-forte); } .cartao-servico.neutro .valor { color: var(--tinta-suave); }
+/* Valor ausente por falta de histórico: fica discreto, sem fingir que é zero. */
+.cartao-servico .sem-dado { font-size: 19px; color: var(--cinza-texto); font-weight: 500; }
+
+/* --- Badges de situação --- */
+.selo-servico {
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 550;
+  border: 1px solid transparent;
+}
+.selo-servico::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.selo-servico.ativo        { background: var(--verde-ok-fundo); color: var(--verde-ok); border-color: var(--verde-ok); }
+.selo-servico.executando   { background: var(--azul-fundo); color: var(--azul); border-color: var(--azul); }
+.selo-servico.aguardando   { background: var(--azul-fundo); color: var(--azul); border-color: transparent; }
+.selo-servico.atencao      { background: var(--ambar-fundo); color: var(--ambar); border-color: var(--ambar); }
+.selo-servico.erro         { background: var(--vermelho-fundo); color: var(--vermelho); border-color: var(--vermelho); }
+.selo-servico.desabilitado { background: transparent; color: var(--cinza-texto); border-color: var(--linha-forte); }
+/* Pulsa só enquanto executa — sinal de atividade sem distrair o resto. */
+.selo-servico.executando::before { animation: pulso-servico 1.4s ease-in-out infinite; }
+@keyframes pulso-servico { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+/* --- Tabela --- */
+.tabela-servicos td { vertical-align: middle; }
+.tabela-servicos .nome-servico { font-weight: 550; }
+.tabela-servicos .desc-servico {
+  font-size: 12px; color: var(--cinza-texto); margin-top: 2px;
+  max-width: 340px; line-height: 1.4;
+}
+.tabela-servicos .msg-servico {
+  font-size: 12.5px; color: var(--cinza-texto); max-width: 320px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tabela-servicos .numero { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th.ordenavel { cursor: pointer; user-select: none; white-space: nowrap; }
+th.ordenavel:hover { color: var(--selo); }
+th.ordenavel .seta { opacity: 0.45; font-size: 10px; margin-left: 3px; }
+
+/* Destaque suave quando a linha muda de estado no polling. Só a linha
+   afetada pisca — a página não recarrega. */
+@keyframes realce-linha {
+  from { background: var(--realce-tabela); }
+  to   { background: transparent; }
+}
+.linha-atualizada { animation: realce-linha 1.6s ease-out; }
+
+.botoes-acao-servico { display: flex; gap: 6px; white-space: nowrap; }
+.botao-acao-mini {
+  background: var(--papel-elevado); border: 1px solid var(--linha);
+  border-radius: var(--raio-peq); padding: 4px 9px; font-size: 12px;
+  cursor: pointer; color: var(--tinta); line-height: 1.5;
+}
+.botao-acao-mini:hover:not(:disabled) { border-color: var(--selo); color: var(--selo); }
+.botao-acao-mini:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* --- Etiquetas de nível nos logs --- */
+.nivel-log {
+  display: inline-block; padding: 2px 8px; border-radius: var(--raio-peq);
+  font-size: 11px; font-weight: 600; font-family: var(--fonte-mono); letter-spacing: 0.02em;
+}
+.nivel-log.INFO     { background: var(--azul-fundo); color: var(--azul); }
+.nivel-log.WARNING  { background: var(--ambar-fundo); color: var(--ambar); }
+.nivel-log.ERROR    { background: var(--vermelho-fundo); color: var(--vermelho); }
+.nivel-log.CRITICAL { background: var(--vermelho); color: var(--papel-elevado); }
+
+/* --- Painel lateral (gaveta) --- */
+.fundo-gaveta {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex; justify-content: flex-end;
+  animation: surgir-fundo 0.18s ease-out;
+}
+@keyframes surgir-fundo { from { opacity: 0; } to { opacity: 1; } }
+.gaveta {
+  width: min(520px, 100%); height: 100%;
+  background: var(--papel-elevado); border-left: 1px solid var(--linha);
+  display: flex; flex-direction: column;
+  box-shadow: var(--sombra-flutua);
+  animation: entrar-gaveta 0.22s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes entrar-gaveta { from { transform: translateX(100%); } to { transform: translateX(0); } }
+.gaveta-topo {
+  display: flex; align-items: flex-start; gap: var(--esp-3);
+  padding: var(--esp-4) var(--esp-5); border-bottom: 1px solid var(--linha);
+}
+.gaveta-topo h3 { margin: 0 0 3px; font-family: var(--fonte-titulo); font-size: 18px; }
+.gaveta-sub { margin: 0; font-size: 12.5px; color: var(--cinza-texto); line-height: 1.45; }
+.botao-fechar-gaveta {
+  margin-left: auto; flex: none; background: none; border: none; cursor: pointer;
+  font-size: 17px; color: var(--cinza-texto); padding: 2px 6px; border-radius: var(--raio-peq);
+}
+.botao-fechar-gaveta:hover { background: var(--realce-tabela); color: var(--tinta); }
+.gaveta-corpo { flex: 1; overflow-y: auto; padding: var(--esp-4) var(--esp-5); }
+.gaveta-rodape {
+  display: flex; gap: var(--esp-2); justify-content: flex-end;
+  padding: var(--esp-3) var(--esp-5); border-top: 1px solid var(--linha);
+  background: var(--papel);
+}
+.gaveta-secao { margin-bottom: var(--esp-5); }
+.gaveta-secao > h4 {
+  margin: 0 0 var(--esp-2); font-size: 11.5px; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--cinza-texto); font-weight: 600;
+}
+.gaveta-campos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--esp-3); }
+.gaveta-campo { min-width: 0; }
+.gaveta-campo .rotulo { display: block; font-size: 11.5px; color: var(--cinza-texto); margin-bottom: 1px; }
+.gaveta-campo .valor { font-size: 13.5px; word-break: break-word; }
+.gaveta-campo.largo { grid-column: 1 / -1; }
+.bloco-mensagem {
+  background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio);
+  padding: 10px var(--esp-3); font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+}
+.bloco-stack {
+  background: var(--papel); border: 1px solid var(--vermelho); border-radius: var(--raio);
+  padding: 10px var(--esp-3); font-family: var(--fonte-mono); font-size: 11.5px;
+  line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+  max-height: 220px; overflow: auto; color: var(--vermelho);
+}
+
+/* --- Responsivo --- */
+@media (max-width: 720px) {
+  .cartoes-servicos { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .gaveta { width: 100%; }
+  .gaveta-campos { grid-template-columns: 1fr; }
+  .gaveta-topo, .gaveta-corpo, .gaveta-rodape { padding-left: var(--esp-4); padding-right: var(--esp-4); }
+  .tabela-servicos .desc-servico, .tabela-servicos .msg-servico { max-width: 200px; }
+}
+
+/* Quem prefere menos movimento não vê pulso nem deslize. */
+@media (prefers-reduced-motion: reduce) {
+  .selo-servico.executando::before { animation: none; }
+  .linha-atualizada { animation: none; }
+  .gaveta, .fundo-gaveta { animation: none; }
+}
