@@ -6,10 +6,23 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 57 | **Relatório de Itens — classificação permanente do item**: 4 campos manuais (Dose Certa/PDC, Doença Rara, Unidade de Fornecimento, Embalagem de Conversão) em tabela própria (`item_classificacao`) que a reimportação diária do catálogo não apaga. Importação em massa pela aba "Status-Siafisico" (botão, só admin), edição item a item (modal), 4 colunas novas na tela e filtros (Dose Certa, Doença Rara, Classificação). O filtro "pendentes" cruza o código SCODES do Estoque TP (demanda > 0) para mostrar só os itens de TP que faltam classificar. A Embalagem de Conversão alimenta o futuro módulo de Planejamento. | `6f9d890` | 27/07/2026 | ✅ testado em homologação |
-| 58 | **Relatório de Itens — aba "Planejamento TP" + campo "Outros Programas"**: nova aba dentro da tela mostrando **só os itens da Tenente Pena** (uma linha por item do Estoque TP mais recente, com **demanda total** = soma das linhas, diferente de zero). Colunas: código SCODES, siafísico, descritivo, demanda total, Dose Certa, Doença Rara, Unid. Fornecimento, Emb. Conversão, **Outros Programas** e botão Editar. Novo campo **Outros Programas** (Sim/Não) com **"Qual programa?"** que só aparece quando é Sim — editável pelo mesmo modal de classificação. Endpoint `GET /api/relatorio-itens/planejamento-tp` (agrega o estoque por código). Filtros de **busca**, **categoria** (Medicamentos/Materiais/Nutrição/Outros Itens), **classificação** (pendentes/preenchidas) e **novos** (só itens novos). **Etiqueta "🆕 Novo"** nos itens que aparecem no Estoque TP mais recente mas não estavam no snapshot anterior (comparação entre as duas últimas datas). **Botão "Exportar Excel"** que baixa a lista atual (.xlsx) respeitando os filtros. Colunas **SubCategoria** e **Responsável Aquisição** (CGA/CAF) vindas da planilha "Relatório de Itens (REL)" — o mesmo botão "Importar classificação" reconhece esse layout (não mexe na Dose Certa, pois ali "Programa" é o nome do programa) — com filtro por Responsável e **filtro de SubCategoria com seleção múltipla** (dropdown de checkboxes). Depende do item 57. | `0079c4d`, `720b73d`, `97ae446`, `fda012a`, `e3a9a8e` | 28/07/2026 | ✅ testado em homologação |
+| — | Nada pendente. | — | — | — |
 
 ## Publicadas recentemente
+
+### v1.9.0 — 28/07/2026 (itens 57–58)
+
+**Relatório de Itens — classificação permanente do item + aba "Planejamento TP".**
+Nova tabela `item_classificacao` (permanente, não apagada pela reimportação
+diária do catálogo) e uma nova aba dentro do Relatório de Itens focada no
+universo de planejamento da Tenente Pena. Na publicação: a `item_classificacao`
+nasce vazia em produção — importar as planilhas **Status-Siafisico** e
+**Relatório de Itens (REL)** pelo botão "Importar classificação" para preencher.
+
+| # | Melhoria | Publicado |
+|---|----------|-----------|
+| 57 | Classificação permanente do item: Dose Certa/PDC, Doença Rara, Unidade de Fornecimento e Embalagem de Conversão em tabela própria (`item_classificacao`) que a reimportação diária não apaga. Importação em massa (aba "Status-Siafisico", só admin), edição item a item (modal), colunas e filtros na tela. Filtro "pendentes" cruza o código SCODES do Estoque TP. Alimenta o futuro módulo de Planejamento. | v1.9.0 — 28/07/2026 |
+| 58 | Aba "Planejamento TP" (só itens da TP, uma linha por item do Estoque TP mais recente com demanda total ≠ 0). Colunas: SCODES, siafísico, descritivo, demanda total, Dose Certa, Doença Rara, Unid. Fornecimento, Emb. Conversão, **SubCategoria**, **Resp. Aquisição** (CGA/CAF) e **Outros Programas** (com "Qual programa?"). Filtros: busca, categoria, classificação, Responsável, **SubCategoria (seleção múltipla)** e **novos**. Etiqueta **"🆕 Novo"** (item novo no Estoque TP vs snapshot anterior) e botão **Exportar Excel**. O botão "Importar classificação" reconhece dois layouts (Status-Siafisico e REL), sem colidir na Dose Certa. | v1.9.0 — 28/07/2026 |
 
 ### v1.8.0 — 27/07/2026 (item 56)
 
