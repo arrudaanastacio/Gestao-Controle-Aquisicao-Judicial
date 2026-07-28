@@ -4015,7 +4015,17 @@ async function carregarTabelaRelItens() {
 // -------------------- Aba "Planejamento TP" --------------------
 // Só itens da Tenente Pena (Estoque TP mais recente, demanda ≠ 0), com a
 // mesma classificação permanente editável pelo modal.
-const estadoPlanTP = { pagina: 1, pageSize: 50, carregouUmaVez: false };
+const estadoPlanTP = { pagina: 1, pageSize: 50, carregouUmaVez: false, categoriasCarregadas: false };
+
+async function carregarCategoriasPlanTP() {
+  if (estadoPlanTP.categoriasCarregadas) return;
+  try {
+    const r = await api('/relatorio-itens/planejamento-tp/categorias');
+    document.getElementById('ptpFiltroCategoria').innerHTML = '<option value="">Categoria: todas</option>' +
+      (r.categorias || []).map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+    estadoPlanTP.categoriasCarregadas = true;
+  } catch (e) { /* segue sem o filtro */ }
+}
 
 // Troca entre as abas Catálogo / Planejamento TP
 document.querySelectorAll('#abasRelItens .chip-faixa').forEach((btn) => {
@@ -4026,6 +4036,7 @@ document.querySelectorAll('#abasRelItens .chip-faixa').forEach((btn) => {
     document.getElementById('abaRelItensPlanTP').hidden = aba !== 'plantp';
     if (aba === 'plantp' && !estadoPlanTP.carregouUmaVez) {
       estadoPlanTP.carregouUmaVez = true;
+      carregarCategoriasPlanTP();
       carregarTabelaPlanTP();
     }
   });
@@ -4036,10 +4047,13 @@ document.getElementById('ptpFiltroBusca').addEventListener('input', () => {
   clearTimeout(debouncePlanTP);
   debouncePlanTP = setTimeout(() => { estadoPlanTP.pagina = 1; carregarTabelaPlanTP(); }, 350);
 });
-document.getElementById('ptpFiltroClassificacao').addEventListener('change', () => { estadoPlanTP.pagina = 1; carregarTabelaPlanTP(); });
+['ptpFiltroClassificacao', 'ptpFiltroCategoria'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => { estadoPlanTP.pagina = 1; carregarTabelaPlanTP(); });
+});
 document.getElementById('ptpLimparFiltros').addEventListener('click', () => {
   document.getElementById('ptpFiltroBusca').value = '';
   document.getElementById('ptpFiltroClassificacao').value = '';
+  document.getElementById('ptpFiltroCategoria').value = '';
   estadoPlanTP.pagina = 1; carregarTabelaPlanTP();
 });
 document.getElementById('ptpAnterior').addEventListener('click', () => { if (estadoPlanTP.pagina > 1) { estadoPlanTP.pagina--; carregarTabelaPlanTP(); } });
@@ -4051,6 +4065,8 @@ async function carregarTabelaPlanTP() {
   if (q) params.set('q', q);
   const cls = document.getElementById('ptpFiltroClassificacao').value;
   if (cls) params.set('classificacao', cls);
+  const cat = document.getElementById('ptpFiltroCategoria').value;
+  if (cat) params.set('categoria', cat);
 
   const dados = await api(`/relatorio-itens/planejamento-tp?${params.toString()}`);
 

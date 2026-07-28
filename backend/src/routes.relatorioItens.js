@@ -430,7 +430,7 @@ router.put('/classificacao/:codigo', exigirPerfil('admin'), (req, res) => {
 // (estoque_itens.codigo_item = relatorio_itens.codigo = item_classificacao.codigo_item).
 // Traz o descritivo/siafísico do relatório e a classificação permanente.
 router.get('/planejamento-tp', (req, res) => {
-  const { q, classificacao, page = 1, pageSize = 50 } = req.query;
+  const { q, classificacao, categoria, page = 1, pageSize = 50 } = req.query;
   const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
   const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
 
@@ -441,7 +441,8 @@ router.get('/planejamento-tp', (req, res) => {
       SELECT codigo_item,
              SUM(demandas) AS demanda_total,
              MAX(siafisico) AS siafisico,
-             MAX(descricao) AS descricao
+             MAX(descricao) AS descricao,
+             MAX(categoria) AS categoria
       FROM estoque_itens
       WHERE data_referencia = (SELECT MAX(data_referencia) FROM estoque_itens)
       GROUP BY codigo_item
@@ -457,6 +458,7 @@ router.get('/planejamento-tp', (req, res) => {
     const like = `%${q}%`;
     params.push(like, like, like, like, like);
   }
+  if (categoria) { cond.push('e.categoria = ?'); params.push(categoria); }
   if (classificacao === 'pendentes') cond.push('(c.codigo_item IS NULL OR c.embalagem_conversao IS NULL)');
   else if (classificacao === 'ok') cond.push('c.embalagem_conversao IS NOT NULL');
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
@@ -479,6 +481,17 @@ router.get('/planejamento-tp', (req, res) => {
   const dataRef = db.prepare('SELECT MAX(data_referencia) v FROM estoque_itens').get()?.v || null;
 
   res.json({ total, dataReferencia: dataRef, itens, page: Number(page), pageSize: limit });
+});
+
+// Categorias presentes no universo TP (para o filtro da aba Planejamento TP).
+router.get('/planejamento-tp/categorias', (req, res) => {
+  const cats = db.prepare(
+    `SELECT DISTINCT categoria v FROM estoque_itens
+     WHERE data_referencia = (SELECT MAX(data_referencia) FROM estoque_itens)
+       AND categoria IS NOT NULL AND categoria <> ''
+     ORDER BY v`
+  ).all().map((r) => r.v);
+  res.json({ categorias: cats });
 });
 
 module.exports = router;
