@@ -429,10 +429,21 @@ router.put('/classificacao/:codigo', exigirPerfil('admin'), (req, res) => {
 // (o universo real de planejamento). Cruzamento pelo código SCODES
 // (estoque_itens.codigo_item = relatorio_itens.codigo = item_classificacao.codigo_item).
 // Traz o descritivo/siafísico do relatório e a classificação permanente.
-router.get('/planejamento-tp', (req, res) => {
-  const { q, classificacao, categoria, page = 1, pageSize = 50 } = req.query;
-  const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
-  const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
+// Monta o FROM/WHERE/SELECT compartilhado entre a listagem e a exportação.
+// `is_novo` = item que está no Estoque TP mais recente mas NÃO estava no
+// snapshot imediatamente anterior (item novo na unidade). Se não houver
+// snapshot anterior, ninguém é marcado como novo.
+function montarConsultaPlanTP(query) {
+  const { q, classificacao, categoria, novos } = query;
+
+  // Duas datas de referência mais recentes do estoque.
+  const refs = db.prepare('SELECT DISTINCT data_referencia FROM estoque_itens ORDER BY data_referencia DESC LIMIT 2').all();
+  const dataRef = refs[0]?.data_referencia || null;
+  const prevRef = refs[1]?.data_referencia || null;
+  // prevRef vem do próprio banco (formato YYYY-MM-DD controlado) — inlining seguro.
+  const novoExpr = prevRef
+    ? `CASE WHEN e.codigo_item NOT IN (SELECT codigo_item FROM estoque_itens WHERE data_referencia = '${prevRef}') THEN 1 ELSE 0 END`
+    : '0';
 
   // O estoque tem VÁRIAS linhas por item (uma por demanda). Agrego primeiro
   // por código (soma da demanda = demanda total do item) para ter UMA linha
@@ -461,26 +472,66 @@ router.get('/planejamento-tp', (req, res) => {
   if (categoria) { cond.push('e.categoria = ?'); params.push(categoria); }
   if (classificacao === 'pendentes') cond.push('(c.codigo_item IS NULL OR c.embalagem_conversao IS NULL)');
   else if (classificacao === 'ok') cond.push('c.embalagem_conversao IS NOT NULL');
+  if (novos === '1' || novos === 'true') cond.push(`${novoExpr} = 1`);
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
 
-  const total = db.prepare(`SELECT COUNT(*) cc ${FROM} ${where}`).get(...params).cc;
-  const itens = db.prepare(
-    `SELECT e.codigo_item AS codigo,
+  const SELECT = `SELECT e.codigo_item AS codigo,
        COALESCE(ri.siafisico, e.siafisico) AS siafisico,
        COALESCE(ri.descricao_item, e.descricao) AS descricao_item,
        e.demanda_total AS demanda_total,
+       ${novoExpr} AS is_novo,
        c.dose_certa AS clas_dose_certa,
        c.doenca_rara AS clas_doenca_rara,
        c.unidade_fornecimento AS clas_unidade_fornecimento,
        c.embalagem_conversao AS clas_embalagem_conversao,
        c.outros_programas AS clas_outros_programas,
-       c.qual_programa AS clas_qual_programa
-     ${FROM} ${where}
-     ORDER BY descricao_item COLLATE NOCASE LIMIT ? OFFSET ?`
-  ).all(...params, limit, offset);
-  const dataRef = db.prepare('SELECT MAX(data_referencia) v FROM estoque_itens').get()?.v || null;
+       c.qual_programa AS clas_qual_programa`;
 
-  res.json({ total, dataReferencia: dataRef, itens, page: Number(page), pageSize: limit });
+  return { FROM, where, params, SELECT, dataRef, prevRef };
+}
+
+router.get('/planejamento-tp', (req, res) => {
+  const limit = Math.min(parseInt(req.query.pageSize, 10) || 50, 200);
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const offset = (page - 1) * limit;
+
+  const { FROM, where, params, SELECT, dataRef, prevRef } = montarConsultaPlanTP(req.query);
+  const total = db.prepare(`SELECT COUNT(*) cc ${FROM} ${where}`).get(...params).cc;
+  const itens = db.prepare(
+    `${SELECT} ${FROM} ${where} ORDER BY descricao_item COLLATE NOCASE LIMIT ? OFFSET ?`
+  ).all(...params, limit, offset);
+
+  res.json({ total, dataReferencia: dataRef, dataAnterior: prevRef, itens, page, pageSize: limit });
+});
+
+// Exporta a aba Planejamento TP em Excel (.xlsx), respeitando os filtros ativos.
+router.get('/planejamento-tp/exportar', (req, res) => {
+  const { FROM, where, params, SELECT, dataRef } = montarConsultaPlanTP(req.query);
+  const itens = db.prepare(`${SELECT} ${FROM} ${where} ORDER BY descricao_item COLLATE NOCASE`).all(...params);
+
+  const linhas = itens.map((i) => ({
+    'Novo': i.is_novo ? 'Sim' : '',
+    'Código SCODES': i.codigo || '',
+    'SIAFÍSICO': i.siafisico || '',
+    'Descrição do Item': i.descricao_item || '',
+    'Demanda Total': i.demanda_total != null ? i.demanda_total : '',
+    'Dose Certa': i.clas_dose_certa || '',
+    'Doença Rara': i.clas_doenca_rara || '',
+    'Unid. Fornecimento': i.clas_unidade_fornecimento || '',
+    'Emb. Conversão': i.clas_embalagem_conversao != null ? i.clas_embalagem_conversao : '',
+    'Outros Programas': i.clas_outros_programas || '',
+    'Qual Programa': i.clas_qual_programa || '',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(linhas);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Planejamento TP');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  const nome = `Planejamento_TP_${(dataRef || 'sem-data').replace(/-/g, '')}.xlsx`;
+  res.setHeader('Content-Disposition', `attachment; filename="${nome}"`);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buf);
 });
 
 // Categorias presentes no universo TP (para o filtro da aba Planejamento TP).

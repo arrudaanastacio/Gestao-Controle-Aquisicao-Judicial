@@ -4047,26 +4047,40 @@ document.getElementById('ptpFiltroBusca').addEventListener('input', () => {
   clearTimeout(debouncePlanTP);
   debouncePlanTP = setTimeout(() => { estadoPlanTP.pagina = 1; carregarTabelaPlanTP(); }, 350);
 });
-['ptpFiltroClassificacao', 'ptpFiltroCategoria'].forEach((id) => {
+['ptpFiltroClassificacao', 'ptpFiltroCategoria', 'ptpFiltroNovos'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => { estadoPlanTP.pagina = 1; carregarTabelaPlanTP(); });
 });
 document.getElementById('ptpLimparFiltros').addEventListener('click', () => {
   document.getElementById('ptpFiltroBusca').value = '';
   document.getElementById('ptpFiltroClassificacao').value = '';
   document.getElementById('ptpFiltroCategoria').value = '';
+  document.getElementById('ptpFiltroNovos').value = '';
   estadoPlanTP.pagina = 1; carregarTabelaPlanTP();
+});
+// Monta os parâmetros de filtro atuais da aba TP (compartilhado por tabela e exportação).
+function paramsFiltroPlanTP() {
+  const p = new URLSearchParams();
+  const q = document.getElementById('ptpFiltroBusca').value.trim();
+  if (q) p.set('q', q);
+  const cls = document.getElementById('ptpFiltroClassificacao').value;
+  if (cls) p.set('classificacao', cls);
+  const cat = document.getElementById('ptpFiltroCategoria').value;
+  if (cat) p.set('categoria', cat);
+  const nov = document.getElementById('ptpFiltroNovos').value;
+  if (nov) p.set('novos', nov);
+  return p;
+}
+document.getElementById('ptpExportar').addEventListener('click', () => {
+  // Navegação direta dispara o download; o cookie de sessão vai junto (mesma origem).
+  window.location.href = `/api/relatorio-itens/planejamento-tp/exportar?${paramsFiltroPlanTP().toString()}`;
 });
 document.getElementById('ptpAnterior').addEventListener('click', () => { if (estadoPlanTP.pagina > 1) { estadoPlanTP.pagina--; carregarTabelaPlanTP(); } });
 document.getElementById('ptpProximo').addEventListener('click', () => { estadoPlanTP.pagina++; carregarTabelaPlanTP(); });
 
 async function carregarTabelaPlanTP() {
-  const params = new URLSearchParams({ page: estadoPlanTP.pagina, pageSize: estadoPlanTP.pageSize });
-  const q = document.getElementById('ptpFiltroBusca').value.trim();
-  if (q) params.set('q', q);
-  const cls = document.getElementById('ptpFiltroClassificacao').value;
-  if (cls) params.set('classificacao', cls);
-  const cat = document.getElementById('ptpFiltroCategoria').value;
-  if (cat) params.set('categoria', cat);
+  const params = paramsFiltroPlanTP();
+  params.set('page', estadoPlanTP.pagina);
+  params.set('pageSize', estadoPlanTP.pageSize);
 
   const dados = await api(`/relatorio-itens/planejamento-tp?${params.toString()}`);
 
@@ -4093,11 +4107,14 @@ async function carregarTabelaPlanTP() {
       if (i.clas_outros_programas === 'Não') return '<span class="etiqueta-status">Não</span>';
       return '—';
     };
+    const etiquetaNovo = (i) => i.is_novo
+      ? '<span class="etiqueta-status" style="background:var(--sucesso-fundo,#e6f4ea); color:var(--sucesso,#1f7a4d); border:1px solid var(--sucesso,#1f7a4d); margin-left:6px;">🆕 Novo</span>'
+      : '';
     corpo.innerHTML = dados.itens.map((i) => `
       <tr>
         <td class="col-codigo">${i.codigo || '—'}</td>
         <td class="col-codigo">${i.siafisico || '—'}</td>
-        <td>${i.descricao_item || '—'}</td>
+        <td>${i.descricao_item || '—'}${etiquetaNovo(i)}</td>
         <td style="text-align:right;">${i.demanda_total != null ? fmtNumero(i.demanda_total) : '—'}</td>
         <td>${marca(i.clas_dose_certa)}</td>
         <td>${marca(i.clas_doenca_rara)}</td>
