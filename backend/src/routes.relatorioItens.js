@@ -502,6 +502,16 @@ function montarConsultaPlanTP(query) {
   }
   if (categoria) { cond.push('e.categoria = ?'); params.push(categoria); }
   if (responsavel) { cond.push('c.responsavel_aquisicao = ?'); params.push(responsavel); }
+  // SubCategoria aceita múltiplos valores (?subcategoria=A&subcategoria=B).
+  let subs = query.subcategoria;
+  if (subs) {
+    if (!Array.isArray(subs)) subs = [subs];
+    subs = subs.filter((s) => s != null && String(s).trim() !== '');
+    if (subs.length) {
+      cond.push(`c.subcategoria IN (${subs.map(() => '?').join(',')})`);
+      params.push(...subs);
+    }
+  }
   if (classificacao === 'pendentes') cond.push('(c.codigo_item IS NULL OR c.embalagem_conversao IS NULL)');
   else if (classificacao === 'ok') cond.push('c.embalagem_conversao IS NOT NULL');
   if (novos === '1' || novos === 'true') cond.push(`${novoExpr} = 1`);
@@ -582,7 +592,11 @@ router.get('/planejamento-tp/categorias', (req, res) => {
     `SELECT DISTINCT responsavel_aquisicao v FROM item_classificacao
      WHERE responsavel_aquisicao IS NOT NULL AND responsavel_aquisicao <> '' ORDER BY v`
   ).all().map((r) => r.v);
-  res.json({ categorias: cats, responsaveis });
+  const subcategorias = db.prepare(
+    `SELECT DISTINCT subcategoria v FROM item_classificacao
+     WHERE subcategoria IS NOT NULL AND subcategoria <> '' ORDER BY v`
+  ).all().map((r) => r.v);
+  res.json({ categorias: cats, responsaveis, subcategorias });
 });
 
 module.exports = router;

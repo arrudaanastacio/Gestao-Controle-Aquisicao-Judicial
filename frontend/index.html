@@ -1733,6 +1733,10 @@
             <select id="ptpFiltroCategoria"><option value="">Categoria: todas</option></select>
             <select id="ptpFiltroClassificacao"><option value="">Classificação: todas</option><option value="pendentes">Classificação: pendentes</option><option value="ok">Classificação: preenchidas</option></select>
             <select id="ptpFiltroResponsavel"><option value="">Responsável: todos</option></select>
+            <div id="ptpFiltroSubWrap" style="position:relative; display:inline-block;">
+              <button type="button" id="ptpFiltroSubBotao" class="botao-secundario">SubCategoria: todas ▾</button>
+              <div id="ptpFiltroSubPainel" hidden style="position:absolute; z-index:60; top:calc(100% + 4px); left:0; background:var(--superficie,#fff); border:1px solid var(--borda,#ccc); border-radius:8px; padding:8px 10px; min-width:210px; max-height:300px; overflow:auto; box-shadow:0 6px 18px rgba(0,0,0,.18);"></div>
+            </div>
             <select id="ptpFiltroNovos"><option value="">Novos: todos</option><option value="1">Novos: só itens novos</option></select>
             <button id="ptpLimparFiltros" class="botao-secundario" type="button">Limpar</button>
             <button id="ptpExportar" class="botao-secundario" type="button" title="Baixa a lista atual (com os filtros aplicados) em Excel.">📊 Exportar Excel</button>

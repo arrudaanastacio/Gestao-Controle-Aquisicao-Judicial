@@ -4031,6 +4031,15 @@ async function carregarCategoriasPlanTP() {
       (r.categorias || []).map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
     document.getElementById('ptpFiltroResponsavel').innerHTML = '<option value="">Responsável: todos</option>' +
       (r.responsaveis || []).map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+    // SubCategoria = seleção múltipla por checkboxes.
+    document.getElementById('ptpFiltroSubPainel').innerHTML = (r.subcategorias || []).map((v) => {
+      const esc = v.replace(/"/g, '&quot;');
+      return `<label style="display:flex; align-items:center; gap:6px; padding:3px 0; cursor:pointer; white-space:nowrap;">
+        <input type="checkbox" class="ptp-sub-check" value="${esc}"> ${v}</label>`;
+    }).join('') || '<span style="color:var(--texto-suave);">Sem subcategorias (importe a planilha REL).</span>';
+    document.querySelectorAll('.ptp-sub-check').forEach((cb) => cb.addEventListener('change', () => {
+      atualizarRotuloSubPlanTP(); estadoPlanTP.pagina = 1; carregarTabelaPlanTP();
+    }));
     estadoPlanTP.categoriasCarregadas = true;
   } catch (e) { /* segue sem o filtro */ }
 }
@@ -4064,7 +4073,26 @@ document.getElementById('ptpLimparFiltros').addEventListener('click', () => {
   document.getElementById('ptpFiltroCategoria').value = '';
   document.getElementById('ptpFiltroResponsavel').value = '';
   document.getElementById('ptpFiltroNovos').value = '';
+  document.querySelectorAll('.ptp-sub-check').forEach((cb) => { cb.checked = false; });
+  atualizarRotuloSubPlanTP();
   estadoPlanTP.pagina = 1; carregarTabelaPlanTP();
+});
+// Dropdown de SubCategoria (seleção múltipla)
+function subcategoriasSelecionadasPlanTP() {
+  return [...document.querySelectorAll('.ptp-sub-check:checked')].map((cb) => cb.value);
+}
+function atualizarRotuloSubPlanTP() {
+  const n = subcategoriasSelecionadasPlanTP().length;
+  document.getElementById('ptpFiltroSubBotao').textContent = n === 0 ? 'SubCategoria: todas ▾' : `SubCategoria: ${n} selecionada(s) ▾`;
+}
+document.getElementById('ptpFiltroSubBotao').addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  const p = document.getElementById('ptpFiltroSubPainel');
+  p.hidden = !p.hidden;
+});
+document.addEventListener('click', (ev) => {
+  const wrap = document.getElementById('ptpFiltroSubWrap');
+  if (wrap && !wrap.contains(ev.target)) document.getElementById('ptpFiltroSubPainel').hidden = true;
 });
 // Monta os parâmetros de filtro atuais da aba TP (compartilhado por tabela e exportação).
 function paramsFiltroPlanTP() {
@@ -4077,6 +4105,7 @@ function paramsFiltroPlanTP() {
   if (cat) p.set('categoria', cat);
   const resp = document.getElementById('ptpFiltroResponsavel').value;
   if (resp) p.set('responsavel', resp);
+  subcategoriasSelecionadasPlanTP().forEach((s) => p.append('subcategoria', s));
   const nov = document.getElementById('ptpFiltroNovos').value;
   if (nov) p.set('novos', nov);
   return p;
