@@ -1732,6 +1732,7 @@
             <input type="text" id="ptpFiltroBusca" placeholder="Buscar por descrição, código SCODES ou SIAFÍSICO…" style="min-width:320px;">
             <select id="ptpFiltroCategoria"><option value="">Categoria: todas</option></select>
             <select id="ptpFiltroClassificacao"><option value="">Classificação: todas</option><option value="pendentes">Classificação: pendentes</option><option value="ok">Classificação: preenchidas</option></select>
+            <select id="ptpFiltroResponsavel"><option value="">Responsável: todos</option></select>
             <select id="ptpFiltroNovos"><option value="">Novos: todos</option><option value="1">Novos: só itens novos</option></select>
             <button id="ptpLimparFiltros" class="botao-secundario" type="button">Limpar</button>
             <button id="ptpExportar" class="botao-secundario" type="button" title="Baixa a lista atual (com os filtros aplicados) em Excel.">📊 Exportar Excel</button>
@@ -1750,6 +1751,8 @@
                     <th>Doença Rara</th>
                     <th>Unid. Fornecimento</th>
                     <th>Emb. Conversão</th>
+                    <th>SubCategoria</th>
+                    <th>Resp. Aquisição</th>
                     <th>Outros Programas</th>
                     <th>Ações</th>
                   </tr>
@@ -2243,6 +2246,12 @@
         <label style="grid-column:1 / -1;">Embalagem de Conversão
           <input type="number" id="clasEmbConversao" step="any" min="0" placeholder="ex.: 100 (múltiplo do arredondamento)">
           <small style="color:var(--texto-suave); display:block; margin-top:4px;">Pesquisada na BEC pela unidade de fornecimento. Usada no Planejamento.</small>
+        </label>
+        <label>SubCategoria
+          <input type="text" id="clasSubcategoria" placeholder="ex.: Medicamentos, Manipulado, Importado">
+        </label>
+        <label>Responsável Aquisição
+          <input type="text" id="clasResponsavel" placeholder="ex.: CGA / CAF">
         </label>
         <label>Outros Programas
           <select id="clasOutrosProgramas"><option value="">—</option><option value="Sim">Sim</option><option value="Não">Não</option></select>

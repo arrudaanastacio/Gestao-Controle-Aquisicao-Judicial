@@ -142,6 +142,12 @@ function numero(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+// Texto, mas tratando "-" (traço) e vazio como nulo (usado em SubCategoria/Responsável).
+function textoSemTraco(v) {
+  const t = String(v ?? '').trim();
+  return t === '' || t === '-' ? null : t;
+}
+
 // Normaliza "Sim"/"Não"/"-"/vazio -> 'Sim' | 'Não' | null.
 function simNao(v) {
   const t = String(v ?? '').trim();
@@ -161,50 +167,71 @@ function upsertClassificacao(reg, usuarioEmail, direto = false) {
        unidade_fornecimento = excluded.unidade_fornecimento,
        embalagem_conversao = excluded.embalagem_conversao,
        outros_programas = excluded.outros_programas,
-       qual_programa = excluded.qual_programa`
+       qual_programa = excluded.qual_programa,
+       subcategoria = excluded.subcategoria,
+       responsavel_aquisicao = excluded.responsavel_aquisicao`
     : `dose_certa = COALESCE(excluded.dose_certa, item_classificacao.dose_certa),
        doenca_rara = COALESCE(excluded.doenca_rara, item_classificacao.doenca_rara),
        unidade_fornecimento = COALESCE(excluded.unidade_fornecimento, item_classificacao.unidade_fornecimento),
        embalagem_conversao = COALESCE(excluded.embalagem_conversao, item_classificacao.embalagem_conversao),
        outros_programas = COALESCE(excluded.outros_programas, item_classificacao.outros_programas),
-       qual_programa = COALESCE(excluded.qual_programa, item_classificacao.qual_programa)`;
+       qual_programa = COALESCE(excluded.qual_programa, item_classificacao.qual_programa),
+       subcategoria = COALESCE(excluded.subcategoria, item_classificacao.subcategoria),
+       responsavel_aquisicao = COALESCE(excluded.responsavel_aquisicao, item_classificacao.responsavel_aquisicao)`;
   db.prepare(`
     INSERT INTO item_classificacao
-      (codigo_item, dose_certa, doenca_rara, unidade_fornecimento, embalagem_conversao, outros_programas, qual_programa, atualizado_em, usuario_email)
-    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?)
+      (codigo_item, dose_certa, doenca_rara, unidade_fornecimento, embalagem_conversao, outros_programas, qual_programa, subcategoria, responsavel_aquisicao, atualizado_em, usuario_email)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?)
     ON CONFLICT(codigo_item) DO UPDATE SET
       ${set},
       atualizado_em = datetime('now','localtime'),
       usuario_email = excluded.usuario_email
   `).run(reg.codigo_item, reg.dose_certa, reg.doenca_rara, reg.unidade_fornecimento, reg.embalagem_conversao,
-         reg.outros_programas ?? null, reg.qual_programa ?? null, usuarioEmail);
+         reg.outros_programas ?? null, reg.qual_programa ?? null, reg.subcategoria ?? null, reg.responsavel_aquisicao ?? null, usuarioEmail);
 }
 
-// Lê a aba "Status-Siafisico" e devolve as linhas de classificação.
+// Lê a planilha de classificação e devolve as linhas. Reconhece DOIS layouts,
+// escritos em item_classificacao (upsert que preserva o que não vem):
+//  • "Status-Siafisico": Programa=Dose Certa (Sim/Não), Doenças Raras,
+//    Unidade de Fornecimento, Embalagem de Conversão.
+//  • "Relatório de Itens (REL)": tem "SubCategoria" e "Responsável Aquisição".
+//    Nesse layout NÃO mapeamos Dose Certa — ali "Programa" é o NOME do programa
+//    (Especializado, Componente Básico...), não um Sim/Não; mapear corromperia.
 function processarStatusSiafisico(buffer) {
   const wb = XLSX.read(buffer, { type: 'buffer', raw: false });
-  const nomeAba = wb.SheetNames.find((n) => /status/i.test(n) && /siafisico/i.test(n))
-    || wb.SheetNames.find((n) => /siafisico/i.test(n));
-  if (!nomeAba) throw new Error('Não encontrei a aba "Status-Siafisico" na planilha.');
-  const brutas = XLSX.utils.sheet_to_json(wb.Sheets[nomeAba], { header: 1, defval: null, raw: false });
 
-  let hc = -1;
-  for (let i = 0; i < Math.min(brutas.length, 12); i++) {
-    const ln = (brutas[i] || []).map(normalizar);
-    if (ln.includes('codigo') && ln.some((c) => c.includes('embalagem de conversao'))) { hc = i; break; }
+  // Procura, em qualquer aba, uma linha de cabeçalho com "Código" + algum
+  // cabeçalho conhecido de classificação.
+  let escolhido = null;
+  for (const nome of wb.SheetNames) {
+    const brutas = XLSX.utils.sheet_to_json(wb.Sheets[nome], { header: 1, defval: null, raw: false });
+    for (let i = 0; i < Math.min(brutas.length, 12); i++) {
+      const ln = (brutas[i] || []).map(normalizar);
+      const temCodigo = ln.includes('codigo');
+      const temAlgo = ln.some((c) => c.includes('embalagem de conversao') || c.includes('subcategoria') || c.includes('responsavel'));
+      if (temCodigo && temAlgo) { escolhido = { brutas, hc: i, cab: ln }; break; }
+    }
+    if (escolhido) break;
   }
-  if (hc === -1) throw new Error('Não reconheci o layout da aba Status-Siafisico (não achei "Código" e "Embalagem de Conversão").');
+  if (!escolhido) {
+    throw new Error('Não reconheci o layout da planilha (esperado "Código" com "Embalagem de Conversão" ou com "SubCategoria/Responsável Aquisição").');
+  }
 
-  const cab = (brutas[hc] || []).map(normalizar);
+  const { brutas, hc, cab } = escolhido;
   const acha = (nomes) => cab.findIndex((c) => nomes.some((n) => c === n || c.includes(n)));
+  const ehREL = cab.some((c) => c.includes('subcategoria')) && cab.some((c) => c.includes('responsavel'));
+
   const COL = {
     codigo: acha(['codigo']),
-    dose_certa: acha(['programa']),
-    doenca_rara: acha(['doencas raras', 'doenca rara']),
-    unidade_fornecimento: acha(['unidade de fornecimento']),
-    embalagem_conversao: acha(['embalagem de conversao']),
+    subcategoria: acha(['subcategoria']),
+    responsavel_aquisicao: acha(['responsavel aquisicao', 'responsavel']),
+    // Só no layout Status-Siafisico (senão "Programa" do REL vira lixo em Dose Certa).
+    dose_certa: ehREL ? -1 : acha(['programa']),
+    doenca_rara: ehREL ? -1 : acha(['doencas raras', 'doenca rara']),
+    unidade_fornecimento: ehREL ? -1 : acha(['unidade de fornecimento']),
+    embalagem_conversao: ehREL ? -1 : acha(['embalagem de conversao']),
   };
-  if (COL.codigo === -1) throw new Error('Não encontrei a coluna "Código" na aba Status-Siafisico.');
+  if (COL.codigo === -1) throw new Error('Não encontrei a coluna "Código" na planilha.');
 
   const linhas = [];
   for (let i = hc + 1; i < brutas.length; i++) {
@@ -217,6 +244,8 @@ function processarStatusSiafisico(buffer) {
       doenca_rara: COL.doenca_rara >= 0 ? simNao(r[COL.doenca_rara]) : null,
       unidade_fornecimento: COL.unidade_fornecimento >= 0 ? texto(r[COL.unidade_fornecimento]) : null,
       embalagem_conversao: COL.embalagem_conversao >= 0 ? numero(r[COL.embalagem_conversao]) : null,
+      subcategoria: COL.subcategoria >= 0 ? textoSemTraco(r[COL.subcategoria]) : null,
+      responsavel_aquisicao: COL.responsavel_aquisicao >= 0 ? textoSemTraco(r[COL.responsavel_aquisicao]) : null,
     });
   }
   return linhas;
@@ -413,6 +442,8 @@ router.put('/classificacao/:codigo', exigirPerfil('admin'), (req, res) => {
     // Só guarda o nome do programa quando "Outros Programas" = Sim; caso
     // contrário limpa (não faz sentido manter texto de programa com resposta Não).
     qual_programa: outrosProgramas === 'Sim' ? texto(b.qual_programa) : null,
+    subcategoria: texto(b.subcategoria),
+    responsavel_aquisicao: texto(b.responsavel_aquisicao),
   };
   try {
     upsertClassificacao(reg, req.usuario.email, true);
@@ -434,7 +465,7 @@ router.put('/classificacao/:codigo', exigirPerfil('admin'), (req, res) => {
 // snapshot imediatamente anterior (item novo na unidade). Se não houver
 // snapshot anterior, ninguém é marcado como novo.
 function montarConsultaPlanTP(query) {
-  const { q, classificacao, categoria, novos } = query;
+  const { q, classificacao, categoria, novos, responsavel } = query;
 
   // Duas datas de referência mais recentes do estoque.
   const refs = db.prepare('SELECT DISTINCT data_referencia FROM estoque_itens ORDER BY data_referencia DESC LIMIT 2').all();
@@ -470,6 +501,7 @@ function montarConsultaPlanTP(query) {
     params.push(like, like, like, like, like);
   }
   if (categoria) { cond.push('e.categoria = ?'); params.push(categoria); }
+  if (responsavel) { cond.push('c.responsavel_aquisicao = ?'); params.push(responsavel); }
   if (classificacao === 'pendentes') cond.push('(c.codigo_item IS NULL OR c.embalagem_conversao IS NULL)');
   else if (classificacao === 'ok') cond.push('c.embalagem_conversao IS NOT NULL');
   if (novos === '1' || novos === 'true') cond.push(`${novoExpr} = 1`);
@@ -485,7 +517,9 @@ function montarConsultaPlanTP(query) {
        c.unidade_fornecimento AS clas_unidade_fornecimento,
        c.embalagem_conversao AS clas_embalagem_conversao,
        c.outros_programas AS clas_outros_programas,
-       c.qual_programa AS clas_qual_programa`;
+       c.qual_programa AS clas_qual_programa,
+       c.subcategoria AS clas_subcategoria,
+       c.responsavel_aquisicao AS clas_responsavel_aquisicao`;
 
   return { FROM, where, params, SELECT, dataRef, prevRef };
 }
@@ -519,6 +553,8 @@ router.get('/planejamento-tp/exportar', (req, res) => {
     'Doença Rara': i.clas_doenca_rara || '',
     'Unid. Fornecimento': i.clas_unidade_fornecimento || '',
     'Emb. Conversão': i.clas_embalagem_conversao != null ? i.clas_embalagem_conversao : '',
+    'SubCategoria': i.clas_subcategoria || '',
+    'Responsável Aquisição': i.clas_responsavel_aquisicao || '',
     'Outros Programas': i.clas_outros_programas || '',
     'Qual Programa': i.clas_qual_programa || '',
   }));
@@ -542,7 +578,11 @@ router.get('/planejamento-tp/categorias', (req, res) => {
        AND categoria IS NOT NULL AND categoria <> ''
      ORDER BY v`
   ).all().map((r) => r.v);
-  res.json({ categorias: cats });
+  const responsaveis = db.prepare(
+    `SELECT DISTINCT responsavel_aquisicao v FROM item_classificacao
+     WHERE responsavel_aquisicao IS NOT NULL AND responsavel_aquisicao <> '' ORDER BY v`
+  ).all().map((r) => r.v);
+  res.json({ categorias: cats, responsaveis });
 });
 
 module.exports = router;

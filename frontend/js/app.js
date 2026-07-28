@@ -3884,6 +3884,8 @@ async function abrirModalClassificacao(codigo, descricao) {
   document.getElementById('clasEmbConversao').value = '';
   document.getElementById('clasOutrosProgramas').value = '';
   document.getElementById('clasQualPrograma').value = '';
+  document.getElementById('clasSubcategoria').value = '';
+  document.getElementById('clasResponsavel').value = '';
   atualizarVisibilidadeQualPrograma();
   document.getElementById('modalClassificacao').hidden = false;
   try {
@@ -3894,6 +3896,8 @@ async function abrirModalClassificacao(codigo, descricao) {
     document.getElementById('clasEmbConversao').value = c.embalagem_conversao != null ? c.embalagem_conversao : '';
     document.getElementById('clasOutrosProgramas').value = c.outros_programas || '';
     document.getElementById('clasQualPrograma').value = c.qual_programa || '';
+    document.getElementById('clasSubcategoria').value = c.subcategoria || '';
+    document.getElementById('clasResponsavel').value = c.responsavel_aquisicao || '';
     atualizarVisibilidadeQualPrograma();
   } catch (e) { /* mantém em branco */ }
 }
@@ -3923,6 +3927,8 @@ document.getElementById('botaoSalvarClassificacao').addEventListener('click', as
         embalagem_conversao: document.getElementById('clasEmbConversao').value || null,
         outros_programas: document.getElementById('clasOutrosProgramas').value || null,
         qual_programa: document.getElementById('clasQualPrograma').value.trim() || null,
+        subcategoria: document.getElementById('clasSubcategoria').value.trim() || null,
+        responsavel_aquisicao: document.getElementById('clasResponsavel').value.trim() || null,
       }),
     });
     fecharModalClassificacao();
@@ -4023,6 +4029,8 @@ async function carregarCategoriasPlanTP() {
     const r = await api('/relatorio-itens/planejamento-tp/categorias');
     document.getElementById('ptpFiltroCategoria').innerHTML = '<option value="">Categoria: todas</option>' +
       (r.categorias || []).map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+    document.getElementById('ptpFiltroResponsavel').innerHTML = '<option value="">Responsável: todos</option>' +
+      (r.responsaveis || []).map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
     estadoPlanTP.categoriasCarregadas = true;
   } catch (e) { /* segue sem o filtro */ }
 }
@@ -4047,13 +4055,14 @@ document.getElementById('ptpFiltroBusca').addEventListener('input', () => {
   clearTimeout(debouncePlanTP);
   debouncePlanTP = setTimeout(() => { estadoPlanTP.pagina = 1; carregarTabelaPlanTP(); }, 350);
 });
-['ptpFiltroClassificacao', 'ptpFiltroCategoria', 'ptpFiltroNovos'].forEach((id) => {
+['ptpFiltroClassificacao', 'ptpFiltroCategoria', 'ptpFiltroResponsavel', 'ptpFiltroNovos'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => { estadoPlanTP.pagina = 1; carregarTabelaPlanTP(); });
 });
 document.getElementById('ptpLimparFiltros').addEventListener('click', () => {
   document.getElementById('ptpFiltroBusca').value = '';
   document.getElementById('ptpFiltroClassificacao').value = '';
   document.getElementById('ptpFiltroCategoria').value = '';
+  document.getElementById('ptpFiltroResponsavel').value = '';
   document.getElementById('ptpFiltroNovos').value = '';
   estadoPlanTP.pagina = 1; carregarTabelaPlanTP();
 });
@@ -4066,6 +4075,8 @@ function paramsFiltroPlanTP() {
   if (cls) p.set('classificacao', cls);
   const cat = document.getElementById('ptpFiltroCategoria').value;
   if (cat) p.set('categoria', cat);
+  const resp = document.getElementById('ptpFiltroResponsavel').value;
+  if (resp) p.set('responsavel', resp);
   const nov = document.getElementById('ptpFiltroNovos').value;
   if (nov) p.set('novos', nov);
   return p;
@@ -4120,6 +4131,8 @@ async function carregarTabelaPlanTP() {
         <td>${marca(i.clas_doenca_rara)}</td>
         <td>${i.clas_unidade_fornecimento || '—'}</td>
         <td style="text-align:right;">${i.clas_embalagem_conversao != null ? fmtNumero(i.clas_embalagem_conversao) : '<span style="color:var(--aviso,#b8860b);">pendente</span>'}</td>
+        <td>${i.clas_subcategoria || '—'}</td>
+        <td>${i.clas_responsavel_aquisicao || '—'}</td>
         <td>${outros(i)}</td>
         <td>${ehAdmin
           ? `<button class="botao-editar" data-codigo="${encodeURIComponent(i.codigo || '')}" data-desc="${(i.descricao_item || '').replace(/"/g, '&quot;')}">Editar</button>`

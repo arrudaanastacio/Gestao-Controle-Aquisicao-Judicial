@@ -771,14 +771,18 @@ CREATE TABLE IF NOT EXISTS item_classificacao (
   embalagem_conversao REAL,
   outros_programas TEXT,       -- 'Sim' / 'Não'
   qual_programa TEXT,          -- descrição do programa quando outros_programas = 'Sim'
+  subcategoria TEXT,           -- ex.: Medicamentos, Materiais, Manipulado, Importado... (planilha REL)
+  responsavel_aquisicao TEXT,  -- ex.: CGA / CAF (planilha REL)
   atualizado_em TEXT DEFAULT (datetime('now','localtime')),
   usuario_email TEXT
 );
 `);
-// Migração idempotente: bancos antigos ganham as colunas de "Outros Programas".
+// Migração idempotente: bancos antigos ganham as colunas novas.
 const colsClassificacao = db.prepare("PRAGMA table_info(item_classificacao)").all().map((c) => c.name);
 if (!colsClassificacao.includes('outros_programas')) db.exec("ALTER TABLE item_classificacao ADD COLUMN outros_programas TEXT");
 if (!colsClassificacao.includes('qual_programa')) db.exec("ALTER TABLE item_classificacao ADD COLUMN qual_programa TEXT");
+if (!colsClassificacao.includes('subcategoria')) db.exec("ALTER TABLE item_classificacao ADD COLUMN subcategoria TEXT");
+if (!colsClassificacao.includes('responsavel_aquisicao')) db.exec("ALTER TABLE item_classificacao ADD COLUMN responsavel_aquisicao TEXT");
 
 // Configurações gerais do sistema (ex: limiar de autonomia para alerta de estoque baixo)
 db.exec(`
