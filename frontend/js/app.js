@@ -3882,6 +3882,9 @@ async function abrirModalClassificacao(codigo, descricao) {
   document.getElementById('clasDoencaRara').value = '';
   document.getElementById('clasUnidadeForn').value = '';
   document.getElementById('clasEmbConversao').value = '';
+  document.getElementById('clasOutrosProgramas').value = '';
+  document.getElementById('clasQualPrograma').value = '';
+  atualizarVisibilidadeQualPrograma();
   document.getElementById('modalClassificacao').hidden = false;
   try {
     const c = await api(`/relatorio-itens/classificacao/${encodeURIComponent(codigo)}`);
@@ -3889,8 +3892,18 @@ async function abrirModalClassificacao(codigo, descricao) {
     document.getElementById('clasDoencaRara').value = c.doenca_rara || '';
     document.getElementById('clasUnidadeForn').value = c.unidade_fornecimento || '';
     document.getElementById('clasEmbConversao').value = c.embalagem_conversao != null ? c.embalagem_conversao : '';
+    document.getElementById('clasOutrosProgramas').value = c.outros_programas || '';
+    document.getElementById('clasQualPrograma').value = c.qual_programa || '';
+    atualizarVisibilidadeQualPrograma();
   } catch (e) { /* mantém em branco */ }
 }
+// Mostra o campo "Qual programa?" só quando Outros Programas = Sim.
+function atualizarVisibilidadeQualPrograma() {
+  const sim = document.getElementById('clasOutrosProgramas').value === 'Sim';
+  document.getElementById('rotuloQualPrograma').hidden = !sim;
+  if (!sim) document.getElementById('clasQualPrograma').value = '';
+}
+document.getElementById('clasOutrosProgramas').addEventListener('change', atualizarVisibilidadeQualPrograma);
 function fecharModalClassificacao() {
   document.getElementById('modalClassificacao').hidden = true;
   codigoClassificacaoAtual = null;
@@ -3908,10 +3921,13 @@ document.getElementById('botaoSalvarClassificacao').addEventListener('click', as
         doenca_rara: document.getElementById('clasDoencaRara').value || null,
         unidade_fornecimento: document.getElementById('clasUnidadeForn').value.trim() || null,
         embalagem_conversao: document.getElementById('clasEmbConversao').value || null,
+        outros_programas: document.getElementById('clasOutrosProgramas').value || null,
+        qual_programa: document.getElementById('clasQualPrograma').value.trim() || null,
       }),
     });
     fecharModalClassificacao();
     carregarTabelaRelItens();
+    if (!document.getElementById('abaRelItensPlanTP').hidden) carregarTabelaPlanTP();
   } catch (e) {
     alert('Erro ao salvar: ' + e.message);
   } finally {
@@ -3994,6 +4010,99 @@ async function carregarTabelaRelItens() {
     `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} item(ns)`;
   document.getElementById('riAnterior').disabled = dados.page <= 1;
   document.getElementById('riProximo').disabled = dados.page >= totalPaginas;
+}
+
+// -------------------- Aba "Planejamento TP" --------------------
+// Só itens da Tenente Pena (Estoque TP mais recente, demanda ≠ 0), com a
+// mesma classificação permanente editável pelo modal.
+const estadoPlanTP = { pagina: 1, pageSize: 50, carregouUmaVez: false };
+
+// Troca entre as abas Catálogo / Planejamento TP
+document.querySelectorAll('#abasRelItens .chip-faixa').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const aba = btn.dataset.aba;
+    document.querySelectorAll('#abasRelItens .chip-faixa').forEach((b) => b.classList.toggle('ativo', b === btn));
+    document.getElementById('abaRelItensCatalogo').hidden = aba !== 'catalogo';
+    document.getElementById('abaRelItensPlanTP').hidden = aba !== 'plantp';
+    if (aba === 'plantp' && !estadoPlanTP.carregouUmaVez) {
+      estadoPlanTP.carregouUmaVez = true;
+      carregarTabelaPlanTP();
+    }
+  });
+});
+
+let debouncePlanTP;
+document.getElementById('ptpFiltroBusca').addEventListener('input', () => {
+  clearTimeout(debouncePlanTP);
+  debouncePlanTP = setTimeout(() => { estadoPlanTP.pagina = 1; carregarTabelaPlanTP(); }, 350);
+});
+document.getElementById('ptpFiltroClassificacao').addEventListener('change', () => { estadoPlanTP.pagina = 1; carregarTabelaPlanTP(); });
+document.getElementById('ptpLimparFiltros').addEventListener('click', () => {
+  document.getElementById('ptpFiltroBusca').value = '';
+  document.getElementById('ptpFiltroClassificacao').value = '';
+  estadoPlanTP.pagina = 1; carregarTabelaPlanTP();
+});
+document.getElementById('ptpAnterior').addEventListener('click', () => { if (estadoPlanTP.pagina > 1) { estadoPlanTP.pagina--; carregarTabelaPlanTP(); } });
+document.getElementById('ptpProximo').addEventListener('click', () => { estadoPlanTP.pagina++; carregarTabelaPlanTP(); });
+
+async function carregarTabelaPlanTP() {
+  const params = new URLSearchParams({ page: estadoPlanTP.pagina, pageSize: estadoPlanTP.pageSize });
+  const q = document.getElementById('ptpFiltroBusca').value.trim();
+  if (q) params.set('q', q);
+  const cls = document.getElementById('ptpFiltroClassificacao').value;
+  if (cls) params.set('classificacao', cls);
+
+  const dados = await api(`/relatorio-itens/planejamento-tp?${params.toString()}`);
+
+  document.getElementById('subtituloPlanTP').textContent =
+    `Itens da Tenente Pena com demanda diferente de zero (Estoque TP de ${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}).`;
+
+  const corpo = document.getElementById('corpoTabelaPlanTP');
+  const vazio = document.getElementById('estadoVazioPlanTP');
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    const ehAdmin = estado.usuario && estado.usuario.perfil === 'admin';
+    const marca = (v) => {
+      if (v === 'Sim') return '<span class="etiqueta-status finalizado">Sim</span>';
+      if (v === 'Não') return '<span class="etiqueta-status">Não</span>';
+      return '—';
+    };
+    const outros = (i) => {
+      if (i.clas_outros_programas === 'Sim') {
+        const nome = i.clas_qual_programa ? ` <small style="color:var(--texto-suave);">(${i.clas_qual_programa})</small>` : '';
+        return `<span class="etiqueta-status finalizado">Sim</span>${nome}`;
+      }
+      if (i.clas_outros_programas === 'Não') return '<span class="etiqueta-status">Não</span>';
+      return '—';
+    };
+    corpo.innerHTML = dados.itens.map((i) => `
+      <tr>
+        <td class="col-codigo">${i.codigo || '—'}</td>
+        <td class="col-codigo">${i.siafisico || '—'}</td>
+        <td>${i.descricao_item || '—'}</td>
+        <td style="text-align:right;">${i.demanda_total != null ? fmtNumero(i.demanda_total) : '—'}</td>
+        <td>${marca(i.clas_dose_certa)}</td>
+        <td>${marca(i.clas_doenca_rara)}</td>
+        <td>${i.clas_unidade_fornecimento || '—'}</td>
+        <td style="text-align:right;">${i.clas_embalagem_conversao != null ? fmtNumero(i.clas_embalagem_conversao) : '<span style="color:var(--aviso,#b8860b);">pendente</span>'}</td>
+        <td>${outros(i)}</td>
+        <td>${ehAdmin
+          ? `<button class="botao-editar" data-codigo="${encodeURIComponent(i.codigo || '')}" data-desc="${(i.descricao_item || '').replace(/"/g, '&quot;')}">Editar</button>`
+          : '—'}</td>
+      </tr>
+    `).join('');
+    corpo.querySelectorAll('.botao-editar').forEach((btn) => {
+      btn.addEventListener('click', () => abrirModalClassificacao(decodeURIComponent(btn.dataset.codigo), btn.dataset.desc));
+    });
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoPlanTP').textContent =
+    `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} item(ns) da TP`;
+  document.getElementById('ptpAnterior').disabled = dados.page <= 1;
+  document.getElementById('ptpProximo').disabled = dados.page >= totalPaginas;
 }
 
 // ---------- Atualizar via Oracle (SCODES) ----------

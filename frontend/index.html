@@ -1670,6 +1670,12 @@
           </div>
         </div>
 
+        <div class="abas-tela" id="abasRelItens">
+          <button type="button" class="chip-faixa ativo" data-aba="catalogo">📚 Catálogo completo</button>
+          <button type="button" class="chip-faixa" data-aba="plantp">🏥 Planejamento TP</button>
+        </div>
+
+        <div id="abaRelItensCatalogo">
         <div class="grade-resumo" id="grideResumoRelItens"></div>
 
         <div class="barra-filtros">
@@ -1717,6 +1723,47 @@
             </div>
           </div>
         </div>
+        </div><!-- /abaRelItensCatalogo -->
+
+        <div id="abaRelItensPlanTP" hidden>
+          <p class="texto-auxiliar" id="subtituloPlanTP" style="margin:4px 0 12px;">Itens da Tenente Pena com demanda diferente de zero (Estoque TP mais recente).</p>
+
+          <div class="barra-filtros">
+            <input type="text" id="ptpFiltroBusca" placeholder="Buscar por descrição, código SCODES ou SIAFÍSICO…" style="min-width:320px;">
+            <select id="ptpFiltroClassificacao"><option value="">Classificação: todas</option><option value="pendentes">Classificação: pendentes</option><option value="ok">Classificação: preenchidas</option></select>
+            <button id="ptpLimparFiltros" class="botao-secundario" type="button">Limpar</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Código SCODES</th>
+                    <th>SIAFÍSICO</th>
+                    <th>Descrição do Item</th>
+                    <th>Demanda Total</th>
+                    <th>Dose Certa</th>
+                    <th>Doença Rara</th>
+                    <th>Unid. Fornecimento</th>
+                    <th>Emb. Conversão</th>
+                    <th>Outros Programas</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaPlanTP"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioPlanTP" hidden>Nenhum item da TP encontrado com estes filtros.</div>
+            <div class="paginacao">
+              <span id="textoPaginacaoPlanTP">—</span>
+              <div class="botoes">
+                <button id="ptpAnterior">← Anterior</button>
+                <button id="ptpProximo">Próximo →</button>
+              </div>
+            </div>
+          </div>
+        </div><!-- /abaRelItensPlanTP -->
       </section>
 
       <section id="paginaElenco" hidden>
@@ -2193,6 +2240,12 @@
         <label style="grid-column:1 / -1;">Embalagem de Conversão
           <input type="number" id="clasEmbConversao" step="any" min="0" placeholder="ex.: 100 (múltiplo do arredondamento)">
           <small style="color:var(--texto-suave); display:block; margin-top:4px;">Pesquisada na BEC pela unidade de fornecimento. Usada no Planejamento.</small>
+        </label>
+        <label>Outros Programas
+          <select id="clasOutrosProgramas"><option value="">—</option><option value="Sim">Sim</option><option value="Não">Não</option></select>
+        </label>
+        <label id="rotuloQualPrograma" style="grid-column:1 / -1;" hidden>Qual programa?
+          <input type="text" id="clasQualPrograma" placeholder="ex.: Componente Especializado (CEAF), Aids, etc.">
         </label>
       </div>
       <div class="acoes-modal">

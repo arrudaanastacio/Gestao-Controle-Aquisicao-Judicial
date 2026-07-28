@@ -159,20 +159,25 @@ function upsertClassificacao(reg, usuarioEmail, direto = false) {
     ? `dose_certa = excluded.dose_certa,
        doenca_rara = excluded.doenca_rara,
        unidade_fornecimento = excluded.unidade_fornecimento,
-       embalagem_conversao = excluded.embalagem_conversao`
+       embalagem_conversao = excluded.embalagem_conversao,
+       outros_programas = excluded.outros_programas,
+       qual_programa = excluded.qual_programa`
     : `dose_certa = COALESCE(excluded.dose_certa, item_classificacao.dose_certa),
        doenca_rara = COALESCE(excluded.doenca_rara, item_classificacao.doenca_rara),
        unidade_fornecimento = COALESCE(excluded.unidade_fornecimento, item_classificacao.unidade_fornecimento),
-       embalagem_conversao = COALESCE(excluded.embalagem_conversao, item_classificacao.embalagem_conversao)`;
+       embalagem_conversao = COALESCE(excluded.embalagem_conversao, item_classificacao.embalagem_conversao),
+       outros_programas = COALESCE(excluded.outros_programas, item_classificacao.outros_programas),
+       qual_programa = COALESCE(excluded.qual_programa, item_classificacao.qual_programa)`;
   db.prepare(`
     INSERT INTO item_classificacao
-      (codigo_item, dose_certa, doenca_rara, unidade_fornecimento, embalagem_conversao, atualizado_em, usuario_email)
-    VALUES (?, ?, ?, ?, ?, datetime('now','localtime'), ?)
+      (codigo_item, dose_certa, doenca_rara, unidade_fornecimento, embalagem_conversao, outros_programas, qual_programa, atualizado_em, usuario_email)
+    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?)
     ON CONFLICT(codigo_item) DO UPDATE SET
       ${set},
       atualizado_em = datetime('now','localtime'),
       usuario_email = excluded.usuario_email
-  `).run(reg.codigo_item, reg.dose_certa, reg.doenca_rara, reg.unidade_fornecimento, reg.embalagem_conversao, usuarioEmail);
+  `).run(reg.codigo_item, reg.dose_certa, reg.doenca_rara, reg.unidade_fornecimento, reg.embalagem_conversao,
+         reg.outros_programas ?? null, reg.qual_programa ?? null, usuarioEmail);
 }
 
 // Lê a aba "Status-Siafisico" e devolve as linhas de classificação.
@@ -397,12 +402,17 @@ router.put('/classificacao/:codigo', exigirPerfil('admin'), (req, res) => {
   const codigo = String(req.params.codigo || '').trim();
   if (!codigo) return res.status(400).json({ erro: 'Código do item ausente.' });
   const b = req.body || {};
+  const outrosProgramas = simNao(b.outros_programas);
   const reg = {
     codigo_item: codigo,
     dose_certa: simNao(b.dose_certa),
     doenca_rara: simNao(b.doenca_rara),
     unidade_fornecimento: texto(b.unidade_fornecimento),
     embalagem_conversao: numero(b.embalagem_conversao),
+    outros_programas: outrosProgramas,
+    // Só guarda o nome do programa quando "Outros Programas" = Sim; caso
+    // contrário limpa (não faz sentido manter texto de programa com resposta Não).
+    qual_programa: outrosProgramas === 'Sim' ? texto(b.qual_programa) : null,
   };
   try {
     upsertClassificacao(reg, req.usuario.email, true);
@@ -412,6 +422,63 @@ router.put('/classificacao/:codigo', exigirPerfil('admin'), (req, res) => {
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
+});
+
+// ---------- Aba "Planejamento TP": só itens da Tenente Pena ----------
+// Universo = itens presentes no Estoque TP mais recente com demanda ≠ 0
+// (o universo real de planejamento). Cruzamento pelo código SCODES
+// (estoque_itens.codigo_item = relatorio_itens.codigo = item_classificacao.codigo_item).
+// Traz o descritivo/siafísico do relatório e a classificação permanente.
+router.get('/planejamento-tp', (req, res) => {
+  const { q, classificacao, page = 1, pageSize = 50 } = req.query;
+  const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
+  const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
+
+  // O estoque tem VÁRIAS linhas por item (uma por demanda). Agrego primeiro
+  // por código (soma da demanda = demanda total do item) para ter UMA linha
+  // por item; só então junto o catálogo (siafísico/descrição) e a classificação.
+  const FROM = `FROM (
+      SELECT codigo_item,
+             SUM(demandas) AS demanda_total,
+             MAX(siafisico) AS siafisico,
+             MAX(descricao) AS descricao
+      FROM estoque_itens
+      WHERE data_referencia = (SELECT MAX(data_referencia) FROM estoque_itens)
+      GROUP BY codigo_item
+      HAVING SUM(demandas) IS NOT NULL AND SUM(demandas) <> 0
+    ) e
+    LEFT JOIN relatorio_itens ri ON ri.codigo = e.codigo_item
+    LEFT JOIN item_classificacao c ON c.codigo_item = e.codigo_item`;
+
+  const cond = [];
+  const params = [];
+  if (q) {
+    cond.push('(ri.descricao_item LIKE ? OR e.descricao LIKE ? OR e.codigo_item LIKE ? OR ri.siafisico LIKE ? OR e.siafisico LIKE ?)');
+    const like = `%${q}%`;
+    params.push(like, like, like, like, like);
+  }
+  if (classificacao === 'pendentes') cond.push('(c.codigo_item IS NULL OR c.embalagem_conversao IS NULL)');
+  else if (classificacao === 'ok') cond.push('c.embalagem_conversao IS NOT NULL');
+  const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+
+  const total = db.prepare(`SELECT COUNT(*) cc ${FROM} ${where}`).get(...params).cc;
+  const itens = db.prepare(
+    `SELECT e.codigo_item AS codigo,
+       COALESCE(ri.siafisico, e.siafisico) AS siafisico,
+       COALESCE(ri.descricao_item, e.descricao) AS descricao_item,
+       e.demanda_total AS demanda_total,
+       c.dose_certa AS clas_dose_certa,
+       c.doenca_rara AS clas_doenca_rara,
+       c.unidade_fornecimento AS clas_unidade_fornecimento,
+       c.embalagem_conversao AS clas_embalagem_conversao,
+       c.outros_programas AS clas_outros_programas,
+       c.qual_programa AS clas_qual_programa
+     ${FROM} ${where}
+     ORDER BY descricao_item COLLATE NOCASE LIMIT ? OFFSET ?`
+  ).all(...params, limit, offset);
+  const dataRef = db.prepare('SELECT MAX(data_referencia) v FROM estoque_itens').get()?.v || null;
+
+  res.json({ total, dataReferencia: dataRef, itens, page: Number(page), pageSize: limit });
 });
 
 module.exports = router;
