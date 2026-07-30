@@ -169,7 +169,8 @@ function upsertClassificacao(reg, usuarioEmail, direto = false) {
        outros_programas = excluded.outros_programas,
        qual_programa = excluded.qual_programa,
        subcategoria = excluded.subcategoria,
-       responsavel_aquisicao = excluded.responsavel_aquisicao`
+       responsavel_aquisicao = excluded.responsavel_aquisicao,
+       inex = excluded.inex`
     : `dose_certa = COALESCE(excluded.dose_certa, item_classificacao.dose_certa),
        doenca_rara = COALESCE(excluded.doenca_rara, item_classificacao.doenca_rara),
        unidade_fornecimento = COALESCE(excluded.unidade_fornecimento, item_classificacao.unidade_fornecimento),
@@ -177,17 +178,18 @@ function upsertClassificacao(reg, usuarioEmail, direto = false) {
        outros_programas = COALESCE(excluded.outros_programas, item_classificacao.outros_programas),
        qual_programa = COALESCE(excluded.qual_programa, item_classificacao.qual_programa),
        subcategoria = COALESCE(excluded.subcategoria, item_classificacao.subcategoria),
-       responsavel_aquisicao = COALESCE(excluded.responsavel_aquisicao, item_classificacao.responsavel_aquisicao)`;
+       responsavel_aquisicao = COALESCE(excluded.responsavel_aquisicao, item_classificacao.responsavel_aquisicao),
+       inex = COALESCE(excluded.inex, item_classificacao.inex)`;
   db.prepare(`
     INSERT INTO item_classificacao
-      (codigo_item, dose_certa, doenca_rara, unidade_fornecimento, embalagem_conversao, outros_programas, qual_programa, subcategoria, responsavel_aquisicao, atualizado_em, usuario_email)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?)
+      (codigo_item, dose_certa, doenca_rara, unidade_fornecimento, embalagem_conversao, outros_programas, qual_programa, subcategoria, responsavel_aquisicao, inex, atualizado_em, usuario_email)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?)
     ON CONFLICT(codigo_item) DO UPDATE SET
       ${set},
       atualizado_em = datetime('now','localtime'),
       usuario_email = excluded.usuario_email
   `).run(reg.codigo_item, reg.dose_certa, reg.doenca_rara, reg.unidade_fornecimento, reg.embalagem_conversao,
-         reg.outros_programas ?? null, reg.qual_programa ?? null, reg.subcategoria ?? null, reg.responsavel_aquisicao ?? null, usuarioEmail);
+         reg.outros_programas ?? null, reg.qual_programa ?? null, reg.subcategoria ?? null, reg.responsavel_aquisicao ?? null, reg.inex ?? null, usuarioEmail);
 }
 
 // Lê a planilha de classificação e devolve as linhas. Reconhece DOIS layouts,
@@ -325,7 +327,8 @@ router.get('/', (req, res) => {
        c.dose_certa AS clas_dose_certa,
        c.doenca_rara AS clas_doenca_rara,
        c.unidade_fornecimento AS clas_unidade_fornecimento,
-       c.embalagem_conversao AS clas_embalagem_conversao
+       c.embalagem_conversao AS clas_embalagem_conversao,
+       c.inex AS clas_inex
      ${FROM} ${where}
      ORDER BY ri.descricao_item COLLATE NOCASE LIMIT ? OFFSET ?`
   ).all(...params, limit, offset);
@@ -444,6 +447,7 @@ router.put('/classificacao/:codigo', exigirPerfil('admin'), (req, res) => {
     qual_programa: outrosProgramas === 'Sim' ? texto(b.qual_programa) : null,
     subcategoria: texto(b.subcategoria),
     responsavel_aquisicao: texto(b.responsavel_aquisicao),
+    inex: simNao(b.inex),
   };
   try {
     upsertClassificacao(reg, req.usuario.email, true);
@@ -529,7 +533,8 @@ function montarConsultaPlanTP(query) {
        c.outros_programas AS clas_outros_programas,
        c.qual_programa AS clas_qual_programa,
        c.subcategoria AS clas_subcategoria,
-       c.responsavel_aquisicao AS clas_responsavel_aquisicao`;
+       c.responsavel_aquisicao AS clas_responsavel_aquisicao,
+       c.inex AS clas_inex`;
 
   return { FROM, where, params, SELECT, dataRef, prevRef };
 }
@@ -565,6 +570,7 @@ router.get('/planejamento-tp/exportar', (req, res) => {
     'Emb. Conversão': i.clas_embalagem_conversao != null ? i.clas_embalagem_conversao : '',
     'SubCategoria': i.clas_subcategoria || '',
     'Responsável Aquisição': i.clas_responsavel_aquisicao || '',
+    'Inex': i.clas_inex || '',
     'Outros Programas': i.clas_outros_programas || '',
     'Qual Programa': i.clas_qual_programa || '',
   }));

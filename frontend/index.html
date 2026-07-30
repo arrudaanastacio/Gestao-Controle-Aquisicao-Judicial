@@ -81,6 +81,11 @@
           <a href="#" data-pagina="atas">Atas de Registro de Preço</a>
         </div>
 
+        <div class="nav-grupo">
+          <p class="nav-grupo-titulo nav-unidade-titulo">📋 Planejamento</p>
+          <a href="#" data-pagina="planejamento">Planejamento de Compras</a>
+        </div>
+
         <div class="nav-grupo" id="grupoAdministracao">
           <p class="nav-grupo-titulo nav-unidade-titulo">⚙️ Administração</p>
           <a href="#" data-pagina="usuarios" id="linkUsuarios" hidden>Usuários</a>
@@ -1708,6 +1713,7 @@
                   <th>Doença Rara</th>
                   <th>Unid. Fornecimento</th>
                   <th>Emb. Conversão</th>
+                  <th>Inex</th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -1726,7 +1732,11 @@
         </div><!-- /abaRelItensCatalogo -->
 
         <div id="abaRelItensPlanTP" hidden>
-          <p class="texto-auxiliar" id="subtituloPlanTP" style="margin:4px 0 12px;">Itens da Tenente Pena com demanda diferente de zero (Estoque TP mais recente).</p>
+          <p class="texto-auxiliar" id="subtituloPlanTP" style="margin:4px 0 4px;">Itens da Tenente Pena com demanda diferente de zero (Estoque TP mais recente).</p>
+          <p class="texto-auxiliar" style="margin:0 0 12px; display:flex; align-items:center; gap:6px;">
+            <span style="display:inline-block; width:14px; height:14px; background:#fdf3d8; box-shadow:inset 4px 0 0 #d9a406; border:1px solid #e0d3a0; border-radius:2px;"></span>
+            Linhas em âmbar: aquisição por <strong>Dose, Mililitro ou Grama</strong> — exigem conversão de embalagem (conferir).
+          </p>
 
           <div class="barra-filtros">
             <input type="text" id="ptpFiltroBusca" placeholder="Buscar por descrição, código SCODES ou SIAFÍSICO…" style="min-width:320px;">
@@ -1757,6 +1767,7 @@
                     <th>Emb. Conversão</th>
                     <th>SubCategoria</th>
                     <th>Resp. Aquisição</th>
+                    <th>Inex</th>
                     <th>Outros Programas</th>
                     <th>Ações</th>
                   </tr>
@@ -1774,6 +1785,111 @@
             </div>
           </div>
         </div><!-- /abaRelItensPlanTP -->
+      </section>
+
+      <section id="paginaPlanejamento" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Planejamento de Compras</h2>
+            <p id="subtituloPlanejamento">Cálculo automático das quantidades a comprar (Tenente Pena)</p>
+          </div>
+        </div>
+
+        <div class="barra-filtros" id="planFiltros">
+          <label style="display:flex; flex-direction:column; font-size:12px; gap:2px;">
+            Alvo ATA (meses)
+            <input type="number" id="planAlvoAta" value="6" min="0" step="1" style="width:90px;">
+          </label>
+          <label style="display:flex; flex-direction:column; font-size:12px; gap:2px;">
+            Alvo Pregão/Inex (meses)
+            <input type="number" id="planAlvoPregao" value="9" min="0" step="1" style="width:90px;">
+          </label>
+          <label style="display:flex; flex-direction:column; font-size:12px; gap:2px;">
+            Corte pouca demanda (≤)
+            <input type="number" id="planCorte" value="3" min="0" step="1" style="width:90px;">
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px;">
+            <input type="checkbox" id="planIncluirZerados"> Incluir itens sem consumo
+          </label>
+          <button id="botaoGerarPlan" class="botao-primario" type="button">⚙️ Gerar planejamento</button>
+        </div>
+
+        <div class="barra-filtros" id="planAcoes" style="margin-top:6px;">
+          <input type="text" id="planTitulo" placeholder="Título do planejamento (ex.: Julho/2026)" style="min-width:260px;">
+          <button id="botaoSalvarPlan" class="botao-secundario" type="button" hidden>💾 Salvar</button>
+          <button id="botaoExportarPlan" class="botao-secundario" type="button" hidden>⬇️ Exportar (ATA/Pregão)</button>
+          <button id="botaoListarPlan" class="botao-secundario" type="button">📂 Planejamentos salvos</button>
+          <span id="planEditandoInfo" style="font-size:12px; color:#0a6b3b;" hidden></span>
+        </div>
+
+        <div id="planListaSalvos" class="cartao" style="margin:8px 0; padding:10px; display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <strong>Planejamentos salvos</strong>
+            <button id="botaoFecharListaPlan" class="botao-texto" type="button">✕ Fechar</button>
+          </div>
+          <div id="planListaSalvosCorpo" style="overflow-x:auto;"></div>
+        </div>
+
+        <p class="dica" id="planBaseInfo" style="margin:4px 0 10px; color:#666; font-size:12px;"></p>
+
+        <div class="grade-resumo" id="planResumo"></div>
+
+        <p style="margin:2px 0 8px; color:#666; font-size:12px;">
+          <span style="display:inline-block; width:12px; height:12px; background:#fdf3d8; border-left:4px solid #d9a406; vertical-align:-2px; margin-right:4px;"></span>
+          Linhas em âmbar: aquisição por Dose, Mililitro ou Grama — exigem conversão de embalagem (conferir).
+        </p>
+
+        <div class="barra-filtros" id="planFiltrosLista" style="align-items:center; gap:8px; flex-wrap:wrap;">
+          <div class="abas-tela" id="planChipsModalidade" style="margin:0;">
+            <button type="button" class="chip-faixa ativo" data-mod="">Todos</button>
+            <button type="button" class="chip-faixa" data-mod="ATA">ATA</button>
+            <button type="button" class="chip-faixa" data-mod="PREGAO">Pregão</button>
+            <button type="button" class="chip-faixa" data-mod="INEX">Inex</button>
+            <button type="button" class="chip-faixa" data-mod="REVISAR">⚠ Revisar</button>
+          </div>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; margin-left:6px;">
+            <input type="checkbox" id="planFiltroFrac"> Só ml/g/dose (âmbar)
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px;">
+            <input type="checkbox" id="planFiltroComprar"> Só marcados p/ comprar
+          </label>
+          <select id="planFiltroCategoria"><option value="">Categoria: todas</option></select>
+          <div id="planFiltroSubWrap" style="position:relative;">
+            <button type="button" id="planFiltroSubBotao" class="botao-secundario" style="font-size:12px; padding:6px 10px;">SubCategoria: todas ▾</button>
+            <div id="planFiltroSubPainel" class="cartao" hidden style="position:absolute; z-index:40; top:calc(100% + 4px); left:0; min-width:220px; max-height:260px; overflow:auto; padding:8px; box-shadow:0 4px 14px rgba(0,0,0,.15);"></div>
+          </div>
+          <input type="text" id="planBusca" placeholder="Buscar descrição, SIAFÍSICO ou marca…" style="min-width:220px; flex:1;">
+          <span id="planContagemFiltro" style="font-size:12px; color:#666; white-space:nowrap;"></span>
+        </div>
+
+        <div class="corpo-tabela-wrapper" style="overflow-x:auto;">
+          <table class="tabela" id="tabelaPlanejamento" style="width:100%;">
+            <thead>
+              <tr>
+                <th title="Marcar/desmarcar o item para a compra">Comprar</th>
+                <th>Descrição</th>
+                <th>SIAFÍSICO</th>
+                <th>Modalidade</th>
+                <th>Un. Forn.</th>
+                <th title="Consumo mensal SCODES">Consumo</th>
+                <th title="% = LOIS ÷ SCODES">% LOIS</th>
+                <th>Estoque</th>
+                <th>Empenhado</th>
+                <th>Solicitado</th>
+                <th title="Meses de cobertura atuais">Aut. existente</th>
+                <th title="Meses a comprar (editável) — parte do alvo que falta">Aut. ajustada</th>
+                <th>Conv.</th>
+                <th title="Quantidade a comprar (editável)">Quantidade</th>
+                <th>Preço ATA</th>
+                <th>Custo</th>
+                <th>Obs.</th>
+              </tr>
+            </thead>
+            <tbody id="corpoPlanejamento">
+              <tr><td colspan="17" style="text-align:center; padding:24px; color:#888;">Clique em <strong>Gerar planejamento</strong> para calcular.</td></tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section id="paginaElenco" hidden>
@@ -2256,6 +2372,10 @@
         </label>
         <label>Responsável Aquisição
           <input type="text" id="clasResponsavel" placeholder="ex.: CGA / CAF">
+        </label>
+        <label>Inex (Inexigibilidade)
+          <select id="clasInex"><option value="">—</option><option value="Sim">Sim</option><option value="Não">Não</option></select>
+          <small style="color:var(--texto-suave); display:block; margin-top:4px;">Sim = no Planejamento entra como Modalidade Inex.</small>
         </label>
         <label>Outros Programas
           <select id="clasOutrosProgramas"><option value="">—</option><option value="Sim">Sim</option><option value="Não">Não</option></select>

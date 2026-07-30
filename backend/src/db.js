@@ -783,6 +783,11 @@ if (!colsClassificacao.includes('outros_programas')) db.exec("ALTER TABLE item_c
 if (!colsClassificacao.includes('qual_programa')) db.exec("ALTER TABLE item_classificacao ADD COLUMN qual_programa TEXT");
 if (!colsClassificacao.includes('subcategoria')) db.exec("ALTER TABLE item_classificacao ADD COLUMN subcategoria TEXT");
 if (!colsClassificacao.includes('responsavel_aquisicao')) db.exec("ALTER TABLE item_classificacao ADD COLUMN responsavel_aquisicao TEXT");
+// Override de modalidade do Planejamento decidido pelo técnico nos casos de
+// marca divergente (REVISAR): 'ATA' | 'PREGAO' | NULL (usa a classificação automática).
+if (!colsClassificacao.includes('modalidade_planejamento')) db.exec("ALTER TABLE item_classificacao ADD COLUMN modalidade_planejamento TEXT");
+// Inex (Sim/Não): item adquirido por Inexigibilidade. No Planejamento vira Modalidade Inex.
+if (!colsClassificacao.includes('inex')) db.exec("ALTER TABLE item_classificacao ADD COLUMN inex TEXT");
 
 // Configurações gerais do sistema (ex: limiar de autonomia para alerta de estoque baixo)
 db.exec(`

@@ -35,7 +35,9 @@ const { autenticar, exigirModulo, exigirModuloDinamico, exigirPerfil } = require
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+// Limite ampliado: salvar um planejamento envia todas as linhas (milhares de
+// itens) num único JSON, o que passa do padrão de 100kb do Express.
+app.use(express.json({ limit: '25mb' }));
 app.use(cookieParser());
 
 // Informa o ambiente (produção/homologação) e a versão. Público de propósito:
@@ -88,6 +90,7 @@ app.use('/api/autores', autenticar, exigirModuloDinamico((req) => {
 
 app.use('/api/relatorio-itens', autenticar, exigirModulo('relatorioItens'), relatorioItensRoutes);
 app.use('/api/atas', autenticar, exigirModulo('atas'), atasRoutes);
+app.use('/api/planejamento', autenticar, exigirModulo('planejamento'), require('./routes.planejamento'));
 app.use('/api/estoque-od', autenticar, exigirModulo('estoqueOD'), estoqueODRoutes);
 
 // /api/solicitacoes-od atende 2 telas: Relatório de Compras OD (padrão) e

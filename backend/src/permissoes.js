@@ -55,6 +55,9 @@ const MODULOS = [
   { chave: 'relatorioItens', rotulo: 'Relatório de Itens', acoes: ['visualizar', 'exportar', 'importar'] },
   { chave: 'atas', rotulo: 'Atas de Registro de Preço (SISCOA)', acoes: ['visualizar', 'exportar', 'importar'] },
 
+  // 📋 Planejamento de Compras
+  { chave: 'planejamento', rotulo: 'Planejamento de Compras', acoes: ['visualizar', 'inserir', 'editar', 'excluir', 'exportar'] },
+
   // Não aparece direto no menu (acessado via Administração > Importação)
   { chave: 'elenco', rotulo: 'Elenco (Catálogo)', acoes: ['visualizar', 'editar', 'importar'] },
 ];

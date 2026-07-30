@@ -652,7 +652,8 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaReservas:not([hidden])),
 .conteudo:has(> #paginaRupturas:not([hidden])),
 .conteudo:has(> #paginaPainel:not([hidden])),
-.conteudo:has(> #paginaDistribuicao:not([hidden])) {
+.conteudo:has(> #paginaDistribuicao:not([hidden])),
+.conteudo:has(> #paginaPlanejamento:not([hidden])) {
   max-width: none;
 }
 
@@ -1059,6 +1060,28 @@ tbody tr:last-child td { border-bottom: none; }
    depois na cascata para vencer a zebra. */
 tbody tr:nth-child(even) td { background: var(--zebra); }
 tbody tr:hover td { background: var(--realce-tabela); }
+
+/* Planejamento TP: destaca (âmbar) itens cuja aquisição é por unidade
+   fracionada — Dose, Mililitro ou Grama — que exigem conversão de embalagem.
+   Vence a zebra por especificidade; mantém realce próprio no hover. */
+tbody tr.linha-unidade-fracionada td { background: #fdf3d8; }
+tbody tr.linha-unidade-fracionada:hover td { background: #fbe9b7; }
+tbody tr.linha-unidade-fracionada td:first-child { box-shadow: inset 4px 0 0 #d9a406; }
+
+/* Planejamento: item desmarcado de "Comprar" fica apagado (não some da lista). */
+tbody tr.linha-nao-comprar td { opacity: 0.45; }
+tbody tr.linha-nao-comprar td:first-child { opacity: 1; }
+
+/* Planejamento: item com marca divergente (aguardando decisão do técnico). */
+tbody tr.linha-revisar td { background: #fdeae6; }
+tbody tr.linha-revisar:hover td { background: #fbdcd4; }
+.cel-mod { white-space: nowrap; }
+.badge-mod { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.badge-ata { background: #e2f0e6; color: #1d6b3a; }
+.badge-pregao { background: #e6eef7; color: #2a5b8c; }
+.badge-inex { background: #ece1f5; color: #6b3a94; }
+.badge-revisar { background: #f6c9bd; color: #9a3418; }
+.plan-modalidade { display: block; font-size: 11px; }
 
 .col-codigo { font-family: var(--fonte-mono); font-size: 12px; color: var(--cinza-texto); }
 .col-data { font-family: var(--fonte-mono); font-size: 12px; white-space: nowrap; }
@@ -1559,6 +1582,11 @@ body.tem-faixa-ambiente { padding-top: 30px; }
   .detalhe-colunas { grid-template-columns: 1fr; }
 }
 .detalhe-colunas h4 { margin: 0 0 8px; font-size: 13px; }
+/* Sem min-width:0 as células de grid não encolhem e a tabela de lotes
+   (fabricante longo) transbordava por cima da coluna de evolução. */
+.detalhe-colunas > div { min-width: 0; }
+.detalhe-colunas table { width: 100%; table-layout: fixed; }
+.detalhe-colunas td, .detalhe-colunas th { overflow-wrap: anywhere; word-break: break-word; }
 
 
 

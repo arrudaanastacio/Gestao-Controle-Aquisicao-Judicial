@@ -10,6 +10,34 @@
 
 ## Publicadas recentemente
 
+### v1.10.0 — 29/07/2026 (Módulo Planejamento de Compras)
+
+**Novo módulo "Planejamento de Compras" (Tenente Pena) + campo Inex no Relatório de Itens.**
+
+- **Motor de cálculo** fiel aos modelos ATA/Pregão: quantidade =
+  `MROUND(autonomia × consumo × conversão, passo)`, arredondando Judicial e ADM
+  separadamente. Passo: ATA = embalagem primária SISCOA; Pregão/Inex = conversão.
+- **Modalidade** por siafísico + validade da ata + **marca** (nome comercial):
+  ATA / Pregão / **Inex** / **⚠ Revisar** (marca divergente → técnico decide,
+  decisão lembrada em `item_classificacao.modalidade_planejamento`).
+- **Preço:** ATA/Revisar = último valor publicado da ata; Pregão/Inex = valor
+  médio do Relatório de Itens.
+- **% Atendimento Único / Demandas por Dispensações** e **Periodicidade Média**
+  calculadas ao vivo da Listagem de Autores (sem importar).
+- **Tela:** gerar, editar item a item (autonomia, quantidade, conversão editável,
+  comprar, obs, modalidade), filtros (modalidade, categoria, subcategoria múltipla,
+  ml/g/dose, busca), salvar/reabrir/duplicar/excluir, e **export XLSX** nos layouts
+  10.ATA / 11.PREGÃO (+ aba REVISAR).
+- **Relatório de Itens:** nova coluna e campo no modal **Inex (Sim/Não)** — `Sim`
+  entra no Planejamento como **Modalidade Inex**.
+- **Estoque:** removida a "Evolução do estoque" do modal de detalhe do item.
+
+**Na publicação (produção):** as colunas novas de `item_classificacao` (inex,
+modalidade_planejamento) nascem via migração automática. Para o Planejamento
+usar os insumos LOIS / Carta de Troca / Demanda Irregular, importar essas
+planilhas; estoque, atas e autores já vêm das rotinas diárias. Preencher a
+**conversão de embalagem** dos itens em ml/g/dose (destacados em âmbar).
+
 ### v1.9.0 — 28/07/2026 (itens 57–58)
 
 **Relatório de Itens — classificação permanente do item + aba "Planejamento TP".**

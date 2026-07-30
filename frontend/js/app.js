@@ -210,6 +210,7 @@ function aplicarPermissoesNav() {
     estoque: 'estoqueTP', validades: 'validadesTP', historico: 'historicoEstoqueTP', evolucao: 'evolucaoEstoqueTP',
     estoqueGeral: 'estoqueGeral', estoqueOD: 'estoqueOD', distribuicao: 'distribuicao',
     relatorioItens: 'relatorioItens',
+    planejamento: 'planejamento',
     autores: 'autoresTP', autoresGeral: 'autoresGeral',
     comparativoAutores: 'comparativoAutoresTP', relatorioReq: 'relatorioReqTP',
     atas: 'atas',
@@ -247,6 +248,57 @@ document.getElementById('botaoSair').addEventListener('click', async () => {
   window.location.href = '/login.html';
 });
 
+// Planejamento de Compras: botão "Gerar planejamento" (Parte 2) e edição
+// item a item na tabela (Parte 3), via listener delegado no corpo da tabela.
+{
+  const bGerar = document.getElementById('botaoGerarPlan');
+  if (bGerar) bGerar.addEventListener('click', gerarPlanejamento);
+  const corpoPlan = document.getElementById('corpoPlanejamento');
+  if (corpoPlan) {
+    corpoPlan.addEventListener('input', onEdicaoPlanejamento);
+    corpoPlan.addEventListener('change', onEdicaoPlanejamento);
+  }
+  const bSalvar = document.getElementById('botaoSalvarPlan');
+  if (bSalvar) bSalvar.addEventListener('click', salvarPlanejamento);
+  const bExportar = document.getElementById('botaoExportarPlan');
+  if (bExportar) bExportar.addEventListener('click', exportarPlanejamentoCSV);
+  const bListar = document.getElementById('botaoListarPlan');
+  if (bListar) bListar.addEventListener('click', listarPlanejamentosSalvos);
+  const bFechar = document.getElementById('botaoFecharListaPlan');
+  if (bFechar) bFechar.addEventListener('click', () => { document.getElementById('planListaSalvos').style.display = 'none'; });
+
+  // Filtros da lista: chips de modalidade, "só âmbar", "só a comprar" e busca.
+  const chips = document.getElementById('planChipsModalidade');
+  if (chips) chips.addEventListener('click', (ev) => {
+    const b = ev.target.closest('button[data-mod]');
+    if (!b) return;
+    chips.querySelectorAll('button').forEach((x) => x.classList.toggle('ativo', x === b));
+    estadoPlanejamento.filtros.modalidade = b.dataset.mod;
+    aplicarFiltrosPlanejamento();
+  });
+  const fFrac = document.getElementById('planFiltroFrac');
+  if (fFrac) fFrac.addEventListener('change', () => { estadoPlanejamento.filtros.soFrac = fFrac.checked; aplicarFiltrosPlanejamento(); });
+  const fComprar = document.getElementById('planFiltroComprar');
+  if (fComprar) fComprar.addEventListener('change', () => { estadoPlanejamento.filtros.soComprar = fComprar.checked; aplicarFiltrosPlanejamento(); });
+  const fCat = document.getElementById('planFiltroCategoria');
+  if (fCat) fCat.addEventListener('change', () => { estadoPlanejamento.filtros.categoria = fCat.value; aplicarFiltrosPlanejamento(); });
+  const subBtn = document.getElementById('planFiltroSubBotao');
+  if (subBtn) subBtn.addEventListener('click', (ev) => { ev.stopPropagation(); const p = document.getElementById('planFiltroSubPainel'); p.hidden = !p.hidden; });
+  document.addEventListener('click', (ev) => {
+    const wrap = document.getElementById('planFiltroSubWrap');
+    const p = document.getElementById('planFiltroSubPainel');
+    if (wrap && p && !wrap.contains(ev.target)) p.hidden = true;
+  });
+  const fBusca = document.getElementById('planBusca');
+  if (fBusca) {
+    let t;
+    fBusca.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => { estadoPlanejamento.filtros.busca = fBusca.value.trim().toLowerCase(); aplicarFiltrosPlanejamento(); }, 200);
+    });
+  }
+}
+
 document.querySelectorAll('.nav-lateral a').forEach((link) => {
   link.addEventListener('click', (ev) => {
     ev.preventDefault();
@@ -275,6 +327,7 @@ const ICONES_NAV = {
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   elenco: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   atas: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/><path d="M15 19l2 2 3-3"/>',
+  planejamento: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M8 11l2 2 4-4"/><path d="M8 17h8"/>',
   distribuicao: '<circle cx="12" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="M12 8v4M12 12l-5 4M12 12l5 4"/>',
   entradaLotes: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/>',
   alertas: '<path d="M6 9a6 6 0 1 1 12 0c0 4 2 5 2 5H4s2-1 2-5"/><path d="M10 20a2 2 0 0 0 4 0"/>',
@@ -520,6 +573,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaReservas').hidden = pagina !== 'reservas';
   document.getElementById('paginaRupturas').hidden = pagina !== 'rupturas';
   document.getElementById('paginaRelatorioItens').hidden = pagina !== 'relatorioItens';
+  document.getElementById('paginaPlanejamento').hidden = pagina !== 'planejamento';
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
   document.getElementById('paginaAlertas').hidden = pagina !== 'alertas';
@@ -551,6 +605,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'reservas') await carregarReservas();
     if (pagina === 'rupturas') await carregarRupturas();
     if (pagina === 'relatorioItens') await carregarRelatorioItens();
+    if (pagina === 'planejamento') await carregarPlanejamento();
     if (pagina === 'alertas') await carregarAlertas();
     if (pagina === 'usuarios') await carregarUsuarios();
     if (pagina === 'statusServicos') { await carregarStatusServicos(); iniciarPollingServicos(); }
@@ -3099,25 +3154,10 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
     }
   }
 
-  // ----- coluna 2: evolução do estoque -----
-  let colEvolucao = '';
-  if (dados.historicoEstoque.length > 1) {
-    colEvolucao += `<h4>Evolução do estoque <span class="texto-apoio">(${dados.historicoEstoque.length} datas)</span></h4>`;
-    colEvolucao += `<table><thead><tr><th>Data</th><th>Estoque</th><th>Autonomia</th><th>Demanda</th></tr></thead><tbody>`;
-    colEvolucao += dados.historicoEstoque.map((h) => `
-      <tr>
-        <td class="col-data">${formatarData(h.data_referencia)}</td>
-        <td>${fmtNumero(h.estoque)}</td>
-        <td>${fmtNumero(h.autonomia)}</td>
-        <td>${fmtNumero(h.demandas)}</td>
-      </tr>
-    `).join('');
-    colEvolucao += '</tbody></table>';
-  }
-
-  // As duas estreitas lado a lado (viram uma embaixo da outra em tela pequena)
-  if (colLotes || colEvolucao) {
-    html += `<div class="detalhe-colunas"><div>${colLotes}</div><div>${colEvolucao}</div></div>`;
+  // Lotes e validades em largura total (a "Evolução do estoque" foi retirada
+  // deste modal por não ser necessária aqui).
+  if (colLotes) {
+    html += colLotes;
   }
 
   // ----- largura total: compras judiciais -----
@@ -3886,6 +3926,7 @@ async function abrirModalClassificacao(codigo, descricao) {
   document.getElementById('clasQualPrograma').value = '';
   document.getElementById('clasSubcategoria').value = '';
   document.getElementById('clasResponsavel').value = '';
+  document.getElementById('clasInex').value = '';
   atualizarVisibilidadeQualPrograma();
   document.getElementById('modalClassificacao').hidden = false;
   try {
@@ -3898,6 +3939,7 @@ async function abrirModalClassificacao(codigo, descricao) {
     document.getElementById('clasQualPrograma').value = c.qual_programa || '';
     document.getElementById('clasSubcategoria').value = c.subcategoria || '';
     document.getElementById('clasResponsavel').value = c.responsavel_aquisicao || '';
+    document.getElementById('clasInex').value = c.inex || '';
     atualizarVisibilidadeQualPrograma();
   } catch (e) { /* mantém em branco */ }
 }
@@ -3929,6 +3971,7 @@ document.getElementById('botaoSalvarClassificacao').addEventListener('click', as
         qual_programa: document.getElementById('clasQualPrograma').value.trim() || null,
         subcategoria: document.getElementById('clasSubcategoria').value.trim() || null,
         responsavel_aquisicao: document.getElementById('clasResponsavel').value.trim() || null,
+        inex: document.getElementById('clasInex').value || null,
       }),
     });
     fecharModalClassificacao();
@@ -4001,6 +4044,7 @@ async function carregarTabelaRelItens() {
         <td>${marca(i.clas_doenca_rara)}</td>
         <td>${i.clas_unidade_fornecimento || '—'}</td>
         <td style="text-align:right;">${i.clas_embalagem_conversao != null ? fmtNumero(i.clas_embalagem_conversao) : '<span style="color:var(--aviso,#b8860b);">pendente</span>'}</td>
+        <td>${marca(i.clas_inex)}</td>
         <td>${ehAdmin
           ? `<button class="botao-editar" data-codigo="${encodeURIComponent(i.codigo || '')}" data-desc="${(i.descricao_item || '').replace(/"/g, '&quot;')}">Editar</button>`
           : '—'}</td>
@@ -4117,6 +4161,478 @@ document.getElementById('ptpExportar').addEventListener('click', () => {
 document.getElementById('ptpAnterior').addEventListener('click', () => { if (estadoPlanTP.pagina > 1) { estadoPlanTP.pagina--; carregarTabelaPlanTP(); } });
 document.getElementById('ptpProximo').addEventListener('click', () => { estadoPlanTP.pagina++; carregarTabelaPlanTP(); });
 
+// Aquisição por unidade fracionada (Dose, Mililitro, Grama) — exige conversão de
+// embalagem, então a linha é destacada na tela para conferência do Rafael.
+// Casa tanto os puros ("MILILITRO", "GRAMA", "DOSE") quanto os compostos
+// ("FRASCO 30 MILILITRO", "AMPOLA 10 ML", "BISNAGA 30 GR", "Frasco 200 Doses").
+function unidadeAquisicaoFracionada(u) {
+  if (!u) return false;
+  const t = String(u).toLowerCase();
+  return /(^|[^a-zà-ú])(dose|doses|mililitro|mililitros|mlilitro|ml|grama|gramas|gr)([^a-zà-ú]|$)/.test(t);
+}
+
+// ==================== Planejamento de Compras ====================
+// Estado da última simulação (para as próximas partes: ajuste/salvar/exportar).
+const estadoPlanejamento = { parametros: null, linhas: [], resumo: null, filtros: { modalidade: '', categoria: '', subcategorias: [], soFrac: false, soComprar: false, busca: '' } };
+
+// Popula as opções de Categoria e SubCategoria a partir dos itens gerados.
+function popularFiltrosCategoriaPlan() {
+  const L = estadoPlanejamento.linhas;
+  const cats = [...new Set(L.map((l) => l._categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const subs = [...new Set(L.map((l) => l._subcategoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const selCat = document.getElementById('planFiltroCategoria');
+  if (selCat) selCat.innerHTML = '<option value="">Categoria: todas</option>' +
+    cats.map((v) => `<option value="${escaparAttr(v)}">${v}</option>`).join('');
+  const painel = document.getElementById('planFiltroSubPainel');
+  if (painel) painel.innerHTML = subs.length
+    ? subs.map((v) => `<label style="display:flex; align-items:center; gap:6px; padding:3px 0; cursor:pointer; white-space:nowrap;"><input type="checkbox" class="plan-sub-check" value="${escaparAttr(v)}"> ${v}</label>`).join('')
+    : '<span style="color:var(--texto-suave);">Sem subcategorias (preencha na classificação).</span>';
+  document.querySelectorAll('.plan-sub-check').forEach((cb) => cb.addEventListener('change', () => {
+    estadoPlanejamento.filtros.subcategorias = [...document.querySelectorAll('.plan-sub-check:checked')].map((x) => x.value);
+    const n = estadoPlanejamento.filtros.subcategorias.length;
+    document.getElementById('planFiltroSubBotao').textContent = n === 0 ? 'SubCategoria: todas ▾' : `SubCategoria: ${n} selecionada(s) ▾`;
+    aplicarFiltrosPlanejamento();
+  }));
+}
+
+// Re-renderiza a tabela aplicando os filtros atuais (modalidade/busca/marcados).
+function aplicarFiltrosPlanejamento() {
+  if (estadoPlanejamento.linhas.length) desenharTabelaPlanejamento(estadoPlanejamento.linhas);
+}
+
+// Ao abrir a tela: busca os parâmetros-padrão (datas das fotos) e preenche.
+async function carregarPlanejamento() {
+  try {
+    const p = await api('/planejamento/parametros-padrao');
+    document.getElementById('planAlvoAta').value = p.autonomiaAlvoAta ?? 6;
+    document.getElementById('planAlvoPregao').value = p.autonomiaAlvoPregao ?? 9;
+    document.getElementById('planCorte').value = p.cortePoucaDemanda ?? 3;
+    const f = p.fotos || {};
+    document.getElementById('planBaseInfo').innerHTML =
+      `Base de cálculo — Estoque: <strong>${formatarData(f.estoque)}</strong> · ` +
+      `Consumo LOIS: <strong>${formatarData(f.lois)}</strong> · ` +
+      `Carta de Troca: <strong>${formatarData(f.carta)}</strong> · ` +
+      `Irregulares: <strong>${formatarData(f.irregular)}</strong> · ` +
+      `Atas: <strong>${formatarData(f.atas)}</strong>`;
+  } catch (e) {
+    document.getElementById('planBaseInfo').textContent = 'Não foi possível ler as datas-base: ' + e.message;
+  }
+  aplicarPermissoesPlanejamento();
+}
+
+// Roda o motor no servidor (/simular) com os parâmetros da tela e desenha.
+async function gerarPlanejamento() {
+  const botao = document.getElementById('botaoGerarPlan');
+  const corpo = document.getElementById('corpoPlanejamento');
+  const opcoes = {
+    unidade: 'TP',
+    autonomiaAlvoAta: Number(document.getElementById('planAlvoAta').value) || 0,
+    autonomiaAlvoPregao: Number(document.getElementById('planAlvoPregao').value) || 0,
+    cortePoucaDemanda: Number(document.getElementById('planCorte').value) || 0,
+    incluirZerados: document.getElementById('planIncluirZerados').checked,
+  };
+  botao.disabled = true;
+  const rotulo = botao.textContent;
+  botao.textContent = '⏳ Calculando…';
+  corpo.innerHTML = '<tr><td colspan="15" style="text-align:center; padding:24px; color:#888;">Calculando…</td></tr>';
+  try {
+    const r = await api('/planejamento/simular', { method: 'POST', body: JSON.stringify(opcoes) });
+    estadoPlanejamento.parametros = r.parametros;
+    estadoPlanejamento.linhas = r.linhas || [];
+    // A autonomia ajustada começa igual à sugerida (o usuário pode alterar).
+    estadoPlanejamento.linhas.forEach((l) => {
+      if (l.autonomia_ajustada === null || l.autonomia_ajustada === undefined) {
+        l.autonomia_ajustada = l.autonomia_sugerida;
+      }
+      l._preco_ata = l.preco_unitario; // preço da ata (para alternar modalidade sem perdê-lo)
+    });
+    estadoPlanejamento.resumo = r.resumo;
+    marcarEditando(null); // planejamento recém-gerado ainda não foi salvo
+    // reinicia os filtros de categoria/subcategoria com o novo conjunto de itens
+    estadoPlanejamento.filtros.categoria = '';
+    estadoPlanejamento.filtros.subcategorias = [];
+    const subBtn = document.getElementById('planFiltroSubBotao');
+    if (subBtn) subBtn.textContent = 'SubCategoria: todas ▾';
+    popularFiltrosCategoriaPlan();
+    desenharResumoPlanejamento(r.resumo);
+    desenharTabelaPlanejamento(estadoPlanejamento.linhas);
+  } catch (e) {
+    corpo.innerHTML = `<tr><td colspan="15" style="text-align:center; padding:24px; color:#c0392b;">Erro: ${e.message}</td></tr>`;
+  } finally {
+    botao.disabled = false;
+    botao.textContent = rotulo;
+  }
+}
+
+function desenharResumoPlanejamento(resumo) {
+  const alvo = document.getElementById('planResumo');
+  if (!resumo) { alvo.innerHTML = ''; return; }
+  const custo = (resumo.custo_total_ata || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  alvo.innerHTML = `
+    <div class="painel-tile"><div class="numero">${fmtNumero(resumo.total_itens)}</div><div class="rotulo">Itens no planejamento</div></div>
+    <div class="painel-tile"><div class="numero">${fmtNumero(resumo.ata)}</div><div class="rotulo">Por ATA</div></div>
+    <div class="painel-tile"><div class="numero">${fmtNumero(resumo.pregao)}</div><div class="rotulo">Por Pregão</div></div>
+    <div class="painel-tile"><div class="numero">${fmtNumero(resumo.inex || 0)}</div><div class="rotulo">Por Inex</div></div>
+    <div class="painel-tile${resumo.revisar ? ' critico' : ''}"><div class="numero">${fmtNumero(resumo.revisar || 0)}</div><div class="rotulo">⚠ Revisar (marca)</div></div>
+    <div class="painel-tile"><div class="numero">${fmtNumero(resumo.com_quantidade)}</div><div class="rotulo">Com quantidade a comprar</div></div>
+    <div class="painel-tile"><div class="numero" style="font-size:20px;">${custo}</div><div class="rotulo">Custo estimado (total)</div></div>`;
+}
+
+// MROUND igual ao do backend (planejamentoMotor.js): arredonda ao múltiplo de m.
+function mroundFront(x, m) {
+  if (!Number.isFinite(x)) return null;
+  const passo = Number.isFinite(m) && m > 0 ? m : 1;
+  return Math.round(x / passo) * passo;
+}
+
+const brlPlan = (v) => v === null || v === undefined ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+function escaparAttr(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function desenharTabelaPlanejamento(linhas) {
+  const corpo = document.getElementById('corpoPlanejamento');
+  if (!linhas.length) {
+    corpo.innerHTML = '<tr><td colspan="17" style="text-align:center; padding:24px; color:#888;">Nenhum item no planejamento com esses parâmetros.</td></tr>';
+    return;
+  }
+  const pct = (v) => v === null || v === undefined ? '—' : (Number(v) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + '%';
+  const f = estadoPlanejamento.filtros || {};
+  let visiveis = 0;
+  corpo.innerHTML = linhas.map((l, idx) => {
+    // Filtros (mantêm data-idx = índice no array completo, para as edições funcionarem).
+    if (f.modalidade && l._modalidade !== f.modalidade) return '';
+    if (f.categoria && (l._categoria || '') !== f.categoria) return '';
+    if (f.subcategorias && f.subcategorias.length && !f.subcategorias.includes(l._subcategoria || '')) return '';
+    if (f.soFrac && !unidadeAquisicaoFracionada(l.unidade_fornecimento)) return '';
+    if (f.soComprar && !l.comprar) return '';
+    if (f.busca) {
+      const alvo = `${l.descricao || ''} ${l.siafisico || ''} ${l._marca_estoque || ''} ${l.codigo_item || ''}`.toLowerCase();
+      if (!alvo.includes(f.busca)) return '';
+    }
+    visiveis++;
+    const frac = unidadeAquisicaoFracionada(l.unidade_fornecimento);
+    const revisar = l._modalidade === 'REVISAR';
+    const classes = [frac ? 'linha-unidade-fracionada' : '', revisar ? 'linha-revisar' : '', l.comprar ? '' : 'linha-nao-comprar'].filter(Boolean).join(' ');
+    const modLabel = l._modalidade === 'ATA' ? 'ATA'
+      : (revisar ? '⚠ Revisar' : (l._modalidade === 'INEX' ? 'Inex' : 'Pregão'));
+    const modClasse = (l._modalidade || '').toLowerCase();
+    const marcaTitle = escaparAttr(`Marca (estoque): ${l._marca_estoque || '—'}  |  Nome comercial (ata): ${l._ata_nome_comercial || '—'}`);
+    const fz = l._modalidade_forcada;
+    const passo = Number(l._emb_passo) > 0 ? Number(l._emb_passo) : (Number(l.embalagem_conversao) > 0 ? Number(l.embalagem_conversao) : 1);
+    return `<tr data-idx="${idx}" class="${classes}">
+      <td style="text-align:center;"><input type="checkbox" class="plan-comprar" ${l.comprar ? 'checked' : ''}></td>
+      <td>${valorCelula(l.descricao)}</td>
+      <td>${valorCelula(l.siafisico)}</td>
+      <td class="cel-mod" title="${marcaTitle}">
+        <span class="badge-mod badge-${modClasse}">${modLabel}</span>
+        <select class="plan-modalidade" style="width:78px; margin-top:3px;">
+          <option value=""${!fz ? ' selected' : ''}>Auto</option>
+          <option value="ATA"${fz === 'ATA' ? ' selected' : ''}>ATA</option>
+          <option value="PREGAO"${fz === 'PREGAO' ? ' selected' : ''}>Pregão</option>
+        </select>
+      </td>
+      <td>${valorCelula(l.unidade_fornecimento)}</td>
+      <td style="text-align:right;">${fmtNumero(l.consumo_mensal)}</td>
+      <td style="text-align:right;">${pct(l._percent_lois)}</td>
+      <td style="text-align:right;">${fmtNumero(l.estoque)}</td>
+      <td style="text-align:right;">${fmtNumero(l.empenhado)}</td>
+      <td style="text-align:right;">${fmtNumero(l.solicitado)}</td>
+      <td style="text-align:right;">${fmtNumero(l.autonomia_existente)}</td>
+      <td style="text-align:right;"><input type="number" class="plan-aut" value="${l.autonomia_ajustada ?? ''}" step="0.5" min="0" style="width:64px; text-align:right;"></td>
+      <td style="text-align:right;"><input type="number" class="plan-conv" value="${l.embalagem_conversao ?? ''}" step="1" min="0" style="width:60px; text-align:right;" title="Conversão de embalagem (frasco→ml/g/dose). Ajuste do técnico; salvo para os próximos planejamentos."></td>
+      <td style="text-align:right;"><input type="number" class="plan-qtd" value="${l.quantidade_calculada ?? ''}" step="${passo}" min="0" style="width:84px; text-align:right;"></td>
+      <td style="text-align:right;">${brlPlan(l.preco_unitario)}</td>
+      <td style="text-align:right;" class="cel-custo">${brlPlan(l.custo_total)}</td>
+      <td><input type="text" class="plan-obs" value="${escaparAttr(l.observacao)}" placeholder="—" style="width:120px;"></td>
+    </tr>`;
+  }).join('');
+  if (!visiveis) {
+    corpo.innerHTML = '<tr><td colspan="17" style="text-align:center; padding:24px; color:#888;">Nenhum item com esses filtros.</td></tr>';
+  }
+  const cont = document.getElementById('planContagemFiltro');
+  if (cont) cont.textContent = visiveis === linhas.length ? `${fmtNumero(visiveis)} itens` : `${fmtNumero(visiveis)} de ${fmtNumero(linhas.length)}`;
+}
+
+// Recalcula os cards de resumo a partir do estado atual (respeita "Comprar").
+function recalcularResumoPlan() {
+  const L = estadoPlanejamento.linhas;
+  const resumo = {
+    total_itens: L.length,
+    ata: L.filter((l) => l._modalidade === 'ATA').length,
+    pregao: L.filter((l) => l._modalidade === 'PREGAO').length,
+    inex: L.filter((l) => l._modalidade === 'INEX').length,
+    revisar: L.filter((l) => l._modalidade === 'REVISAR').length,
+    com_quantidade: L.filter((l) => l.comprar && Number(l.quantidade_calculada) > 0).length,
+    custo_total_ata: L.reduce((s, l) => s + (l.comprar && l.custo_total ? l.custo_total : 0), 0),
+  };
+  estadoPlanejamento.resumo = resumo;
+  desenharResumoPlanejamento(resumo);
+}
+
+// Recalcula quantidade da linha: MROUND(aut × consumo × conversão, passo),
+// arredondando Judicial e ADM à parte (igual ao motor/modelos).
+function recomputarQuantidadeLinhaPlan(l) {
+  const consumo = Number(l.consumo_mensal) || 0;
+  const aut = l.autonomia_ajustada;
+  if (aut == null || consumo <= 0) { l.quantidade_calculada = 0; l._qtd_jud = null; l._qtd_adm = 0; return; }
+  const mult = Number(l.embalagem_conversao) > 0 ? Number(l.embalagem_conversao) : 1;
+  const passo = Number(l._emb_passo) > 0 ? Number(l._emb_passo) : mult;
+  const cj = Number(l._consumo_aj); const temJ = Number.isFinite(cj);
+  const ca = temJ ? Math.max(0, consumo - cj) : consumo;
+  const qj = temJ ? mroundFront(aut * cj * mult, passo) : 0;
+  const qa = mroundFront(aut * ca * mult, passo);
+  l._qtd_jud = temJ ? qj : null;
+  l._qtd_adm = qa;
+  l.quantidade_calculada = (qj || 0) + (qa || 0);
+}
+
+// Salva a conversão ajustada na classificação permanente do item.
+async function persistirConversaoPlan(codigo, valor) {
+  try {
+    await api('/planejamento/conversao', {
+      method: 'PUT',
+      body: JSON.stringify({ codigo_item: codigo, embalagem_conversao: valor }),
+    });
+  } catch (e) { /* silencioso: a edição continua valendo em memória */ }
+}
+
+function atualizarCustoLinhaPlan(tr, l) {
+  const preco = l.preco_unitario;
+  l.custo_total = (l.quantidade_calculada != null && preco != null) ? l.quantidade_calculada * preco : null;
+  const c = tr.querySelector('.cel-custo');
+  if (c) c.textContent = brlPlan(l.custo_total);
+}
+
+// Handler delegado de edição na tabela do planejamento (Parte 3).
+function onEdicaoPlanejamento(e) {
+  const tr = e.target.closest('tr[data-idx]');
+  if (!tr) return;
+  const l = estadoPlanejamento.linhas[+tr.dataset.idx];
+  if (!l) return;
+  const consumo = Number(l.consumo_mensal) || 0;
+  const conv = Number(l.embalagem_conversao) > 0 ? Number(l.embalagem_conversao) : 1;
+
+  if (e.target.classList.contains('plan-comprar')) {
+    l.comprar = e.target.checked ? 1 : 0;
+    tr.classList.toggle('linha-nao-comprar', !e.target.checked);
+    recalcularResumoPlan();
+  } else if (e.target.classList.contains('plan-aut')) {
+    const v = e.target.value === '' ? null : Number(e.target.value);
+    l.autonomia_ajustada = v;
+    recomputarQuantidadeLinhaPlan(l);
+    const q = tr.querySelector('.plan-qtd');
+    if (q) q.value = l.quantidade_calculada ?? '';
+    atualizarCustoLinhaPlan(tr, l);
+    recalcularResumoPlan();
+  } else if (e.target.classList.contains('plan-conv')) {
+    // Técnico ajusta a conversão de embalagem (itens ml/g/dose destacados).
+    const v = e.target.value === '' ? null : Number(e.target.value);
+    l.embalagem_conversao = v;
+    // No Pregão o passo do MROUND é a própria conversão; na ATA o passo é fixo
+    // (embalagem primária da ata) e a conversão é só o multiplicador.
+    if (l._modalidade !== 'ATA') l._emb_passo = v;
+    recomputarQuantidadeLinhaPlan(l);
+    const q = tr.querySelector('.plan-qtd');
+    if (q) q.value = l.quantidade_calculada ?? '';
+    atualizarCustoLinhaPlan(tr, l);
+    recalcularResumoPlan();
+    // Persiste na classificação (lembrado nos próximos planejamentos) ao sair do campo.
+    if (e.type === 'change' && v != null && v > 0) persistirConversaoPlan(l.codigo_item, v);
+  } else if (e.target.classList.contains('plan-qtd')) {
+    l.quantidade_calculada = e.target.value === '' ? null : Number(e.target.value);
+    atualizarCustoLinhaPlan(tr, l);
+    recalcularResumoPlan();
+  } else if (e.target.classList.contains('plan-obs')) {
+    l.observacao = e.target.value;
+  } else if (e.target.classList.contains('plan-modalidade')) {
+    // Técnico decide a modalidade de um item REVISAR (ou força qualquer item).
+    const v = e.target.value; // '', 'ATA', 'PREGAO'
+    l._modalidade_forcada = v || null;
+    l._modalidade = v || l._modalidade_calc;
+    const usaAta = l._modalidade === 'ATA' || l._modalidade === 'REVISAR';
+    const cv = Number(l.embalagem_conversao) > 0 ? Number(l.embalagem_conversao) : 1;
+    l._emb_passo = usaAta ? (Number(l._ata_emb_primaria) > 0 ? Number(l._ata_emb_primaria) : 1) : cv;
+    if (l._preco_ata === undefined) l._preco_ata = l.preco_unitario; // preserva o preço da ata
+    l.preco_unitario = usaAta ? (l._preco_ata ?? null) : null;       // Pregão não usa preço da ata
+    recomputarQuantidadeLinhaPlan(l);
+    desenharTabelaPlanejamento(estadoPlanejamento.linhas); // re-render (muda aba/cor/badge)
+    recalcularResumoPlan();
+    if (e.type === 'change') persistirModalidadePlan(l.codigo_item, v);
+  }
+}
+
+// Salva a decisão de modalidade (override) do técnico na classificação.
+async function persistirModalidadePlan(codigo, modalidade) {
+  try {
+    await api('/planejamento/modalidade', {
+      method: 'PUT',
+      body: JSON.stringify({ codigo_item: codigo, modalidade: modalidade || '' }),
+    });
+  } catch (e) { /* silencioso: decisão continua valendo em memória */ }
+}
+
+// -------- Parte 4/5/6: salvar, exportar, listar, reabrir, duplicar --------
+
+// Aplica a visibilidade dos botões conforme a permissão do usuário.
+function aplicarPermissoesPlanejamento() {
+  const podeSalvar = temPermissao('planejamento', 'inserir') || temPermissao('planejamento', 'editar');
+  const bs = document.getElementById('botaoSalvarPlan');
+  const be = document.getElementById('botaoExportarPlan');
+  if (bs) bs.hidden = !podeSalvar;
+  if (be) be.hidden = !temPermissao('planejamento', 'exportar');
+}
+
+// Salva o planejamento atual: cria novo (POST) ou atualiza o aberto (PUT).
+async function salvarPlanejamento() {
+  if (!estadoPlanejamento.linhas.length) { alert('Gere o planejamento antes de salvar.'); return; }
+  const titulo = document.getElementById('planTitulo').value.trim();
+  const payload = {
+    titulo,
+    parametros: estadoPlanejamento.parametros,
+    linhas: estadoPlanejamento.linhas,
+  };
+  const botao = document.getElementById('botaoSalvarPlan');
+  botao.disabled = true;
+  try {
+    let resp;
+    if (estadoPlanejamento.idEditando) {
+      resp = await api(`/planejamento/${estadoPlanejamento.idEditando}`, { method: 'PUT', body: JSON.stringify(payload) });
+      alert('Planejamento atualizado.');
+    } else {
+      resp = await api('/planejamento', { method: 'POST', body: JSON.stringify(payload) });
+      estadoPlanejamento.idEditando = resp.id;
+      marcarEditando(resp.id, resp.titulo || titulo);
+      alert('Planejamento salvo.');
+    }
+  } catch (e) {
+    alert('Erro ao salvar: ' + e.message);
+  } finally {
+    botao.disabled = false;
+  }
+}
+
+function marcarEditando(id, titulo) {
+  const info = document.getElementById('planEditandoInfo');
+  if (id) {
+    estadoPlanejamento.idEditando = id;
+    info.textContent = `✔ Editando #${id}${titulo ? ' — ' + titulo : ''}`;
+    info.hidden = false;
+  } else {
+    estadoPlanejamento.idEditando = null;
+    info.hidden = true;
+  }
+}
+
+// Exporta o planejamento atual como .xlsx com 2 abas (ATA FINAL / SEM ATA
+// FINAL) no layout dos modelos do Rafael. O arquivo é montado no servidor.
+async function exportarPlanejamentoCSV() {
+  const L = estadoPlanejamento.linhas;
+  if (!L.length) { alert('Gere o planejamento antes de exportar.'); return; }
+  const botao = document.getElementById('botaoExportarPlan');
+  botao.disabled = true;
+  const rotulo = botao.textContent;
+  botao.textContent = '⏳ Gerando…';
+  try {
+    const titulo = (document.getElementById('planTitulo').value.trim() || 'planejamento');
+    const resp = await fetch('/api/planejamento/exportar-xlsx', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linhas: L, titulo }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.erro || 'Falha ao exportar');
+    }
+    const blob = await resp.blob();
+    const nome = titulo.replace(/[^\w\-]+/g, '_') || 'planejamento';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${nome}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert('Erro ao exportar: ' + e.message);
+  } finally {
+    botao.disabled = false;
+    botao.textContent = rotulo;
+  }
+}
+
+// Abre/atualiza o painel com a lista de planejamentos salvos.
+async function listarPlanejamentosSalvos() {
+  const painel = document.getElementById('planListaSalvos');
+  const corpo = document.getElementById('planListaSalvosCorpo');
+  painel.style.display = 'block';
+  corpo.innerHTML = 'Carregando…';
+  try {
+    const { planejamentos } = await api('/planejamento');
+    if (!planejamentos.length) { corpo.innerHTML = '<em>Nenhum planejamento salvo ainda.</em>'; return; }
+    const podeExcluir = temPermissao('planejamento', 'excluir');
+    const podeDuplicar = temPermissao('planejamento', 'inserir');
+    const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    corpo.innerHTML = `<table class="tabela"><thead><tr>
+        <th>#</th><th>Título</th><th>Base</th><th>Itens</th><th>A comprar</th><th>Custo</th>
+        <th>Status</th><th>Criado</th><th>Por</th><th></th></tr></thead><tbody>${
+      planejamentos.map((p) => `<tr>
+        <td>${p.id}</td><td>${valorCelula(p.titulo)}</td><td>${formatarData(p.data_base)}</td>
+        <td style="text-align:right;">${fmtNumero(p.total_itens)}</td>
+        <td style="text-align:right;">${fmtNumero(p.itens_comprar)}</td>
+        <td style="text-align:right;">${brl(p.custo_total)}</td>
+        <td>${valorCelula(p.status)}</td><td>${valorCelula(p.criado_em)}</td>
+        <td>${valorCelula(p.usuario_email)}</td>
+        <td style="white-space:nowrap;">
+          <button class="botao-texto" type="button" onclick="abrirPlanejamentoSalvo(${p.id})">Abrir</button>
+          ${podeDuplicar ? `<button class="botao-texto" type="button" onclick="duplicarPlanejamento(${p.id})">Duplicar</button>` : ''}
+          ${podeExcluir ? `<button class="botao-texto" type="button" style="color:#c0392b;" onclick="excluirPlanejamento(${p.id})">Excluir</button>` : ''}
+        </td></tr>`).join('')
+    }</tbody></table>`;
+  } catch (e) {
+    corpo.innerHTML = 'Erro ao listar: ' + e.message;
+  }
+}
+
+// Reabre um planejamento salvo, recompondo o estado a partir das linhas gravadas.
+async function abrirPlanejamentoSalvo(id) {
+  try {
+    const { cabecalho, itens } = await api(`/planejamento/${id}`);
+    estadoPlanejamento.parametros = {
+      unidade: cabecalho.unidade, dataBase: cabecalho.data_base,
+      autonomiaAlvoAta: cabecalho.autonomia_alvo, cortePoucaDemanda: cabecalho.corte_pouca_demanda,
+    };
+    estadoPlanejamento.linhas = itens.map((l) => ({
+      ...l,
+      _modalidade: l.ata_numero ? 'ATA' : 'PREGAO',
+      _percent_lois: null,
+    }));
+    document.getElementById('planTitulo').value = cabecalho.titulo || '';
+    marcarEditando(id, cabecalho.titulo);
+    recalcularResumoPlan();
+    desenharTabelaPlanejamento(estadoPlanejamento.linhas);
+    document.getElementById('planListaSalvos').style.display = 'none';
+  } catch (e) {
+    alert('Erro ao abrir: ' + e.message);
+  }
+}
+
+async function duplicarPlanejamento(id) {
+  try {
+    const r = await api(`/planejamento/${id}/duplicar`, { method: 'POST' });
+    await listarPlanejamentosSalvos();
+    if (r.id) abrirPlanejamentoSalvo(r.id);
+  } catch (e) { alert('Erro ao duplicar: ' + e.message); }
+}
+
+async function excluirPlanejamento(id) {
+  if (!confirm('Excluir este planejamento? Esta ação não pode ser desfeita.')) return;
+  try {
+    await api(`/planejamento/${id}`, { method: 'DELETE' });
+    if (estadoPlanejamento.idEditando === id) marcarEditando(null);
+    await listarPlanejamentosSalvos();
+  } catch (e) { alert('Erro ao excluir: ' + e.message); }
+}
+
 async function carregarTabelaPlanTP() {
   const params = paramsFiltroPlanTP();
   params.set('page', estadoPlanTP.pagina);
@@ -4151,7 +4667,7 @@ async function carregarTabelaPlanTP() {
       ? '<span class="etiqueta-status" style="background:var(--sucesso-fundo,#e6f4ea); color:var(--sucesso,#1f7a4d); border:1px solid var(--sucesso,#1f7a4d); margin-left:6px;">🆕 Novo</span>'
       : '';
     corpo.innerHTML = dados.itens.map((i) => `
-      <tr>
+      <tr class="${unidadeAquisicaoFracionada(i.clas_unidade_fornecimento) ? 'linha-unidade-fracionada' : ''}">
         <td class="col-codigo">${i.codigo || '—'}</td>
         <td class="col-codigo">${i.siafisico || '—'}</td>
         <td>${i.descricao_item || '—'}${etiquetaNovo(i)}</td>
@@ -4162,6 +4678,7 @@ async function carregarTabelaPlanTP() {
         <td style="text-align:right;">${i.clas_embalagem_conversao != null ? fmtNumero(i.clas_embalagem_conversao) : '<span style="color:var(--aviso,#b8860b);">pendente</span>'}</td>
         <td>${i.clas_subcategoria || '—'}</td>
         <td>${i.clas_responsavel_aquisicao || '—'}</td>
+        <td>${marca(i.clas_inex)}</td>
         <td>${outros(i)}</td>
         <td>${ehAdmin
           ? `<button class="botao-editar" data-codigo="${encodeURIComponent(i.codigo || '')}" data-desc="${(i.descricao_item || '').replace(/"/g, '&quot;')}">Editar</button>`
