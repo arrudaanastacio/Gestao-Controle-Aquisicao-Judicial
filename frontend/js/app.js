@@ -4244,7 +4244,6 @@ async function gerarPlanejamento() {
       if (l.autonomia_ajustada === null || l.autonomia_ajustada === undefined) {
         l.autonomia_ajustada = l.autonomia_sugerida;
       }
-      l._preco_ata = l.preco_unitario; // preço da ata (para alternar modalidade sem perdê-lo)
     });
     estadoPlanejamento.resumo = r.resumo;
     marcarEditando(null); // planejamento recém-gerado ainda não foi salvo
@@ -4291,68 +4290,216 @@ function escaparAttr(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Cabeçalhos dos modelos (mesma ordem/nomes do export 10.ATA / 11.PREGÃO).
+const CAB_ATA_MODELO = [
+  'Nº Cont.', 'Nº', 'Código Scodes', 'Código Siafisico', 'Item', 'Unidade de Medida',
+  'Real Necessidade (Judicial)', 'Real Necessidade (ADM)', 'Real Necessidade (Total)',
+  'Autonomia de Compra', 'Consumo Mensal Total Ata Comprar',
+  '(%) JUD Atend. Único', '(%) JUD Demandas/Dispens.', '(%) ADM Atend. Único', '(%) ADM Demandas/Dispens.',
+  'Demanda Irregular SIM', 'Qtd. Demanda Irregular', 'Periodicidade Média', 'Reservados Nominal',
+  'Carta de Troca', 'Compras Ant. Empenhado', 'Compras Ant. Solicitado', 'Análise Crítica',
+  'Aut. Aquis. (k) + Análise Crítica', 'Qtde Financeira (Jud)', 'Qtde Financeira (ADM)', 'Qtde Financeira (Total)',
+  'Embalagem', 'Conversão', 'Qtde Embalagem (Jud)', 'Qtde Embalagem (ADM)', 'Qtde Embalagem (Total)',
+  'Preço Unitário', 'Custo (Jud)', 'Custo (ADM)', 'Custo (Total)', 'Ata', 'Validade',
+  'Demandas UDTP (Jud)', 'Demandas UDTP (ADM)', 'Demandas Total UDTP',
+  'Consumo UDTP (Jud)', 'Consumo UDTP (ADM)', 'Consumo Total UDTP', 'Consumo LOIS', 'Consumo LOIS %',
+  'Estoque UDTP', 'Aut. Estoque UDTP', 'Entrega', 'Recurso', 'CATMAT',
+  'Status (Técnico)', 'Observação Demanda', 'Observações Gerais', 'MODALIDADE',
+  'Emb. Primária', 'Emb. Secundária', 'Detentor', 'Tramitado Processo', 'Data', 'EGRP', '',
+];
+const CAB_PREGAO_MODELO = [
+  'Calc Seq.', 'N° Itens', 'Código', 'Siafísico', 'CATMAT', 'Status', 'Embalagem Conversão', 'Item',
+  'Demandas UDTP Jud', 'Demandas UDTP ADM', 'Demandas UDTP (Total)',
+  'Consumo UDTP Jud', 'Consumo UDTP ADM', 'Consumo UDTP (Total)', 'Consumo UDTP (LOIS)', 'Consumo UDTP (LOIS) %',
+  'Estoque', 'Aut. Estoque UDTP', 'Reserva Nominal', 'Solic. Ant. Solicitado', 'Solic. Ant. Empenhado',
+  'Aut. Solic. Anterior', 'Análise Crítica', 'Carta de Troca', 'Aut. Carta de Troca',
+  'AUTONOMIA DE COMPRA', 'Consumo Mensal Total Comprar',
+  '(%) Atend. Único JUD', '(%) Demandas/Dispens. JUD', '(%) Atend. Único ADM', '(%) Demandas/Dispens. ADM',
+  'PERIODICIDADE', 'Demanda Irregular SIM', 'Qtd. Demanda Irregular', 'Unid. Forn. SCODES',
+  'Aquis. Necess. SCODES (Jud)', 'Aquis. Necess. SCODES (ADM)', 'Aquis. Necess. SCODES (Total)',
+  'Unid. Forn. Siafísico', 'Qtd Comprar Unid Forn (Jud)', 'Qtd Comprar Unid Forn (ADM)', 'Qtd Comprar Unid Forn (Total)',
+  'Custo Unitário (R$)', 'Custo (Jud)', 'Custo (ADM)', 'Custo (Total)', 'Entrega', 'Recurso',
+  'MARCA / SEM MARCA', 'Doenças Raras', 'Status Comprar', 'Status (Comitê)', 'Observação Demanda', 'MODALIDADE', '',
+];
+
+// Um item passa pelos filtros atuais? (mantém data-idx = índice no array completo)
+function linhaVisivelPlan(l) {
+  const f = estadoPlanejamento.filtros || {};
+  if (f.modalidade && l._modalidade !== f.modalidade) return false;
+  if (f.categoria && (l._categoria || '') !== f.categoria) return false;
+  if (f.subcategorias && f.subcategorias.length && !f.subcategorias.includes(l._subcategoria || '')) return false;
+  if (f.soFrac && !unidadeAquisicaoFracionada(l.unidade_fornecimento)) return false;
+  if (f.soComprar && !l.comprar) return false;
+  if (f.busca) {
+    const alvo = `${l.descricao || ''} ${l.siafisico || ''} ${l._marca_estoque || ''} ${l.codigo_item || ''}`.toLowerCase();
+    if (!alvo.includes(f.busca)) return false;
+  }
+  return true;
+}
+
+// Formatação p/ os layouts de modelo.
+const _n = (v) => (v == null || v === '' || !isFinite(Number(v))) ? '' : fmtNumero(v);
+const _pf = (v) => (v == null || v === '') ? '' : (Number(v) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%';
+const _mo = (v) => (v == null || v === '' || !isFinite(Number(v))) ? '' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const _td = (v, cls) => `<td${cls ? ' class="' + cls + '"' : ''} style="text-align:right;">${v}</td>`;
+const _tdE = (v) => `<td>${v ?? ''}</td>`; // texto à esquerda
+
+// Inputs editáveis (as classes são capturadas por onEdicaoPlanejamento).
+const _inAut = (l) => `<td style="text-align:right;"><input type="number" class="plan-aut" value="${l.autonomia_ajustada ?? ''}" step="0.5" min="0" style="width:56px;text-align:right;"></td>`;
+const _inEmb = (l) => `<td style="text-align:right;"><input type="number" class="plan-emb" value="${l._emb_passo ?? ''}" step="1" min="0" style="width:54px;text-align:right;" title="Embalagem (passo do arredondamento)"></td>`;
+const _inConv = (l) => `<td style="text-align:right;"><input type="number" class="plan-conv" value="${l.embalagem_conversao ?? ''}" step="1" min="0" style="width:54px;text-align:right;" title="Conversão (frasco→ml/g/dose)"></td>`;
+const _selComprar = (l) => `<td><select class="plan-comprar-sel" style="width:118px;"><option value="Comprar"${l.comprar ? ' selected' : ''}>Comprar</option><option value="Não comprar"${!l.comprar ? ' selected' : ''}>Não comprar</option></select></td>`;
+const _inObs = (l) => `<td><input type="text" class="plan-obs" value="${escaparAttr(l.observacao)}" placeholder="—" style="width:130px;"></td>`;
+function _selMod(l) {
+  const fz = l._modalidade_forcada;
+  return `<td><select class="plan-modalidade" style="width:92px;">
+    <option value=""${!fz ? ' selected' : ''}>Auto</option>
+    <option value="ATA"${fz === 'ATA' ? ' selected' : ''}>ATA</option>
+    <option value="PREGAO"${fz === 'PREGAO' ? ' selected' : ''}>Pregão</option>
+    <option value="INEX"${fz === 'INEX' ? ' selected' : ''}>Inex</option>
+  </select></td>`;
+}
+
+// Valores derivados (split Jud/ADM/Total etc.), iguais aos do export.
+function _ctxLinha(l) {
+  const autC = Number(l.autonomia_ajustada ?? l.autonomia_sugerida) || 0;
+  const consumo = Number(l.consumo_mensal) || 0;
+  const cJ = Number(l._consumo_aj); const temJ = Number.isFinite(cJ);
+  const cA = temJ ? Math.max(0, consumo - cJ) : consumo;
+  const dJ = Number(l._demanda_aj); const dTot = Number(l.demanda_total) || 0;
+  const dA = Number.isFinite(dJ) ? Math.max(0, dTot - dJ) : '';
+  const passo = Number(l._emb_passo) > 0 ? Number(l._emb_passo) : (Number(l.embalagem_conversao) > 0 ? Number(l.embalagem_conversao) : 1);
+  const qJ = Number(l._qtd_jud), qA = Number(l._qtd_adm), qT = Number(l.quantidade_calculada) || 0;
+  const preco = l.preco_unitario;
+  const custo = (q) => (preco != null && Number.isFinite(q)) ? q * preco : '';
+  const mr = (x) => mroundFront(x, passo);
+  const existente = Number(l.autonomia_existente);
+  return {
+    autC, consumo, cJ, cA, temJ, dJ, dA, dTot, passo,
+    qJ: temJ ? qJ : '', qA: temJ ? qA : '', qT, preco,
+    finJ: temJ ? autC * cJ : '', finA: temJ ? autC * cA : '', finT: autC * consumo,
+    realJ: temJ ? mr(autC * cJ) : '', realA: temJ ? mr(autC * cA) : '',
+    custoJ: temJ ? custo(qJ) : '', custoA: temJ ? custo(qA) : '', custoT: custo(qT),
+    autTotal: Number.isFinite(existente) ? existente + autC : '',
+    autEstoque: consumo > 0 ? l.estoque / consumo : '',
+    autSolic: consumo > 0 ? ((Number(l.empenhado) || 0) + (Number(l.solicitado) || 0)) / consumo : '',
+    autCarta: (consumo > 0 && l.carta_troca) ? Number(l.carta_troca) / consumo : '',
+    kCol: consumo > 0 ? qT / consumo : '',
+  };
+}
+
+function celulasAta(l, seq) {
+  const c = _ctxLinha(l);
+  const realT = (c.realJ !== '' && c.realA !== '') ? c.realJ + c.realA : '';
+  return [
+    _tdE(''), _td(seq), _tdE(l.codigo_item), _tdE(l.siafisico), _tdE(l.descricao), _tdE(l.unidade_fornecimento),
+    _td(_n(c.realJ)), _td(_n(c.realA)), _td(_n(realT)),
+    _inAut(l), _td(_n(c.kCol)),
+    _td(_pf(l._pct_unico_jud)), _td(_pf(l._pct_disp_jud)), _td(_pf(l._pct_unico_adm)), _td(_pf(l._pct_disp_adm)),
+    _td(l.irregular ? 'SIM' : ''), _td(''), _td(_n(l._periodicidade)), _td(''), _td(_n(l.carta_troca)),
+    _td(_n(l.empenhado)), _td(_n(l.solicitado)), _td(_n(l.autonomia_existente)), _td(_n(c.autTotal)),
+    _td(_n(c.finJ)), _td(_n(c.finA)), _td(_n(c.finT)),
+    _inEmb(l), _inConv(l),
+    _td(_n(c.qJ), 'cel-qj'), _td(_n(c.qA), 'cel-qa'), _td(_n(c.qT), 'cel-qt'),
+    _td(_mo(c.preco)), _td(_mo(c.custoJ), 'cel-cj'), _td(_mo(c.custoA), 'cel-ca'), _td(_mo(c.custoT), 'cel-custo'),
+    _tdE(l.ata_numero), _tdE(formatarData(l.ata_validade)),
+    _td(_n(c.temJ ? c.dJ : '')), _td(_n(c.dA)), _td(_n(c.dTot)),
+    _td(_n(c.temJ ? c.cJ : '')), _td(_n(c.cA)), _td(_n(c.consumo)),
+    _td(_n(l._consumo_lois)), _td(_pf(l._percent_lois)), _td(_n(l.estoque)), _td(_n(c.autEstoque)),
+    _tdE('Única'), _tdE('Tesouro'), _tdE(l.catmat),
+    _selComprar(l), _tdE(''), _inObs(l), _selMod(l),
+    _tdE(l._ata_emb_primaria), _tdE(l._ata_emb_secundaria), _tdE(l._detentor),
+    _tdE(''), _tdE(''), _tdE(''), _tdE(''),
+  ].join('');
+}
+
+function celulasPregao(l, seq) {
+  const c = _ctxLinha(l);
+  const aqJ = c.temJ ? mroundFront(c.autC * c.cJ, 1) : '';
+  const aqA = c.temJ ? mroundFront(c.autC * c.cA, 1) : '';
+  const aqT = (aqJ !== '' && aqA !== '') ? aqJ + aqA : '';
+  const conv = Number(l.embalagem_conversao) > 0 ? Number(l.embalagem_conversao) : 1;
+  const aaCol = c.consumo > 0 ? c.qT / c.consumo / conv : '';
+  const analiseCrit = c.consumo > 0
+    ? ((Number(l.estoque) || 0) + (Number(l.solicitado) || 0) + (Number(l.empenhado) || 0)) / c.consumo + c.autC : '';
+  return [
+    _tdE(''), _td(seq), _tdE(l.codigo_item), _tdE(l.siafisico), _tdE(l.catmat), _tdE(''),
+    _inConv(l), _tdE(l.descricao),
+    _td(_n(c.temJ ? c.dJ : '')), _td(_n(c.dA)), _td(_n(c.dTot)),
+    _td(_n(c.temJ ? c.cJ : '')), _td(_n(c.cA)), _td(_n(c.consumo)),
+    _td(_n(l._consumo_lois)), _td(_pf(l._percent_lois)), _td(_n(l.estoque)), _td(_n(c.autEstoque)),
+    _td(''), _td(_n(l.solicitado)), _td(_n(l.empenhado)), _td(_n(c.autSolic)), _td(_n(analiseCrit)),
+    _td(_n(l.carta_troca)), _td(_n(c.autCarta)),
+    _inAut(l), _td(_n(aaCol)),
+    _td(_pf(l._pct_unico_jud)), _td(_pf(l._pct_disp_jud)), _td(_pf(l._pct_unico_adm)), _td(_pf(l._pct_disp_adm)),
+    _td(_n(l._periodicidade)), _td(l.irregular ? 'SIM' : ''), _td(''),
+    _tdE(l.unidade_fornecimento), _td(_n(aqJ)), _td(_n(aqA)), _td(_n(aqT)),
+    _tdE(''), _td(_n(c.qJ), 'cel-qj'), _td(_n(c.qA), 'cel-qa'), _td(_n(c.qT), 'cel-qt'),
+    _td(_mo(c.preco)), _td(_mo(c.custoJ), 'cel-cj'), _td(_mo(c.custoA), 'cel-ca'), _td(_mo(c.custoT), 'cel-custo'),
+    _tdE('ÚNICA'), _tdE('TESOURO'), _tdE(l._marca_estoque), _tdE(''),
+    _selComprar(l), _tdE(''), _inObs(l), _selMod(l), _tdE(''),
+  ].join('');
+}
+
+function celulasCompacto(l) {
+  const revisar = l._modalidade === 'REVISAR';
+  const modLabel = l._modalidade === 'ATA' ? 'ATA' : (revisar ? '⚠ Revisar' : (l._modalidade === 'INEX' ? 'Inex' : 'Pregão'));
+  const modClasse = (l._modalidade || '').toLowerCase();
+  const marcaTitle = escaparAttr(`Marca (estoque): ${l._marca_estoque || '—'}  |  Nome comercial (ata): ${l._ata_nome_comercial || '—'}`);
+  const passo = Number(l._emb_passo) > 0 ? Number(l._emb_passo) : (Number(l.embalagem_conversao) > 0 ? Number(l.embalagem_conversao) : 1);
+  return `<td style="text-align:center;"><input type="checkbox" class="plan-comprar" ${l.comprar ? 'checked' : ''}></td>
+    <td>${valorCelula(l.descricao)}</td>
+    <td>${valorCelula(l.siafisico)}</td>
+    <td class="cel-mod" title="${marcaTitle}"><span class="badge-mod badge-${modClasse}">${modLabel}</span>${_selMod(l).replace('<td>', '').replace('</td>', '')}</td>
+    <td>${valorCelula(l.unidade_fornecimento)}</td>
+    <td style="text-align:right;">${fmtNumero(l.consumo_mensal)}</td>
+    <td style="text-align:right;">${_pf(l._percent_lois) || '—'}</td>
+    <td style="text-align:right;">${fmtNumero(l.estoque)}</td>
+    <td style="text-align:right;">${fmtNumero(l.empenhado)}</td>
+    <td style="text-align:right;">${fmtNumero(l.solicitado)}</td>
+    <td style="text-align:right;">${fmtNumero(l.autonomia_existente)}</td>
+    <td style="text-align:right;"><input type="number" class="plan-aut" value="${l.autonomia_ajustada ?? ''}" step="0.5" min="0" style="width:64px; text-align:right;"></td>
+    <td style="text-align:right;"><input type="number" class="plan-conv" value="${l.embalagem_conversao ?? ''}" step="1" min="0" style="width:60px; text-align:right;"></td>
+    <td style="text-align:right;"><input type="number" class="plan-qtd" value="${l.quantidade_calculada ?? ''}" step="${passo}" min="0" style="width:84px; text-align:right;"></td>
+    <td style="text-align:right;">${brlPlan(l.preco_unitario)}</td>
+    <td style="text-align:right;" class="cel-custo">${brlPlan(l.custo_total)}</td>
+    <td><input type="text" class="plan-obs" value="${escaparAttr(l.observacao)}" placeholder="—" style="width:120px;"></td>`;
+}
+
+const CAB_COMPACTO_F = ['Comprar', 'Descrição', 'SIAFÍSICO', 'Modalidade', 'Un. Forn.', 'Consumo', '% LOIS', 'Estoque', 'Empenhado', 'Solicitado', 'Aut. existente', 'Aut. ajustada', 'Conv.', 'Quantidade', 'Preço', 'Custo', 'Obs.'];
+
+function layoutAtualPlan() {
+  const m = (estadoPlanejamento.filtros || {}).modalidade;
+  return m === 'ATA' ? 'ata' : (m === 'PREGAO' || m === 'INEX') ? 'pregao' : 'compacto';
+}
+
+function renderCabecalhoPlan(layout) {
+  const cab = layout === 'ata' ? CAB_ATA_MODELO : layout === 'pregao' ? CAB_PREGAO_MODELO : CAB_COMPACTO_F;
+  const thead = document.getElementById('cabecalhoPlanejamento');
+  if (thead) thead.innerHTML = '<tr>' + cab.map((h) => `<th>${h || ''}</th>`).join('') + '</tr>';
+}
+
 function desenharTabelaPlanejamento(linhas) {
   const corpo = document.getElementById('corpoPlanejamento');
+  const layout = layoutAtualPlan();
+  const nCols = layout === 'ata' ? CAB_ATA_MODELO.length : layout === 'pregao' ? CAB_PREGAO_MODELO.length : CAB_COMPACTO_F.length;
+  renderCabecalhoPlan(layout);
   if (!linhas.length) {
-    corpo.innerHTML = '<tr><td colspan="17" style="text-align:center; padding:24px; color:#888;">Nenhum item no planejamento com esses parâmetros.</td></tr>';
+    corpo.innerHTML = `<tr><td colspan="${nCols}" style="text-align:center; padding:24px; color:#888;">Nenhum item no planejamento com esses parâmetros.</td></tr>`;
     return;
   }
-  const pct = (v) => v === null || v === undefined ? '—' : (Number(v) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + '%';
-  const f = estadoPlanejamento.filtros || {};
-  let visiveis = 0;
-  corpo.innerHTML = linhas.map((l, idx) => {
-    // Filtros (mantêm data-idx = índice no array completo, para as edições funcionarem).
-    if (f.modalidade && l._modalidade !== f.modalidade) return '';
-    if (f.categoria && (l._categoria || '') !== f.categoria) return '';
-    if (f.subcategorias && f.subcategorias.length && !f.subcategorias.includes(l._subcategoria || '')) return '';
-    if (f.soFrac && !unidadeAquisicaoFracionada(l.unidade_fornecimento)) return '';
-    if (f.soComprar && !l.comprar) return '';
-    if (f.busca) {
-      const alvo = `${l.descricao || ''} ${l.siafisico || ''} ${l._marca_estoque || ''} ${l.codigo_item || ''}`.toLowerCase();
-      if (!alvo.includes(f.busca)) return '';
-    }
-    visiveis++;
+  let vis = 0;
+  const html = linhas.map((l, idx) => {
+    if (!linhaVisivelPlan(l)) return '';
+    vis += 1;
     const frac = unidadeAquisicaoFracionada(l.unidade_fornecimento);
-    const revisar = l._modalidade === 'REVISAR';
-    const classes = [frac ? 'linha-unidade-fracionada' : '', revisar ? 'linha-revisar' : '', l.comprar ? '' : 'linha-nao-comprar'].filter(Boolean).join(' ');
-    const modLabel = l._modalidade === 'ATA' ? 'ATA'
-      : (revisar ? '⚠ Revisar' : (l._modalidade === 'INEX' ? 'Inex' : 'Pregão'));
-    const modClasse = (l._modalidade || '').toLowerCase();
-    const marcaTitle = escaparAttr(`Marca (estoque): ${l._marca_estoque || '—'}  |  Nome comercial (ata): ${l._ata_nome_comercial || '—'}`);
-    const fz = l._modalidade_forcada;
-    const passo = Number(l._emb_passo) > 0 ? Number(l._emb_passo) : (Number(l.embalagem_conversao) > 0 ? Number(l.embalagem_conversao) : 1);
-    return `<tr data-idx="${idx}" class="${classes}">
-      <td style="text-align:center;"><input type="checkbox" class="plan-comprar" ${l.comprar ? 'checked' : ''}></td>
-      <td>${valorCelula(l.descricao)}</td>
-      <td>${valorCelula(l.siafisico)}</td>
-      <td class="cel-mod" title="${marcaTitle}">
-        <span class="badge-mod badge-${modClasse}">${modLabel}</span>
-        <select class="plan-modalidade" style="width:78px; margin-top:3px;">
-          <option value=""${!fz ? ' selected' : ''}>Auto</option>
-          <option value="ATA"${fz === 'ATA' ? ' selected' : ''}>ATA</option>
-          <option value="PREGAO"${fz === 'PREGAO' ? ' selected' : ''}>Pregão</option>
-        </select>
-      </td>
-      <td>${valorCelula(l.unidade_fornecimento)}</td>
-      <td style="text-align:right;">${fmtNumero(l.consumo_mensal)}</td>
-      <td style="text-align:right;">${pct(l._percent_lois)}</td>
-      <td style="text-align:right;">${fmtNumero(l.estoque)}</td>
-      <td style="text-align:right;">${fmtNumero(l.empenhado)}</td>
-      <td style="text-align:right;">${fmtNumero(l.solicitado)}</td>
-      <td style="text-align:right;">${fmtNumero(l.autonomia_existente)}</td>
-      <td style="text-align:right;"><input type="number" class="plan-aut" value="${l.autonomia_ajustada ?? ''}" step="0.5" min="0" style="width:64px; text-align:right;"></td>
-      <td style="text-align:right;"><input type="number" class="plan-conv" value="${l.embalagem_conversao ?? ''}" step="1" min="0" style="width:60px; text-align:right;" title="Conversão de embalagem (frasco→ml/g/dose). Ajuste do técnico; salvo para os próximos planejamentos."></td>
-      <td style="text-align:right;"><input type="number" class="plan-qtd" value="${l.quantidade_calculada ?? ''}" step="${passo}" min="0" style="width:84px; text-align:right;"></td>
-      <td style="text-align:right;">${brlPlan(l.preco_unitario)}</td>
-      <td style="text-align:right;" class="cel-custo">${brlPlan(l.custo_total)}</td>
-      <td><input type="text" class="plan-obs" value="${escaparAttr(l.observacao)}" placeholder="—" style="width:120px;"></td>
-    </tr>`;
+    const classes = [frac ? 'linha-unidade-fracionada' : '', l._modalidade === 'REVISAR' ? 'linha-revisar' : '', l.comprar ? '' : 'linha-nao-comprar'].filter(Boolean).join(' ');
+    const cells = layout === 'ata' ? celulasAta(l, vis) : layout === 'pregao' ? celulasPregao(l, vis) : celulasCompacto(l);
+    return `<tr data-idx="${idx}" class="${classes}">${cells}</tr>`;
   }).join('');
-  if (!visiveis) {
-    corpo.innerHTML = '<tr><td colspan="17" style="text-align:center; padding:24px; color:#888;">Nenhum item com esses filtros.</td></tr>';
-  }
+  corpo.innerHTML = vis ? html : `<tr><td colspan="${nCols}" style="text-align:center; padding:24px; color:#888;">Nenhum item com esses filtros.</td></tr>`;
   const cont = document.getElementById('planContagemFiltro');
-  if (cont) cont.textContent = visiveis === linhas.length ? `${fmtNumero(visiveis)} itens` : `${fmtNumero(visiveis)} de ${fmtNumero(linhas.length)}`;
+  if (cont) cont.textContent = vis === linhas.length ? `${fmtNumero(vis)} itens` : `${fmtNumero(vis)} de ${fmtNumero(linhas.length)}`;
 }
 
 // Recalcula os cards de resumo a partir do estado atual (respeita "Comprar").
@@ -4444,22 +4591,38 @@ function onEdicaoPlanejamento(e) {
     l.quantidade_calculada = e.target.value === '' ? null : Number(e.target.value);
     atualizarCustoLinhaPlan(tr, l);
     recalcularResumoPlan();
+  } else if (e.target.classList.contains('plan-emb')) {
+    // Passo do MROUND (coluna "Embalagem" do modelo ATA). Editável na tela.
+    l._emb_passo = e.target.value === '' ? null : Number(e.target.value);
+    recomputarQuantidadeLinhaPlan(l);
+    atualizarCustoLinhaPlan(tr, l);
+    recalcularResumoPlan();
+  } else if (e.target.classList.contains('plan-comprar-sel')) {
+    l.comprar = e.target.value === 'Comprar' ? 1 : 0;
+    tr.classList.toggle('linha-nao-comprar', !l.comprar);
+    recalcularResumoPlan();
   } else if (e.target.classList.contains('plan-obs')) {
     l.observacao = e.target.value;
   } else if (e.target.classList.contains('plan-modalidade')) {
-    // Técnico decide a modalidade de um item REVISAR (ou força qualquer item).
-    const v = e.target.value; // '', 'ATA', 'PREGAO'
+    // Técnico decide a modalidade (move o item para a aba escolhida).
+    const v = e.target.value; // '', 'ATA', 'PREGAO', 'INEX'
     l._modalidade_forcada = v || null;
     l._modalidade = v || l._modalidade_calc;
     const usaAta = l._modalidade === 'ATA' || l._modalidade === 'REVISAR';
     const cv = Number(l.embalagem_conversao) > 0 ? Number(l.embalagem_conversao) : 1;
     l._emb_passo = usaAta ? (Number(l._ata_emb_primaria) > 0 ? Number(l._ata_emb_primaria) : 1) : cv;
-    if (l._preco_ata === undefined) l._preco_ata = l.preco_unitario; // preserva o preço da ata
-    l.preco_unitario = usaAta ? (l._preco_ata ?? null) : null;       // Pregão não usa preço da ata
+    // Preço acompanha a modalidade: ATA/Revisar = preço da ata; Pregão/Inex = valor médio.
+    l.preco_unitario = usaAta ? (l._preco_ata ?? null) : (l._preco_medio ?? null);
     recomputarQuantidadeLinhaPlan(l);
-    desenharTabelaPlanejamento(estadoPlanejamento.linhas); // re-render (muda aba/cor/badge)
+    desenharTabelaPlanejamento(estadoPlanejamento.linhas); // re-render (item muda de aba)
     recalcularResumoPlan();
     if (e.type === 'change') persistirModalidadePlan(l.codigo_item, v);
+    return;
+  }
+  // Nos layouts de modelo, ao sair do campo re-renderiza para atualizar as
+  // colunas divididas (Jud/ADM/Total, custos) que dependem do valor editado.
+  if (e.type === 'change' && layoutAtualPlan() !== 'compacto') {
+    desenharTabelaPlanejamento(estadoPlanejamento.linhas);
   }
 }
 

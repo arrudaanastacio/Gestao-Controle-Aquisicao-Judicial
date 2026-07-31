@@ -10,6 +10,21 @@
 
 ## Publicadas recentemente
 
+### v1.11.0 — 31/07/2026 (Planejamento: layout por aba no formato dos modelos)
+
+**Tela do Planejamento com o layout dos modelos por modalidade.**
+- Aba **ATA** = layout do `10.ATA.xlsx` (62 colunas); abas **Pregão** e **Inex** =
+  layout do `11.PREGÃO.xlsx` (55 colunas); **Todos** e **Revisar** = visão compacta.
+- Colunas editáveis na tela: Autonomia de Compra, Embalagem, Conversão, Comprar,
+  **Modalidade** (Auto/ATA/Pregão/Inex) e Observações; o restante é calculado ao vivo
+  com as **mesmas fórmulas** dos modelos (validado célula a célula).
+- Trocar a modalidade **move o item** para a aba escolhida (ex.: sai de Revisar) e
+  o preço acompanha (ATA = valor da ata; Pregão/Inex = valor médio). Decisão salva
+  na classificação. O `/simular` passou a trazer % atendimento e periodicidade por item.
+- **Scripts:** novos atalhos com caminho absoluto **`REINICIAR-PRODUCAO (porta 3000).bat`**
+  e **`REINICIAR-HOMOLOG (porta 3001).bat`** (evitam confundir as pastas); o
+  `3 - REINICIAR-sistema.bat` do homolog corrigido para mirar a 3001 (não derruba mais a produção).
+
 ### v1.10.0 — 29/07/2026 (Módulo Planejamento de Compras)
 
 **Novo módulo "Planejamento de Compras" (Tenente Pena) + campo Inex no Relatório de Itens.**

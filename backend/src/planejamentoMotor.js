@@ -273,6 +273,9 @@ function calcularPlanejamento(opcoes = {}) {
       _marca_estoque: marcaEstoque,
       _categoria: b.categoria || null,
       _subcategoria: clas.subcategoria || null,
+      // Os dois preços (para a tela alternar quando o técnico muda a modalidade):
+      _preco_ata: ataVigente ? numOuNull(ataVigente.ultimo_valor_publicado) : null,
+      _preco_medio: valorMedioItem,
       _ata_nome_comercial: ataVigente ? (ataVigente.nome_comercial || null) : null,
       _ata_emb_primaria: ataVigente ? (ataVigente.embalagem_primaria || null) : null,
       _ata_emb_secundaria: ataVigente ? (ataVigente.embalagem_secundaria || null) : null,
@@ -340,6 +343,7 @@ function normModalidade(v) {
   const t = String(v ?? '').trim().toUpperCase();
   if (t === 'ATA') return 'ATA';
   if (t === 'PREGAO' || t === 'PREGÃO') return 'PREGAO';
+  if (t === 'INEX') return 'INEX';
   return null;
 }
 

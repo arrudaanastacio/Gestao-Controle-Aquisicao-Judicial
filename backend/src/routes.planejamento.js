@@ -67,6 +67,18 @@ router.post('/simular', (req, res) => {
       incluirZerados: !!b.incluirZerados,
     };
     const resultado = calcularPlanejamento(opcoes);
+    // Enriquece cada linha com % de atendimento (Jud/ADM) e periodicidade média,
+    // para a tela conseguir montar o layout dos modelos ATA/Pregão (Parte 6).
+    const mapa = mapaAtendimento();
+    const perMap = mapaPeriodicidade();
+    for (const l of resultado.linhas) {
+      const at = mapa.get(l.codigo_item);
+      const [ju, jd] = pctAtend(at && at.J);
+      const [au, ad] = pctAtend(at && at.A);
+      l._pct_unico_jud = ju; l._pct_disp_jud = jd;
+      l._pct_unico_adm = au; l._pct_disp_adm = ad;
+      l._periodicidade = perMap.has(l.codigo_item) ? Math.round(perMap.get(l.codigo_item) * 100) / 100 : '';
+    }
     res.json(resultado);
   } catch (e) {
     console.error('Erro ao simular planejamento:', e);
@@ -198,6 +210,7 @@ router.put('/modalidade', (req, res) => {
   let mod;
   if (t === 'ATA') mod = 'ATA';
   else if (t === 'PREGAO' || t === 'PREGÃO') mod = 'PREGAO';
+  else if (t === 'INEX') mod = 'INEX';
   else if (t === '' || t === 'AUTO') mod = null; // volta à classificação automática
   else return res.status(400).json({ erro: 'Modalidade inválida.' });
   try {
