@@ -131,6 +131,16 @@ const CATALOGO = [
     intervaloEsperadoH: 26,
   },
   {
+    id: 'empenhos',
+    nome: 'Importação de Empenhos (GsnetCompras)',
+    descricao: 'Robô externo que baixa o Relatório Estratégico de Empenhos do GsnetCompras e atualiza o Controle de Empenhos (Cartas de Troca). Roda pelo Agendador de Tarefas do Windows, fora do processo do sistema.',
+    categoria: 'Importação',
+    tipo: 'agendado',
+    agendamento: 'Diário às 03:00 e 13:30',
+    // Roda 2x/dia (intervalo máx. ~13,5h). Passou de 15h sem sucesso => "Atenção".
+    intervaloEsperadoH: 15,
+  },
+  {
     id: 'backup',
     nome: 'Backup do Banco de Dados',
     descricao: 'Gera a cópia de segurança diária do banco, aplica a retenção e mantém o backup mensal de longo prazo.',
