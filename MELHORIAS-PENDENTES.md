@@ -10,6 +10,25 @@
 
 ## Publicadas recentemente
 
+### v1.12.0 — 03/08/2026 (Módulo Cartas de Troca + robô de automação dos Empenhos)
+
+**Novo módulo "Cartas de Troca" (Tenente Pena) + robô que atualiza os Empenhos sozinho.**
+- **Carta de troca** = fornecedor quer entregar item com validade menor que o edital;
+  protocola informando validade, lote e compromisso de troca. Registro 1 empenho × N
+  medicamentos; busca por empenho/requisição/SEI/siafísico/empresa/medicamento/scodes/
+  processo/nome requisição. **Fluxo em 2 etapas:** administrativo (perm. inserir)
+  registra → "Aguardando avaliação" + e-mail aos técnicos; técnico (perm. editar)
+  **aprova/reprova com justificativa** → e-mail ao criador. Total/Parcial, N lotes
+  (lote+validade+qtd, soma fecha), opção **"Empenho não localizado"** (tudo manual).
+- Aba **"Controle de Empenhos"** = foto do Relatório Estratégico de Empenhos.
+- **Robô `automacao-empenhos/`** (puppeteer): loga no GsnetCompras, abre o relatório
+  (via Referer), aplica filtros (CAF, 01/2023→mês atual, Atraso Todos, Completo),
+  exporta o .xlsx e importa na tabela `empenhos`. Roda sozinho **03:00 e 13:30**
+  (Agendador do Windows via `4 - AGENDAR`). Credenciais só no `.env` local.
+- **Pós-publicação:** liberar permissões (técnicos=editar, administrativos=inserir)
+  em Administração › Usuários; agendar o robô na pasta de produção; configurar SMTP
+  no `.env` para os e-mails saírem.
+
 ### v1.11.0 — 31/07/2026 (Planejamento: layout por aba no formato dos modelos)
 
 **Tela do Planejamento com o layout dos modelos por modalidade.**
