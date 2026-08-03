@@ -44,6 +44,7 @@
             <a href="#" data-pagina="relatorio">Relatório de Compras TP</a>
             <a href="#" data-pagina="comparativoAutores">Comparativo de Autores</a>
             <a href="#" data-pagina="relatorioReq">Relatório de Primeiro Atendimento</a>
+            <a href="#" data-pagina="cartasTroca">Cartas de Troca</a>
           </div>
 
           <div class="nav-subgrupo">
@@ -1661,6 +1662,116 @@
         </div>
       </section>
 
+      <section id="paginaCartasTroca" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Cartas de Troca</h2>
+            <p>Controle das cartas em que o fornecedor pede para entregar item com validade menor que a exigida no edital (informa validade, lote e o compromisso de trocar se vencer no estoque).</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <span id="ctInfoEmpenhos" class="status-oracle" hidden></span>
+            <button id="ctBotaoImportarEmpenhos" class="botao-secundario" type="button" hidden title="Sobe o Relatório Estratégico de Empenhos (GsnetCompras) que serve de fonte de busca para o cadastro das cartas.">📥 Importar empenhos</button>
+            <input type="file" id="ctArquivoEmpenhos" accept=".xlsx,.xls" hidden>
+            <button id="ctBotaoExportar" class="botao-secundario" type="button">⬇️ Exportar CSV</button>
+            <button id="ctBotaoNova" class="botao-primario" type="button" hidden>+ Registro de Carta de Troca</button>
+          </div>
+        </div>
+
+        <div class="abas-tela" id="ctAbas">
+          <button type="button" class="chip-faixa ativo" data-aba="todas" data-sit="">📋 Todas</button>
+          <button type="button" class="chip-faixa" data-aba="aguardando" data-sit="Aguardando avaliação">⏳ Aguardando avaliação <span class="badge-aba" id="ctBadgeAguardando" hidden>0</span></button>
+          <button type="button" class="chip-faixa" data-aba="pendencia" data-sit="Reprovada">✋ Pendência do administrativo <span class="badge-aba" id="ctBadgePendencia" hidden>0</span></button>
+          <button type="button" class="chip-faixa" data-aba="aprovadas" data-sit="Aprovada">✅ Aprovadas</button>
+          <button type="button" class="chip-faixa" data-aba="empenhos">📥 Controle de Empenhos</button>
+        </div>
+
+        <!-- Sub-tela: cartas -->
+        <div id="ctAreaCartas">
+          <div class="grade-resumo" id="ctGradeResumo"></div>
+
+          <div class="barra-filtros">
+            <input type="text" id="ctFiltroBusca" placeholder="Buscar por controle, empenho, fornecedor, medicamento, SCODES, protocolo…" style="min-width:360px;">
+            <select id="ctFiltroEmpresa"><option value="">Fornecedor: todos</option></select>
+            <select id="ctFiltroStatus"><option value="">Status da troca: todos</option></select>
+            <button id="ctLimparFiltros" class="botao-secundario" type="button">Limpar</button>
+          </div>
+
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Controle</th>
+                    <th>Situação</th>
+                    <th>Fornecedor</th>
+                    <th>Nota Empenho</th>
+                    <th>Requisição</th>
+                    <th>SCODES</th>
+                    <th>Medicamento</th>
+                    <th>Local Entrega</th>
+                    <th>Qtd. (Tipo)</th>
+                    <th>Lotes</th>
+                    <th>Validade+</th>
+                    <th>Nº Protocolo</th>
+                    <th>Status Troca</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaCartas"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioCartas" hidden>Nenhuma carta de troca registrada com estes filtros.</div>
+            <div class="paginacao">
+              <span id="textoPaginacaoCartas">—</span>
+              <div class="botoes">
+                <button id="ctAnterior">← Anterior</button>
+                <button id="ctProximo">Próximo →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-tela: empenhos importados -->
+        <div id="ctAreaEmpenhos" hidden>
+          <div class="barra-filtros">
+            <input type="text" id="ctEmpBusca" placeholder="Buscar por empenho, fornecedor, medicamento, SCODES, requisição…" style="min-width:360px;">
+            <span id="ctEmpInfo" class="texto-apoio"></span>
+          </div>
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nota Empenho</th>
+                    <th>Fornecedor</th>
+                    <th>SCODES</th>
+                    <th>SIAFÍSICO</th>
+                    <th>Medicamento</th>
+                    <th>Apresentação</th>
+                    <th>Qtd.</th>
+                    <th>Vlr. Unit.</th>
+                    <th>Vlr. Total</th>
+                    <th>Status Entrega</th>
+                    <th>Local</th>
+                    <th>Requisição</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaEmpenhos"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioEmpenhos" hidden>Nenhum empenho importado. Use "Importar empenhos".</div>
+            <div class="paginacao">
+              <span id="textoPaginacaoEmpenhos">—</span>
+              <div class="botoes">
+                <button id="ctEmpAnterior">← Anterior</button>
+                <button id="ctEmpProximo">Próximo →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="paginaRelatorioItens" hidden>
         <div class="cabecalho-pagina">
           <div>
@@ -2367,6 +2478,118 @@
       <div class="acoes-modal">
         <button type="button" class="botao-secundario" id="botaoFecharClassificacao">Cancelar</button>
         <button type="button" class="botao-primario" id="botaoSalvarClassificacao">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Registro / reenvio / avaliação de Carta de Troca -->
+  <div class="fundo-modal" id="modalCartaTroca" hidden>
+    <div class="modal" style="max-width:860px;">
+      <h3 id="ctModalTitulo">Registro de Carta de Troca</h3>
+
+      <!-- Banner do motivo da reprovação (modo reenviar) -->
+      <div id="ctBannerReprovacao" hidden style="background:#fdecea; border:1px solid #f5c6cb; color:#a12622; border-radius:8px; padding:10px 12px; margin-bottom:10px; font-size:13px;">
+        <strong>Reprovada pelo técnico.</strong> <span id="ctBannerMotivo"></span>
+      </div>
+
+      <!-- Busca do empenho (só ao registrar uma nova carta) -->
+      <div id="ctBuscaEmpenhoBloco">
+        <label>Buscar empenho / medicamento
+          <input type="text" id="ctBuscaEmpenho" placeholder="Nº empenho, requisição, SEI, SIAFÍSICO, empresa, medicamento, SCODES…" autocomplete="off">
+          <small style="color:var(--texto-suave); display:block; margin-top:4px;">Um empenho pode ter vários medicamentos — escolha a linha do item exato desta carta. Cada carta é 1 medicamento de 1 empenho.</small>
+        </label>
+        <div id="ctResultadosEmpenho" class="lista-resultados" style="max-height:230px; overflow:auto; margin-top:6px;"></div>
+        <div style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--borda, #e5e8ee);">
+          <button type="button" class="botao-secundario" id="ctBtnNaoLocalizado" title="Use quando o processo de aquisição foi gerado fora do sistema convencional e o empenho não está na base importada.">🔎 Empenho não localizado — preencher manualmente</button>
+        </div>
+      </div>
+
+      <!-- Corpo do formulário -->
+      <div id="ctFormCarta" hidden>
+        <!-- Identificação (do empenho) — editável só na avaliação técnica -->
+        <div style="background:var(--fundo-suave, #f5f7fa); border-radius:8px; padding:12px 14px; margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <strong style="font-size:13px;">Identificação (empenho)</strong>
+            <button type="button" class="botao-secundario" id="ctTrocarEmpenho" style="font-size:12px;" hidden>↺ Trocar empenho</button>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+            <label>Fornecedor<input type="text" id="ctEmpresa" disabled></label>
+            <label>Nota de empenho<input type="text" id="ctNota" disabled></label>
+            <label>Requisição<input type="text" id="ctRequisicao" disabled></label>
+            <label>Processo Sem Papel / SEI<input type="text" id="ctSei" disabled></label>
+            <label>SCODES<input type="text" id="ctScodes" disabled style="font-family:monospace;"></label>
+            <label>SIAFÍSICO<input type="text" id="ctSiafisico" disabled></label>
+            <label style="grid-column:1 / -1;">Medicamento<input type="text" id="ctMedicamento" disabled></label>
+            <label style="grid-column:1 / 3;">Apresentação<input type="text" id="ctApresentacao" disabled></label>
+            <label>Nome da requisição<input type="text" id="ctNomeReq" disabled></label>
+          </div>
+        </div>
+
+        <!-- Dados da carta -->
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;">
+          <label>Local de entrega
+            <input type="text" id="ctLocalEntrega" list="ctLocaisEntrega" placeholder="CAF / UNIDADE TENENTE PENA">
+            <datalist id="ctLocaisEntrega"><option value="CAF"></option><option value="UNIDADE TENENTE PENA"></option></datalist>
+          </label>
+          <label>Nº do protocolo *
+            <input type="text" id="ctProtocolo" placeholder="ex.: 2025/000123">
+          </label>
+          <label>Data do protocolo
+            <input type="date" id="ctDataProtocolo">
+          </label>
+
+          <label>Tipo de quantidade
+            <select id="ctTipoQtd">
+              <option value="Total">Total (toda a qtd. do empenho)</option>
+              <option value="Parcial">Parcial (informar qtd.)</option>
+            </select>
+          </label>
+          <label>Quantidade da carta
+            <input type="number" id="ctQuantidade" step="any" min="0" placeholder="ex.: 2700">
+            <small id="ctQtdDica" style="color:var(--texto-suave); display:block; margin-top:4px;"></small>
+          </label>
+          <label>Status da troca
+            <select id="ctStatus">
+              <option value="Vigente">Vigente</option>
+              <option value="Vencido no estoque">Vencido no estoque</option>
+              <option value="Trocado">Trocado</option>
+              <option value="Consumido">Consumido</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </label>
+        </div>
+
+        <!-- Lotes -->
+        <div style="margin-top:14px; border-top:1px solid var(--borda, #e5e8ee); padding-top:12px;">
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <label style="margin:0;">Nº de lotes
+              <input type="number" id="ctNumLotes" min="1" max="30" value="1" style="width:90px;">
+            </label>
+            <span id="ctLotesResumo" class="texto-apoio"></span>
+          </div>
+          <div id="ctLotesContainer" style="margin-top:10px; display:grid; gap:8px;"></div>
+        </div>
+
+        <label style="display:block; margin-top:12px;">Observação
+          <textarea id="ctObservacao" rows="2" placeholder="Anotações sobre a troca…"></textarea>
+        </label>
+
+        <!-- Avaliação técnica (modo avaliar) -->
+        <div id="ctBlocoAvaliacao" hidden style="margin-top:14px; border-top:2px solid var(--selo, #2e7d5b); padding-top:12px;">
+          <strong style="font-size:13px;">Avaliação técnica</strong>
+          <p class="texto-apoio" style="margin:4px 0 8px;">Ajuste o que precisar acima e decida. Reprovar exige um motivo (o administrativo é avisado por e-mail).</p>
+          <label id="ctRotuloMotivo" hidden>Motivo da reprovação *
+            <textarea id="ctMotivoReprovacao" rows="2" placeholder="Descreva o que precisa ser corrigido…"></textarea>
+          </label>
+        </div>
+      </div>
+
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="ctModalCancelar">Cancelar</button>
+        <button type="button" class="botao-primario" id="ctModalSalvar" hidden>Salvar e enviar para avaliação</button>
+        <button type="button" class="botao-primario" id="ctModalReenviar" hidden>Reenviar para avaliação</button>
+        <button type="button" class="botao-secundario" id="ctModalReprovar" hidden style="border-color:#c0392b; color:#c0392b;">Reprovar</button>
+        <button type="button" class="botao-primario" id="ctModalAprovar" hidden style="background:#2e7d5b;">Aprovar</button>
       </div>
     </div>
   </div>

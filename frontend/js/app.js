@@ -213,6 +213,7 @@ function aplicarPermissoesNav() {
     planejamento: 'planejamento',
     autores: 'autoresTP', autoresGeral: 'autoresGeral',
     comparativoAutores: 'comparativoAutoresTP', relatorioReq: 'relatorioReqTP',
+    cartasTroca: 'cartasTroca',
     atas: 'atas',
     entradaLotes: 'entradaLotes',
     reservas: 'reservas',
@@ -513,6 +514,7 @@ const TRILHAS = {
   solicitacoes: ['Tenente Pena', 'Compras', 'Tabela Análise TP'],
   comparativoAutores: ['Tenente Pena', 'Compras', 'Comparativo de Autores'],
   relatorioReq: ['Tenente Pena', 'Compras', 'Relatório de Primeiro Atendimento'],
+  cartasTroca: ['Tenente Pena', 'Compras', 'Cartas de Troca'],
   estoque: ['Tenente Pena', 'Estoque', 'Estoque Tenente Pena'],
   evolucao: ['Tenente Pena', 'Estoque', 'Evolução de Estoque'],
   historico: ['Tenente Pena', 'Estoque', 'Histórico de Estoque'],
@@ -568,6 +570,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaAutoresGeral').hidden = pagina !== 'autoresGeral';
   document.getElementById('paginaComparativoAutores').hidden = pagina !== 'comparativoAutores';
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
+  document.getElementById('paginaCartasTroca').hidden = pagina !== 'cartasTroca';
   document.getElementById('paginaAtas').hidden = pagina !== 'atas';
   document.getElementById('paginaEntradaLotes').hidden = pagina !== 'entradaLotes';
   document.getElementById('paginaReservas').hidden = pagina !== 'reservas';
@@ -600,6 +603,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'autoresGeral') await carregarAutoresGeral();
     if (pagina === 'comparativoAutores') await carregarComparativo();
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
+    if (pagina === 'cartasTroca') await carregarCartasTroca();
     if (pagina === 'atas') await carregarAtas();
     if (pagina === 'entradaLotes') await carregarEntradaLotes();
     if (pagina === 'reservas') await carregarReservas();
@@ -5471,6 +5475,652 @@ function formatarDataHora(iso) {
   const p = (n) => String(n).padStart(2, '0');
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
+
+// -------------------- Cartas de Troca --------------------
+// Controle das cartas em que o fornecedor pede para entregar item com validade
+// menor que a exigida no edital. Fluxo de aprovação em duas etapas:
+//   administrativo (perm. inserir) registra -> Aguardando avaliação (e-mail técnicos)
+//   técnico (perm. editar) avalia -> Aprovada | Reprovada (e-mail ao criador)
+//   se Reprovada, administrativo corrige e reenvia.
+const estadoCartas = { pagina: 1, pageSize: 50, filtrosCarregados: false, aba: 'todas', situacao: '', modo: 'nova', editandoId: null, empenhoSel: null, empenhoQtd: null, manual: false };
+const estadoEmpenhos = { pagina: 1, pageSize: 50 };
+
+function ctPreencherSelect(id, rotulo, valores) {
+  const el = document.getElementById(id);
+  const atual = el.value;
+  el.innerHTML = `<option value="">${rotulo}</option>` +
+    (valores || []).map((v) => `<option value="${escAttr(v)}">${escHtml(v)}</option>`).join('');
+  el.value = atual;
+}
+
+async function carregarCartasTroca() {
+  document.getElementById('ctBotaoNova').hidden = !temPermissao('cartasTroca', 'inserir');
+  document.getElementById('ctBotaoImportarEmpenhos').hidden = !temPermissao('cartasTroca', 'importar');
+
+  try {
+    const info = await api('/cartas-troca/empenhos/info');
+    const el = document.getElementById('ctInfoEmpenhos');
+    el.hidden = false;
+    el.textContent = info && info.total
+      ? `Empenhos: ${fmtNumero(info.total)} linhas (importado em ${formatarData(info.dataReferencia)})`
+      : 'Nenhum empenho importado ainda';
+  } catch (e) { /* segue */ }
+
+  if (!estadoCartas.filtrosCarregados) {
+    try {
+      const f = await api('/cartas-troca/filtros');
+      ctPreencherSelect('ctFiltroEmpresa', 'Fornecedor: todos', f.empresa);
+      ctPreencherSelect('ctFiltroStatus', 'Status da troca: todos', f.status_troca);
+      estadoCartas.filtrosCarregados = true;
+    } catch (e) { /* segue */ }
+  }
+  if (estadoCartas.aba === 'empenhos') await carregarTabelaEmpenhos();
+  else await carregarTabelaCartas();
+}
+
+// ---------- Abas ----------
+function ctTrocarAba(aba, situacao) {
+  estadoCartas.aba = aba;
+  estadoCartas.situacao = situacao || '';
+  estadoCartas.pagina = 1;
+  document.querySelectorAll('#ctAbas .chip-faixa').forEach((b) => b.classList.toggle('ativo', b.dataset.aba === aba));
+  const ehEmpenhos = aba === 'empenhos';
+  document.getElementById('ctAreaCartas').hidden = ehEmpenhos;
+  document.getElementById('ctAreaEmpenhos').hidden = !ehEmpenhos;
+  if (ehEmpenhos) carregarTabelaEmpenhos();
+  else carregarTabelaCartas();
+}
+
+function ctParamsFiltro() {
+  const params = new URLSearchParams({ page: estadoCartas.pagina, pageSize: estadoCartas.pageSize });
+  const q = document.getElementById('ctFiltroBusca').value.trim();
+  if (q) params.set('q', q);
+  const emp = document.getElementById('ctFiltroEmpresa').value;
+  if (emp) params.set('empresa', emp);
+  const st = document.getElementById('ctFiltroStatus').value;
+  if (st) params.set('status_troca', st);
+  if (estadoCartas.situacao) params.set('situacao', estadoCartas.situacao);
+  return params;
+}
+
+function ctClasseSituacao(s) {
+  if (s === 'Aprovada') return 'finalizado';
+  if (s === 'Reprovada') return 'cancelado';
+  return 'planejamento'; // Aguardando avaliação
+}
+function ctClasseStatus(s) {
+  if (s === 'Trocado' || s === 'Consumido') return 'finalizado';
+  if (s === 'Vencido no estoque' || s === 'Cancelado') return 'cancelado';
+  return 'planejamento';
+}
+
+// Validade mais próxima (com alerta de cor) a partir da lista de lotes da carta.
+function ctCelulaValidade(carta) {
+  const val = carta.data_validade;
+  if (!val) return '—';
+  const txt = formatarData(val);
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const d = new Date(val + 'T00:00:00');
+  if (isNaN(d)) return txt;
+  const dias = Math.round((d - hoje) / 86400000);
+  const vigente = carta.status_troca === 'Vigente' && carta.situacao_analise === 'Aprovada';
+  if (dias < 0 && carta.status_troca === 'Vigente') return `<span style="color:#c0392b; font-weight:600;" title="Vencida há ${-dias} dia(s)">${txt} ⚠</span>`;
+  if (dias <= 90 && vigente) return `<span style="color:#b9770e; font-weight:600;" title="Vence em ${dias} dia(s)">${txt}</span>`;
+  return txt;
+}
+
+function ctResumoLotes(carta) {
+  const lotes = carta.lotes || [];
+  if (!lotes.length) return '—';
+  const detalhe = lotes.map((l) => `${l.lote || '-'} · ${l.data_validade ? formatarData(l.data_validade) : '-'} · ${l.quantidade != null ? fmtNumero(l.quantidade) : '-'}`).join('\n');
+  return `<span title="${escAttr(detalhe)}">${lotes.length} lote(s)</span>`;
+}
+
+async function carregarTabelaCartas() {
+  const dados = await api(`/cartas-troca?${ctParamsFiltro().toString()}`);
+  const corpo = document.getElementById('corpoTabelaCartas');
+  const vazio = document.getElementById('estadoVazioCartas');
+
+  // Badges das abas (contadores globais, independentes do filtro).
+  const sit = dados.porSituacao || {};
+  const badge = (id, n) => { const e = document.getElementById(id); if (!e) return; e.textContent = n || 0; e.hidden = !n; };
+  badge('ctBadgeAguardando', sit['Aguardando avaliação']);
+  badge('ctBadgePendencia', sit['Reprovada']);
+
+  // KPIs
+  const kpi = (rot, val, cls) => `<div class="cartao-resumo"><span class="valor ${cls || ''}">${fmtNumero(val || 0)}</span><span class="rotulo">${rot}</span></div>`;
+  document.getElementById('ctGradeResumo').innerHTML =
+    kpi('Total', dados.totalGeral) +
+    kpi('Aguardando avaliação', sit['Aguardando avaliação']) +
+    kpi('Aprovadas', sit['Aprovada']) +
+    kpi('Reprovadas', sit['Reprovada']);
+
+  const podeEditar = temPermissao('cartasTroca', 'editar');   // técnico (avaliar)
+  const podeInserir = temPermissao('cartasTroca', 'inserir'); // administrativo (registrar/reenviar/status)
+  const podeExcluir = temPermissao('cartasTroca', 'excluir');
+
+  if (!dados.cartas.length) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.cartas.map((c) => {
+      // Coluna Status da troca: editável (select) quando Aprovada e tem permissão.
+      let statusCel;
+      if (c.situacao_analise === 'Aprovada' && podeInserir) {
+        const opc = ['Vigente', 'Vencido no estoque', 'Trocado', 'Consumido', 'Cancelado']
+          .map((o) => `<option value="${o}" ${o === c.status_troca ? 'selected' : ''}>${o}</option>`).join('');
+        statusCel = `<select class="ct-status-sel" data-id="${c.id}">${opc}</select>`;
+      } else {
+        statusCel = `<span class="etiqueta-status ${ctClasseStatus(c.status_troca)}">${escHtml(c.status_troca)}</span>`;
+      }
+      // Ações por situação + permissão
+      let acoes = '';
+      if (c.situacao_analise === 'Aguardando avaliação' && podeEditar) acoes += `<button type="button" class="botao-icone ct-avaliar" data-id="${c.id}" title="Avaliar (técnico)">🔎 Avaliar</button>`;
+      if (c.situacao_analise === 'Reprovada' && podeInserir) acoes += `<button type="button" class="botao-icone ct-reenviar" data-id="${c.id}" title="Corrigir e reenviar">✏️ Corrigir</button>`;
+      if (podeExcluir) acoes += ` <button type="button" class="botao-icone ct-excluir" data-id="${c.id}" title="Excluir">🗑️</button>`;
+      if (!acoes) acoes = '<span class="texto-apoio">—</span>';
+
+      return `
+      <tr data-id="${c.id}">
+        <td class="col-codigo"><strong>${escHtml(c.codigo_controle)}</strong></td>
+        <td><span class="etiqueta-status ${ctClasseSituacao(c.situacao_analise)}">${escHtml(c.situacao_analise)}</span>${c.situacao_analise === 'Reprovada' && c.motivo_reprovacao ? ` <span title="${escAttr(c.motivo_reprovacao)}" style="cursor:help;">💬</span>` : ''}</td>
+        <td>${escHtml(c.empresa)}</td>
+        <td class="col-codigo">${escHtml(c.nota_empenho)}</td>
+        <td class="col-codigo">${escHtml(c.numero_requisicao)}</td>
+        <td class="col-codigo">${escHtml(c.codigo_item)}</td>
+        <td>${escHtml(c.medicamento)}</td>
+        <td>${escHtml(c.local_entrega)}</td>
+        <td>${c.quantidade != null ? fmtNumero(c.quantidade) : '—'} <span class="texto-apoio">(${escHtml(c.tipo_quantidade || 'Total')})</span></td>
+        <td>${ctResumoLotes(c)}</td>
+        <td>${ctCelulaValidade(c)}</td>
+        <td class="col-codigo">${escHtml(c.numero_protocolo)}</td>
+        <td>${statusCel}</td>
+        <td class="col-acoes" style="white-space:nowrap;">${acoes}</td>
+      </tr>`;
+    }).join('');
+
+    corpo.querySelectorAll('.ct-avaliar').forEach((b) => b.addEventListener('click', () => abrirModalAvaliar(b.dataset.id)));
+    corpo.querySelectorAll('.ct-reenviar').forEach((b) => b.addEventListener('click', () => abrirModalReenviar(b.dataset.id)));
+    corpo.querySelectorAll('.ct-excluir').forEach((b) => b.addEventListener('click', () => excluirCarta(b.dataset.id)));
+    corpo.querySelectorAll('.ct-status-sel').forEach((s) => s.addEventListener('change', () => ctAtualizarStatus(s.dataset.id, s.value)));
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoCartas').textContent =
+    `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} carta(s)`;
+  document.getElementById('ctAnterior').disabled = dados.page <= 1;
+  document.getElementById('ctProximo').disabled = dados.page >= totalPaginas;
+}
+
+async function ctAtualizarStatus(id, status) {
+  try {
+    await api(`/cartas-troca/${id}/status`, { method: 'POST', body: JSON.stringify({ status_troca: status }) });
+    await carregarTabelaCartas();
+  } catch (e) { alert('Erro ao atualizar status: ' + e.message); }
+}
+
+// ---------- Aba: empenhos importados ----------
+let ctDebounceEmp;
+async function carregarTabelaEmpenhos() {
+  const params = new URLSearchParams({ page: estadoEmpenhos.pagina, pageSize: estadoEmpenhos.pageSize });
+  const q = document.getElementById('ctEmpBusca').value.trim();
+  if (q) params.set('q', q);
+  const dados = await api(`/cartas-troca/empenhos?${params.toString()}`);
+  const corpo = document.getElementById('corpoTabelaEmpenhos');
+  const vazio = document.getElementById('estadoVazioEmpenhos');
+  document.getElementById('ctEmpInfo').textContent = dados.dataReferencia
+    ? `${fmtNumero(dados.total)} linha(s) · importado em ${formatarData(dados.dataReferencia)}` : '';
+
+  if (!dados.itens.length) { corpo.innerHTML = ''; vazio.hidden = false; }
+  else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((e) => `
+      <tr>
+        <td class="col-codigo">${escHtml(e.nota_empenho)}</td>
+        <td>${escHtml(e.empresa)}</td>
+        <td class="col-codigo">${escHtml(e.scodes)}</td>
+        <td class="col-codigo">${escHtml(e.siafisico)}</td>
+        <td>${escHtml(e.medicamento)}</td>
+        <td>${escHtml(e.apresentacao)}</td>
+        <td>${e.quantidade != null ? fmtNumero(e.quantidade) : '—'}</td>
+        <td>${e.valor_unitario != null ? fmtNumero(e.valor_unitario) : '—'}</td>
+        <td>${e.valor_total != null ? fmtNumero(e.valor_total) : '—'}</td>
+        <td>${escHtml(e.status_entrega)}</td>
+        <td>${escHtml(e.local_entrega)}</td>
+        <td class="col-codigo">${escHtml(e.numero_requisicao)}</td>
+        <td>${temPermissao('cartasTroca', 'inserir') ? `<button type="button" class="botao-icone ct-emp-usar" title="Registrar carta deste empenho">➕ Carta</button>` : '<span class="texto-apoio">—</span>'}</td>
+      </tr>`).join('');
+    // Botão "Carta" abre o modal já com este empenho selecionado.
+    corpo.querySelectorAll('.ct-emp-usar').forEach((b, i) => b.addEventListener('click', () => {
+      const e = dados.itens[i];
+      abrirModalNovaCarta();
+      ctSelecionarEmpenho({ id: null, nota_empenho: e.nota_empenho, numero_requisicao: e.numero_requisicao,
+        nome_requisicao: null, processo_sem_papel: e.processo_sem_papel, empresa: e.empresa, scodes: e.scodes,
+        siafisico: e.siafisico, medicamento: e.medicamento, apresentacao: e.apresentacao, quantidade: e.quantidade,
+        local_entrega: e.local_entrega });
+    }));
+  }
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoEmpenhos').textContent = `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} linha(s)`;
+  document.getElementById('ctEmpAnterior').disabled = dados.page <= 1;
+  document.getElementById('ctEmpProximo').disabled = dados.page >= totalPaginas;
+}
+
+// ==================== Modal (registrar / reenviar / avaliar) ====================
+const CT_IDENT = ['ctEmpresa', 'ctNota', 'ctRequisicao', 'ctSei', 'ctScodes', 'ctSiafisico', 'ctMedicamento', 'ctApresentacao', 'ctNomeReq'];
+
+function ctSetIdentEditavel(editavel) {
+  CT_IDENT.forEach((id) => { document.getElementById(id).disabled = !editavel; });
+}
+
+function ctLimparForm() {
+  ['ctEmpresa', 'ctNota', 'ctRequisicao', 'ctSei', 'ctScodes', 'ctSiafisico', 'ctMedicamento', 'ctApresentacao', 'ctNomeReq',
+    'ctLocalEntrega', 'ctProtocolo', 'ctDataProtocolo', 'ctQuantidade', 'ctObservacao', 'ctMotivoReprovacao'].forEach((id) => { document.getElementById(id).value = ''; });
+  document.getElementById('ctTipoQtd').value = 'Total';
+  document.getElementById('ctStatus').value = 'Vigente';
+  document.getElementById('ctNumLotes').value = 1;
+  document.getElementById('ctLotesContainer').innerHTML = '';
+  document.getElementById('ctLotesResumo').textContent = '';
+  document.getElementById('ctQtdDica').textContent = '';
+}
+
+function ctBotoesRodape(modo) {
+  document.getElementById('ctModalSalvar').hidden = modo !== 'nova';
+  document.getElementById('ctModalReenviar').hidden = modo !== 'reenviar';
+  document.getElementById('ctModalReprovar').hidden = modo !== 'avaliar';
+  document.getElementById('ctModalAprovar').hidden = modo !== 'avaliar';
+  document.getElementById('ctBlocoAvaliacao').hidden = modo !== 'avaliar';
+}
+
+function abrirModalNovaCarta() {
+  estadoCartas.modo = 'nova';
+  estadoCartas.editandoId = null;
+  estadoCartas.empenhoSel = null;
+  estadoCartas.empenhoQtd = null;
+  estadoCartas.manual = false;
+  document.getElementById('ctModalTitulo').textContent = 'Registro de Carta de Troca';
+  document.getElementById('ctBannerReprovacao').hidden = true;
+  document.getElementById('ctBuscaEmpenhoBloco').hidden = false;
+  document.getElementById('ctBuscaEmpenho').value = '';
+  document.getElementById('ctResultadosEmpenho').innerHTML = '';
+  document.getElementById('ctFormCarta').hidden = true;
+  ctLimparForm();
+  ctSetIdentEditavel(false);
+  ctBotoesRodape('nova');
+  document.getElementById('ctRotuloMotivo').hidden = true;
+  document.getElementById('modalCartaTroca').hidden = false;
+  setTimeout(() => document.getElementById('ctBuscaEmpenho').focus(), 50);
+}
+
+// "Empenho não localizado": processo de aquisição feito fora do sistema
+// convencional. Abre TODOS os campos em branco e editáveis; ao salvar, todos
+// passam a ser obrigatórios (ver ctCamposFaltando).
+function ctEmpenhoNaoLocalizado() {
+  estadoCartas.manual = true;
+  estadoCartas.empenhoSel = null;
+  estadoCartas.empenhoQtd = null;
+  document.getElementById('ctModalTitulo').textContent = 'Registro de Carta de Troca — empenho não localizado';
+  ctLimparForm();
+  document.getElementById('ctBuscaEmpenhoBloco').hidden = true;
+  document.getElementById('ctFormCarta').hidden = false;
+  document.getElementById('ctTrocarEmpenho').hidden = false; // volta à busca
+  ctSetIdentEditavel(true); // todos os campos de identidade abertos
+  ctAplicarTipoQtd();
+  ctRenderLotes();
+  setTimeout(() => document.getElementById('ctEmpresa').focus(), 50);
+}
+
+let ctDebounceBusca;
+function ctBuscarEmpenhos() {
+  clearTimeout(ctDebounceBusca);
+  ctDebounceBusca = setTimeout(async () => {
+    const q = document.getElementById('ctBuscaEmpenho').value.trim();
+    const cont = document.getElementById('ctResultadosEmpenho');
+    if (q.length < 2) { cont.innerHTML = ''; return; }
+    try {
+      const { empenhos } = await api(`/cartas-troca/empenhos/buscar?q=${encodeURIComponent(q)}`);
+      if (!empenhos.length) { cont.innerHTML = '<div class="texto-apoio" style="padding:8px;">Nenhum empenho encontrado. Importe o Relatório de Empenhos, se necessário.</div>'; return; }
+      cont.innerHTML = empenhos.map((e, i) => `
+        <div class="item-resultado" data-i="${i}" style="padding:8px 10px; border-bottom:1px solid var(--borda, #e5e8ee); cursor:pointer;">
+          <div style="font-size:13px;"><strong>${escHtml(e.medicamento)}</strong> ${e.apresentacao ? '<span class="texto-apoio">· ' + escHtml(e.apresentacao) + '</span>' : ''}</div>
+          <div style="font-size:12px; color:var(--cinza-texto);">
+            ${escHtml(e.empresa)} · Empenho <strong>${escHtml(e.nota_empenho)}</strong> · SCODES ${escHtml(e.scodes)} · Req. ${escHtml(e.numero_requisicao)}
+            ${e.quantidade != null ? '· Qtd ' + fmtNumero(e.quantidade) : ''} ${e.status_entrega ? '· ' + escHtml(e.status_entrega) : ''}
+          </div>
+        </div>`).join('');
+      cont.querySelectorAll('.item-resultado').forEach((div) => div.addEventListener('click', () => ctSelecionarEmpenho(empenhos[Number(div.dataset.i)])));
+    } catch (e) {
+      cont.innerHTML = `<div class="texto-apoio" style="padding:8px; color:#c0392b;">Erro na busca: ${escHtml(e.message)}</div>`;
+    }
+  }, 300);
+}
+
+function ctSelecionarEmpenho(emp) {
+  estadoCartas.manual = false;
+  estadoCartas.empenhoSel = emp;
+  estadoCartas.empenhoQtd = emp.quantidade != null ? emp.quantidade : null;
+  document.getElementById('ctEmpresa').value = emp.empresa || '';
+  document.getElementById('ctNota').value = emp.nota_empenho || '';
+  document.getElementById('ctRequisicao').value = emp.numero_requisicao || '';
+  document.getElementById('ctSei').value = emp.processo_sem_papel || '';
+  document.getElementById('ctScodes').value = emp.scodes || '';
+  document.getElementById('ctSiafisico').value = emp.siafisico || '';
+  document.getElementById('ctMedicamento').value = emp.medicamento || '';
+  document.getElementById('ctApresentacao').value = emp.apresentacao || '';
+  document.getElementById('ctNomeReq').value = emp.nome_requisicao || '';
+  document.getElementById('ctLocalEntrega').value = emp.local_entrega || '';
+  document.getElementById('ctBuscaEmpenhoBloco').hidden = true;
+  document.getElementById('ctFormCarta').hidden = false;
+  document.getElementById('ctTrocarEmpenho').hidden = false;
+  ctSetIdentEditavel(false);
+  ctAplicarTipoQtd();
+  ctRenderLotes();
+  setTimeout(() => document.getElementById('ctProtocolo').focus(), 50);
+}
+
+function ctTrocarEmpenho() {
+  estadoCartas.manual = false;
+  estadoCartas.empenhoSel = null;
+  estadoCartas.empenhoQtd = null;
+  document.getElementById('ctModalTitulo').textContent = 'Registro de Carta de Troca';
+  document.getElementById('ctBuscaEmpenhoBloco').hidden = false;
+  document.getElementById('ctFormCarta').hidden = true;
+  document.getElementById('ctResultadosEmpenho').innerHTML = '';
+  document.getElementById('ctBuscaEmpenho').value = '';
+  setTimeout(() => document.getElementById('ctBuscaEmpenho').focus(), 50);
+}
+
+// Total: quantidade = qtd do empenho (bloqueada). Parcial: digitável.
+function ctAplicarTipoQtd() {
+  const tipo = document.getElementById('ctTipoQtd').value;
+  const inp = document.getElementById('ctQuantidade');
+  const dica = document.getElementById('ctQtdDica');
+  if (tipo === 'Total' && !estadoCartas.manual && estadoCartas.empenhoQtd != null) {
+    inp.value = estadoCartas.empenhoQtd;
+    inp.readOnly = true;
+    dica.textContent = '= quantidade do empenho';
+  } else {
+    inp.readOnly = false;
+    dica.textContent = estadoCartas.manual ? 'informe a quantidade total da carta' : (tipo === 'Total' ? 'informe a quantidade' : 'informe a quantidade parcial');
+  }
+  ctAtualizarResumoLotes();
+}
+
+// Renderiza N linhas de lote preservando o que já foi digitado.
+function ctRenderLotes(lotesExistentes) {
+  const n = Math.max(1, Math.min(30, parseInt(document.getElementById('ctNumLotes').value, 10) || 1));
+  const cont = document.getElementById('ctLotesContainer');
+  const atuais = ctColetarLotes();
+  const base = lotesExistentes || atuais;
+  let html = '';
+  for (let i = 0; i < n; i++) {
+    const l = base[i] || {};
+    html += `
+      <div class="ct-lote-row" style="display:grid; grid-template-columns:1fr 160px 140px; gap:8px; align-items:end;">
+        <label style="margin:0;">Lote ${i + 1}<input type="text" class="ct-lote" value="${escAttr(l.lote || '')}" placeholder="ex.: ABC123"></label>
+        <label style="margin:0;">Validade *<input type="date" class="ct-lote-val" value="${escAttr(l.data_validade || '')}"></label>
+        <label style="margin:0;">Quantidade<input type="number" class="ct-lote-qtd" step="any" min="0" value="${l.quantidade != null ? l.quantidade : ''}"></label>
+      </div>`;
+  }
+  cont.innerHTML = html;
+  cont.querySelectorAll('.ct-lote-qtd').forEach((i) => i.addEventListener('input', ctAtualizarResumoLotes));
+  ctAtualizarResumoLotes();
+}
+
+function ctColetarLotes() {
+  return [...document.querySelectorAll('#ctLotesContainer .ct-lote-row')].map((row) => ({
+    lote: row.querySelector('.ct-lote').value.trim() || null,
+    data_validade: row.querySelector('.ct-lote-val').value || null,
+    quantidade: row.querySelector('.ct-lote-qtd').value !== '' ? Number(row.querySelector('.ct-lote-qtd').value) : null,
+  }));
+}
+
+function ctAtualizarResumoLotes() {
+  const lotes = ctColetarLotes();
+  const soma = lotes.reduce((s, l) => s + (l.quantidade || 0), 0);
+  const qtd = Number(document.getElementById('ctQuantidade').value) || 0;
+  const el = document.getElementById('ctLotesResumo');
+  const bate = Math.abs(soma - qtd) < 0.001;
+  el.innerHTML = `Soma dos lotes: <strong>${fmtNumero(soma)}</strong> / Quantidade da carta: <strong>${fmtNumero(qtd)}</strong> ` +
+    (qtd > 0 ? (bate ? '<span style="color:#2e7d5b;">✓ fecha</span>' : '<span style="color:#c0392b;">✗ não fecha</span>') : '');
+}
+
+// Preenche o modal a partir de uma carta existente (reenviar/avaliar).
+function ctPreencherDeCartas(carta) {
+  document.getElementById('ctEmpresa').value = carta.empresa || '';
+  document.getElementById('ctNota').value = carta.nota_empenho || '';
+  document.getElementById('ctRequisicao').value = carta.numero_requisicao || '';
+  document.getElementById('ctSei').value = carta.processo_sem_papel || '';
+  document.getElementById('ctScodes').value = carta.codigo_item || '';
+  document.getElementById('ctSiafisico').value = carta.siafisico || '';
+  document.getElementById('ctMedicamento').value = carta.medicamento || '';
+  document.getElementById('ctApresentacao').value = carta.apresentacao || '';
+  document.getElementById('ctNomeReq').value = carta.nome_requisicao || '';
+  document.getElementById('ctLocalEntrega').value = carta.local_entrega || '';
+  document.getElementById('ctProtocolo').value = carta.numero_protocolo || '';
+  document.getElementById('ctDataProtocolo').value = carta.data_protocolo || '';
+  document.getElementById('ctTipoQtd').value = carta.tipo_quantidade || 'Total';
+  document.getElementById('ctQuantidade').value = carta.quantidade != null ? carta.quantidade : '';
+  document.getElementById('ctStatus').value = carta.status_troca || 'Vigente';
+  document.getElementById('ctObservacao').value = carta.observacao || '';
+  estadoCartas.empenhoQtd = carta.tipo_quantidade === 'Total' ? carta.quantidade : null;
+  const nl = (carta.lotes && carta.lotes.length) ? carta.lotes.length : 1;
+  document.getElementById('ctNumLotes').value = nl;
+  ctRenderLotes(carta.lotes || []);
+  document.getElementById('ctQuantidade').readOnly = (carta.tipo_quantidade || 'Total') === 'Total';
+}
+
+async function abrirModalReenviar(id) {
+  try {
+    const { carta } = await api(`/cartas-troca/${id}`);
+    estadoCartas.modo = 'reenviar';
+    estadoCartas.editandoId = carta.id;
+    document.getElementById('ctModalTitulo').textContent = `Corrigir e reenviar — ${carta.codigo_controle || ''}`.trim();
+    document.getElementById('ctBuscaEmpenhoBloco').hidden = true;
+    document.getElementById('ctFormCarta').hidden = false;
+    document.getElementById('ctTrocarEmpenho').hidden = true;
+    document.getElementById('ctBannerReprovacao').hidden = !carta.motivo_reprovacao;
+    document.getElementById('ctBannerMotivo').textContent = carta.motivo_reprovacao || '';
+    ctPreencherDeCartas(carta);
+    ctSetIdentEditavel(false); // administrativo corrige os dados da carta, não a identidade do empenho
+    document.getElementById('ctRotuloMotivo').hidden = true;
+    ctBotoesRodape('reenviar');
+    document.getElementById('modalCartaTroca').hidden = false;
+  } catch (e) { alert('Não consegui abrir a carta: ' + e.message); }
+}
+
+async function abrirModalAvaliar(id) {
+  try {
+    const { carta } = await api(`/cartas-troca/${id}`);
+    estadoCartas.modo = 'avaliar';
+    estadoCartas.editandoId = carta.id;
+    document.getElementById('ctModalTitulo').textContent = `Avaliação técnica — ${carta.codigo_controle || ''}`.trim();
+    document.getElementById('ctBuscaEmpenhoBloco').hidden = true;
+    document.getElementById('ctFormCarta').hidden = false;
+    document.getElementById('ctTrocarEmpenho').hidden = true;
+    document.getElementById('ctBannerReprovacao').hidden = true;
+    ctPreencherDeCartas(carta);
+    ctSetIdentEditavel(true); // técnico pode editar todos os campos, inclusive os do empenho
+    document.getElementById('ctRotuloMotivo').hidden = true;
+    document.getElementById('ctMotivoReprovacao').value = '';
+    ctBotoesRodape('avaliar');
+    document.getElementById('modalCartaTroca').hidden = false;
+  } catch (e) { alert('Não consegui abrir a carta: ' + e.message); }
+}
+
+function fecharModalCarta() { document.getElementById('modalCartaTroca').hidden = true; }
+
+// Monta o corpo comum (campos + lotes) a partir do formulário.
+function ctColetarCorpo() {
+  return {
+    empresa: document.getElementById('ctEmpresa').value.trim() || null,
+    nota_empenho: document.getElementById('ctNota').value.trim() || null,
+    numero_requisicao: document.getElementById('ctRequisicao').value.trim() || null,
+    processo_sem_papel: document.getElementById('ctSei').value.trim() || null,
+    codigo_item: document.getElementById('ctScodes').value.trim() || null,
+    siafisico: document.getElementById('ctSiafisico').value.trim() || null,
+    medicamento: document.getElementById('ctMedicamento').value.trim() || null,
+    apresentacao: document.getElementById('ctApresentacao').value.trim() || null,
+    nome_requisicao: document.getElementById('ctNomeReq').value.trim() || null,
+    local_entrega: document.getElementById('ctLocalEntrega').value.trim() || null,
+    numero_protocolo: document.getElementById('ctProtocolo').value.trim() || null,
+    data_protocolo: document.getElementById('ctDataProtocolo').value || null,
+    tipo_quantidade: document.getElementById('ctTipoQtd').value,
+    quantidade: document.getElementById('ctQuantidade').value || null,
+    status_troca: document.getElementById('ctStatus').value,
+    observacao: document.getElementById('ctObservacao').value.trim() || null,
+    lotes: ctColetarLotes(),
+  };
+}
+
+function ctValidarBasico(corpo) {
+  if (!corpo.numero_protocolo) { alert('Informe o Nº do protocolo.'); return false; }
+  const lotes = corpo.lotes.filter((l) => l.lote || l.data_validade || l.quantidade != null);
+  if (!lotes.length || lotes.some((l) => !l.data_validade)) { alert('Informe ao menos um lote com data de validade.'); return false; }
+  return true;
+}
+
+// No modo "empenho não localizado" TUDO é obrigatório (não há empenho de onde
+// puxar os dados). Devolve a lista de campos em falta.
+function ctCamposFaltandoManual(corpo) {
+  const obrig = [
+    ['empresa', 'Fornecedor'], ['nota_empenho', 'Nota de empenho'], ['numero_requisicao', 'Requisição'],
+    ['processo_sem_papel', 'Processo Sem Papel / SEI'], ['codigo_item', 'SCODES'], ['siafisico', 'SIAFÍSICO'],
+    ['medicamento', 'Medicamento'], ['apresentacao', 'Apresentação'], ['nome_requisicao', 'Nome da requisição'],
+    ['local_entrega', 'Local de entrega'], ['numero_protocolo', 'Nº do protocolo'], ['data_protocolo', 'Data do protocolo'],
+  ];
+  const faltando = obrig.filter(([k]) => !corpo[k]).map(([, r]) => r);
+  const qtd = Number(corpo.quantidade);
+  if (!qtd || qtd <= 0) faltando.push('Quantidade da carta');
+  const lotes = corpo.lotes.filter((l) => l.lote || l.data_validade || l.quantidade != null);
+  if (!lotes.length || lotes.some((l) => !l.lote || !l.data_validade || l.quantidade == null)) {
+    faltando.push('Lotes completos (lote, validade e quantidade em cada linha)');
+  }
+  return faltando;
+}
+
+async function salvarCarta() {
+  const corpo = ctColetarCorpo();
+  if (!estadoCartas.manual && !estadoCartas.empenhoSel && !corpo.empresa) { alert('Selecione um empenho antes de salvar.'); return; }
+  if (estadoCartas.manual) {
+    const faltando = ctCamposFaltandoManual(corpo);
+    if (faltando.length) { alert('Empenho não localizado: preencha todos os campos.\n\nFaltando:\n• ' + faltando.join('\n• ')); return; }
+  }
+  if (!ctValidarBasico(corpo)) return;
+  const btn = document.getElementById('ctModalSalvar');
+  btn.disabled = true;
+  try {
+    await api('/cartas-troca', { method: 'POST', body: JSON.stringify({ ...corpo, empenho_id: estadoCartas.empenhoSel ? estadoCartas.empenhoSel.id : null, empenho_quantidade: estadoCartas.empenhoQtd }) });
+    fecharModalCarta();
+    estadoCartas.filtrosCarregados = false;
+    await carregarCartasTroca();
+  } catch (e) { alert('Erro ao salvar: ' + e.message); }
+  finally { btn.disabled = false; }
+}
+
+async function reenviarCarta() {
+  const corpo = ctColetarCorpo();
+  if (!ctValidarBasico(corpo)) return;
+  const btn = document.getElementById('ctModalReenviar');
+  btn.disabled = true;
+  try {
+    await api(`/cartas-troca/${estadoCartas.editandoId}/reenviar`, { method: 'POST', body: JSON.stringify({ ...corpo, empenho_quantidade: estadoCartas.empenhoQtd }) });
+    fecharModalCarta();
+    await carregarCartasTroca();
+  } catch (e) { alert('Erro ao reenviar: ' + e.message); }
+  finally { btn.disabled = false; }
+}
+
+async function avaliarCarta(resultado) {
+  const corpo = ctColetarCorpo();
+  if (!ctValidarBasico(corpo)) return;
+  if (resultado === 'Reprovada') {
+    const rot = document.getElementById('ctRotuloMotivo');
+    const mot = document.getElementById('ctMotivoReprovacao');
+    if (rot.hidden) { rot.hidden = false; mot.focus(); return; } // primeiro clique revela o campo
+    if (!mot.value.trim()) { alert('Informe o motivo da reprovação.'); mot.focus(); return; }
+  }
+  const btn = resultado === 'Aprovada' ? document.getElementById('ctModalAprovar') : document.getElementById('ctModalReprovar');
+  btn.disabled = true;
+  try {
+    await api(`/cartas-troca/${estadoCartas.editandoId}/avaliar`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...corpo, resultado, motivo_reprovacao: document.getElementById('ctMotivoReprovacao').value.trim() || null, empenho_quantidade: estadoCartas.empenhoQtd }),
+    });
+    fecharModalCarta();
+    await carregarCartasTroca();
+  } catch (e) { alert('Erro ao registrar avaliação: ' + e.message); }
+  finally { btn.disabled = false; }
+}
+
+async function excluirCarta(id) {
+  if (!confirm('Excluir esta carta de troca? Esta ação não pode ser desfeita.')) return;
+  try {
+    await api(`/cartas-troca/${id}`, { method: 'DELETE' });
+    await carregarTabelaCartas();
+  } catch (e) { alert('Erro ao excluir: ' + e.message); }
+}
+
+async function ctImportarEmpenhos(input) {
+  if (!input.files[0]) return;
+  const fd = new FormData();
+  fd.append('arquivo', input.files[0]);
+  const btn = document.getElementById('ctBotaoImportarEmpenhos');
+  const txt = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Importando…';
+  try {
+    const resp = await fetch('/api/cartas-troca/importar-empenhos/confirmar', { method: 'POST', body: fd });
+    const dados = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(dados.erro || 'Falha na importação');
+    alert(`Relatório importado: ${fmtNumero(dados.totalLinhas)} linhas de empenho (${fmtNumero(dados.totalEmpenhos)} empenhos distintos).`);
+    await carregarCartasTroca();
+  } catch (e) {
+    alert('Erro ao importar empenhos: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = txt; input.value = '';
+  }
+}
+
+// ---------- Listeners da tela ----------
+document.querySelectorAll('#ctAbas .chip-faixa').forEach((b) => {
+  b.addEventListener('click', () => ctTrocarAba(b.dataset.aba, b.dataset.sit));
+});
+let ctDebounceFiltro;
+document.getElementById('ctFiltroBusca').addEventListener('input', () => {
+  clearTimeout(ctDebounceFiltro);
+  ctDebounceFiltro = setTimeout(() => { estadoCartas.pagina = 1; carregarTabelaCartas(); }, 350);
+});
+document.getElementById('ctFiltroEmpresa').addEventListener('change', () => { estadoCartas.pagina = 1; carregarTabelaCartas(); });
+document.getElementById('ctFiltroStatus').addEventListener('change', () => { estadoCartas.pagina = 1; carregarTabelaCartas(); });
+document.getElementById('ctLimparFiltros').addEventListener('click', () => {
+  document.getElementById('ctFiltroBusca').value = '';
+  document.getElementById('ctFiltroEmpresa').value = '';
+  document.getElementById('ctFiltroStatus').value = '';
+  estadoCartas.pagina = 1; carregarTabelaCartas();
+});
+document.getElementById('ctAnterior').addEventListener('click', () => { if (estadoCartas.pagina > 1) { estadoCartas.pagina--; carregarTabelaCartas(); } });
+document.getElementById('ctProximo').addEventListener('click', () => { estadoCartas.pagina++; carregarTabelaCartas(); });
+document.getElementById('ctEmpBusca').addEventListener('input', () => {
+  clearTimeout(ctDebounceEmp);
+  ctDebounceEmp = setTimeout(() => { estadoEmpenhos.pagina = 1; carregarTabelaEmpenhos(); }, 350);
+});
+document.getElementById('ctEmpAnterior').addEventListener('click', () => { if (estadoEmpenhos.pagina > 1) { estadoEmpenhos.pagina--; carregarTabelaEmpenhos(); } });
+document.getElementById('ctEmpProximo').addEventListener('click', () => { estadoEmpenhos.pagina++; carregarTabelaEmpenhos(); });
+document.getElementById('ctBotaoNova').addEventListener('click', abrirModalNovaCarta);
+document.getElementById('ctBotaoExportar').addEventListener('click', () => { window.location.href = `/api/cartas-troca/exportar?${ctParamsFiltro().toString()}`; });
+document.getElementById('ctBotaoImportarEmpenhos').addEventListener('click', () => document.getElementById('ctArquivoEmpenhos').click());
+document.getElementById('ctArquivoEmpenhos').addEventListener('change', (ev) => ctImportarEmpenhos(ev.target));
+document.getElementById('ctBuscaEmpenho').addEventListener('input', ctBuscarEmpenhos);
+document.getElementById('ctBtnNaoLocalizado').addEventListener('click', ctEmpenhoNaoLocalizado);
+document.getElementById('ctTrocarEmpenho').addEventListener('click', ctTrocarEmpenho);
+document.getElementById('ctNumLotes').addEventListener('change', () => ctRenderLotes());
+document.getElementById('ctTipoQtd').addEventListener('change', ctAplicarTipoQtd);
+document.getElementById('ctQuantidade').addEventListener('input', ctAtualizarResumoLotes);
+document.getElementById('ctModalCancelar').addEventListener('click', fecharModalCarta);
+document.getElementById('ctModalSalvar').addEventListener('click', salvarCarta);
+document.getElementById('ctModalReenviar').addEventListener('click', reenviarCarta);
+document.getElementById('ctModalAprovar').addEventListener('click', () => avaliarCarta('Aprovada'));
+document.getElementById('ctModalReprovar').addEventListener('click', () => avaliarCarta('Reprovada'));
 
 // -------------------- Relatório Primeiro Atendimento (requisições salvas) --------------------
 const estadoRelReq = { pagina: 1, pageSize: 50, filtrosCarregados: false };

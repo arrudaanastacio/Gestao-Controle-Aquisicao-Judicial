@@ -1,0 +1,11 @@
+node_modules/
+.env
+dump-*.html
+*.png
+campos-*.json
+links-*.json
+downloads/
+*.xlsx
+log.txt
+log-*.txt
+*.log

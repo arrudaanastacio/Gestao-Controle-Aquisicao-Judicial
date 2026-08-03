@@ -91,6 +91,7 @@ app.use('/api/autores', autenticar, exigirModuloDinamico((req) => {
 app.use('/api/relatorio-itens', autenticar, exigirModulo('relatorioItens'), relatorioItensRoutes);
 app.use('/api/atas', autenticar, exigirModulo('atas'), atasRoutes);
 app.use('/api/planejamento', autenticar, exigirModulo('planejamento'), require('./routes.planejamento'));
+app.use('/api/cartas-troca', autenticar, exigirModulo('cartasTroca'), require('./routes.cartasTroca'));
 app.use('/api/estoque-od', autenticar, exigirModulo('estoqueOD'), estoqueODRoutes);
 
 // /api/solicitacoes-od atende 2 telas: Relatório de Compras OD (padrão) e

@@ -1006,5 +1006,123 @@ CREATE TABLE IF NOT EXISTS planejamento_itens (
 db.exec(`CREATE INDEX IF NOT EXISTS idx_plan_itens_plano ON planejamento_itens(planejamento_id);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_plan_itens_item ON planejamento_itens(codigo_item);`);
 
+// --- Cartas de Troca ----------------------------------------------------------
+
+// empenhos: foto do "Relatório Estratégico de Empenhos" (GsnetCompras). Cada
+// linha é um item de um empenho (um empenho pode ter vários medicamentos).
+// A importação SUBSTITUI toda a tabela (é um retrato re-obtenível do site),
+// servindo de fonte de busca para o cadastro das cartas de troca. `scodes` é o
+// codigo_item que casa com o catálogo. Ver memória relatorio-empenhos-gsnet.
+db.exec(`
+CREATE TABLE IF NOT EXISTS empenhos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT NOT NULL,
+  numero_requisicao TEXT,
+  nome_requisicao TEXT,
+  codigo_unico TEXT,
+  processo_sem_papel TEXT,
+  nota_empenho TEXT,
+  empresa TEXT,
+  scodes TEXT,                          -- = codigo_item (ex.: 1R01144/17/1751/01/00)
+  siafisico TEXT,
+  medicamento TEXT,
+  apresentacao TEXT,
+  quantidade REAL,
+  valor_unitario REAL,
+  valor_total REAL,
+  data_limite_entrega TEXT,
+  data_entrega_ne TEXT,
+  quantidade_entrega REAL,
+  quantidade_total REAL,
+  data_entrega_item TEXT,
+  status_entrega TEXT,                  -- Empenhado | Entregue Parcialmente | Entregue Totalmente
+  local_entrega TEXT,
+  atraso TEXT,                          -- SIM | NAO
+  dias_atraso REAL,
+  data_publicacao TEXT,
+  data_retorno TEXT,
+  data_envio TEXT,
+  data_retirada TEXT,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_empenhos_nota ON empenhos(nota_empenho);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_empenhos_scodes ON empenhos(scodes);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_empenhos_empresa ON empenhos(empresa);`);
+
+// cartas_troca: o CONTROLE em si. Cada registro é 1 carta para 1 item de 1
+// empenho (relação 1-para-1 por linha empenho+medicamento). A empresa protocola
+// a carta quando quer entregar um item com validade menor que a exigida no
+// edital, informando validade, lote e o compromisso de trocar se vencer no
+// estoque. Ver memória carta-de-troca-definicao.
+db.exec(`
+CREATE TABLE IF NOT EXISTS cartas_troca (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_controle TEXT,                 -- CT-2026-00001 (gerado no insert)
+  empenho_id INTEGER,                   -- linha do empenho que originou (pode ficar nulo se o empenho sair da foto)
+  -- dados copiados do empenho (foto, para o registro ser auto-explicativo)
+  nota_empenho TEXT,
+  numero_requisicao TEXT,
+  nome_requisicao TEXT,
+  processo_sem_papel TEXT,
+  empresa TEXT,
+  codigo_item TEXT,                     -- = scodes
+  siafisico TEXT,
+  medicamento TEXT,
+  apresentacao TEXT,
+  -- dados da carta (o técnico preenche)
+  local_entrega TEXT,                  -- do empenho (CAF / UNIDADE TENENTE PENA), editável
+  numero_protocolo TEXT,
+  data_protocolo TEXT,
+  lote TEXT,                           -- legado (1 lote); hoje os lotes vivem em cartas_troca_lotes
+  data_validade TEXT,                  -- validade mais próxima entre os lotes (derivada, p/ alerta)
+  quantidade REAL,                     -- quantidade da carta (Total = qtd do empenho; Parcial = informada)
+  tipo_quantidade TEXT DEFAULT 'Total',-- Total | Parcial
+  status_troca TEXT NOT NULL DEFAULT 'Vigente', -- Vigente | Vencido no estoque | Trocado | Consumido | Cancelado
+  situacao_analise TEXT NOT NULL DEFAULT 'Aguardando avaliação', -- Aguardando avaliação | Aprovada | Reprovada
+  motivo_reprovacao TEXT,
+  avaliado_por TEXT,
+  avaliado_em TEXT,
+  observacao TEXT,
+  criado_por TEXT,
+  criado_por_email TEXT,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT,
+  enviado_em TEXT,                     -- quando (re)enviada para avaliação
+  FOREIGN KEY (empenho_id) REFERENCES empenhos(id)
+);
+`);
+// Migração idempotente (bancos de homolog já tinham a tabela sem estes campos).
+const colsCartas = db.prepare('PRAGMA table_info(cartas_troca)').all().map((c) => c.name);
+const addCarta = (nome, ddl) => { if (!colsCartas.includes(nome)) db.exec(`ALTER TABLE cartas_troca ADD COLUMN ${ddl}`); };
+addCarta('local_entrega', 'local_entrega TEXT');
+addCarta('tipo_quantidade', "tipo_quantidade TEXT DEFAULT 'Total'");
+addCarta('situacao_analise', "situacao_analise TEXT NOT NULL DEFAULT 'Aguardando avaliação'");
+addCarta('motivo_reprovacao', 'motivo_reprovacao TEXT');
+addCarta('avaliado_por', 'avaliado_por TEXT');
+addCarta('avaliado_em', 'avaliado_em TEXT');
+addCarta('criado_por_email', 'criado_por_email TEXT');
+addCarta('enviado_em', 'enviado_em TEXT');
+db.exec(`CREATE INDEX IF NOT EXISTS idx_cartas_item ON cartas_troca(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_cartas_empresa ON cartas_troca(empresa);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_cartas_status ON cartas_troca(status_troca);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_cartas_situacao ON cartas_troca(situacao_analise);`);
+
+// Lotes de uma carta de troca (1 carta → N lotes). Cada lote: nº, validade e
+// quantidade. A soma das quantidades dos lotes deve fechar com a quantidade da
+// carta. A validade mais próxima é copiada para cartas_troca.data_validade
+// (derivada) para o alerta de vencimento na listagem.
+db.exec(`
+CREATE TABLE IF NOT EXISTS cartas_troca_lotes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  carta_id INTEGER NOT NULL,
+  lote TEXT,
+  data_validade TEXT,
+  quantidade REAL,
+  FOREIGN KEY (carta_id) REFERENCES cartas_troca(id)
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_cartas_lotes_carta ON cartas_troca_lotes(carta_id);`);
+
 module.exports = db;
 module.exports.garantirPermissoesPadrao = garantirPermissoesPadrao;

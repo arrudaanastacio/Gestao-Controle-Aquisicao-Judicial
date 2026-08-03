@@ -58,6 +58,10 @@ const MODULOS = [
   // 📋 Planejamento de Compras
   { chave: 'planejamento', rotulo: 'Planejamento de Compras', acoes: ['visualizar', 'inserir', 'editar', 'excluir', 'exportar'] },
 
+  // 🔁 Cartas de Troca (registro/protocolo). "Importar" = subir o Relatório
+  // Estratégico de Empenhos (fonte de busca para o cadastro das cartas).
+  { chave: 'cartasTroca', rotulo: 'Cartas de Troca', acoes: ['visualizar', 'inserir', 'editar', 'excluir', 'exportar', 'importar'] },
+
   // Não aparece direto no menu (acessado via Administração > Importação)
   { chave: 'elenco', rotulo: 'Elenco (Catálogo)', acoes: ['visualizar', 'editar', 'importar'] },
 ];

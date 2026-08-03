@@ -1,0 +1,46 @@
+====================================================================
+  ROBO DE EMPENHOS - GsnetCompras  (Controle de Empenhos / Cartas de Troca)
+====================================================================
+
+O QUE ESTE ROBO VAI FAZER (quando pronto):
+  Duas vezes por dia (03:00 e 13:30), sozinho, ele vai:
+    1. Entrar no GsnetCompras (via Minha Area SP.GOV.BR)
+    2. Abrir o "Relatorio Estrategico de Empenhos"
+    3. Aplicar os filtros (Gabinete do Coordenador - CAF, periodo a
+       partir de 2023 ate o mes atual, Atraso: Todos, Planilha: Completo)
+    4. Exportar a planilha
+    5. Importar no sistema (aba "Controle de Empenhos")
+  Assim a tela de Controle de Empenhos fica sempre atualizada.
+
+--------------------------------------------------------------------
+ETAPA DE AGORA (so uma vez): DIAGNOSTICO
+--------------------------------------------------------------------
+Ainda preciso "enxergar" as telas (o login do SP.GOV.BR e a tela do
+relatorio) para montar o robo. Nesta etapa VOCE mesmo faz o login
+(eu nunca digito nem leio sua senha).
+
+Faca so isto:
+
+  1) Duplo-clique em:  "2 - DIAGNOSTICO (rodar uma vez).bat"
+
+  2) O Chrome abre, vai para o GsnetCompras e clica sozinho em
+     "Acesso GsNetCompras" (cai na tela do Minha Area SP.GOV.BR).
+     -> Ele fotografa essa tela de login e avisa na janela preta.
+
+  3) NA JANELA DO CHROME, VOCE:
+     -> Digita seu usuario e senha e entra;
+     -> Navega pelo menu ate a tela de FILTROS do
+        "Relatorio Estrategico de Empenhos".
+
+  4) Com a tela de filtros aberta, volte na janela preta e tecle ENTER.
+     -> Ele salva os arquivos e fecha.
+
+  5) Me avise que terminou. Eu leio os arquivos gerados
+     (dump-login / campos-login / login.png e
+      links-menu / dump-relatorio / campos-relatorio / relatorio.png)
+     e monto o robo definitivo + o agendamento.
+
+Obs.: nesta etapa NAO precisa preencher usuario/senha em lugar nenhum
+do computador - voce digita direto no site, na janela do Chrome.
+(O arquivo .env com usuario/senha so vai ser necessario depois, para o
+robo automatico rodar sozinho as 3h e 13h30.)

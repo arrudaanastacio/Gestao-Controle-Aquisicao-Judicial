@@ -1,0 +1,15 @@
+{
+  "name": "automacao-empenhos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Robo que loga no GsnetCompras, exporta o Relatorio Estrategico de Empenhos e importa no sistema (Cartas de Troca)",
+  "scripts": {
+    "inspecionar": "node inspecionar.js",
+    "baixar": "node baixar-empenhos.js",
+    "importar": "node importar-planilha.js"
+  },
+  "dependencies": {
+    "puppeteer-core": "^23.0.0",
+    "dotenv": "^16.4.5"
+  }
+}
