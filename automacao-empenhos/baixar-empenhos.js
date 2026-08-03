@@ -214,42 +214,42 @@ function log(m) {
       log('  links do relatorio no menu: ' + JSON.stringify(achados));
     } catch (e) { log('  FALHA ao listar links: ' + e.message); }
 
-    log('2/5  Abrindo o Relatorio Estrategico de Empenhos...');
+    log('2/5  Abrindo o relatorio e esperando as Unidades carregarem...');
     const homeUrl = page.url();
     await page.setExtraHTTPHeaders({ Referer: homeUrl }).catch(() => {});
-    let abriu = false;
-    for (let tentativa = 1; tentativa <= 3 && !abriu; tentativa++) {
-      log('  tentativa ' + tentativa + ': goto relatorio (Referer=' + homeUrl + ')');
+    // O relatorio exige Referer (goto direto sem Referer cai na home). Alem disso,
+    // o dropdown de Unidade carrega via AJAX depois e AS VEZES VEM VAZIO. Estrategia
+    // robusta: abrir o relatorio e esperar a opcao CAF aparecer; se nao aparecer,
+    // RECARREGAR a pagina (redispara o AJAX) e tentar de novo, ate 5 vezes.
+    let unidadeOk = false;
+    for (let tentativa = 1; tentativa <= 5 && !unidadeOk; tentativa++) {
+      log('  tentativa ' + tentativa + ': abrindo relatorio...');
       await page.goto(URL_RELATORIO, { waitUntil: 'networkidle2', timeout: 60000, referer: homeUrl }).catch((e) => log('  goto erro: ' + e.message));
-      log('  URL apos goto: ' + page.url());
-      abriu = await page.waitForSelector('#P_ID_UNID_INSTIT', { timeout: 15000 }).then(() => true).catch(() => false);
-      log('  formulario apareceu? ' + abriu);
-      if (!abriu) {
+      const temForm = await page.waitForSelector('#P_ID_UNID_INSTIT', { timeout: 15000 }).then(() => true).catch(() => false);
+      if (!temForm) {
+        log('  formulario nao apareceu (caiu na home?) — voltando e tentando de novo');
         await page.goto(URL_INICIAL, { waitUntil: 'networkidle2', timeout: 60000 }).catch(() => {});
-        await espera(3000);
+        await espera(2500);
+        continue;
       }
-    }
-    await page.setExtraHTTPHeaders({}).catch(() => {});
-    if (!abriu) {
-      throw new Error('Nao consegui abrir o formulario do relatorio (caiu na tela inicial). Veja log.txt, home.png e dump-home.html.');
-    }
-    await espera(1500);
-
-    log('3/5  Aplicando filtros...');
-    // DIAGNOSTICO: acompanha o preenchimento do dropdown de Unidade ao longo do
-    // tempo. Tenta tambem focar/clicar o campo para disparar o carregamento.
-    for (let i = 0; i < 12; i++) {
+      // Espera a opcao desejada (CAF) aparecer no dropdown (ate 18s).
+      unidadeOk = await page.waitForFunction((alvoNorm) => {
+        const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+        const sel = document.querySelector('#P_ID_UNID_INSTIT');
+        return sel && [...sel.options].some((o) => norm(o.textContent).includes(alvoNorm));
+      }, { timeout: 18000 }, normalizar(UNIDADE)).then(() => true).catch(() => false);
       const info = await page.evaluate(() => {
         const s = document.querySelector('#P_ID_UNID_INSTIT');
-        return s ? { n: s.options.length, ops: [...s.options].map((o) => (o.textContent || '').trim()).slice(0, 5) } : null;
+        return s ? [...s.options].map((o) => (o.textContent || '').trim()) : null;
       });
-      log(`  Unidade: ${info ? info.n + ' opcoes -> ' + JSON.stringify(info.ops) : 'select nao existe'}`);
-      if (info && info.n > 1 && info.ops.some((t) => /gabinete/i.test(t))) break;
-      if (i === 1) { await page.focus('#P_ID_UNID_INSTIT').catch(() => {}); await page.click('#P_ID_UNID_INSTIT').catch(() => {}); }
-      await espera(3000);
+      log('  Unidades: ' + JSON.stringify(info) + ' -> carregou CAF? ' + unidadeOk);
+      if (!unidadeOk) { log('  vazio/incompleto — vou recarregar a pagina'); await espera(1500); }
     }
-    try { fs.writeFileSync(path.join(__dirname, 'dump-relatorio2.html'), await page.content(), 'utf8'); } catch (_) {}
+    await page.setExtraHTTPHeaders({}).catch(() => {});
+    if (!unidadeOk) throw new Error('A lista de Unidades (Un. Institucional) nao carregou apos varias tentativas. Veja log.txt.');
+    await espera(500);
 
+    log('3/5  Aplicando filtros...');
     const un = await selecionarPorTexto(page, '#P_ID_UNID_INSTIT', UNIDADE);
     log('     Un. Institucional: ' + un.texto);
     await definirValor(page, '#P_DT_REF_INI', PERIODO_INICIO);
