@@ -17,9 +17,10 @@
 --     Categoria da tela — ATENÇÃO: adicionado por analogia com a query de
 --     Entrada, sem poder testar contra o Oracle real neste ambiente. Se der
 --     erro de tabela/coluna inexistente ao "Atualizar via Oracle", me avise.
---   • QUANTIDADE sempre POSITIVA (o total do que saiu). No bloco de SAÍDA o
---     original multiplicava por -1; aqui mantemos o valor positivo para que o
---     "Consolidar (somar por item)" some corretamente.
+--   • QUANTIDADE sempre POSITIVA (o total do que saiu), via ABS() nos dois
+--     blocos. No original a dispensação (MOV_QTDE) vinha NEGATIVA e o bloco de
+--     SAÍDA multiplicava por -1; padronizamos no positivo para o "Consolidar
+--     (somar por item)" somar corretamente e a lista ficar legível.
 --   • Removida a tabela ESTOQUE (q) do bloco de SAÍDA: no original ela entrava
 --     só por "p.pro_id = q.pro_id" (sem filtro de unidade), o que multiplicava
 --     as linhas. Como nenhuma coluna do resultado vem dela, foi retirada para
@@ -40,7 +41,7 @@ SELECT * FROM (
     NULL                                                           AS TRA_TIPO,
     NVL(fabLot.FAB_DESCRICAO, fabDig.FAB_DESCRICAO)                AS FABRICANTE,
     pro.PRO_CODIGO                                                 AS PRO_CODIGO,
-    mov.MOV_QTDE                                                   AS QTDE,
+    ABS(mov.MOV_QTDE)                                              AS QTDE,
     NULL                                                           AS USR_LOGIN,
     NULL                                                           AS OBS,
     mov.TPM_ID                                                     AS TPM_ID,
@@ -95,7 +96,7 @@ SELECT * FROM (
       (SELECT FAB_DESCRICAO FROM FABRICANTE WHERE FAB_ID = estsl.ESL_FAB_ID_DIGITADO)
     )                                                              AS FABRICANTE,
     p.pro_codigo                                                  AS PRO_CODIGO,
-    NVL(estsl.ESL_QTDE, si.ess_qtde)                              AS QTDE,
+    ABS(NVL(estsl.ESL_QTDE, si.ess_qtde))                         AS QTDE,
     u.usr_login                                                   AS USR_LOGIN,
     s.sai_motivo                                                  AS OBS,
     m.tpm_id                                                      AS TPM_ID,
