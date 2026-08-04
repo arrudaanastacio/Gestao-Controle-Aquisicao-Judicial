@@ -6,10 +6,32 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 60 | **Menu no padrão ERP (Fase 4 do visual).** Busca de telas **dentro do menu** (filtra os itens na hora, ignora acento, abre grupos recolhidos p/ revelar o achado, respeita permissões); **ícones** nos itens que faltavam (Reservas, Rupturas, Cartas de Troca, Status dos Serviços); **indicador ativo em pílula** (fundo menta suave + barra luminosa); **badges** de pendência arredondados com tabular-nums. Favoritos e grupos recolhíveis já existentes mantidos. Mockup aprovado pelo Rafael. | (a commitar) | 04/08/2026 | ⏳ Testar em homolog |
-| 59 | **Nova aba "Movimentação de Saída Estoque"** (Tenente Pena › Estoque). Espelha a de Entrada, mas via Oracle/SCODES trazendo as SAÍDAS dos últimos 12 meses — reúne os **dois blocos de Saída** do SCODES (dispensações tipos 7/8/9 + demais saídas da tabela SAIDA). Filtros: busca, **Tipo de movimentação (seleção múltipla)**, **Categoria (seleção múltipla)**, período (data início/fim), **Limpar filtros** e **Consolidar saídas** (soma a quantidade por medicamento, respeitando os filtros). Botão "Atualizar via Oracle" (admin) e entrada na cadeia diária de sincronização (Estoque→Autores→Entrada→**Saída**→Rel. Itens). | (a commitar) | 04/08/2026 | ⏳ Testar em homolog |
+| — | Nada pendente. | — | — | — |
 
 ## Publicadas recentemente
+
+### v1.13.0 — 04/08/2026 (Movimentação de Saída + Menu no padrão ERP)
+
+**Nova aba "Movimentação de Saída Estoque" (Tenente Pena › Estoque)** — espelha a de
+Entrada, mas via Oracle/SCODES trazendo as SAÍDAS dos últimos 12 meses. Reúne os
+**dois blocos de Saída** do SCODES (dispensações tipos 7/8/9 + demais saídas da
+tabela SAIDA); quantidade sempre positiva (ABS) para o consolidado somar certo.
+Filtros: busca, **Tipo de movimentação (múltiplo)**, **Categoria (múltiplo)**,
+período, **Limpar filtros** e **Consolidar saídas** (soma por medicamento). Botão
+"Atualizar via Oracle" (admin) e entrada na cadeia diária (Estoque→Autores→Entrada→
+**Saída**→Rel. Itens). Tela em largura total.
+
+**Menu no padrão ERP (Fase 4 do visual)** — busca de telas **dentro do menu**
+(filtra na hora, ignora acento, abre grupos recolhidos, respeita permissões);
+**ícones** nos itens que faltavam (Reservas, Rupturas, Cartas de Troca, Status);
+**indicador ativo em pílula** (fundo menta + barra luminosa); **badges**
+arredondados; menu expandido mais largo (256→288px). Mockup aprovado pelo Rafael.
+
+**Pós-publicação (produção):** 1) reiniciar produção (`REINICIAR-PRODUCAO porta
+3000`) p/ criar a tabela `saida_lotes_itens` e carregar a rota/menu; 2) liberar
+permissões do módulo **saidaLotes** em Administração › Usuários; 3) na aba de Saída,
+clicar **"Atualizar via Oracle"** e validar as quantidades contra o relatório real
+do SCODES. Menu é frontend → Ctrl+F5.
 
 ### v1.12.0 — 03/08/2026 (Módulo Cartas de Troca + robô de automação dos Empenhos)
 
