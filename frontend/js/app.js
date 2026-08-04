@@ -335,6 +335,10 @@ const ICONES_NAV = {
   distribuicao: '<circle cx="12" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="M12 8v4M12 12l-5 4M12 12l5 4"/>',
   entradaLotes: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/>',
   saidaLotes: '<path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M4 19h16"/>',
+  reservas: '<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/>',
+  rupturas: '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+  cartasTroca: '<path d="M3 8h13M13 5l3 3-3 3"/><path d="M21 16H8m3-3l-3 3 3 3"/>',
+  statusServicos: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
   alertas: '<path d="M6 9a6 6 0 1 1 12 0c0 4 2 5 2 5H4s2-1 2-5"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   importadores: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
   usuarios: '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 6a3 3 0 0 1 0 6M21 20a6 6 0 0 0-5-5.9"/>',
@@ -498,6 +502,52 @@ const ICONES_NAV = {
 
   // Reexpõe para reagir quando as permissões escondem telas (perfil consulta).
   window.__favoritosRender = favoritosRender;
+})();
+
+// Fase 4: busca de telas DENTRO do menu. Filtra os itens na hora conforme
+// digita (ignora acento/maiúscula), abre grupos recolhidos para revelar o que
+// casou e respeita as telas escondidas por permissão. Campo vazio = tudo volta.
+(function filtroMenu() {
+  const input = document.getElementById('filtroMenu');
+  const nav = document.querySelector('.nav-lateral');
+  if (!input || !nav) return;
+  const norm = (s) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  function aplicar() {
+    const q = norm(input.value.trim());
+    nav.classList.toggle('filtrando', !!q);
+
+    const links = nav.querySelectorAll('.nav-grupo a[data-pagina]');
+    links.forEach((a) => {
+      const casou = !q || norm(a.textContent).includes(q);
+      a.classList.toggle('nao-encontrado', !casou);
+    });
+    // Subgrupos e grupos sem nenhum item visível somem enquanto filtra.
+    const temVisivel = (escopo) => [...escopo.querySelectorAll('a[data-pagina]')]
+      .some((a) => !a.hidden && !a.classList.contains('nao-encontrado'));
+    nav.querySelectorAll('.nav-subgrupo').forEach((sg) => {
+      sg.classList.toggle('nao-encontrado', !!q && !temVisivel(sg));
+    });
+    nav.querySelectorAll('.nav-grupo').forEach((g) => {
+      g.classList.toggle('nao-encontrado', !!q && !temVisivel(g));
+    });
+
+    // Mensagem de "nada encontrado".
+    let vazio = document.getElementById('navBuscaVazio');
+    const nada = !!q && ![...links].some((a) => !a.hidden && !a.classList.contains('nao-encontrado'));
+    if (nada && !vazio) {
+      vazio = document.createElement('p');
+      vazio.id = 'navBuscaVazio';
+      vazio.className = 'nav-busca-vazio';
+      vazio.textContent = 'Nenhuma tela encontrada.';
+      nav.appendChild(vazio);
+    } else if (!nada && vazio) {
+      vazio.remove();
+    }
+  }
+
+  input.addEventListener('input', aplicar);
+  input.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { input.value = ''; aplicar(); input.blur(); } });
 })();
 
 function mostrarErroPagina(idSecao, mensagem) {

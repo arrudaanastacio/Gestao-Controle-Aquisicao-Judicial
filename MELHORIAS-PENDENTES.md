@@ -6,6 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
+| 60 | **Menu no padrão ERP (Fase 4 do visual).** Busca de telas **dentro do menu** (filtra os itens na hora, ignora acento, abre grupos recolhidos p/ revelar o achado, respeita permissões); **ícones** nos itens que faltavam (Reservas, Rupturas, Cartas de Troca, Status dos Serviços); **indicador ativo em pílula** (fundo menta suave + barra luminosa); **badges** de pendência arredondados com tabular-nums. Favoritos e grupos recolhíveis já existentes mantidos. Mockup aprovado pelo Rafael. | (a commitar) | 04/08/2026 | ⏳ Testar em homolog |
 | 59 | **Nova aba "Movimentação de Saída Estoque"** (Tenente Pena › Estoque). Espelha a de Entrada, mas via Oracle/SCODES trazendo as SAÍDAS dos últimos 12 meses — reúne os **dois blocos de Saída** do SCODES (dispensações tipos 7/8/9 + demais saídas da tabela SAIDA). Filtros: busca, **Tipo de movimentação (seleção múltipla)**, **Categoria (seleção múltipla)**, período (data início/fim), **Limpar filtros** e **Consolidar saídas** (soma a quantidade por medicamento, respeitando os filtros). Botão "Atualizar via Oracle" (admin) e entrada na cadeia diária de sincronização (Estoque→Autores→Entrada→**Saída**→Rel. Itens). | (a commitar) | 04/08/2026 | ⏳ Testar em homolog |
 
 ## Publicadas recentemente
