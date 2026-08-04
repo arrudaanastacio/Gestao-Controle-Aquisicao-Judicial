@@ -1082,6 +1082,7 @@
             <input type="date" id="filtroDataInicioSaidaLotes" title="Data inicial">
             <input type="date" id="filtroDataFimSaidaLotes" title="Data final">
             <button id="botaoLimparFiltrosSaidaLotes" class="botao-secundario" type="button">Limpar filtros</button>
+            <button id="botaoExportarSaidaLotes" class="botao-secundario" type="button" title="Baixa a lista detalhada em Excel, com os filtros aplicados">⬇ Exportar</button>
             <button id="botaoConsolidarSaidaLotes" class="botao-primario" type="button" title="Soma a quantidade que saiu por medicamento, respeitando os filtros aplicados">Σ Consolidar saídas</button>
           </div>
 
@@ -1123,8 +1124,9 @@
           <!-- Consolidado por item (mostrado ao clicar em "Consolidar saídas") -->
           <div class="tabela-wrap" id="consolidadoSaidaLotes" hidden>
             <div class="grade-resumo" id="grideResumoConsolidadoSaidaLotes" style="margin-bottom:14px;"></div>
-            <div style="margin-bottom:10px;">
+            <div style="margin-bottom:10px; display:flex; gap:10px; align-items:center;">
               <button id="botaoVoltarListaSaidaLotes" class="botao-secundario" type="button">← Voltar à lista detalhada</button>
+              <button id="botaoExportarConsolidadoSaidaLotes" class="botao-primario" type="button" title="Baixa o consolidado por medicamento em Excel, com os filtros aplicados">⬇ Exportar consolidado</button>
             </div>
             <div class="tabela-rolavel-x">
               <table>

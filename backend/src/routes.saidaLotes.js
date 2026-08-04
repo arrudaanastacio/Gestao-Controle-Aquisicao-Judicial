@@ -11,6 +11,7 @@
 //     respeitando os mesmos filtros da listagem.
 // =====================================================================
 const express = require('express');
+const XLSX = require('xlsx');
 const db = require('./db');
 const { autenticar, exigirPerfil } = require('./auth');
 
@@ -129,6 +130,70 @@ router.get('/consolidado', (req, res) => {
   const totalQtde = linhas.reduce((s, l) => s + (l.qtde_total || 0), 0);
   const totalMovimentacoes = linhas.reduce((s, l) => s + (l.movimentacoes || 0), 0);
   res.json({ linhas, totalItens, totalQtde, totalMovimentacoes });
+});
+
+// Exporta a lista detalhada em Excel (.xlsx), respeitando os filtros ativos.
+router.get('/exportar', (req, res) => {
+  const { where, params } = montarFiltros(req.query);
+  const rows = db.prepare(`
+    SELECT * FROM saida_lotes_itens ${where}
+    ORDER BY data_saida DESC, id DESC
+  `).all(...params);
+
+  const linhas = rows.map((s) => ({
+    'Data Saída': s.data_saida || '',
+    'Medicamento': s.item || '',
+    'Código Item': s.codigo_item || '',
+    'Lote': s.lote || '',
+    'Validade': s.validade || '',
+    'Qtde': s.qtde != null ? s.qtde : '',
+    'Tipo Movimentação': s.tipo_movimentacao || '',
+    'Categoria': s.categoria || '',
+    'Fabricante': s.fabricante || '',
+    'Un. Transferência': s.unidade_transferencia || '',
+    'Fornecedor': s.fornecedor || '',
+    'Documento': s.documento_transferencia || '',
+    'Usuário': s.usuario_login || '',
+    'Observação': s.observacao || '',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(linhas);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Saídas');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const nome = `Movimentacao_Saida_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.xlsx`;
+  res.setHeader('Content-Disposition', `attachment; filename="${nome}"`);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buf);
+});
+
+// Exporta o consolidado por item em Excel (.xlsx), respeitando os filtros.
+router.get('/consolidado/exportar', (req, res) => {
+  const { where, params } = montarFiltros(req.query);
+  const rows = db.prepare(`
+    SELECT codigo_item, MAX(item) item, MAX(categoria) categoria,
+           SUM(qtde) qtde_total, COUNT(*) movimentacoes
+    FROM saida_lotes_itens ${where}
+    GROUP BY codigo_item
+    ORDER BY qtde_total DESC, item
+  `).all(...params);
+
+  const linhas = rows.map((l) => ({
+    'Código Item': l.codigo_item || '',
+    'Medicamento': l.item || '',
+    'Categoria': l.categoria || '',
+    'Qtde Total Saída': l.qtde_total != null ? l.qtde_total : '',
+    'Nº de Movimentações': l.movimentacoes != null ? l.movimentacoes : '',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(linhas);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Consolidado Saídas');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const nome = `Saida_Consolidado_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.xlsx`;
+  res.setHeader('Content-Disposition', `attachment; filename="${nome}"`);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buf);
 });
 
 router.get('/', (req, res) => {

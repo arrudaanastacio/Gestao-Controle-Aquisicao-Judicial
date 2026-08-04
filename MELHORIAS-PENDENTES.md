@@ -10,6 +10,14 @@
 
 ## Publicadas recentemente
 
+### v1.13.1 — 04/08/2026 (Exportar na Movimentação de Saída)
+
+Botões **⬇ Exportar** (lista detalhada) e **⬇ Exportar consolidado** na tela de
+Movimentação de Saída — geram Excel (.xlsx) respeitando os filtros ativos (busca,
+tipo múltiplo, categoria múltipla, período). Endpoints `/api/saida-lotes/exportar`
+e `/api/saida-lotes/consolidado/exportar`. **Pós-publicação:** reiniciar produção
+para carregar os novos endpoints.
+
 ### v1.13.0 — 04/08/2026 (Movimentação de Saída + Menu no padrão ERP)
 
 **Nova aba "Movimentação de Saída Estoque" (Tenente Pena › Estoque)** — espelha a de

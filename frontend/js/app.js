@@ -7224,6 +7224,13 @@ document.getElementById('botaoVoltarListaSaidaLotes').addEventListener('click', 
   document.getElementById('consolidadoSaidaLotes').hidden = true;
   document.getElementById('listaSaidaLotes').hidden = false;
 });
+// Exportações (o cookie de sessão vai junto por ser mesma origem).
+document.getElementById('botaoExportarSaidaLotes').addEventListener('click', () => {
+  window.location.href = `/api/saida-lotes/exportar?${paramsFiltroSaidaLotes().toString()}`;
+});
+document.getElementById('botaoExportarConsolidadoSaidaLotes').addEventListener('click', () => {
+  window.location.href = `/api/saida-lotes/consolidado/exportar?${paramsFiltroSaidaLotes().toString()}`;
+});
 
 // Recarrega a visão que estiver ativa (lista ou consolidado) ao mudar filtro.
 function recarregarVisaoSaidaLotes() {
