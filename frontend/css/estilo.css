@@ -291,7 +291,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
     transition: width 0.2s ease, padding 0.2s ease, box-shadow 0.2s ease;
   }
   .barra-lateral:hover {
-    width: 256px;
+    width: 288px;
     overflow-y: auto;
     box-shadow: 10px 0 40px rgba(0, 0, 0, 0.38);
   }
@@ -309,7 +309,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
     transition: opacity 0.12s ease;
   }
   /* Rótulos longos ganham reticências em vez de corte seco (barra expandida) */
-  .barra-lateral:hover .nav-rotulo { max-width: 190px; }
+  .barra-lateral:hover .nav-rotulo { max-width: 222px; }
   /* No trilho recolhido, some a estrela de favorito e a setinha de recolher. */
   .barra-lateral:not(:hover) .fav-estrela,
   .barra-lateral:not(:hover) .nav-cev { display: none; }
