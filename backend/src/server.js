@@ -25,6 +25,7 @@ const atasRoutes = require('./routes.atas');
 const estoqueODRoutes = require('./routes.estoqueOD');
 const solicitacoesODRoutes = require('./routes.solicitacoesOD');
 const entradaLotesRoutes = require('./routes.entradaLotes');
+const saidaLotesRoutes = require('./routes.saidaLotes');
 const importacoesInfoRoutes = require('./routes.importacoesInfo');
 const distribuicaoRoutes = require('./routes.distribuicao');
 const reservasRoutes = require('./routes.reservas');
@@ -101,6 +102,7 @@ app.use('/api/solicitacoes-od', autenticar, exigirModuloDinamico((req) =>
 ), solicitacoesODRoutes);
 
 app.use('/api/entrada-lotes', autenticar, exigirModulo('entradaLotes'), entradaLotesRoutes);
+app.use('/api/saida-lotes', autenticar, exigirModulo('saidaLotes'), saidaLotesRoutes);
 app.use('/api/distribuicao', autenticar, exigirModulo('distribuicao'), distribuicaoRoutes);
 app.use('/api/reservas', autenticar, exigirModulo('reservas'), reservasRoutes);
 app.use('/api/rupturas', autenticar, exigirModulo('rupturas'), rupturasRoutes);

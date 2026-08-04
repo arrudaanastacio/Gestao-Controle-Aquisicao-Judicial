@@ -661,6 +661,39 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_entlotes_unidade ON entrada_lotes_itens(
 const colunasEntLotes = db.prepare("PRAGMA table_info(entrada_lotes_itens)").all().map((c) => c.name);
 if (!colunasEntLotes.includes('categoria')) db.exec("ALTER TABLE entrada_lotes_itens ADD COLUMN categoria TEXT");
 
+// Movimentações de SAÍDA com Lotes/Validade (via Oracle/SCODES). Mesma
+// lógica da tabela de Entrada: janela dos últimos 12 meses recalculada na
+// query SQL e conteúdo substituído por completo a cada sincronização.
+// Reúne os dois blocos de Saída do SCODES (dispensações + demais saídas).
+db.exec(`
+CREATE TABLE IF NOT EXISTS saida_lotes_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  item TEXT,
+  unidade TEXT,
+  data_saida TEXT,
+  tipo_movimentacao TEXT,
+  unidade_transferencia TEXT,
+  fornecedor TEXT,
+  fornecedor_cnpj TEXT,
+  documento_transferencia TEXT,
+  tipo_transferencia TEXT,
+  fabricante TEXT,
+  codigo_item TEXT,
+  qtde REAL,
+  usuario_login TEXT,
+  observacao TEXT,
+  lote TEXT,
+  validade TEXT,
+  lote_foi_digitado TEXT,
+  categoria TEXT,
+  criado_em TEXT DEFAULT (datetime('now'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_sailotes_codigo ON saida_lotes_itens(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_sailotes_data ON saida_lotes_itens(data_saida);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_sailotes_tipo ON saida_lotes_itens(tipo_movimentacao);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_sailotes_categoria ON saida_lotes_itens(categoria);`);
+
 // Requisições de compra geradas (Relatório Primeiro Atendimento)
 db.exec(`
 CREATE TABLE IF NOT EXISTS requisicoes (

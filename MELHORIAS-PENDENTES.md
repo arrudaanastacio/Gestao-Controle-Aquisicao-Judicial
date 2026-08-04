@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | Nada pendente. | — | — | — |
+| 59 | **Nova aba "Movimentação de Saída Estoque"** (Tenente Pena › Estoque). Espelha a de Entrada, mas via Oracle/SCODES trazendo as SAÍDAS dos últimos 12 meses — reúne os **dois blocos de Saída** do SCODES (dispensações tipos 7/8/9 + demais saídas da tabela SAIDA). Filtros: busca, **Tipo de movimentação (seleção múltipla)**, **Categoria (seleção múltipla)**, período (data início/fim), **Limpar filtros** e **Consolidar saídas** (soma a quantidade por medicamento, respeitando os filtros). Botão "Atualizar via Oracle" (admin) e entrada na cadeia diária de sincronização (Estoque→Autores→Entrada→**Saída**→Rel. Itens). | (a commitar) | 04/08/2026 | ⏳ Testar em homolog |
 
 ## Publicadas recentemente
 
