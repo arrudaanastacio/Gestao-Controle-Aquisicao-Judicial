@@ -61,11 +61,12 @@ router.post('/', async (req, res) => {
     'INSERT INTO usuarios (nome, email, senha_hash, perfil, token_convite, token_expira) VALUES (?, ?, ?, ?, ?, ?)'
   ).run(nome, email, senhaHash, perfil, convite ? convite.token : null, convite ? convite.expira : null);
 
-  // Cria as linhas de permissão do novo usuário (não-admin): por padrão só
-  // "visualizar" ligado em todos os módulos. O admin ajusta na grade depois.
+  // Cria as linhas de permissão do novo usuário (não-admin) TODAS EM BRANCO:
+  // módulo desabilitado e nenhuma ação marcada. O usuário não enxerga nada até
+  // o admin abrir "Permissões" e habilitar o que ele deve ver.
   if (perfil !== 'admin') {
     const insPerm = db.prepare(
-      'INSERT OR IGNORE INTO permissoes (usuario_id, modulo, visualizar) VALUES (?, ?, 1)'
+      'INSERT OR IGNORE INTO permissoes (usuario_id, modulo, habilitado, visualizar) VALUES (?, ?, 0, 0)'
     );
     for (const modulo of MODULO_CHAVES) insPerm.run(info.lastInsertRowid, modulo);
   }
