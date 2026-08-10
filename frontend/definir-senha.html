@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Criar senha · Controle de Compras Judiciais</title>
+<link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body class="pagina-login">
+  <div class="cartao-login">
+    <div class="selo-login" aria-hidden="true">
+      <svg viewBox="0 0 48 48" width="40" height="40">
+        <rect x="6" y="4" width="36" height="40" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+        <line x1="13" y1="14" x2="35" y2="14" stroke="currentColor" stroke-width="2"/>
+        <line x1="13" y1="22" x2="35" y2="22" stroke="currentColor" stroke-width="2"/>
+        <line x1="13" y1="30" x2="27" y2="30" stroke="currentColor" stroke-width="2"/>
+        <circle cx="33" cy="33" r="6" fill="none" stroke="currentColor" stroke-width="2"/>
+        <line x1="37.2" y1="37.2" x2="42" y2="42" stroke="currentColor" stroke-width="2"/>
+      </svg>
+    </div>
+    <p class="eyebrow-login">Controle de Demandas Judiciais</p>
+    <h1>Tenente Pena</h1>
+    <p class="subtitulo-login" id="subtitulo">Crie sua senha de acesso</p>
+
+    <!-- Estado de carregando / erro do convite -->
+    <p class="erro-login" id="avisoConvite" role="alert" hidden></p>
+
+    <form id="formSenha" novalidate hidden>
+      <p class="subtitulo-login" id="ola" style="margin-top:0"></p>
+
+      <label for="senha">Nova senha</label>
+      <input type="password" id="senha" name="senha" autocomplete="new-password" autofocus>
+
+      <label for="senha2">Repita a senha</label>
+      <input type="password" id="senha2" name="senha2" autocomplete="new-password">
+
+      <button type="button" id="botaoSalvar">Criar senha e entrar</button>
+      <p class="erro-login" id="erroSenha" role="alert" hidden></p>
+    </form>
+  </div>
+
+  <script>
+    // Faixa "HOMOLOGAÇÃO": só acende no ambiente de teste.
+    (function () {
+      fetch('/api/ambiente').then(function (r) { return r.json(); }).then(function (d) {
+        if (!d || d.ambiente !== 'homologacao') return;
+        var f = document.createElement('div');
+        f.id = 'faixaAmbiente';
+        f.textContent = '⚠ AMBIENTE DE HOMOLOGAÇÃO (TESTE) v' + (d.versao || '—') + ' — porta 3001 · nada aqui afeta a produção';
+        document.body.appendChild(f);
+        document.body.classList.add('tem-faixa-ambiente');
+      }).catch(function () {});
+    })();
+  </script>
+
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var token = params.get('token') || '';
+      var form = document.getElementById('formSenha');
+      var aviso = document.getElementById('avisoConvite');
+      var ola = document.getElementById('ola');
+      var subtitulo = document.getElementById('subtitulo');
+      var campoSenha = document.getElementById('senha');
+      var campoSenha2 = document.getElementById('senha2');
+      var botao = document.getElementById('botaoSalvar');
+      var erroEl = document.getElementById('erroSenha');
+
+      function mostrarAviso(msg) {
+        subtitulo.hidden = true;
+        aviso.textContent = msg;
+        aviso.hidden = false;
+      }
+      function mostrarErro(msg) {
+        erroEl.textContent = msg;
+        erroEl.hidden = false;
+        botao.disabled = false;
+        botao.textContent = 'Criar senha e entrar';
+      }
+
+      if (!token) {
+        mostrarAviso('Link inválido: falta o código do convite. Peça ao administrador para reenviar.');
+        return;
+      }
+
+      // Valida o convite ao abrir a página.
+      fetch('/api/auth/convite/' + encodeURIComponent(token))
+        .then(function (r) {
+          return r.json().then(function (d) {
+            if (!r.ok) { mostrarAviso(d.erro || 'Convite inválido.'); return; }
+            ola.textContent = 'Olá, ' + d.nome + '! Você está criando a senha para ' + d.email + '.';
+            form.hidden = false;
+            campoSenha.focus();
+          });
+        })
+        .catch(function () { mostrarAviso('Não foi possível validar o convite. Verifique a conexão.'); });
+
+      var enviando = false;
+      function salvar() {
+        if (enviando) return;
+        var senha = campoSenha.value;
+        var senha2 = campoSenha2.value;
+        if (!senha || senha.length < 6) { mostrarErro('A senha deve ter pelo menos 6 caracteres.'); return; }
+        if (senha !== senha2) { mostrarErro('As duas senhas não são iguais.'); return; }
+
+        enviando = true;
+        erroEl.hidden = true;
+        botao.disabled = true;
+        botao.textContent = 'Salvando…';
+
+        fetch('/api/auth/convite/definir-senha', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token, senha: senha })
+        })
+        .then(function (r) {
+          return r.json().then(function (d) {
+            if (!r.ok) { enviando = false; mostrarErro(d.erro || 'Não foi possível criar a senha.'); return; }
+            // Sucesso: manda para o login já preenchendo nada (por segurança) e avisando.
+            window.location.href = '/login.html';
+          });
+        })
+        .catch(function () { enviando = false; mostrarErro('Não foi possível conectar ao servidor.'); });
+      }
+
+      botao.addEventListener('click', salvar);
+      campoSenha.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') campoSenha2.focus(); });
+      campoSenha2.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') salvar(); });
+    })();
+  </script>
+</body>
+</html>

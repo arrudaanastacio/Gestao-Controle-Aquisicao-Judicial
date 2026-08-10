@@ -6662,10 +6662,11 @@ async function carregarUsuarios() {
       <td>${u.nome}</td>
       <td class="col-codigo">${u.email}</td>
       <td><span class="etiqueta-status ${u.perfil === 'admin' ? 'finalizado' : 'andamento'}">${u.perfil === 'admin' ? 'Admin' : 'Consulta'}</span></td>
-      <td><span class="etiqueta-status ${u.ativo ? 'finalizado' : 'cancelado'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td>
+      <td><span class="etiqueta-status ${u.ativo ? 'finalizado' : 'cancelado'}">${u.ativo ? 'Ativo' : 'Inativo'}</span>${u.pendente ? ' <span class="etiqueta-status andamento" title="Convite enviado; ainda não criou a senha">Convite pendente</span>' : ''}</td>
       <td>${textoAtividade(u.ultimo_acesso)}</td>
       <td>
         <button class="botao-editar" data-id="${u.id}">Editar</button>
+        ${u.pendente ? `<button class="botao-secundario" data-reenviar="${u.id}" style="margin-left:6px;">Reenviar convite</button>` : ''}
         ${u.perfil === 'admin'
           ? '<span class="texto-secundario" style="margin-left:6px;">(pode tudo)</span>'
           : `<button class="botao-secundario" data-perm="${u.id}" data-nome="${u.nome}" style="margin-left:6px;">Permissões</button>`}
@@ -6675,6 +6676,20 @@ async function carregarUsuarios() {
 
   corpo.querySelectorAll('.botao-editar').forEach((btn) => {
     btn.addEventListener('click', () => abrirModalUsuario(usuarios.find((u) => u.id === Number(btn.dataset.id))));
+  });
+  corpo.querySelectorAll('[data-reenviar]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const u = usuarios.find((x) => x.id === Number(btn.dataset.reenviar));
+      if (!confirm('Reenviar o convite por e-mail para ' + u.email + '? Isso gera um link novo (o anterior deixa de valer).')) return;
+      btn.disabled = true; btn.textContent = 'Enviando…';
+      try {
+        const r = await api(`/usuarios/${u.id}/reenviar-convite`, { method: 'POST' });
+        if (r && r.emailEnviado) alert('Convite reenviado para ' + u.email + '. O link expira em 48 horas.');
+        else alert('Não foi possível enviar o e-mail' + (r && r.erroEmail ? ' (' + r.erroEmail + ')' : '') +
+          '.\n\nCopie e envie este link ao colega (validade 48h):\n\n' + (r && r.link ? r.link : ''));
+        carregarUsuarios();
+      } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Reenviar convite'; }
+    });
   });
   corpo.querySelectorAll('[data-perm]').forEach((btn) => {
     btn.addEventListener('click', () => abrirModalPermissoes(Number(btn.dataset.perm), btn.dataset.nome));
@@ -6775,11 +6790,24 @@ let idUsuarioEditando = null;
 document.getElementById('botaoNovoUsuario').addEventListener('click', () => abrirModalUsuario(null));
 document.getElementById('botaoCancelarModalUsuario').addEventListener('click', () => { modalUsuario.hidden = true; });
 
+// Mostra/esconde o campo de senha conforme o modo escolhido (novo usuário).
+// Na edição, o seletor de modo some e o campo senha reaparece ("deixe em branco").
+function atualizarVisibilidadeSenhaModo() {
+  const editando = !!idUsuarioEditando;
+  const modoWrap = document.getElementById('campoModoAcessoWrap');
+  const senhaWrap = document.getElementById('campoSenhaWrap');
+  const modo = document.getElementById('campoModoUsuario').value;
+  modoWrap.hidden = editando; // seletor de modo só no cadastro novo
+  // No cadastro novo: senha aparece só quando modo = "senha". Na edição: sempre aparece.
+  senhaWrap.hidden = !editando && modo === 'convite';
+}
+
 function abrirModalUsuario(usuario) {
   idUsuarioEditando = usuario ? usuario.id : null;
   formUsuario.reset();
   document.getElementById('tituloModalUsuario').textContent = usuario ? 'Editar usuário' : 'Novo usuário';
   document.getElementById('rotuloSenhaOpcional').textContent = usuario ? '(deixe em branco para manter)' : '';
+  document.getElementById('campoModoUsuario').value = 'convite'; // padrão: convite por e-mail
 
   if (usuario) {
     document.getElementById('campoNomeUsuario').value = usuario.nome;
@@ -6791,8 +6819,11 @@ function abrirModalUsuario(usuario) {
     document.getElementById('campoEmailUsuario').disabled = false;
   }
 
+  atualizarVisibilidadeSenhaModo();
   modalUsuario.hidden = false;
 }
+
+document.getElementById('campoModoUsuario').addEventListener('change', atualizarVisibilidadeSenhaModo);
 
 formUsuario.addEventListener('submit', async (ev) => {
   ev.preventDefault();
@@ -6807,12 +6838,26 @@ formUsuario.addEventListener('submit', async (ev) => {
       const corpo = { nome, perfil, ativo };
       if (senha) corpo.senha = senha;
       await api(`/usuarios/${idUsuarioEditando}`, { method: 'PUT', body: JSON.stringify(corpo) });
+      modalUsuario.hidden = true;
+      carregarUsuarios();
     } else {
-      if (!senha) { alert('Defina uma senha para o novo usuário.'); return; }
-      await api('/usuarios', { method: 'POST', body: JSON.stringify({ nome, email, senha, perfil }) });
+      const modo = document.getElementById('campoModoUsuario').value;
+      if (modo === 'senha' && !senha) { alert('Defina uma senha para o novo usuário.'); return; }
+      const corpo = modo === 'convite' ? { nome, email, perfil, modo } : { nome, email, senha, perfil, modo };
+      const r = await api('/usuarios', { method: 'POST', body: JSON.stringify(corpo) });
+      modalUsuario.hidden = true;
+      carregarUsuarios();
+      if (modo === 'convite') {
+        if (r && r.emailEnviado) {
+          alert('Usuário criado! Um convite foi enviado para ' + email + '. O link para criar a senha expira em 48 horas.');
+        } else {
+          // E-mail não saiu: mostra o link para o admin copiar manualmente.
+          const link = r && r.link ? r.link : '';
+          alert('Usuário criado, mas o e-mail NÃO foi enviado' + (r && r.erroEmail ? ' (' + r.erroEmail + ')' : '') +
+            '.\n\nCopie e envie este link ao colega (validade 48h):\n\n' + link);
+        }
+      }
     }
-    modalUsuario.hidden = true;
-    carregarUsuarios();
   } catch (e) {
     alert(e.message);
   }

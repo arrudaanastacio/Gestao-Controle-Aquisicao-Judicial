@@ -30,6 +30,14 @@ const colunasUsuarios = db.prepare("PRAGMA table_info(usuarios)").all().map((c) 
 if (!colunasUsuarios.includes('ultimo_acesso')) {
   db.exec('ALTER TABLE usuarios ADD COLUMN ultimo_acesso TEXT');
 }
+// Convite por e-mail: token de uso único para o colega criar a própria senha.
+// Enquanto houver token válido e senha_hash vazio, o usuário ainda não definiu senha.
+if (!colunasUsuarios.includes('token_convite')) {
+  db.exec('ALTER TABLE usuarios ADD COLUMN token_convite TEXT');
+}
+if (!colunasUsuarios.includes('token_expira')) {
+  db.exec('ALTER TABLE usuarios ADD COLUMN token_expira TEXT');
+}
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS itens (

@@ -1,24 +1,51 @@
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
 const { autenticar, exigirPerfil } = require('./auth');
+const { enviarConviteAcesso } = require('./emailAlerta');
 const { MODULOS, ACOES, ACOES_ROTULO, MODULO_CHAVES } = require('./permissoes');
 
 const router = express.Router();
+
+const VALIDADE_CONVITE_HORAS = 48;
+
+// Gera um token de convite (aleatório, uso único) e a data de expiração.
+function novoTokenConvite() {
+  const token = crypto.randomBytes(24).toString('hex');
+  const expira = new Date(Date.now() + VALIDADE_CONVITE_HORAS * 60 * 60 * 1000).toISOString();
+  return { token, expira };
+}
+
+// Monta o link de definição de senha a partir do host da requisição, para
+// funcionar tanto em localhost quanto em http://IP-DA-MAQUINA:porta.
+function montarLinkConvite(req, token) {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const host = req.get('host');
+  return `${proto}://${host}/definir-senha.html?token=${token}`;
+}
 
 router.use(autenticar, exigirPerfil('admin'));
 
 router.get('/', (req, res) => {
   const usuarios = db.prepare(
-    'SELECT id, nome, email, perfil, ativo, criado_em, ultimo_acesso FROM usuarios ORDER BY nome'
+    `SELECT id, nome, email, perfil, ativo, criado_em, ultimo_acesso,
+            CASE WHEN (senha_hash IS NULL OR senha_hash = '') AND token_convite IS NOT NULL THEN 1 ELSE 0 END AS pendente
+     FROM usuarios ORDER BY nome`
   ).all();
   res.json({ usuarios });
 });
 
-router.post('/', (req, res) => {
-  const { nome, email, senha, perfil } = req.body || {};
-  if (!nome || !email || !senha || !['admin', 'consulta'].includes(perfil)) {
-    return res.status(400).json({ erro: 'Dados inválidos. Informe nome, e-mail, senha e perfil (admin|consulta).' });
+router.post('/', async (req, res) => {
+  const { nome, email, senha, perfil, modo } = req.body || {};
+  // modo = 'convite' (envia e-mail p/ o colega criar a senha) ou 'senha' (admin define agora).
+  const usarConvite = modo === 'convite';
+
+  if (!nome || !email || !['admin', 'consulta'].includes(perfil)) {
+    return res.status(400).json({ erro: 'Dados inválidos. Informe nome, e-mail e perfil (admin|consulta).' });
+  }
+  if (!usarConvite && !senha) {
+    return res.status(400).json({ erro: 'Informe a senha ou escolha enviar convite por e-mail.' });
   }
 
   const existente = db.prepare('SELECT id FROM usuarios WHERE email = ?').get(email);
@@ -26,10 +53,13 @@ router.post('/', (req, res) => {
     return res.status(409).json({ erro: 'Já existe um usuário com este e-mail.' });
   }
 
-  const senhaHash = bcrypt.hashSync(senha, 10);
+  // No convite: senha_hash fica vazio (login nunca casa) até o colega criar a senha.
+  const senhaHash = usarConvite ? '' : bcrypt.hashSync(senha, 10);
+  const convite = usarConvite ? novoTokenConvite() : null;
+
   const info = db.prepare(
-    'INSERT INTO usuarios (nome, email, senha_hash, perfil) VALUES (?, ?, ?, ?)'
-  ).run(nome, email, senhaHash, perfil);
+    'INSERT INTO usuarios (nome, email, senha_hash, perfil, token_convite, token_expira) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(nome, email, senhaHash, perfil, convite ? convite.token : null, convite ? convite.expira : null);
 
   // Cria as linhas de permissão do novo usuário (não-admin): por padrão só
   // "visualizar" ligado em todos os módulos. O admin ajusta na grade depois.
@@ -42,9 +72,43 @@ router.post('/', (req, res) => {
 
   db.prepare(
     'INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(req.usuario.id, req.usuario.email, 'criar_usuario', 'usuarios', info.lastInsertRowid, JSON.stringify({ nome, email, perfil }));
+  ).run(req.usuario.id, req.usuario.email, 'criar_usuario', 'usuarios', info.lastInsertRowid, JSON.stringify({ nome, email, perfil, modo: usarConvite ? 'convite' : 'senha' }));
 
-  res.status(201).json({ id: info.lastInsertRowid });
+  // Modo senha: pronto.
+  if (!usarConvite) return res.status(201).json({ id: info.lastInsertRowid, modo: 'senha' });
+
+  // Modo convite: tenta enviar o e-mail. Se falhar, o usuário JÁ foi criado com
+  // token — devolvemos o link para o admin copiar manualmente e avisamos o erro.
+  const link = montarLinkConvite(req, convite.token);
+  try {
+    await enviarConviteAcesso({ nome, email, link, validadeHoras: VALIDADE_CONVITE_HORAS });
+    res.status(201).json({ id: info.lastInsertRowid, modo: 'convite', emailEnviado: true });
+  } catch (e) {
+    console.error('[CONVITE] Falha ao enviar e-mail:', e.message);
+    res.status(201).json({ id: info.lastInsertRowid, modo: 'convite', emailEnviado: false, erroEmail: e.message, link });
+  }
+});
+
+// Reenvia o convite (gera token novo) para um usuário que ainda não criou senha.
+router.post('/:id/reenviar-convite', async (req, res) => {
+  const usuario = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(req.params.id);
+  if (!usuario) return res.status(404).json({ erro: 'Usuário não encontrado.' });
+  if (usuario.senha_hash) {
+    return res.status(400).json({ erro: 'Este usuário já criou a senha. Use "editar" para redefinir, se necessário.' });
+  }
+
+  const convite = novoTokenConvite();
+  db.prepare('UPDATE usuarios SET token_convite = ?, token_expira = ? WHERE id = ?')
+    .run(convite.token, convite.expira, usuario.id);
+
+  const link = montarLinkConvite(req, convite.token);
+  try {
+    await enviarConviteAcesso({ nome: usuario.nome, email: usuario.email, link, validadeHoras: VALIDADE_CONVITE_HORAS });
+    res.json({ ok: true, emailEnviado: true });
+  } catch (e) {
+    console.error('[CONVITE] Falha ao reenviar e-mail:', e.message);
+    res.json({ ok: true, emailEnviado: false, erroEmail: e.message, link });
+  }
 });
 
 router.put('/:id', (req, res) => {

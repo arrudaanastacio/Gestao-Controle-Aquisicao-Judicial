@@ -10,6 +10,19 @@
 
 ## Publicadas recentemente
 
+### v1.14.0 — 10/08/2026 (Convite de acesso por e-mail)
+
+**Convite de acesso por e-mail (o usuário cria a própria senha).**
+Ao cadastrar um usuário, o admin escolhe **"Enviar convite por e-mail"** (padrão)
+ou **"Definir a senha agora"** (comportamento antigo). No convite, o sistema cria o
+usuário sem senha, gera um **link único com validade de 48h** e envia por e-mail
+(Gmail SMTP). O colega abre `definir-senha.html?token=…`, cria a senha e o token é
+queimado (uso único). Na lista de usuários aparece a etiqueta **"Convite pendente"**
+com botão **"Reenviar convite"** (gera link novo). Se o e-mail falhar, o admin recebe
+o link na tela para copiar manualmente. **Também conserta o envio de e-mail** (a senha
+de app do Gmail no `.env` estava inválida e foi atualizada — alertas de sincronização
+voltam a chegar). **Pós-publicação:** reiniciar produção (novas rotas + colunas no banco).
+
 ### v1.13.1 — 04/08/2026 (Exportar na Movimentação de Saída)
 
 Botões **⬇ Exportar** (lista detalhada) e **⬇ Exportar consolidado** na tela de

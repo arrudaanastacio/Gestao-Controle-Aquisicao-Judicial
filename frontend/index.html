@@ -2477,7 +2477,14 @@
             <label for="campoEmailUsuario">E-mail</label>
             <input type="email" id="campoEmailUsuario" required>
           </div>
-          <div class="campo-largo">
+          <div class="campo-largo" id="campoModoAcessoWrap">
+            <label for="campoModoUsuario">Como definir a senha</label>
+            <select id="campoModoUsuario">
+              <option value="convite">Enviar convite por e-mail (o usuário cria a própria senha)</option>
+              <option value="senha">Definir a senha agora</option>
+            </select>
+          </div>
+          <div class="campo-largo" id="campoSenhaWrap">
             <label for="campoSenhaUsuario">Senha <span id="rotuloSenhaOpcional"></span></label>
             <input type="password" id="campoSenhaUsuario">
           </div>

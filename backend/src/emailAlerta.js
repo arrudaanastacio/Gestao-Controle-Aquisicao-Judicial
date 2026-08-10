@@ -50,4 +50,24 @@ function emailConfigurado() {
   return !!obterTransportador();
 }
 
-module.exports = { enviarAlertaFalhaSincronizacao, obterTransportador, emailConfigurado };
+// Envia o convite de acesso: link único para o colega criar a própria senha.
+// Lança erro se o SMTP não estiver configurado (o cadastro precisa saber que
+// o e-mail não saiu, para não deixar o usuário preso sem senha nem aviso).
+async function enviarConviteAcesso({ nome, email, link, validadeHoras }) {
+  const t = obterTransportador();
+  if (!t) throw new Error('SMTP não configurado no .env — não é possível enviar o convite.');
+  await t.sendMail({
+    from: process.env.SMTP_USER,
+    to: email,
+    subject: 'Acesso ao sistema Compras Judiciais — crie sua senha',
+    text:
+      `Olá, ${nome}!\n\n` +
+      `Foi criado um acesso para você no sistema Compras Judiciais (Tenente Pena).\n` +
+      `Para criar sua senha e entrar, acesse o link abaixo:\n\n` +
+      `${link}\n\n` +
+      `Este link é pessoal e expira em ${validadeHoras} horas. Depois de criar a senha, ele deixa de funcionar.\n` +
+      `Se você não esperava este e-mail, pode ignorá-lo.\n`,
+  });
+}
+
+module.exports = { enviarAlertaFalhaSincronizacao, obterTransportador, emailConfigurado, enviarConviteAcesso };
