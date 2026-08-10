@@ -5413,10 +5413,6 @@ function montarDocumentoRequisicao(d) {
       <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th>Qtde Consumo</th><th style="width:90px;">Quantidade de Aquisição</th></tr></thead>
       <tbody>${linhas}</tbody>
     </table>
-    <div class="assin">
-      <div>${d.operadorNome || ''}<br>Responsável pela requisição</div>
-      <div>Autorização</div>
-    </div>
     </body></html>`;
 }
 
