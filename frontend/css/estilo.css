@@ -692,8 +692,23 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaRupturas:not([hidden])),
 .conteudo:has(> #paginaPainel:not([hidden])),
 .conteudo:has(> #paginaDistribuicao:not([hidden])),
+.conteudo:has(> #paginaUsuarios:not([hidden])),
 .conteudo:has(> #paginaPlanejamento:not([hidden])) {
   max-width: none;
+}
+
+/* Coluna de ações da tabela de usuários: botões numa linha só, sem quebrar. */
+#corpoTabelaUsuarios td:last-child {
+  white-space: nowrap;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+/* Zera as margens inline antigas (margin-left) — o gap do flex já espaça. */
+#corpoTabelaUsuarios td:last-child > button,
+#corpoTabelaUsuarios td:last-child > span {
+  margin-left: 0 !important;
 }
 
 .cabecalho-pagina {
