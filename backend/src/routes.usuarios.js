@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const os = require('os');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
 const { autenticar, exigirPerfil } = require('./auth');
@@ -17,11 +18,45 @@ function novoTokenConvite() {
   return { token, expira };
 }
 
-// Monta o link de definição de senha a partir do host da requisição, para
-// funcionar tanto em localhost quanto em http://IP-DA-MAQUINA:porta.
+// Descobre o IPv4 da máquina na rede local (ex.: 192.168.x.x). Prefere as
+// faixas privadas comuns e ignora adaptadores virtuais/internos quando possível.
+function ipLanDaMaquina() {
+  const candidatos = [];
+  const ifaces = os.networkInterfaces();
+  for (const nome of Object.keys(ifaces)) {
+    for (const ni of ifaces[nome] || []) {
+      if (ni.family === 'IPv4' && !ni.internal) candidatos.push(ni.address);
+    }
+  }
+  // Prioriza 192.168.*, depois 10.*, depois 172.16-31.*, senão o primeiro que houver.
+  return (
+    candidatos.find((ip) => ip.startsWith('192.168.')) ||
+    candidatos.find((ip) => ip.startsWith('10.')) ||
+    candidatos.find((ip) => /^172\.(1[6-9]|2\d|3[01])\./.test(ip)) ||
+    candidatos[0] ||
+    null
+  );
+}
+
+// Monta o link de definição de senha. O colega acessa pelo IP da máquina, então
+// o link NUNCA pode sair como "localhost". Ordem de decisão:
+//   1) SISTEMA_URL_BASE no .env (ideal; serve também p/ túnel externo no futuro);
+//   2) se o admin abriu por localhost/127.0.0.1, troca pelo IP da máquina na rede;
+//   3) senão, usa o próprio host da requisição.
 function montarLinkConvite(req, token) {
+  const base = (process.env.SISTEMA_URL_BASE || '').trim().replace(/\/+$/, '');
+  if (base) return `${base}/definir-senha.html?token=${token}`;
+
   const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-  const host = req.get('host');
+  let host = req.get('host') || '';
+  const ehLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+  if (ehLocal) {
+    const ip = ipLanDaMaquina();
+    if (ip) {
+      const porta = host.split(':')[1] || process.env.PORT || '3000';
+      host = `${ip}:${porta}`;
+    }
+  }
   return `${proto}://${host}/definir-senha.html?token=${token}`;
 }
 
