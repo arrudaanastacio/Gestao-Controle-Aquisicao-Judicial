@@ -10,6 +10,20 @@
 
 ## Publicadas recentemente
 
+### v1.15.0 — 10/08/2026 (Estoque geral por unidade, lotes e Primeiro Atendimento)
+
+- **Bug dos lotes corrigido:** o modal de estoque e a Gestão de Validades voltam
+  a mostrar **todos os lotes/validades** (o separador mudou de "\" para vírgula
+  quando a importação passou para o Oracle).
+- **Estoque geral inclui a UD 01 - Tenente Pena** (antes o "geral" a excluía).
+- **Estoque geral por unidade dispensadora:** a coluna "compra em aberto" e o
+  modal passam a usar a **Aquisição em Andamento OD**; o modal abre os dados da
+  unidade clicada (estoque, autonomia, demandas, consumo, lotes) e os
+  **pacientes daquela unidade** (não mais fixo na Tenente Pena).
+- **Relatório de Primeiro Atendimento:** nova coluna **Qtde Aquisição** editável
+  na linha (com log de auditoria) e **modal** ao clicar no item (demanda,
+  consumo mensal, estoque e autonomia).
+
 ### v1.14.0 — 10/08/2026 (Convite de acesso por e-mail)
 
 **Convite de acesso por e-mail (o usuário cria a própria senha).**

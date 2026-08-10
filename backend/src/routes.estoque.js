@@ -15,12 +15,11 @@ const STATUS_EM_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parc
 
 // Divide o estoque por escopo de unidade dispensadora:
 //   'udtp'  → UD 01 - Tenente Pena (inclui linhas antigas sem unidade preenchida)
-//   'geral' → todas as demais unidades
+//   'geral' → TODAS as unidades, incluindo a UD 01 - Tenente Pena (sem restrição)
 // Retorna a condição SQL (com o prefixo de coluna informado, ex.: 'e.') ou null.
 function condEscopoUnidade(escopo, pfx = '') {
   if (escopo === 'udtp') return `(${pfx}unidade IS NULL OR ${pfx}unidade LIKE '%Tenente Pena%')`;
-  if (escopo === 'geral') return `(${pfx}unidade IS NOT NULL AND ${pfx}unidade NOT LIKE '%Tenente Pena%')`;
-  return null;
+  return null; // 'geral' (e demais): sem filtro de unidade → todas, incluindo a Tenente Pena
 }
 
 // Normaliza um texto de cabeçalho: minúsculas, sem acento, sem underscore,
@@ -518,11 +517,14 @@ router.get('/', (req, res) => {
 
   const total = db.prepare(`SELECT COUNT(*) c FROM estoque_itens e ${where}`).get(...params).c;
 
-  // Marca quais itens têm compra em aberto (join leve por código)
+  // Marca quais itens têm compra em aberto (join leve por código). A fonte muda
+  // conforme o escopo: no GERAL usamos a "Aquisição em Andamento OD"
+  // (solicitacoes_od); no Tenente Pena, as compras judiciais (solicitacoes).
+  const tabelaCompras = escopoUnidade === 'geral' ? 'solicitacoes_od' : 'solicitacoes';
   const placeholders = STATUS_EM_ABERTO.map(() => '?').join(',');
   const itens = db.prepare(`
     SELECT e.*,
-      (SELECT COUNT(*) FROM solicitacoes s WHERE s.codigo_item = e.codigo_item AND s.status IN (${placeholders})) AS compras_abertas
+      (SELECT COUNT(*) FROM ${tabelaCompras} s WHERE s.codigo_item = e.codigo_item AND s.status IN (${placeholders})) AS compras_abertas
     FROM estoque_itens e
     ${where}
     ORDER BY e.descricao COLLATE NOCASE ASC
@@ -672,13 +674,15 @@ router.get('/evolucao', (req, res) => {
   res.json({ codigo, descricao, serie });
 });
 
-// Interpreta o texto de lotes do relatório (vários lotes separados por "\").
-// Formato: "Lote N°: XXX Validade: DD/MM/YYYY Fabricante: YYY Qtde: NNN"
+// Interpreta o texto de lotes do relatório. Separador entre lotes: "\" (formato
+// antigo do Excel) ou ", Lote N°:" (formato atual via Oracle). Não quebra em
+// vírgulas dentro do nome do fabricante (só separa quando vem "Lote N°" adiante).
+// Formato de cada lote: "Lote N°: XXX Validade: DD/MM/YYYY Fabricante: YYY Qtde: NNN"
 function parsearLotesServidor(texto) {
   if (!texto) return [];
   const t = String(texto).trim();
   if (!t || /^sem lote$/i.test(t)) return [];
-  return t.split('\\').map((p) => p.trim()).filter(Boolean).map((p) => {
+  return t.split(/\\|,\s*(?=Lote\s*N[°º:])/i).map((p) => p.trim()).filter(Boolean).map((p) => {
     const lote = (p.match(/Lote\s*N[°º:]*\s*([^\s]+(?:\s+[^\s]+)*?)(?=\s+Validade:|\s+Fabricante:|\s+Qtde:|$)/i) || [])[1];
     const validade = (p.match(/Validade:\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1];
     const fabricante = (p.match(/Fabricante:\s*(.+?)(?=\s+Qtde:|$)/i) || [])[1];
@@ -793,15 +797,30 @@ router.get('/validades', (req, res) => {
   res.json({ dataReferencia: dataRef, resumo, lotes: linhas, datasDisponiveis });
 });
 
-// ---------- Detalhe de um item: situação de estoque + compras judiciais ----------
+// ---------- Detalhe de um item: situação de estoque + compras ----------
+// No escopo GERAL cada linha da listagem é de UMA unidade dispensadora, então o
+// modal recebe a `unidade` clicada e mostra os dados DAQUELA unidade (estoque,
+// lotes, pacientes) e as compras da "Aquisição em Andamento OD". No Tenente
+// Pena (padrão) usa o escopo TP, as compras judiciais e os pacientes da TP.
 router.get('/item/:codigo', (req, res) => {
   const codigo = req.params.codigo;
+  const escopo = req.query.escopoUnidade;
+  const unidade = (req.query.unidade || '').trim() || null;
 
-  const escCond = condEscopoUnidade(req.query.escopoUnidade);
-  const andEsc = escCond ? ' AND ' + escCond : '';
+  // Filtro de estoque/histórico: unidade específica (se veio) ou o escopo.
+  let andEstoque = '';
+  const pEstoque = [];
+  if (unidade) {
+    andEstoque = ' AND unidade = ?';
+    pEstoque.push(unidade);
+  } else {
+    const escCond = condEscopoUnidade(escopo);
+    if (escCond) andEstoque = ' AND ' + escCond;
+  }
+
   const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
   const estoqueAtual = ultima
-    ? db.prepare(`SELECT * FROM estoque_itens WHERE codigo_item = ? AND data_referencia = ?${andEsc}`).get(codigo, ultima.data_referencia)
+    ? db.prepare(`SELECT * FROM estoque_itens WHERE codigo_item = ? AND data_referencia = ?${andEstoque}`).get(codigo, ultima.data_referencia, ...pEstoque)
     : null;
 
   // Evolução do estoque ao longo do tempo (histórico).
@@ -817,36 +836,48 @@ router.get('/item/:codigo', (req, res) => {
            SUM(demandas) AS demandas,
            SUM(consumo_mensal_total) AS consumo_mensal_total
       FROM estoque_itens
-     WHERE codigo_item = ?${andEsc}
+     WHERE codigo_item = ?${andEstoque}
      GROUP BY data_referencia
      ORDER BY data_referencia
-  `).all(codigo);
+  `).all(codigo, ...pEstoque);
 
-  // Compras judiciais do item
-  const compras = db.prepare(`
-    SELECT ano, mes, modalidade_compra, n_oficio, n_empenho, qtde_solicitada,
-           quantidade_empenho, data_previsao_entrega, data_entrega, status
-    FROM solicitacoes WHERE codigo_item = ?
-    ORDER BY ano,
-      CASE mes WHEN 'Janeiro' THEN 1 WHEN 'Fevereiro' THEN 2 WHEN 'Março' THEN 3 WHEN 'Abril' THEN 4
+  // Ordem cronológica pelo mês por extenso (igual nas duas fontes de compra).
+  const ordemMes = `CASE mes WHEN 'Janeiro' THEN 1 WHEN 'Fevereiro' THEN 2 WHEN 'Março' THEN 3 WHEN 'Abril' THEN 4
         WHEN 'Maio' THEN 5 WHEN 'Junho' THEN 6 WHEN 'Julho' THEN 7 WHEN 'Agosto' THEN 8
-        WHEN 'Setembro' THEN 9 WHEN 'Outubro' THEN 10 WHEN 'Novembro' THEN 11 WHEN 'Dezembro' THEN 12 END
-  `).all(codigo);
+        WHEN 'Setembro' THEN 9 WHEN 'Outubro' THEN 10 WHEN 'Novembro' THEN 11 WHEN 'Dezembro' THEN 12 END`;
+
+  // Fonte das compras: no GERAL, "Aquisição em Andamento OD" (solicitacoes_od);
+  // no Tenente Pena, as compras judiciais (solicitacoes).
+  const fonteCompras = escopo === 'geral' ? 'od' : 'judicial';
+  const compras = fonteCompras === 'od'
+    ? db.prepare(`
+        SELECT ano, mes, modalidade_compra, n_oficio, n_empenho, qtde_solicitada,
+               data_previsao_entrega, data_entrega, status
+        FROM solicitacoes_od WHERE codigo_item = ?
+        ORDER BY ano, ${ordemMes}
+      `).all(codigo)
+    : db.prepare(`
+        SELECT ano, mes, modalidade_compra, n_oficio, n_empenho, qtde_solicitada,
+               quantidade_empenho, data_previsao_entrega, data_entrega, status
+        FROM solicitacoes WHERE codigo_item = ?
+        ORDER BY ano, ${ordemMes}
+      `).all(codigo);
 
   const temCompraAberta = compras.some((c) => STATUS_EM_ABERTO.includes(c.status));
 
-  // Pacientes (Listagem de Autores) que têm esse item cadastrado, na Tenente Pena.
+  // Pacientes (Listagem de Autores): da unidade dispensadora clicada (no geral)
+  // ou da Tenente Pena (padrão).
   const pacientes = db.prepare(`
     SELECT autor, protocolo, qtde_consumo, prazo, periodicidade,
            data_ultima_dispensacao, data_ultimo_retorno
     FROM autores_itens
     WHERE codigo_item = ?
-      AND unidade_dispensadora LIKE '%Tenente Pena%'
+      AND unidade_dispensadora ${unidade ? '= ?' : "LIKE '%Tenente Pena%'"}
       AND data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
     ORDER BY autor
-  `).all(codigo);
+  `).all(...(unidade ? [codigo, unidade] : [codigo]));
 
-  res.json({ codigo, estoqueAtual, historicoEstoque, compras, temCompraAberta, pacientes });
+  res.json({ codigo, unidade, fonteCompras, estoqueAtual, historicoEstoque, compras, temCompraAberta, pacientes });
 });
 
 module.exports = router;

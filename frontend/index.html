@@ -1744,6 +1744,7 @@
                   <th>Cód. Item</th>
                   <th>Descrição do Item</th>
                   <th>SIAFÍSICO</th>
+                  <th>Qtde Aquisição</th>
                   <th>Estoque</th>
                   <th>Autonomia</th>
                   <th>Status Estoque</th>
@@ -1762,6 +1763,20 @@
             <div class="botoes">
               <button id="reqAnterior">← Anterior</button>
               <button id="reqProximo">Próximo →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal: detalhe de estoque/demanda do item (abre ao clicar no medicamento) -->
+        <div class="fundo-modal" id="modalDetalheItemReq" hidden>
+          <div class="modal" style="max-width:460px;">
+            <h3 id="tituloDetalheItemReq">Detalhes do item</h3>
+            <p id="subDetalheItemReq" class="texto-secundario" style="margin-top:-6px;"></p>
+            <div id="corpoDetalheItemReq" style="margin-top:8px;">
+              <p class="texto-secundario">Carregando…</p>
+            </div>
+            <div class="acoes-modal">
+              <button type="button" class="botao-primario" id="botaoFecharDetalheItemReq">Fechar</button>
             </div>
           </div>
         </div>

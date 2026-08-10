@@ -434,7 +434,7 @@ router.get('/requisicoes/itens', (req, res) => {
   const escTP = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
   const total = db.prepare(`SELECT COUNT(*) c FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id ${where}`).get(...params).c;
   const itens = db.prepare(`
-    SELECT ri.id, ri.requisicao_id, r.codigo_controle, r.autor, r.sei,
+    SELECT ri.id, ri.requisicao_id, r.codigo_controle, r.autor, r.sei, r.protocolo,
            ri.codigo_item, ri.descricao_item, ri.categoria,
            COALESCE((SELECT e.siafisico FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1), ri.cod_siafisico) AS siafisico,
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
@@ -465,8 +465,13 @@ router.put('/requisicoes/item/:id', (req, res) => {
     return res.status(403).json({ erro: 'Telegrama já enviado. Apenas um administrador pode alterar este item.' });
   }
 
-  const { status_atendimento, telegrama_enviado, data_envio, requisicao_gsnet } = req.body || {};
+  const { status_atendimento, telegrama_enviado, data_envio, requisicao_gsnet, quantidade } = req.body || {};
   let status = status_atendimento ?? item.status_atendimento;
+  // Quantidade de Aquisição (editável na linha do relatório). Aceita número ou
+  // vazio (= sem quantidade / "apenas registrar"). Guardada como texto.
+  const novaQtde = quantidade === undefined
+    ? item.quantidade
+    : (quantidade === null || String(quantidade).trim() === '' ? null : String(quantidade).trim());
   const telegrama = telegrama_enviado ?? item.telegrama_enviado;
   let dataEnvio = data_envio !== undefined ? (data_envio || null) : item.data_envio;
   const gsnet = requisicao_gsnet !== undefined ? (requisicao_gsnet || null) : item.requisicao_gsnet;
@@ -489,12 +494,15 @@ router.put('/requisicoes/item/:id', (req, res) => {
     enviadoEm = null;
   }
 
-  db.prepare('UPDATE requisicao_itens SET status_atendimento = ?, telegrama_enviado = ?, data_envio = ?, requisicao_gsnet = ?, telegrama_enviado_por = ?, telegrama_enviado_em = ? WHERE id = ?')
-    .run(status, telegrama, dataEnvio, gsnet, enviadoPor, enviadoEm, item.id);
+  db.prepare('UPDATE requisicao_itens SET status_atendimento = ?, telegrama_enviado = ?, data_envio = ?, requisicao_gsnet = ?, quantidade = ?, telegrama_enviado_por = ?, telegrama_enviado_em = ? WHERE id = ?')
+    .run(status, telegrama, dataEnvio, gsnet, novaQtde, enviadoPor, enviadoEm, item.id);
 
-  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(req.usuario.id, req.usuario.email, 'atualizar_atendimento_item', 'requisicao_itens', item.id,
-      JSON.stringify({ status_atendimento: status, telegrama_enviado: telegrama, data_envio: dataEnvio, telegrama_enviado_por: enviadoPor }));
+  // Registra no log; se a quantidade mudou, guarda o antes/depois explicitamente.
+  const mudouQtde = String(item.quantidade ?? '') !== String(novaQtde ?? '');
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_antes, dados_depois) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, mudouQtde ? 'editar_qtde_aquisicao' : 'atualizar_atendimento_item', 'requisicao_itens', item.id,
+      mudouQtde ? JSON.stringify({ quantidade: item.quantidade }) : null,
+      JSON.stringify({ status_atendimento: status, telegrama_enviado: telegrama, data_envio: dataEnvio, requisicao_gsnet: gsnet, quantidade: novaQtde, telegrama_enviado_por: enviadoPor }));
 
   res.json({ ok: true });
 });

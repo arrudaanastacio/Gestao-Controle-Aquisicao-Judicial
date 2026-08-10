@@ -38,7 +38,10 @@ function valorCelula(v) {
 }
 
 // Interpreta o texto de lotes vindo do relatório de estoque.
-// Cada lote vem separado por "\" no formato:
+// Vários lotes vêm concatenados; o separador entre lotes já foi "\" (formato
+// antigo do Excel) e hoje, via Oracle, é ", Lote N°:" (vírgula antes de um novo
+// "Lote N°:"). Aceitamos os dois — e NÃO quebramos em vírgulas que aparecem
+// dentro do nome do fabricante, pois só separamos quando vem "Lote N°" adiante.
 //   "Lote N°: XXX Validade: DD/MM/YYYY Fabricante: YYY Qtde: NNN"
 // Retorna uma lista de objetos { lote, validade, fabricante, qtde }.
 function parsearLotes(texto) {
@@ -46,7 +49,7 @@ function parsearLotes(texto) {
   const t = String(texto).trim();
   if (!t || /^sem lote$/i.test(t)) return [];
 
-  return t.split('\\').map((parte) => parte.trim()).filter(Boolean).map((p) => {
+  return t.split(/\\|,\s*(?=Lote\s*N[°º:])/i).map((parte) => parte.trim()).filter(Boolean).map((p) => {
     const lote = (p.match(/Lote\s*N[°º:]*\s*([^\s]+(?:\s+[^\s]+)*?)(?=\s+Validade:|\s+Fabricante:|\s+Qtde:|$)/i) || [])[1];
     const validade = (p.match(/Validade:\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1];
     const fabricante = (p.match(/Fabricante:\s*(.+?)(?=\s+Qtde:|$)/i) || [])[1];
@@ -1933,11 +1936,11 @@ async function carregarTabelaEstoqueGeral() {
           <td><span class="etiqueta-status ${classe}">${autonomiaTxt}</span></td>
           <td class="col-data">${validadeTd}</td>
           <td>${compraTag}</td>
-          <td><button class="botao-editar" data-codigo="${encodeURIComponent(it.codigo_item)}">Ver</button></td>
+          <td><button class="botao-editar" data-codigo="${encodeURIComponent(it.codigo_item)}" data-unidade="${escAttr(it.unidade || '')}">Ver</button></td>
         </tr>`;
     }).join('');
     corpo.querySelectorAll('button[data-codigo]').forEach((btn) => {
-      btn.addEventListener('click', () => abrirDetalheEstoque(btn.dataset.codigo, 'geral'));
+      btn.addEventListener('click', () => abrirDetalheEstoque(btn.dataset.codigo, 'geral', btn.dataset.unidade));
     });
   }
 
@@ -3157,17 +3160,19 @@ async function carregarTabelaAquisicaoODAndamento() {
   document.getElementById('botaoProximoAquisicaoODAndamento').disabled = dados.page >= totalPaginas;
 }
 
-async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
+async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp', unidade = '') {
   const modal = document.getElementById('modalEstoqueItem');
   const conteudo = document.getElementById('conteudoModalEstoque');
   conteudo.innerHTML = '<p class="texto-apoio">Carregando…</p>';
   modal.hidden = false;
 
-  const dados = await api(`/estoque/item/${codigoEncoded}?escopoUnidade=${escopo}`);
+  let url = `/estoque/item/${codigoEncoded}?escopoUnidade=${escopo}`;
+  if (unidade) url += `&unidade=${encodeURIComponent(unidade)}`;
+  const dados = await api(url);
   const e = dados.estoqueAtual;
 
   document.getElementById('tituloModalEstoque').textContent = e ? (e.descricao || dados.codigo) : dados.codigo;
-  document.getElementById('codigoModalEstoque').textContent = dados.codigo;
+  document.getElementById('codigoModalEstoque').textContent = dados.codigo + (unidade ? ' · ' + unidade : '');
 
   // Montagem no mesmo formato do modal de Reservas: KPIs no topo, depois as
   // duas tabelas ESTREITAS lado a lado (lotes | evolução) e, por fim, as
@@ -3221,10 +3226,11 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
     html += colLotes;
   }
 
-  // ----- largura total: compras judiciais -----
-  html += '<h4>Compras no controle judicial</h4>';
+  // ----- largura total: compras (OD no geral, judicial no TP) -----
+  const ehOD = dados.fonteCompras === 'od';
+  html += `<h4>${ehOD ? 'Aquisição em Andamento OD' : 'Compras no controle judicial'}</h4>`;
   if (dados.compras.length === 0) {
-    html += '<p class="texto-apoio">Nenhuma compra registrada para este item no controle judicial.</p>';
+    html += `<p class="texto-apoio">Nenhuma compra registrada para este item ${ehOD ? 'na Aquisição em Andamento OD' : 'no controle judicial'}.</p>`;
   } else {
     if (dados.temCompraAberta) {
       html += '<p class="aviso-compra-aberta">✓ Este item tem compra em aberto (em andamento).</p>';
@@ -3246,9 +3252,10 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp') {
   }
 
   // ----- largura total: pacientes -----
-  html += `<h4>Pacientes ${dados.pacientes && dados.pacientes.length ? `<span class="texto-apoio">(${dados.pacientes.length})</span>` : ''}</h4>`;
+  const nomeUnidadePac = dados.unidade || 'Tenente Pena';
+  html += `<h4>Pacientes <span class="texto-apoio">— ${nomeUnidadePac}</span> ${dados.pacientes && dados.pacientes.length ? `<span class="texto-apoio">(${dados.pacientes.length})</span>` : ''}</h4>`;
   if (!dados.pacientes || dados.pacientes.length === 0) {
-    html += '<p class="texto-apoio">Nenhum paciente cadastrado com este item na Tenente Pena.</p>';
+    html += `<p class="texto-apoio">Nenhum paciente cadastrado com este item ${dados.unidade ? 'na ' + nomeUnidadePac : 'na Tenente Pena'}.</p>`;
   } else {
     html += `<div class="rolagem-tabela"><table><thead><tr><th>Nome</th><th>Protocolo</th><th>Qtde. Consumo</th><th>Prazo</th><th>Periodicidade</th><th>Data de retirada</th><th>Próx. data de retorno</th></tr></thead><tbody>`;
     html += dados.pacientes.map((p) => `
@@ -6265,9 +6272,10 @@ async function carregarTabelaRelReq() {
           <td class="col-codigo"><a href="#" class="req-abrir-doc" data-req="${it.requisicao_id}"><strong>${it.codigo_controle || ('#' + it.requisicao_id)}</strong></a></td>
           <td>${it.autor || '—'}</td>
           <td class="col-codigo">${it.sei || '—'}</td>
-          <td class="col-codigo">${it.codigo_item || '—'}</td>
-          <td>${it.descricao_item || '—'}</td>
+          <td class="col-codigo"><a href="#" class="req-item-detalhe" data-codigo="${(it.codigo_item || '').replace(/"/g, '&quot;')}" data-protocolo="${(it.protocolo || '').replace(/"/g, '&quot;')}" data-desc="${(it.descricao_item || '').replace(/"/g, '&quot;')}">${it.codigo_item || '—'}</a></td>
+          <td><a href="#" class="req-item-detalhe" data-codigo="${(it.codigo_item || '').replace(/"/g, '&quot;')}" data-protocolo="${(it.protocolo || '').replace(/"/g, '&quot;')}" data-desc="${(it.descricao_item || '').replace(/"/g, '&quot;')}">${it.descricao_item || '—'}</a></td>
           <td class="col-codigo">${it.siafisico || '—'}</td>
+          <td><input type="number" min="0" step="1" class="req-at-qtde" value="${it.quantidade != null ? String(it.quantidade).replace(/"/g, '&quot;') : ''}" placeholder="—" style="width:90px;" ${dis}></td>
           <td>${fmtNumero(it.estoque_atual)}</td>
           <td>${aut === null || aut === undefined ? '—' : fmtNumero(aut) + ' m'}</td>
           <td>${stEstoque}</td>
@@ -6313,8 +6321,15 @@ async function carregarTabelaRelReq() {
           if (!inpData.value) inpData.value = new Date().toISOString().slice(0, 10);
         }
       });
-      tr.querySelectorAll('.req-at-status, .req-at-tel, .req-at-data, .req-at-gsnet').forEach((ctrl) => {
+      tr.querySelectorAll('.req-at-status, .req-at-tel, .req-at-data, .req-at-gsnet, .req-at-qtde').forEach((ctrl) => {
         ctrl.addEventListener('change', () => salvarAtendimentoItem(tr));
+      });
+    });
+    // Abrir modal de detalhes (estoque/demanda) ao clicar no código/descrição
+    corpo.querySelectorAll('.req-item-detalhe').forEach((a) => {
+      a.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        abrirDetalheItemReq(a.dataset.codigo, a.dataset.protocolo, a.dataset.desc);
       });
     });
   }
@@ -6328,11 +6343,13 @@ async function carregarTabelaRelReq() {
 
 async function salvarAtendimentoItem(tr) {
   const id = tr.dataset.id;
+  const qtdeEl = tr.querySelector('.req-at-qtde');
   const corpo = {
     status_atendimento: tr.querySelector('.req-at-status').value,
     telegrama_enviado: tr.querySelector('.req-at-tel').value,
     data_envio: tr.querySelector('.req-at-data').value || null,
     requisicao_gsnet: tr.querySelector('.req-at-gsnet').value.trim() || null,
+    quantidade: qtdeEl ? (qtdeEl.value.trim() || null) : undefined,
   };
   const eraSim = tr.querySelector('.req-det') !== null; // já estava enviado
   try {
@@ -6347,6 +6364,44 @@ async function salvarAtendimentoItem(tr) {
   } catch (e) {
     alert('Erro ao salvar: ' + e.message);
     carregarTabelaRelReq(); // desfaz a alteração visual recarregando do servidor
+  }
+}
+
+// Modal de detalhes do item no Relatório de Primeiro Atendimento:
+// demanda, consumo, estoque e autonomia (foto mais recente, escopo Tenente Pena).
+const modalDetalheItemReq = document.getElementById('modalDetalheItemReq');
+document.getElementById('botaoFecharDetalheItemReq').addEventListener('click', () => { modalDetalheItemReq.hidden = true; });
+modalDetalheItemReq.addEventListener('click', (ev) => { if (ev.target === modalDetalheItemReq) modalDetalheItemReq.hidden = true; });
+
+async function abrirDetalheItemReq(codigo, protocolo, desc) {
+  const corpo = document.getElementById('corpoDetalheItemReq');
+  document.getElementById('tituloDetalheItemReq').textContent = desc || 'Detalhes do item';
+  document.getElementById('subDetalheItemReq').textContent = 'Código: ' + (codigo || '—');
+  corpo.innerHTML = '<p class="texto-secundario">Carregando…</p>';
+  modalDetalheItemReq.hidden = false;
+
+  try {
+    const params = new URLSearchParams({ codigo: codigo || '' });
+    if (protocolo) params.set('protocolo', protocolo);
+    const d = await api(`/autores/comparacao/item-detalhe?${params.toString()}`);
+    const e = d.estoque || {};
+    const dem = d.demanda || {};
+    const dataEstoque = d.dataEstoque ? formatarData(d.dataEstoque) : null;
+
+    const linha = (rotulo, valor) =>
+      `<div style="display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px solid var(--borda-suave, #eee);">
+         <span class="texto-secundario">${rotulo}</span><strong>${valor}</strong></div>`;
+
+    corpo.innerHTML =
+      linha('Demanda', fmtNumero(e.demandas)) +
+      linha('Consumo mensal', fmtNumero(e.consumoMensalTotal)) +
+      linha('Estoque atual', fmtNumero(e.estoque)) +
+      linha('Autonomia', (e.autonomia === null || e.autonomia === undefined) ? '—' : fmtNumero(e.autonomia) + ' meses') +
+      (dem.tipo_demanda ? linha('Tipo de demanda', dem.tipo_demanda) : '') +
+      (dataEstoque ? `<p class="texto-secundario" style="margin-top:10px; font-size:12px;">Estoque referente a ${dataEstoque}.</p>`
+                   : '<p class="texto-secundario" style="margin-top:10px; font-size:12px;">Sem foto de estoque para este item.</p>');
+  } catch (err) {
+    corpo.innerHTML = `<p style="color:var(--vermelho, #b3261e);">Não foi possível carregar: ${err.message}</p>`;
   }
 }
 
