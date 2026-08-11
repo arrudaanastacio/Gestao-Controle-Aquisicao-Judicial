@@ -522,9 +522,15 @@ router.get('/', (req, res) => {
   // (solicitacoes_od); no Tenente Pena, as compras judiciais (solicitacoes).
   const tabelaCompras = escopoUnidade === 'geral' ? 'solicitacoes_od' : 'solicitacoes';
   const placeholders = STATUS_EM_ABERTO.map(() => '?').join(',');
+  // Programas a que o item pertence (para as etiquetas na lista):
+  //  • Outras Demandas → relatorio_itens.outras_demandas (foto mais recente)
+  //  • Dose Certa / Inex → item_classificacao (classificação permanente)
   const itens = db.prepare(`
     SELECT e.*,
-      (SELECT COUNT(*) FROM ${tabelaCompras} s WHERE s.codigo_item = e.codigo_item AND s.status IN (${placeholders})) AS compras_abertas
+      (SELECT COUNT(*) FROM ${tabelaCompras} s WHERE s.codigo_item = e.codigo_item AND s.status IN (${placeholders})) AS compras_abertas,
+      (SELECT ri.outras_demandas FROM relatorio_itens ri WHERE ri.codigo = e.codigo_item ORDER BY ri.data_referencia DESC LIMIT 1) AS prog_outras_demandas,
+      (SELECT ic.dose_certa FROM item_classificacao ic WHERE ic.codigo_item = e.codigo_item) AS prog_dose_certa,
+      (SELECT ic.inex FROM item_classificacao ic WHERE ic.codigo_item = e.codigo_item) AS prog_inex
     FROM estoque_itens e
     ${where}
     ORDER BY e.descricao COLLATE NOCASE ASC

@@ -6,7 +6,17 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | Nada pendente. | — | — | — |
+| 1 | Etiquetas de programa (Outras Demandas / Dose Certa / Inex) no estoque | (homolog) | 11/08/2026 | ✅ Pronto em homolog, aguardando publicar |
+
+### Detalhe das pendências
+
+**Etiquetas de programa no estoque (Estoque TP + Estoque Geral).**
+Cada item do estoque mostra etiquetas coloridas abaixo do código indicando a que
+programa pertence: **Outras Demandas** (azul — `relatorio_itens.outras_demandas`),
+**Dose Certa** (verde — `item_classificacao.dose_certa`) e **Inex** (âmbar —
+`item_classificacao.inex`). Só aparece a etiqueta do programa a que o item
+pertence. Vale para as listas de Estoque Tenente Pena e Itens em Estoque Geral.
+**Pós-publicação:** reiniciar produção (consulta nova no backend).
 
 ## Publicadas recentemente
 

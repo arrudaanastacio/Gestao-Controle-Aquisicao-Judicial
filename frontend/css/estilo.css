@@ -697,6 +697,13 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   max-width: none;
 }
 
+/* Etiquetas de programa (Outras Demandas / Dose Certa / Inex) na lista de estoque. */
+.tags-programa { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+.tag-programa { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.tag-programa.od { background: #E6F1FB; color: #0C447C; }
+.tag-programa.dc { background: #E1F5EE; color: #085041; }
+.tag-programa.ix { background: #FAEEDA; color: #633806; }
+
 /* Gráfico de barras por categoria (tela de Alertas) — HTML/CSS puro, sem libs. */
 .grafico-categoria { margin: 4px 0 18px; }
 .grafico-categoria .titulo-graf { font-size: 13px; color: var(--cinza-texto); margin: 0 0 8px; }

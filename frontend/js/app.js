@@ -80,6 +80,16 @@ function proximaValidade(lotesTexto) {
   return melhor;
 }
 
+// Monta as etiquetas de programa (Outras Demandas / Dose Certa / Inex) de um
+// item do estoque. Só mostra a etiqueta do programa a que o item pertence.
+function etiquetasProgramaHTML(it) {
+  const tags = [];
+  if (it.prog_outras_demandas === 'Sim') tags.push('<span class="tag-programa od">Outras Demandas</span>');
+  if (it.prog_dose_certa === 'Sim') tags.push('<span class="tag-programa dc">Dose Certa</span>');
+  if (it.prog_inex === 'Sim') tags.push('<span class="tag-programa ix">Inex</span>');
+  return tags.length ? `<div class="tags-programa">${tags.join('')}</div>` : '';
+}
+
 // Classifica uma validade DD/MM/YYYY: 'vencido', 'proximo' (<=90 dias) ou ''.
 function classeValidade(validadeBR) {
   if (!validadeBR) return '';
@@ -1742,7 +1752,7 @@ async function carregarTabelaEstoque() {
       }
       return `
         <tr>
-          <td>${it.descricao || '—'}<br><span class="col-codigo">${it.codigo_item}</span></td>
+          <td>${it.descricao || '—'}<br><span class="col-codigo">${it.codigo_item}</span>${etiquetasProgramaHTML(it)}</td>
           <td>${fmtNumero(it.demandas)}</td>
           <td>${fmtNumero(it.consumo_mensal_total)}</td>
           <td>${fmtNumero(it.estoque)}</td>
@@ -1928,7 +1938,7 @@ async function carregarTabelaEstoqueGeral() {
       }
       return `
         <tr>
-          <td>${it.descricao || '—'}<br><span class="col-codigo">${it.codigo_item}</span></td>
+          <td>${it.descricao || '—'}<br><span class="col-codigo">${it.codigo_item}</span>${etiquetasProgramaHTML(it)}</td>
           <td>${it.unidade || '—'}</td>
           <td>${fmtNumero(it.demandas)}</td>
           <td>${fmtNumero(it.consumo_mensal_total)}</td>
