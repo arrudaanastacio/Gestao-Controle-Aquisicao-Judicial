@@ -8,6 +8,7 @@
 |---|----------|----------------------|------|--------|
 | 1 | Etiquetas de programa (Outras Demandas / Dose Certa / Inex) no estoque | (homolog) | 11/08/2026 | ✅ Pronto em homolog, aguardando publicar |
 | 2 | Estoque geral ordenado por medicamento + unidade dispensadora | (homolog) | 11/08/2026 | ✅ Pronto em homolog, aguardando publicar |
+| 3 | Modal do estoque: 3 cards de demanda/consumo por programa (Judicial / Adm / JEFAZ) | (homolog) | 11/08/2026 | ⏳ Precisa rodar "Atualizar via Oracle" na homolog p/ validar CF/JEFAZ |
 
 ### Detalhe das pendências
 

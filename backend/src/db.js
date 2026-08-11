@@ -146,6 +146,12 @@ const colunasEstoque = db.prepare("PRAGMA table_info(estoque_itens)").all().map(
 if (!colunasEstoque.includes('controlado')) db.exec("ALTER TABLE estoque_itens ADD COLUMN controlado TEXT");
 if (!colunasEstoque.includes('importado')) db.exec("ALTER TABLE estoque_itens ADD COLUMN importado TEXT");
 if (!colunasEstoque.includes('unidade')) db.exec("ALTER TABLE estoque_itens ADD COLUMN unidade TEXT");
+// Demanda/consumo por programa (Comissão de Farmacologia = "Adm", e JEFAZ),
+// espelhando demandas_aj/consumo_mensal_aj (ação judicial). Vêm da query Oracle.
+if (!colunasEstoque.includes('demandas_cf')) db.exec("ALTER TABLE estoque_itens ADD COLUMN demandas_cf REAL");
+if (!colunasEstoque.includes('consumo_mensal_cf')) db.exec("ALTER TABLE estoque_itens ADD COLUMN consumo_mensal_cf REAL");
+if (!colunasEstoque.includes('demandas_jefaz')) db.exec("ALTER TABLE estoque_itens ADD COLUMN demandas_jefaz REAL");
+if (!colunasEstoque.includes('consumo_mensal_jefaz')) db.exec("ALTER TABLE estoque_itens ADD COLUMN consumo_mensal_jefaz REAL");
 
 // Arquivamento histórico: marca quais importações sao snapshots permanentes
 // (referencia dia 01 ou 15). data_referencia segue sendo a data de coleta.

@@ -3170,6 +3170,17 @@ async function carregarTabelaAquisicaoODAndamento() {
   document.getElementById('botaoProximoAquisicaoODAndamento').disabled = dados.page >= totalPaginas;
 }
 
+// Card de demanda/consumo por programa (Judicial / Adm / JEFAZ) no modal.
+function cardPrograma(titulo, cls, demanda, consumo, tooltip) {
+  return `<div class="card-programa ${cls}">
+    <span class="titp-programa"${tooltip ? ` title="${escAttr(tooltip)}"` : ''}>${titulo}</span>
+    <div class="duo-programa">
+      <div><div class="rot2p">Demanda</div><div class="n2p">${fmtNumero(demanda)}</div></div>
+      <div><div class="rot2p">Consumo/mês</div><div class="n2p">${fmtNumero(consumo)}</div></div>
+    </div>
+  </div>`;
+}
+
 async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp', unidade = '') {
   const modal = document.getElementById('modalEstoqueItem');
   const conteudo = document.getElementById('conteudoModalEstoque');
@@ -3192,11 +3203,16 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp', unidade = '')
 
   if (e) {
     html += `
-      <div class="grade-resumo" style="grid-template-columns: repeat(4, 1fr); margin-bottom:18px;">
+      <div class="grade-resumo" style="grid-template-columns: repeat(4, 1fr); margin-bottom:12px;">
         ${kpiCard('chart', fmtNumero(e.estoque), 'Estoque', 'saldo atual')}
         ${kpiCard('relogio', fmtNumero(e.autonomia), 'Autonomia', 'meses de cobertura')}
         ${kpiCard('list', fmtNumero(e.demandas), 'Demandas', 'pacientes com demanda')}
         ${kpiCard('doc', fmtNumero(e.consumo_mensal_total), 'Consumo/mês', 'média mensal')}
+      </div>
+      <div class="grade-programas">
+        ${cardPrograma('Judicial', 'jud', e.demandas_aj, e.consumo_mensal_aj)}
+        ${cardPrograma('Adm', 'adm', e.demandas_cf, e.consumo_mensal_cf, 'Comissão de Farmacologia')}
+        ${cardPrograma('JEFAZ', 'jef', e.demandas_jefaz, e.consumo_mensal_jefaz)}
       </div>
     `;
   } else {

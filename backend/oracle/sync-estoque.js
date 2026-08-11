@@ -30,6 +30,10 @@ const MAPA_ORACLE = {
   DEMANDAS_AJ: 'demandas_aj',
   CONSUMO_MENSAL: 'consumo_mensal_total',
   CONSUMO_MENSAL_AJ: 'consumo_mensal_aj',
+  DEMANDAS_CF: 'demandas_cf',
+  CONSUMO_MENSAL_CF: 'consumo_mensal_cf',
+  DEMANDAS_JEFAZ: 'demandas_jefaz',
+  CONSUMO_MENSAL_JEFAZ: 'consumo_mensal_jefaz',
   ESTOQUE: 'estoque',
   AUTONOMIA: 'autonomia',
   CUSTO_UNITARIO: 'custo_unitario',
@@ -40,6 +44,7 @@ const MAPA_ORACLE = {
 // Campos numéricos: o driver Oracle já devolve number, mas garante o tipo.
 const CAMPOS_NUMERICOS = new Set([
   'demandas', 'demandas_aj', 'consumo_mensal_total', 'consumo_mensal_aj',
+  'demandas_cf', 'consumo_mensal_cf', 'demandas_jefaz', 'consumo_mensal_jefaz',
   'estoque', 'autonomia', 'custo_unitario', 'valor_medio_unitario',
 ]);
 

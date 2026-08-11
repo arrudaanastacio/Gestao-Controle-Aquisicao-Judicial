@@ -51,6 +51,10 @@ const MAPA_CABECALHOS = {
   demandas_aj: ['demandas aj'],
   consumo_mensal_total: ['consumo mensal total'],
   consumo_mensal_aj: ['consumo mensal aj'],
+  demandas_cf: ['demandas cf'],
+  consumo_mensal_cf: ['consumo mensal cf'],
+  demandas_jefaz: ['demandas jefaz'],
+  consumo_mensal_jefaz: ['consumo mensal jefaz'],
   estoque: ['estoque'],
   autonomia: ['autonomia'],
   custo_unitario: ['custo unitario'],
@@ -148,6 +152,10 @@ function processarEstoque(buffer) {
       demandas_aj: numero(cel(r, 'demandas_aj')),
       consumo_mensal_total: numero(cel(r, 'consumo_mensal_total')),
       consumo_mensal_aj: numero(cel(r, 'consumo_mensal_aj')),
+      demandas_cf: numero(cel(r, 'demandas_cf')),
+      consumo_mensal_cf: numero(cel(r, 'consumo_mensal_cf')),
+      demandas_jefaz: numero(cel(r, 'demandas_jefaz')),
+      consumo_mensal_jefaz: numero(cel(r, 'consumo_mensal_jefaz')),
       estoque: numero(cel(r, 'estoque')),
       autonomia: numero(cel(r, 'autonomia')),
       custo_unitario: numero(cel(r, 'custo_unitario')),
@@ -236,7 +244,9 @@ function importarEstoqueDeLinhas(linhas, opcoes = {}) {
     const campos = ['importacao_id', 'data_referencia', 'codigo_item', 'id_item_origem', 'descricao',
       'siafisico', 'catmat', 'unidade', 'categoria', 'controlado', 'tipo_item', 'marca', 'importado',
       'outras_demandas', 'demandas',
-      'demandas_aj', 'consumo_mensal_total', 'consumo_mensal_aj', 'estoque', 'autonomia',
+      'demandas_aj', 'consumo_mensal_total', 'consumo_mensal_aj',
+      'demandas_cf', 'consumo_mensal_cf', 'demandas_jefaz', 'consumo_mensal_jefaz',
+      'estoque', 'autonomia',
       'custo_unitario', 'valor_medio_unitario', 'lotes'];
     const stmt = db.prepare(
       `INSERT INTO estoque_itens (${campos.join(',')}) VALUES (${campos.map(() => '?').join(',')})`
@@ -248,7 +258,9 @@ function importarEstoqueDeLinhas(linhas, opcoes = {}) {
       stmt.run(importacaoId, dataReferencia, v(l.codigo_item), v(l.id_item_origem), v(l.descricao),
         v(l.siafisico), v(l.catmat), v(l.unidade), v(l.categoria), v(l.controlado), v(l.tipo_item), v(l.marca), v(l.importado),
         v(l.outras_demandas), v(l.demandas),
-        v(l.demandas_aj), v(l.consumo_mensal_total), v(l.consumo_mensal_aj), v(l.estoque), v(l.autonomia),
+        v(l.demandas_aj), v(l.consumo_mensal_total), v(l.consumo_mensal_aj),
+        v(l.demandas_cf), v(l.consumo_mensal_cf), v(l.demandas_jefaz), v(l.consumo_mensal_jefaz),
+        v(l.estoque), v(l.autonomia),
         v(l.custo_unitario), v(l.valor_medio_unitario), v(l.lotes));
     }
 

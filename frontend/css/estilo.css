@@ -697,6 +697,17 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   max-width: none;
 }
 
+/* Cards de demanda/consumo por programa no modal de estoque (Judicial/Adm/JEFAZ). */
+.grade-programas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+.card-programa { border: 1px solid var(--linha); border-radius: var(--raio-cartao); padding: 12px 14px; background: var(--papel-elevado); }
+.card-programa .titp-programa { font-size: 12px; font-weight: 600; display: inline-block; padding: 2px 9px; border-radius: 999px; margin-bottom: 10px; }
+.card-programa.jud .titp-programa { color: #0C447C; background: #E6F1FB; }
+.card-programa.adm .titp-programa { color: #085041; background: #E1F5EE; cursor: help; }
+.card-programa.jef .titp-programa { color: #633806; background: #FAEEDA; }
+.card-programa .duo-programa { display: flex; gap: 18px; }
+.card-programa .rot2p { font-size: 11px; color: var(--cinza-texto); }
+.card-programa .n2p { font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
 /* Etiquetas de programa (Outras Demandas / Dose Certa / Inex) na lista de estoque. */
 .tags-programa { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
 .tag-programa { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
