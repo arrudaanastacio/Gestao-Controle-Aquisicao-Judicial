@@ -533,7 +533,7 @@ router.get('/', (req, res) => {
       (SELECT ic.inex FROM item_classificacao ic WHERE ic.codigo_item = e.codigo_item) AS prog_inex
     FROM estoque_itens e
     ${where}
-    ORDER BY e.descricao COLLATE NOCASE ASC
+    ORDER BY e.descricao COLLATE NOCASE ASC, e.unidade COLLATE NOCASE ASC
     LIMIT ? OFFSET ?
   `).all(...STATUS_EM_ABERTO, ...params, limit, offset);
 

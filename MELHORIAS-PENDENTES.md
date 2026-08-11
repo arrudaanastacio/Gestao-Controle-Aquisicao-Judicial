@@ -7,6 +7,7 @@
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
 | 1 | Etiquetas de programa (Outras Demandas / Dose Certa / Inex) no estoque | (homolog) | 11/08/2026 | ✅ Pronto em homolog, aguardando publicar |
+| 2 | Estoque geral ordenado por medicamento + unidade dispensadora | (homolog) | 11/08/2026 | ✅ Pronto em homolog, aguardando publicar |
 
 ### Detalhe das pendências
 
