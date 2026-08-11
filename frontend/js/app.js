@@ -767,9 +767,44 @@ async function carregarPainel() {
     <div class="cartao-cabecalho"><h3>Alertas recentes</h3><button class="painel-link" onclick="mudarPagina('alertas')">Ver todos →</button></div>
     <div class="lista-alertas">${listaAlertas}</div>`;
 
+  // --- Alertas por categoria (gráfico, reaproveita os alertas já buscados) ---
+  renderPainelCategoriaAlertas(alertas);
+
   // --- Compras em andamento (recentes) ---
   estadoPainel.status = null;
   renderPainelCompras(recentes.solicitacoes || [], null);
+}
+
+// Categoria de alerta escolhida no Painel, para pré-filtrar a tela de Alertas.
+let categoriaAlertaInicial = '';
+
+// Gráfico "Alertas por categoria" no Painel (mesmo visual da tela de Alertas).
+// Reaproveita os alertas já buscados; clicar leva à tela de Alertas já filtrada.
+function renderPainelCategoriaAlertas(alertas) {
+  const box = document.getElementById('painelCategoriaAlertas');
+  if (!box) return;
+  const cont = {};
+  for (const a of alertas) { const c = a.categoria || 'Sem categoria'; cont[c] = (cont[c] || 0) + 1; }
+  const linhas = Object.entries(cont).sort((x, y) => y[1] - x[1]);
+  if (linhas.length === 0) { box.hidden = true; return; }
+  box.hidden = false;
+  const total = alertas.length;
+  const maxV = Math.max(...linhas.map(([, v]) => v));
+  let extra = 0;
+  const cor = (cat) => CORES_CATEGORIA_ALERTA[cat] || PALETA_CATEGORIA_EXTRA[extra++ % PALETA_CATEGORIA_EXTRA.length];
+  box.innerHTML = `<div class="cartao-cabecalho"><h3>Alertas por categoria</h3><span class="texto-apoio">clique para ver</span></div>` +
+    `<div class="grafico-categoria">` + linhas.map(([cat, v]) => {
+      const larg = Math.round((v / maxV) * 100), pct = Math.round((v / total) * 100);
+      return `<div class="linha-cat" data-cat="${escAttr(cat)}" role="button" tabindex="0">
+        <span class="rot-cat" title="${escAttr(cat)}">${cat}</span>
+        <span class="trilho-cat"><span class="barra-cat" style="width:${larg}%; background:${cor(cat)};"></span></span>
+        <span class="val-cat">${fmtNumero(v)} · ${pct}%</span></div>`;
+    }).join('') + `</div>`;
+  box.querySelectorAll('.linha-cat').forEach((el) => {
+    const ir = () => { categoriaAlertaInicial = el.dataset.cat; mudarPagina('alertas'); };
+    el.addEventListener('click', ir);
+    el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ir(); } });
+  });
 }
 
 // Monta a tabela de compras do painel. `status` nulo = "em andamento"
@@ -6672,7 +6707,9 @@ async function carregarAlertas() {
   const container = document.getElementById('listaAlertas');
   const tipoFiltro = document.getElementById('filtroTipoAlerta').value;
   const selCategoria = document.getElementById('filtroCategoriaAlerta');
-  const categoriaFiltro = selCategoria.value;
+  // Se veio do gráfico do Painel, usa a categoria escolhida lá (e limpa a marca).
+  const categoriaFiltro = categoriaAlertaInicial || selCategoria.value;
+  categoriaAlertaInicial = '';
   const mostrarResolvidos = document.getElementById('filtroAlertasResolvidos').checked;
 
   const params = new URLSearchParams();
