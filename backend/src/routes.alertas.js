@@ -12,7 +12,17 @@ router.get('/', (req, res) => {
   if (resolvido === 'false') where = 'WHERE resolvido = 0';
   if (resolvido === 'true') where = 'WHERE resolvido = 1';
 
-  const alertas = db.prepare(`SELECT * FROM alertas ${where} ORDER BY criado_em DESC`).all(...params);
+  // A categoria não fica na tabela de alertas — vem do item no estoque mais
+  // recente (escopo Tenente Pena). Usada para o filtro de categoria na tela.
+  const alertas = db.prepare(`
+    SELECT a.*,
+      (SELECT e.categoria FROM estoque_itens e
+        WHERE e.codigo_item = a.codigo_item
+          AND (e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')
+          AND e.categoria IS NOT NULL AND e.categoria <> ''
+        ORDER BY e.data_referencia DESC LIMIT 1) AS categoria
+    FROM alertas a ${where} ORDER BY a.criado_em DESC
+  `).all(...params);
   const totalAbertos = db.prepare('SELECT COUNT(*) c FROM alertas WHERE resolvido = 0').get().c;
 
   res.json({ alertas, totalAbertos });

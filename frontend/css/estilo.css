@@ -690,6 +690,20 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaSaidaLotes:not([hidden])),
 .conteudo:has(> #paginaReservas:not([hidden])),
 .conteudo:has(> #paginaRupturas:not([hidden])),
+/* Gráfico de barras por categoria (tela de Alertas) — HTML/CSS puro, sem libs. */
+.grafico-categoria { margin: 4px 0 18px; }
+.grafico-categoria .titulo-graf { font-size: 13px; color: var(--cinza-texto); margin: 0 0 8px; }
+.grafico-categoria .linha-cat {
+  display: grid; grid-template-columns: 150px 1fr 120px; align-items: center;
+  gap: 10px; padding: 4px 6px; border-radius: 6px; cursor: pointer;
+}
+.grafico-categoria .linha-cat:hover { background: rgba(0,0,0,0.04); }
+.grafico-categoria .linha-cat.ativa { background: rgba(143,224,194,0.18); }
+.grafico-categoria .rot-cat { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grafico-categoria .trilho-cat { background: rgba(0,0,0,0.06); border-radius: 999px; height: 18px; overflow: hidden; }
+.grafico-categoria .barra-cat { height: 100%; border-radius: 999px; min-width: 2px; transition: width .35s ease; }
+.grafico-categoria .val-cat { font-size: 12.5px; color: var(--cinza-texto); text-align: right; font-variant-numeric: tabular-nums; }
+
 .conteudo:has(> #paginaPainel:not([hidden])),
 .conteudo:has(> #paginaDistribuicao:not([hidden])),
 .conteudo:has(> #paginaUsuarios:not([hidden])),

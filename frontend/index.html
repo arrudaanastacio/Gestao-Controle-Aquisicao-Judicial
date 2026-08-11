@@ -2219,10 +2219,14 @@
             <option value="compra_aberta_demanda_zero">Compra em aberto + demanda zero</option>
             <option value="item_removido_com_historico">Item removido do elenco com histórico</option>
           </select>
+          <select id="filtroCategoriaAlerta">
+            <option value="">Todas as categorias</option>
+          </select>
           <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--cinza-texto);">
             <input type="checkbox" id="filtroAlertasResolvidos"> Mostrar resolvidos
           </label>
         </div>
+        <div id="graficoAlertasCategoria" class="grafico-categoria"></div>
         <div id="listaAlertas"></div>
       </section>
 

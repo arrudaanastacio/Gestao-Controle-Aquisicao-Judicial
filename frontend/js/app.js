@@ -6632,6 +6632,7 @@ document.getElementById('botaoSalvarLimiar').addEventListener('click', async () 
 
 // -------------------- Alertas --------------------
 document.getElementById('filtroTipoAlerta').addEventListener('change', carregarAlertas);
+document.getElementById('filtroCategoriaAlerta').addEventListener('change', carregarAlertas);
 document.getElementById('filtroAlertasResolvidos').addEventListener('change', carregarAlertas);
 
 const ROTULO_TIPO_ALERTA = {
@@ -6644,13 +6645,28 @@ const ROTULO_TIPO_ALERTA = {
 async function carregarAlertas() {
   const container = document.getElementById('listaAlertas');
   const tipoFiltro = document.getElementById('filtroTipoAlerta').value;
+  const selCategoria = document.getElementById('filtroCategoriaAlerta');
+  const categoriaFiltro = selCategoria.value;
   const mostrarResolvidos = document.getElementById('filtroAlertasResolvidos').checked;
 
   const params = new URLSearchParams();
   if (!mostrarResolvidos) params.set('resolvido', 'false');
 
   const { alertas } = await api(`/alertas?${params.toString()}`);
-  const filtrados = tipoFiltro ? alertas.filter((a) => a.tipo === tipoFiltro) : alertas;
+
+  // Popula o filtro de categoria com as categorias presentes nos alertas,
+  // preservando a seleção atual.
+  const categorias = [...new Set(alertas.map((a) => a.categoria).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'pt'));
+  selCategoria.innerHTML = '<option value="">Todas as categorias</option>' +
+    categorias.map((c) => `<option value="${escAttr(c)}" ${c === categoriaFiltro ? 'selected' : ''}>${c}</option>`).join('');
+  selCategoria.value = categorias.includes(categoriaFiltro) ? categoriaFiltro : '';
+
+  // Gráfico por categoria (visão geral, respeita só o filtro de tipo).
+  const baseGrafico = tipoFiltro ? alertas.filter((a) => a.tipo === tipoFiltro) : alertas;
+  renderGraficoAlertasCategoria(baseGrafico, categoriaFiltro);
+
+  let filtrados = tipoFiltro ? alertas.filter((a) => a.tipo === tipoFiltro) : alertas;
+  if (categoriaFiltro) filtrados = filtrados.filter((a) => a.categoria === categoriaFiltro);
 
   if (filtrados.length === 0) {
     container.innerHTML = '<div class="estado-vazio">Nenhum alerta com estes filtros.</div>';
@@ -6686,6 +6702,58 @@ async function carregarAlertas() {
         alert(e.message);
       }
     });
+  });
+}
+
+// Gráfico de barras por categoria (HTML/CSS, sem biblioteca externa). Cada barra
+// é clicável: aplica/limpa o filtro de categoria. Cores fixas por categoria.
+const CORES_CATEGORIA_ALERTA = {
+  'Medicamentos': '#2a78d6',
+  'Materiais': '#eb6834',
+  'Nutrição': '#1baf7a',
+  'Outros Itens': '#eda100',
+};
+const PALETA_CATEGORIA_EXTRA = ['#e87ba4', '#4a3aa7', '#639922', '#888780'];
+
+function renderGraficoAlertasCategoria(alertas, categoriaSelecionada) {
+  const box = document.getElementById('graficoAlertasCategoria');
+  if (!box) return;
+
+  const contagem = {};
+  for (const a of alertas) {
+    const c = a.categoria || 'Sem categoria';
+    contagem[c] = (contagem[c] || 0) + 1;
+  }
+  const linhas = Object.entries(contagem).sort((x, y) => y[1] - x[1]);
+  if (linhas.length === 0) { box.innerHTML = ''; return; }
+
+  const total = alertas.length;
+  const maxV = Math.max(...linhas.map(([, v]) => v));
+  let extra = 0;
+  const cor = (cat) => CORES_CATEGORIA_ALERTA[cat] || PALETA_CATEGORIA_EXTRA[extra++ % PALETA_CATEGORIA_EXTRA.length];
+
+  box.innerHTML = `<p class="titulo-graf">Alertas por categoria — total ${fmtNumero(total)} (clique para filtrar)</p>` +
+    linhas.map(([cat, v]) => {
+      const larg = Math.round((v / maxV) * 100);
+      const pct = Math.round((v / total) * 100);
+      const ativa = cat === categoriaSelecionada ? ' ativa' : '';
+      return `<div class="linha-cat${ativa}" data-cat="${escAttr(cat)}" role="button" tabindex="0">
+        <span class="rot-cat" title="${escAttr(cat)}">${cat}</span>
+        <span class="trilho-cat"><span class="barra-cat" style="width:${larg}%; background:${cor(cat)};"></span></span>
+        <span class="val-cat">${fmtNumero(v)} · ${pct}%</span>
+      </div>`;
+    }).join('');
+
+  box.querySelectorAll('.linha-cat').forEach((el) => {
+    const aplicar = () => {
+      const cat = el.dataset.cat;
+      const sel = document.getElementById('filtroCategoriaAlerta');
+      // Clicar na categoria já ativa limpa o filtro (alterna).
+      sel.value = (sel.value === cat) ? '' : cat;
+      carregarAlertas();
+    };
+    el.addEventListener('click', aplicar);
+    el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); aplicar(); } });
   });
 }
 
