@@ -137,10 +137,10 @@ FROM (
       AND STA.sta_descricao LIKE 'Demanda Ativa%'
       AND (:und_id IS NULL OR ORD.und_id = :und_id)
 ) reg
--- Só itens ATIVOS na demanda do paciente. Exclui inativos/suspensos
--- (Inativação, Suspensão Médica/Judicial, Descontinuado, Migrado Programa,
--- Negado na Renovação, Solidário Município/União, Local da Prescrição,
--- Bloqueio de Verba, Judicializado, etc.). Ajuste esta lista se algum
--- desses status precisar voltar a aparecer.
-WHERE reg.status_item IN ('Item em Atendimento', 'Item Atendido')
+-- Só itens ATIVOS na demanda do paciente = "Item em Atendimento" (demanda
+-- ativa + item não concluído + sem motivo de recusa). TODO o resto é
+-- inativo/suspenso — inclusive "Item Atendido", que é o rótulo dos itens
+-- SUSPENSOS (ex.: Sergio Viana Assis: ácido zoledrônico/teriparatida
+-- "Suspenso em ...", dropdown "Item Atendido"). Só denosumabe fica.
+WHERE reg.status_item = 'Item em Atendimento'
 ORDER BY reg.und_descricao, reg.aut_nome, reg.desc_produto

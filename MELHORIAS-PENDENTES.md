@@ -8,7 +8,7 @@
 |---|----------|----------------------|------|--------|
 | 1 | Gráfico "Alertas por categoria" no Painel inicial (clicável → tela de Alertas filtrada) | 7d848b3 | 11/08/2026 | ✅ Pronto em homolog (frontend) |
 | 2 | Listagens de Autores (TP + Demais Unidades): botão "👁 Ver" abre modal com Prazo, Periodicidade, Data Última Dispensação e Data Último Retorno (tira Prazo/Periodicidade da tabela) | 0718318 | 12/08/2026 | ✅ Pronto em homolog (frontend) |
-| 3 | Listagem de Autores: trazer **Status Item** do SCODES e mostrar **só itens ATIVOS** (exclui Inativação/Suspensão/Descontinuado/etc.). Corrige itens inativos aparecendo na demanda do paciente (ex.: Zelita — some teriparatida/zoledrônico, sobra só denosumabe). | (homolog) | 12/08/2026 | ⏳ Aguardando validar na homolog (reiniciar + Atualizar via Oracle) |
+| 3 | Listagem de Autores: trazer **Status Item** do SCODES e mostrar **só "Item em Atendimento"** (exclui Inativação/Suspensão/Descontinuado/Item Atendido/etc.). Corrige itens inativos/suspensos aparecendo na demanda do paciente (ex.: Zelita e Sergio Viana Assis — some teriparatida/zoledrônico suspensos, sobra só denosumabe). | (homolog) | 12/08/2026 | ⏳ Aguardando validar na homolog (reiniciar + Atualizar via Oracle) |
 
 ### Detalhe das pendências
 
