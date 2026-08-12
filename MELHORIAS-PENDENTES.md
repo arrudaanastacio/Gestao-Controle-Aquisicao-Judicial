@@ -6,11 +6,8 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Etiquetas de programa (Outras Demandas / Dose Certa / Inex) no estoque | (homolog) | 11/08/2026 | ✅ Pronto em homolog, aguardando publicar |
-| 2 | Estoque geral ordenado por medicamento + unidade dispensadora | (homolog) | 11/08/2026 | ✅ Pronto em homolog, aguardando publicar |
-| 3 | Modal do estoque: 3 cards de demanda/consumo por programa (Judicial / Adm / JEFAZ) | (homolog) | 11/08/2026 | ✅ Validado na homolog (Oracle) |
-| 4 | Gráfico "Alertas por categoria" no Painel inicial (clicável → tela de Alertas filtrada) | (homolog) | 11/08/2026 | ✅ Pronto em homolog (frontend) |
-| 5 | Listagens de Autores (TP + Demais Unidades): botão "👁 Ver" abre modal com Prazo, Periodicidade, Data Última Dispensação e Data Último Retorno (tira Prazo/Periodicidade da tabela) | (homolog) | 12/08/2026 | ✅ Pronto em homolog (frontend) |
+| 1 | Gráfico "Alertas por categoria" no Painel inicial (clicável → tela de Alertas filtrada) | 7d848b3 | 11/08/2026 | ✅ Pronto em homolog (frontend) |
+| 2 | Listagens de Autores (TP + Demais Unidades): botão "👁 Ver" abre modal com Prazo, Periodicidade, Data Última Dispensação e Data Último Retorno (tira Prazo/Periodicidade da tabela) | 0718318 | 12/08/2026 | ✅ Pronto em homolog (frontend) |
 
 ### Detalhe das pendências
 
@@ -23,6 +20,24 @@ pertence. Vale para as listas de Estoque Tenente Pena e Itens em Estoque Geral.
 **Pós-publicação:** reiniciar produção (consulta nova no backend).
 
 ## Publicadas recentemente
+
+### 12/08/2026 — Estoque: etiquetas de programa, ordenação e cards CF/JEFAZ (commits 4325ad7, 550c316, 0f00190)
+
+Três melhorias do estoque publicadas juntas (empilhadas nos mesmos arquivos):
+
+- **Etiquetas de programa** (Outras Demandas / Dose Certa / Inex) abaixo do código,
+  nas listas de Estoque Tenente Pena e Itens em Estoque Geral.
+- **Estoque geral ordenado** por medicamento e depois por unidade dispensadora.
+- **Modal do estoque com 3 cards de demanda/consumo por programa** — Judicial (AJ),
+  **Adm** (Comissão de Farmacologia) e **JEFAZ** — alimentados pela query de estoque
+  do Oracle (`query-estoque.sql`, separação por PED_TIPO). Novas colunas
+  `demandas_cf/consumo_mensal_cf/demandas_jefaz/consumo_mensal_jefaz` em `estoque_itens`.
+
+**Pós-publicação (produção):** 1) **reiniciar a produção** (`REINICIAR-PRODUCAO
+(porta 3000).bat`) — cria as colunas novas e carrega a query nova; 2) na tela de
+Estoque, clicar **"Atualizar via Oracle"** uma vez para preencher CF/JEFAZ com o
+dado real. Só depois desses dois passos o CF/JEFAZ aparece (no modal e no relatório
+Estoque × Compras).
 
 ### v1.15.0 — 10/08/2026 (Estoque geral por unidade, lotes e Primeiro Atendimento)
 
