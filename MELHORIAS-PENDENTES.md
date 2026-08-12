@@ -6,21 +6,26 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Gráfico "Alertas por categoria" no Painel inicial (clicável → tela de Alertas filtrada) | 7d848b3 | 11/08/2026 | ✅ Pronto em homolog (frontend) |
-| 2 | Listagens de Autores (TP + Demais Unidades): botão "👁 Ver" abre modal com Prazo, Periodicidade, Data Última Dispensação e Data Último Retorno (tira Prazo/Periodicidade da tabela) | 0718318 | 12/08/2026 | ✅ Pronto em homolog (frontend) |
-| 3 | Listagem de Autores: trazer **Status Item** do SCODES e mostrar **só "Item em Atendimento"** (exclui Inativação/Suspensão/Descontinuado/Item Atendido/etc.). Corrige itens inativos/suspensos aparecendo na demanda do paciente (ex.: Zelita e Sergio Viana Assis — some teriparatida/zoledrônico suspensos, sobra só denosumabe). | (homolog) | 12/08/2026 | ⏳ Aguardando validar na homolog (reiniciar + Atualizar via Oracle) |
-
-### Detalhe das pendências
-
-**Etiquetas de programa no estoque (Estoque TP + Estoque Geral).**
-Cada item do estoque mostra etiquetas coloridas abaixo do código indicando a que
-programa pertence: **Outras Demandas** (azul — `relatorio_itens.outras_demandas`),
-**Dose Certa** (verde — `item_classificacao.dose_certa`) e **Inex** (âmbar —
-`item_classificacao.inex`). Só aparece a etiqueta do programa a que o item
-pertence. Vale para as listas de Estoque Tenente Pena e Itens em Estoque Geral.
-**Pós-publicação:** reiniciar produção (consulta nova no backend).
+| — | (nada pendente no momento) | — | — | — |
 
 ## Publicadas recentemente
+
+### 12/08/2026 — Listagem de Autores: só itens ATIVOS + Painel e botão "Ver" (commits 7d848b3, 0718318, 3265563, 85cdfb0)
+
+Três melhorias publicadas juntas (estavam empilhadas na mesma linha do histórico):
+
+- **Listagem de Autores só mostra "Item em Atendimento"** — a query enxuta só
+  filtrava `orp_ativo_atual = 1`, que é flag de VERSÃO da linha, não de atividade.
+  Por isso itens inativados/suspensos apareciam na demanda do paciente (ex.: Zelita
+  e Sergio Viana Assis — teriparatida/ácido zoledrônico "Suspenso"). Portada a lógica
+  oficial do SCODES: join `recusa_item`, coluna **Status Item** (`STA.classificacao_status=1
+  AND ORP.orp_concluido=0 AND REI.rei_id IS NULL` → "Item em Atendimento", senão o motivo)
+  e filtro `WHERE status_item = 'Item em Atendimento'`. Passa a preencher também os
+  campos `status_item` e `data_inativacao_item` (antes vazios).
+  **Pós-publicação (produção):** reiniciar + "Atualizar via Oracle" na Listagem de Autores.
+- **Gráfico "Alertas por categoria" no Painel** (clicável → Alertas filtrado). Frontend → Ctrl+F5.
+- **Botão "👁 Ver" nas Listagens de Autores** — modal com Prazo, Periodicidade, Data
+  Última Dispensação e Data Último Retorno (tira Prazo/Periodicidade da tabela). Frontend → Ctrl+F5.
 
 ### 12/08/2026 — Estoque: etiquetas de programa, ordenação e cards CF/JEFAZ (commits 4325ad7, 550c316, 0f00190)
 
