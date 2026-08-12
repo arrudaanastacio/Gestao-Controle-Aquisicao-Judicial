@@ -3747,9 +3747,8 @@ async function carregarTabelaAutores() {
         <td class="col-codigo">${a.cod_siafisico || '—'}</td>
         <td class="col-desc" title="${(a.descricao_item || '').replace(/"/g, '')}">${a.descricao_item || celVazia()}</td>
         <td class="col-num">${a.qtde_consumo || '—'}</td>
-        <td>${a.prazo || celVazia()}</td>
-        <td>${a.periodicidade || celVazia()}</td>
         <td>${tagCategoria(a.categoria)}</td>
+        <td><button type="button" class="botao-secundario btn-ver-demanda" data-demanda='${btDadosDemanda(a)}' style="padding:4px 10px; font-size:12px;">👁 Ver</button></td>
       </tr>
     `).join('');
   }
@@ -3981,9 +3980,8 @@ async function carregarTabelaAutoresGeral() {
         <td class="col-codigo">${a.cod_siafisico || '—'}</td>
         <td class="col-desc" title="${(a.descricao_item || '').replace(/"/g, '')}">${a.descricao_item || celVazia()}</td>
         <td class="col-num">${a.qtde_consumo || '—'}</td>
-        <td>${a.prazo || celVazia()}</td>
-        <td>${a.periodicidade || celVazia()}</td>
         <td>${tagCategoria(a.categoria)}</td>
+        <td><button type="button" class="botao-secundario btn-ver-demanda" data-demanda='${btDadosDemanda(a)}' style="padding:4px 10px; font-size:12px;">👁 Ver</button></td>
       </tr>
     `).join('');
   }
@@ -3994,6 +3992,43 @@ async function carregarTabelaAutoresGeral() {
   document.getElementById('botaoAnteriorAutoresGeral').disabled = dados.page <= 1;
   document.getElementById('botaoProximoAutoresGeral').disabled = dados.page >= totalPaginas;
 }
+
+// Modal "Ver" das listagens de autores: guarda os campos na própria célula.
+function btDadosDemanda(a) {
+  const d = {
+    autor: a.autor || '',
+    descricao_item: a.descricao_item || '',
+    prazo: a.prazo || '',
+    periodicidade: a.periodicidade || '',
+    data_ultima_dispensacao: a.data_ultima_dispensacao || '',
+    data_ultimo_retorno: a.data_ultimo_retorno || '',
+  };
+  // atributo entre aspas simples -> escapa aspas simples; o navegador decodifica as entidades
+  return JSON.stringify(d).replace(/&/g, '&amp;').replace(/'/g, '&#39;');
+}
+
+function abrirDetalheDemanda(d) {
+  document.getElementById('subDetalheDemanda').textContent =
+    `${d.autor || '—'} — ${d.descricao_item || '—'}`;
+  const linha = (rot, val) =>
+    `<div style="display:flex; justify-content:space-between; gap:16px; padding:9px 0; border-bottom:1px solid var(--borda);">
+       <span class="texto-secundario">${rot}</span><strong>${escHtml(val || '—')}</strong></div>`;
+  document.getElementById('corpoDetalheDemanda').innerHTML =
+    linha('Prazo', d.prazo) +
+    linha('Periodicidade', d.periodicidade) +
+    linha('Data Última Dispensação', d.data_ultima_dispensacao) +
+    linha('Data Último Retorno', d.data_ultimo_retorno);
+  document.getElementById('modalDetalheDemanda').hidden = false;
+}
+
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('.btn-ver-demanda');
+  if (!b) return;
+  try { abrirDetalheDemanda(JSON.parse(b.dataset.demanda)); } catch (e) { /* ignora */ }
+});
+document.getElementById('botaoFecharDetalheDemanda').addEventListener('click', () => {
+  document.getElementById('modalDetalheDemanda').hidden = true;
+});
 
 // -------------------- Relatório de Itens (catálogo) --------------------
 const estadoRelItens = { pagina: 1, pageSize: 50, filtrosCarregados: false };

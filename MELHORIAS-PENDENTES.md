@@ -10,6 +10,7 @@
 | 2 | Estoque geral ordenado por medicamento + unidade dispensadora | (homolog) | 11/08/2026 | ✅ Pronto em homolog, aguardando publicar |
 | 3 | Modal do estoque: 3 cards de demanda/consumo por programa (Judicial / Adm / JEFAZ) | (homolog) | 11/08/2026 | ✅ Validado na homolog (Oracle) |
 | 4 | Gráfico "Alertas por categoria" no Painel inicial (clicável → tela de Alertas filtrada) | (homolog) | 11/08/2026 | ✅ Pronto em homolog (frontend) |
+| 5 | Listagens de Autores (TP + Demais Unidades): botão "👁 Ver" abre modal com Prazo, Periodicidade, Data Última Dispensação e Data Último Retorno (tira Prazo/Periodicidade da tabela) | (homolog) | 12/08/2026 | ✅ Pronto em homolog (frontend) |
 
 ### Detalhe das pendências
 
