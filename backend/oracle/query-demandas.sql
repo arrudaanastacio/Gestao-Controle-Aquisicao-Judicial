@@ -31,7 +31,9 @@ SELECT
     reg.categoria             AS "Categoria",
     reg.data_ultima_dispensacao AS "Data_Ultima_Dispensacao",
     reg.data_ultimo_retorno   AS "Data_Ultimo_Retorno",
-    reg.pro_siafisico         AS "Cod_SIAFISICO"
+    reg.pro_siafisico         AS "Cod_SIAFISICO",
+    reg.status_item           AS "Status_Item",
+    reg.data_inativacao_item  AS "Data_Inativacao_Item"
 FROM (
     SELECT
         UND.und_descricao,
@@ -42,6 +44,22 @@ FROM (
         Nvl2(PED.ped_num_processo,  'N: ' || PED.ped_num_processo,  PED.ped_num_processo)  AS ped_num_processo,
         STA.sta_descricao AS status,
         TPD.tpd_descricao AS tipo_pedido,
+
+        -- Status do ITEM na demanda (lógica oficial do SCODES): "Item em
+        -- Atendimento" só quando a demanda está ativa (classificacao_status=1),
+        -- o item não foi concluído (orp_concluido=0) e não há motivo de
+        -- recusa/inativação (recusa_item). Caso contrário, mostra o motivo.
+        ( CASE
+            WHEN STA.classificacao_status = 1
+             AND ORP.orp_concluido = 0
+             AND REI.rei_id IS NULL THEN 'Item em Atendimento'
+            ELSE Nvl(REI.rei_descricao, 'Inativação')
+          END ) AS status_item,
+
+        ( CASE
+            WHEN REI.rei_id = 5 THEN NULL
+            ELSE To_char(ORP.orp_dth_suspensao, 'DD/MM/YYYY')
+          END ) AS data_inativacao_item,
 
         (SELECT Min(orp_dth)
            FROM ord_pro OP
@@ -97,6 +115,7 @@ FROM (
          INNER JOIN ord_pro ORP                 ON ORP.ord_id = ORD.ord_id
                                                AND ORP.orp_ativo_atual = 1
          INNER JOIN vw_itens I                  ON I.pro_id = ORP.pro_id
+         LEFT OUTER JOIN recusa_item REI        ON REI.rei_id = ORP.rei_id
          LEFT JOIN (
              SELECT OD9.pea_id AS pea_id, ORDPRO9.pro_id AS pro_id, Count(*) AS total
                FROM rec_ord_pro ROP
@@ -118,4 +137,10 @@ FROM (
       AND STA.sta_descricao LIKE 'Demanda Ativa%'
       AND (:und_id IS NULL OR ORD.und_id = :und_id)
 ) reg
+-- Só itens ATIVOS na demanda do paciente. Exclui inativos/suspensos
+-- (Inativação, Suspensão Médica/Judicial, Descontinuado, Migrado Programa,
+-- Negado na Renovação, Solidário Município/União, Local da Prescrição,
+-- Bloqueio de Verba, Judicializado, etc.). Ajuste esta lista se algum
+-- desses status precisar voltar a aparecer.
+WHERE reg.status_item IN ('Item em Atendimento', 'Item Atendido')
 ORDER BY reg.und_descricao, reg.aut_nome, reg.desc_produto

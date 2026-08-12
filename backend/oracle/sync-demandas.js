@@ -27,6 +27,8 @@ const MAPA_ORACLE = {
   Cod_Item: 'codigo_item',
   Descricao_do_Item: 'descricao_item',
   Qtdade_de_Consumo: 'qtde_consumo',
+  Status_Item: 'status_item',
+  Data_Inativacao_Item: 'data_inativacao_item',
   Dispensacoes: 'dispensacoes',
   Periodicidade: 'periodicidade',
   Prazo: 'prazo',
