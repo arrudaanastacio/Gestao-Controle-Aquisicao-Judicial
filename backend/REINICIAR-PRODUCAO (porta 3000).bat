@@ -26,6 +26,8 @@ echo Para PARAR o sistema, feche esta janela ou aperte Ctrl+C.
 echo ============================================================
 echo.
 
+rem Usa o repositorio de certificados do Windows (CA da UDTP/gov).
+set NODE_USE_SYSTEM_CA=1
 node src/server.js
 
 echo.
