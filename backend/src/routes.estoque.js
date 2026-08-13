@@ -542,7 +542,8 @@ router.get('/', (req, res) => {
       (SELECT COUNT(*) FROM ${tabelaCompras} s WHERE s.codigo_item = e.codigo_item AND s.status IN (${placeholders})) AS compras_abertas,
       (SELECT ri.outras_demandas FROM relatorio_itens ri WHERE ri.codigo = e.codigo_item ORDER BY ri.data_referencia DESC LIMIT 1) AS prog_outras_demandas,
       (SELECT ic.dose_certa FROM item_classificacao ic WHERE ic.codigo_item = e.codigo_item) AS prog_dose_certa,
-      (SELECT ic.inex FROM item_classificacao ic WHERE ic.codigo_item = e.codigo_item) AS prog_inex
+      (SELECT ic.inex FROM item_classificacao ic WHERE ic.codigo_item = e.codigo_item) AS prog_inex,
+      (SELECT ic.subcategoria FROM item_classificacao ic WHERE ic.codigo_item = e.codigo_item) AS subcategoria
     FROM estoque_itens e
     ${where}
     ORDER BY e.descricao COLLATE NOCASE ASC, e.unidade COLLATE NOCASE ASC

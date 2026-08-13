@@ -87,6 +87,9 @@ function etiquetasProgramaHTML(it) {
   if (it.prog_outras_demandas === 'Sim') tags.push('<span class="tag-programa od">Outras Demandas</span>');
   if (it.prog_dose_certa === 'Sim') tags.push('<span class="tag-programa dc">Dose Certa</span>');
   if (it.prog_inex === 'Sim') tags.push('<span class="tag-programa ix">Inex</span>');
+  if (it.subcategoria && String(it.subcategoria).trim()) {
+    tags.push(`<span class="tag-programa sub">${escHtml(String(it.subcategoria).trim())}</span>`);
+  }
   return tags.length ? `<div class="tags-programa">${tags.join('')}</div>` : '';
 }
 

@@ -714,6 +714,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .tag-programa.od { background: #E6F1FB; color: #0C447C; }
 .tag-programa.dc { background: #E1F5EE; color: #085041; }
 .tag-programa.ix { background: #FAEEDA; color: #633806; }
+.tag-programa.sub { background: #ECEBF6; color: #3a3170; }
 
 /* Gráfico de barras por categoria (tela de Alertas) — HTML/CSS puro, sem libs. */
 .grafico-categoria { margin: 4px 0 18px; }

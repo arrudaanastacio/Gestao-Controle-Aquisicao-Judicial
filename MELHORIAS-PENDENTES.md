@@ -9,6 +9,7 @@
 | 1 | Estoque Geral: cards dinâmicos por programa. Trocados os 5 cards estáticos por 4 que reagem à busca/filtros (Judicial · CF/Adm · JEFAZ · Total), mostrando demanda e consumo somados de todas as unidades do conjunto filtrado. `/resumo` passou a respeitar busca/filtros. | (homolog) | 13/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
 | 2 | Distribuição (Sugestão de Reposição): **coeficiente (alvo em meses) ajustável por item** e por **item × unidade**, substituindo o alvo fixo de 3. Coluna "Coef" editável na linha + botão "todas" (aplica a todas as unidades do item). 0 = não distribuir. Persistente (`distribuicao_coeficiente`). Vale para Reposição geral e Hospital Escola. | (homolog) | 13/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
 | 3 | Distribuição: botão **"Manual"** ao lado de "Validar" na Sugestão de Reposição — pergunta a quantidade (prompt) e grava na Grade Final como **manual** (pros casos que fogem à fórmula: D.E, rituximabe). Nova coluna `origem` na `distribuicao_grade` + etiqueta **Calculada/Manual** na Grade Final. | (homolog) | 13/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
+| 4 | Estoque TP e Itens em Estoque Geral: etiqueta de **SubCategoria** (do `item_classificacao`, oficial do REL) abaixo do código, junto das etiquetas de programa. | (homolog) | 13/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
 
 ## Publicadas recentemente
 
