@@ -1170,13 +1170,14 @@ router.post('/grade/validar', (req, res) => {
   const loc = db.prepare('SELECT cod_local FROM distribuicao_locais_entrega WHERE local_entrega = ?').get(localEntrega);
   const codLocal = loc ? loc.cod_local : null;
 
+  const origem = b.origem === 'manual' ? 'manual' : 'calculada';
   db.prepare(`
-    INSERT INTO distribuicao_grade (cod_local, local_entrega, cod_item, medicamento, qtde, validade, codigo_scodes)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO distribuicao_grade (cod_local, local_entrega, cod_item, medicamento, qtde, validade, codigo_scodes, origem)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(local_entrega, codigo_scodes) DO UPDATE SET
       cod_local = excluded.cod_local, cod_item = excluded.cod_item, medicamento = excluded.medicamento,
-      qtde = excluded.qtde, validade = excluded.validade, atualizado_em = datetime('now')
-  `).run(codLocal, localEntrega, texto(b.cod_item), texto(b.medicamento), numero(b.qtde) || 0, texto(b.validade), codigoScodes);
+      qtde = excluded.qtde, validade = excluded.validade, origem = excluded.origem, atualizado_em = datetime('now')
+  `).run(codLocal, localEntrega, texto(b.cod_item), texto(b.medicamento), numero(b.qtde) || 0, texto(b.validade), codigoScodes, origem);
 
   const total = db.prepare('SELECT COUNT(*) c FROM distribuicao_grade').get().c;
   res.json({ ok: true, total });

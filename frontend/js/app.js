@@ -2628,7 +2628,7 @@ function botaoAcaoGrade(it) {
     + ` data-qtde="${escAttr(it.reposicao)}" data-val="${escAttr(it.validade)}"`;
   return validado
     ? `<button class="btn-grade btn-negar" ${attrs}>Negar</button>`
-    : `<button class="btn-grade btn-validar" ${attrs}>Validar</button>`;
+    : `<button class="btn-grade btn-validar" ${attrs}>Validar</button> <button class="btn-grade btn-manual" ${attrs}>Manual</button>`;
 }
 
 // cfg = { prefixo, endpoint, endpointUnidades, classeChk, escolherPadrao(unidades)->[valores] }
@@ -2909,7 +2909,31 @@ function criarPainelReposicao(cfg) {
     const btn = ev.target.closest('.btn-grade');
     if (!btn) return;
     const d = btn.dataset;
+    const manual = btn.classList.contains('btn-manual');
     const validar = btn.classList.contains('btn-validar');
+
+    // "Manual": pergunta a quantidade e grava na grade marcada como manual.
+    if (manual) {
+      const resp = prompt(`Quantidade manual para "${d.med}"\n${d.local}:`, d.qtde || '');
+      if (resp === null) return; // cancelou
+      const q = Number(String(resp).replace(',', '.'));
+      if (!Number.isFinite(q) || q < 0) { alert('Quantidade inválida — use um número ≥ 0.'); return; }
+      btn.disabled = true;
+      try {
+        const r = await api('/distribuicao/grade/validar', {
+          method: 'POST',
+          body: JSON.stringify({
+            local_entrega: d.local, codigo_scodes: d.scodes, cod_item: d.sku,
+            medicamento: d.med, qtde: q, validade: d.val, origem: 'manual',
+          }),
+        });
+        gradeValidadas.add(chaveGrade(d.local, d.scodes));
+        atualizarContadorGrade(r.total);
+        renderizar();
+      } catch (e) { alert('Erro: ' + e.message); btn.disabled = false; }
+      return;
+    }
+
     btn.disabled = true;
     try {
       if (validar) {
@@ -2917,7 +2941,7 @@ function criarPainelReposicao(cfg) {
           method: 'POST',
           body: JSON.stringify({
             local_entrega: d.local, codigo_scodes: d.scodes, cod_item: d.sku,
-            medicamento: d.med, qtde: Number(d.qtde) || 0, validade: d.val,
+            medicamento: d.med, qtde: Number(d.qtde) || 0, validade: d.val, origem: 'calculada',
           }),
         });
         gradeValidadas.add(chaveGrade(d.local, d.scodes));
@@ -2975,6 +2999,7 @@ async function carregarGradeFinal() {
     gradeFinalItens = (itens || []).map((g) => ({
       cod_local: g.cod_local, local_entrega: g.local_entrega, cod_item: g.cod_item,
       medicamento: g.medicamento, qtde: g.qtde, validade: g.validade, codigo_scodes: g.codigo_scodes,
+      origem: g.origem || 'calculada',
     }));
   } catch (e) { gradeFinalItens = []; }
   renderizarGradeFinal();
@@ -3016,6 +3041,7 @@ function renderizarGradeFinal() {
         <td><input type="number" min="0" step="1" value="${escAttr(it.qtde)}" class="input-qtde-grade" data-chave="${escAttr(chave)}" style="width:90px;"></td>
         <td>${it.validade || '—'}</td>
         <td class="col-codigo">${it.codigo_scodes || '—'}</td>
+        <td><span class="tag-origem ${it.origem === 'manual' ? 'manual' : 'calculada'}">${it.origem === 'manual' ? 'Manual' : 'Calculada'}</span></td>
         <td><button class="btn-grade btn-negar btn-remover-grade" data-chave="${escAttr(chave)}">Remover</button></td>
       </tr>`;
   }).join('');

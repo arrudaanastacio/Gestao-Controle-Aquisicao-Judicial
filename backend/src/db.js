@@ -584,6 +584,11 @@ CREATE TABLE IF NOT EXISTS distribuicao_grade (
 );
 `);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_distgrade_local ON distribuicao_grade(local_entrega);`);
+// Origem da quantidade na grade: 'calculada' (fórmula) ou 'manual' (digitada).
+{
+  const colsGrade = db.prepare("PRAGMA table_info(distribuicao_grade)").all().map((c) => c.name);
+  if (!colsGrade.includes('origem')) db.exec("ALTER TABLE distribuicao_grade ADD COLUMN origem TEXT NOT NULL DEFAULT 'calculada'");
+}
 
 // Distribuição Hospital Escola (H.E) — base fechada da planilha
 // "10.Hospital Escola Base.xlsx": lista fixa de medicamentos (aba "Itens")
