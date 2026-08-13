@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | (nada pendente no momento) | — | — | — |
+| 1 | Estoque Geral: cards dinâmicos por programa. Trocados os 5 cards estáticos por 4 que reagem à busca/filtros (Judicial · CF/Adm · JEFAZ · Total), mostrando demanda e consumo somados de todas as unidades do conjunto filtrado. `/resumo` passou a respeitar busca/filtros. | (homolog) | 13/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
 
 ## Publicadas recentemente
 

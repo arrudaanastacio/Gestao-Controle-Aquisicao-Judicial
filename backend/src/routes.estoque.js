@@ -556,24 +556,68 @@ router.get('/', (req, res) => {
 
 // ---------- Resumo (cards) do estoque do dia ----------
 router.get('/resumo', (req, res) => {
-  const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
-  if (!ultima) return res.json({ dataReferencia: null });
+  const { data, q, situacao, autonomia, demanda, escopoUnidade,
+    unidade, categoria, controlado, tipo_item, marca, importado, outras_demandas } = req.query;
 
-  const dataRef = ultima.data_referencia;
+  let dataRef = data;
+  if (!dataRef) {
+    const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+    if (!ultima) return res.json({ dataReferencia: null });
+    dataRef = ultima.data_referencia;
+  }
   const limiar = parseFloat(
     db.prepare("SELECT valor FROM configuracoes WHERE chave = 'autonomia_minima_meses'").get()?.valor || '2'
   );
 
-  const escCond = condEscopoUnidade(req.query.escopoUnidade);
-  const andEsc = escCond ? ' AND ' + escCond : '';
+  // Mesmos filtros da listagem (/) — assim os cards batem exatamente com a
+  // tabela filtrada (busca por medicamento/SCODES, unidade, categoria, etc.).
+  const condicoes = ['e.data_referencia = ?'];
+  const params = [dataRef];
+  const escCond = condEscopoUnidade(escopoUnidade, 'e.');
+  if (escCond) condicoes.push(escCond);
+  if (q) {
+    condicoes.push('(e.descricao LIKE ? OR e.codigo_item LIKE ? OR e.siafisico LIKE ?)');
+    const like = `%${q}%`;
+    params.push(like, like, like);
+  }
+  if (situacao === 'ruptura') condicoes.push('(e.estoque <= 0 AND e.demandas > 0)');
+  if (situacao === 'baixo') condicoes.push('(e.estoque > 0 AND e.autonomia > 0 AND e.autonomia <= ' + limiar + ')');
+  if (situacao === 'zerado') condicoes.push('e.estoque <= 0');
+  const FX = { '0': 'e.autonomia = 0', '0-1': 'e.autonomia >= 0 AND e.autonomia <= 1', '1-2': 'e.autonomia > 1 AND e.autonomia <= 2', '2-6': 'e.autonomia > 2 AND e.autonomia <= 6', '6mais': 'e.autonomia > 6' };
+  if (autonomia && FX[autonomia]) condicoes.push('e.autonomia IS NOT NULL AND (' + FX[autonomia] + ')');
+  if (demanda === 'com') condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
+  if (demanda === 'sem') condicoes.push('(e.demandas IS NULL OR e.demandas = 0)');
+  const filtrosColuna = { categoria, controlado, tipo_item, marca, importado, outras_demandas };
+  for (const [coluna, valor] of Object.entries(filtrosColuna)) {
+    if (valor) { condicoes.push(`e.${coluna} = ?`); params.push(valor); }
+  }
+  if (unidade) {
+    const u = String(unidade).split(',').map((s) => s.trim()).filter(Boolean);
+    if (u.length) { condicoes.push(`e.unidade IN (${u.map(() => '?').join(',')})`); params.push(...u); }
+  }
+  const where = `WHERE ${condicoes.join(' AND ')}`;
 
-  const totalItens = db.prepare(`SELECT COUNT(*) c FROM estoque_itens WHERE data_referencia = ?${andEsc}`).get(dataRef).c;
-  const ruptura = db.prepare(`SELECT COUNT(*) c FROM estoque_itens WHERE data_referencia = ? AND estoque <= 0 AND demandas > 0${andEsc}`).get(dataRef).c;
-  const baixo = db.prepare(`SELECT COUNT(*) c FROM estoque_itens WHERE data_referencia = ? AND estoque > 0 AND autonomia > 0 AND autonomia <= ?${andEsc}`).get(dataRef, limiar).c;
-  const zerado = db.prepare(`SELECT COUNT(*) c FROM estoque_itens WHERE data_referencia = ? AND estoque <= 0${andEsc}`).get(dataRef).c;
-  const valorTotal = db.prepare(`SELECT SUM(estoque * COALESCE(valor_medio_unitario, custo_unitario, 0)) v FROM estoque_itens WHERE data_referencia = ?${andEsc}`).get(dataRef).v;
+  const totalItens = db.prepare(`SELECT COUNT(*) c FROM estoque_itens e ${where}`).get(...params).c;
+  const ruptura = db.prepare(`SELECT COUNT(*) c FROM estoque_itens e ${where} AND e.estoque <= 0 AND e.demandas > 0`).get(...params).c;
+  const baixo = db.prepare(`SELECT COUNT(*) c FROM estoque_itens e ${where} AND e.estoque > 0 AND e.autonomia > 0 AND e.autonomia <= ?`).get(...params, limiar).c;
+  const zerado = db.prepare(`SELECT COUNT(*) c FROM estoque_itens e ${where} AND e.estoque <= 0`).get(...params).c;
+  const valorTotal = db.prepare(`SELECT SUM(e.estoque * COALESCE(e.valor_medio_unitario, e.custo_unitario, 0)) v FROM estoque_itens e ${where}`).get(...params).v;
 
-  res.json({ dataReferencia: dataRef, limiarAutonomia: limiar, totalItens, ruptura, baixo, zerado, valorTotalEstoque: valorTotal });
+  // Somas de demanda/consumo por programa (Judicial=AJ, CF/Adm, JEFAZ) sobre o
+  // conjunto filtrado — alimentam os cards dinâmicos do Estoque Geral.
+  const s = db.prepare(`SELECT
+      COALESCE(SUM(e.demandas_aj),0)          dJud, COALESCE(SUM(e.consumo_mensal_aj),0)    cJud,
+      COALESCE(SUM(e.demandas_cf),0)          dCf,  COALESCE(SUM(e.consumo_mensal_cf),0)    cCf,
+      COALESCE(SUM(e.demandas_jefaz),0)       dJef, COALESCE(SUM(e.consumo_mensal_jefaz),0) cJef
+    FROM estoque_itens e ${where}`).get(...params);
+
+  res.json({
+    dataReferencia: dataRef, limiarAutonomia: limiar, totalItens, ruptura, baixo, zerado, valorTotalEstoque: valorTotal,
+    judicial: { demanda: s.dJud, consumo: s.cJud },
+    cf: { demanda: s.dCf, consumo: s.cCf },
+    jefaz: { demanda: s.dJef, consumo: s.cJef },
+    total: { demanda: s.dJud + s.dCf + s.dJef, consumo: s.cJud + s.cCf + s.cJef },
+  });
 });
 
 // ---------- Histórico de estoque: lista dos snapshots arquivados (01/15) ----------

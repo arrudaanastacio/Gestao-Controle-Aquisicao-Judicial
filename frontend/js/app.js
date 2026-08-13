@@ -1921,16 +1921,50 @@ async function carregarEstoqueGeral() {
   document.getElementById('subtituloEstoqueGeral').textContent =
     `Itens em estoque das demais unidades em ${formatarData(resumo.dataReferencia)} · autonomia mínima: ${resumo.limiarAutonomia} mês(es)`;
 
-  const valorFmt = resumo.valorTotalEstoque ? 'R$ ' + Number(resumo.valorTotalEstoque).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '—';
-  document.getElementById('grideResumoEstoqueGeral').innerHTML = `
-    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.totalItens)}</div><div class="rotulo">Itens no estoque</div></div>
-    <div class="cartao-resumo alerta"><div class="numero">${fmtNumero(resumo.ruptura)}</div><div class="rotulo">Em ruptura (zero + demanda)</div></div>
-    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.baixo)}</div><div class="rotulo">Estoque baixo (autonomia)</div></div>
-    <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.zerado)}</div><div class="rotulo">Estoque zerado</div></div>
-    <div class="cartao-resumo"><div class="numero" style="font-size:20px;">${valorFmt}</div><div class="rotulo">Valor total em estoque</div></div>
-  `;
+  // Os cards agora são dinâmicos (Judicial / CF-Adm / JEFAZ / Total) e batem
+  // com a busca/filtros — preenchidos por atualizarCardsEstoqueGeral(), que é
+  // chamado ao final de carregarTabelaEstoqueGeral().
   await carregarFiltrosEstoqueGeral();
   carregarTabelaEstoqueGeral();
+}
+
+// Monta os parâmetros de filtro (sem paginação) da tela Estoque Geral.
+function paramsFiltroEstoqueGeral() {
+  const params = new URLSearchParams({ escopoUnidade: 'geral' });
+  if (estadoEstoqueGeral.data) params.set('data', estadoEstoqueGeral.data);
+  const q = document.getElementById('filtroBuscaEstoqueGeral').value.trim();
+  const situacao = document.getElementById('filtroSituacaoEstoqueGeral').value;
+  const autonomia = document.getElementById('filtroAutonomiaEstoqueGeral').value;
+  const demanda = document.getElementById('filtroDemandaEstoqueGeral').value;
+  if (q) params.set('q', q);
+  if (situacao) params.set('situacao', situacao);
+  if (autonomia) params.set('autonomia', autonomia);
+  if (demanda) params.set('demanda', demanda);
+  COLS_FILTRO_GERAL.forEach(({ id, coluna }) => { const v = document.getElementById(id).value; if (v) params.set(coluna, v); });
+  if (unidadesSelecionadasGeral.length) params.set('unidade', unidadesSelecionadasGeral.join(','));
+  return params;
+}
+
+// Cards dinâmicos do Estoque Geral: demanda/consumo por programa (Judicial,
+// CF/Adm, JEFAZ) e o total, somando todas as unidades do conjunto filtrado.
+async function atualizarCardsEstoqueGeral() {
+  const grade = document.getElementById('grideResumoEstoqueGeral');
+  let r;
+  try { r = await api(`/estoque/resumo?${paramsFiltroEstoqueGeral().toString()}`); }
+  catch (_) { return; }
+  const fmtDem = (v) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  const fmtCons = (v) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+  const card = (titulo, cls, o) => `
+    <div class="cartao-resumo card-prog ${cls}">
+      <div class="rotulo">${titulo}</div>
+      <div class="prog-metrica"><span>Demanda</span><strong>${fmtDem(o.demanda)}</strong></div>
+      <div class="prog-metrica"><span>Consumo</span><strong>${fmtCons(o.consumo)}</strong></div>
+    </div>`;
+  grade.innerHTML =
+    card('Judicial', 'jud', r.judicial || {}) +
+    card('CF (Adm)', 'adm', r.cf || {}) +
+    card('JEFAZ', 'jef', r.jefaz || {}) +
+    card('Total (Jud + Adm + JEFAZ)', 'tot', r.total || {});
 }
 
 async function carregarTabelaEstoqueGeral() {
@@ -1993,6 +2027,9 @@ async function carregarTabelaEstoqueGeral() {
   document.getElementById('textoPaginacaoEstoqueGeral').textContent = `Página ${dados.page} de ${totalPaginas} · ${dados.total} itens`;
   document.getElementById('botaoAnteriorEstoqueGeral').disabled = dados.page <= 1;
   document.getElementById('botaoProximoEstoqueGeral').disabled = dados.page >= totalPaginas;
+
+  // Atualiza os cards dinâmicos (demanda/consumo por programa) conforme os filtros.
+  atualizarCardsEstoqueGeral();
 }
 
 // ==================== Estoque Outras Demandas (GSNET + IBL) ====================

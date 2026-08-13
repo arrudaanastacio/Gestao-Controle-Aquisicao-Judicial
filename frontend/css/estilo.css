@@ -794,6 +794,19 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .cartao-resumo.alerta .numero { color: var(--vermelho); }
 .cartao-resumo.alerta { border-color: #e3b9b1; }
 
+/* Cards dinâmicos por programa (Estoque Geral): demanda + consumo lado a lado */
+.cartao-resumo.card-prog { border-top-width: 3px; border-top-style: solid; }
+.cartao-resumo.card-prog .rotulo { margin-top: 0; margin-bottom: 8px; font-weight: 600; color: var(--selo-escuro); }
+.cartao-resumo.card-prog .prog-metrica {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 4px;
+}
+.cartao-resumo.card-prog .prog-metrica span { font-size: 12px; color: var(--cinza-texto); }
+.cartao-resumo.card-prog .prog-metrica strong { font-family: var(--fonte-titulo); font-size: 20px; line-height: 1; color: var(--selo-escuro); }
+.cartao-resumo.card-prog.jud { border-top-color: #2a78d6; }
+.cartao-resumo.card-prog.adm { border-top-color: #eb6834; }
+.cartao-resumo.card-prog.jef { border-top-color: #1baf7a; }
+.cartao-resumo.card-prog.tot { border-top-color: #6c4bd1; }
+
 /* Cartão de KPI no estilo do mockup: ícone + rótulo no topo, número grande e
    uma linha descritiva embaixo. Usado nos relatórios. */
 .cartao-kpi {
