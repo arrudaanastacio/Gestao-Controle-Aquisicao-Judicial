@@ -1122,6 +1122,18 @@ thead th {
   font-size: 12.5px; text-align: center;
 }
 
+/* Coeficiente (alvo em meses) por item × unidade na Sugestão de Reposição */
+.col-coef { white-space: nowrap; }
+.input-coef-item {
+  width: 50px; padding: 2px 5px; border: 1px solid #c9ccd1; border-radius: 5px;
+  font-size: 12.5px; text-align: center;
+}
+.btn-coef-todas {
+  margin-left: 4px; font-size: 10.5px; padding: 2px 6px; border-radius: 5px;
+  border: 1px solid var(--linha); background: var(--papel-elevado); cursor: pointer; color: var(--cinza-texto);
+}
+.btn-coef-todas:hover { background: var(--linha); }
+
 /* Botões Validar / Negar por linha (grade) */
 .btn-grade { padding: 3px 12px; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
 .btn-grade:disabled { opacity: .55; cursor: default; }

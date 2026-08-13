@@ -760,6 +760,26 @@ function carregarEstoqueOperador() {
 // Calcula as linhas (item a item, ANTES do agrupamento por SKU) de UMA unidade.
 // Devolve { erro } se a unidade não estiver no Locais de Entrega, senão um
 // array de linhas já com local_entrega, sugestão e reposição arredondada.
+// Carrega todos os coeficientes de reposição num Map (uma consulta só).
+// Chaves: `codigo|unidade` (ajuste da unidade) e `codigo|` (padrão do item).
+function carregarCoeficientes() {
+  const m = new Map();
+  for (const r of db.prepare('SELECT codigo_item, unidade, coeficiente FROM distribuicao_coeficiente').all()) {
+    m.set(`${r.codigo_item}|${r.unidade || ''}`, r.coeficiente);
+  }
+  return m;
+}
+
+// Resolve o coeficiente (alvo em meses) em cascata:
+//   1) item naquela unidade  ->  2) padrão do item  ->  3) AUTONOMIA_ALVO_MESES (3)
+function coeficienteDe(mapa, codigoItem, unidade) {
+  const kUn = `${codigoItem}|${unidade}`;
+  if (mapa && mapa.has(kUn)) return { valor: mapa.get(kUn), origem: 'unidade' };
+  const kIt = `${codigoItem}|`;
+  if (mapa && mapa.has(kIt)) return { valor: mapa.get(kIt), origem: 'item' };
+  return { valor: AUTONOMIA_ALVO_MESES, origem: 'padrao' };
+}
+
 function calcularLinhasUnidade(unidade, ctx) {
   const local = db.prepare('SELECT cod_local FROM distribuicao_locais_entrega WHERE local_entrega = ?').get(unidade);
   if (!local) return { erro: `Não encontrei "${unidade}" na planilha de Locais de Entrega — confira se o nome bate exatamente.` };
@@ -813,7 +833,9 @@ function calcularLinhasUnidade(unidade, ctx) {
 
     const faturaTransito = mapaTransito.get(`${codigoDestino}|${it.codigo_item}`) || 0;
 
-    const sugestao = Math.max(0, Math.round((AUTONOMIA_ALVO_MESES * it.consumoMensal) - (estoqueConvertido + faturaTransito)));
+    // Coeficiente (alvo em meses) por item/unidade; 0 = não distribuir.
+    const coef = coeficienteDe(ctx.mapaCoef, it.codigo_item, unidade);
+    const sugestao = coef.valor <= 0 ? 0 : Math.max(0, Math.round((coef.valor * it.consumoMensal) - (estoqueConvertido + faturaTransito)));
     const autonomia = it.consumoMensal > 0 ? (estoqueConvertido + faturaTransito) / it.consumoMensal : null;
 
     const sku = mapaItemSku.get(it.codigo_item) || null;
@@ -835,6 +857,8 @@ function calcularLinhasUnidade(unidade, ctx) {
       estoque_convertido: Math.round(estoqueConvertido * 100) / 100,
       fatura_transito: faturaTransito,
       autonomia: autonomia === null ? null : Math.round(autonomia * 10) / 10,
+      coeficiente: coef.valor,
+      coeficiente_origem: coef.origem,
       multiplo_embalagem: multiplo,
       estoque_operador: op ? op.estoqueOperador : null,
       validade: op ? op.validade : null,
@@ -885,6 +909,7 @@ router.get('/reposicao', (req, res) => {
     mapaItemSku,
     mapaSku,
     mapaTransito,
+    mapaCoef: carregarCoeficientes(),
     stmtEstoque: ultimaData
       ? db.prepare('SELECT estoque FROM estoque_itens WHERE unidade = ? AND codigo_item = ? AND data_referencia = ? LIMIT 1')
       : null,
@@ -991,6 +1016,7 @@ router.get('/reposicao-he', (req, res) => {
     mapaTransito.set(`${r.codigo_destino}|${r.codigo_item}`, r.v);
   }
 
+  const mapaCoef = carregarCoeficientes();
   const infoItem = new Map(itensHE.map((it) => [it.codigo_item, it]));
   const codigosHE = itensHE.map((it) => it.codigo_item);
   const phItens = codigosHE.map(() => '?').join(',');
@@ -1021,7 +1047,8 @@ router.get('/reposicao-he', (req, res) => {
       const estoqueConvertido = conv !== 1 ? estoqueBruto / conv : estoqueBruto;
       const faturaTransito = mapaTransito.get(`${codigoDestino}|${l.codigo_item}`) || 0;
 
-      const sugestao = Math.max(0, Math.round((AUTONOMIA_ALVO_MESES * consumoMensal) - (estoqueConvertido + faturaTransito)));
+      const coef = coeficienteDe(mapaCoef, l.codigo_item, unidade);
+      const sugestao = coef.valor <= 0 ? 0 : Math.max(0, Math.round((coef.valor * consumoMensal) - (estoqueConvertido + faturaTransito)));
       const autonomia = consumoMensal > 0 ? (estoqueConvertido + faturaTransito) / consumoMensal : null;
 
       const sku = mapaItemSku.get(l.codigo_item) || null;
@@ -1043,6 +1070,8 @@ router.get('/reposicao-he', (req, res) => {
         estoque_convertido: Math.round(estoqueConvertido * 100) / 100,
         fatura_transito: faturaTransito,
         autonomia: autonomia === null ? null : Math.round(autonomia * 10) / 10,
+        coeficiente: coef.valor,
+        coeficiente_origem: coef.origem,
         multiplo_embalagem: multiplo,
         estoque_operador: op ? op.estoqueOperador : null,
         validade: op ? op.validade : null,
@@ -1088,6 +1117,42 @@ router.get('/conversao-od', (req, res) => {
 // Grade validada (fluxo "Validar" / "Negar" da reposição)
 // Cada item aprovado entra na grade no layout do "9.Modelo grade.xlsx".
 // ===================================================================
+
+// Ajusta o coeficiente (alvo em meses) da Sugestão de Reposição de um item.
+//  - Sem unidade (ou vazia) => padrão do item.
+//  - aplicarTodas: true => fixa o padrão do item e REMOVE ajustes por unidade.
+//  - coeficiente null/'' => remove o ajuste (volta a herdar: item -> 3).
+//  - coeficiente 0 => item não é distribuído.
+router.put('/coeficiente', (req, res) => {
+  const { codigo_item, unidade, coeficiente, aplicarTodas } = req.body || {};
+  if (!codigo_item) return res.status(400).json({ erro: 'Informe o item.' });
+
+  const remover = coeficiente === null || coeficiente === '' || coeficiente === undefined;
+  const coefNum = Number(coeficiente);
+  if (!remover && (!Number.isFinite(coefNum) || coefNum < 0)) {
+    return res.status(400).json({ erro: 'Coeficiente inválido: use um número ≥ 0 (0 = não distribuir).' });
+  }
+  const un = (unidade || '').trim();
+
+  const tx = db.transaction(() => {
+    if (aplicarTodas) {
+      // Padrão para TODAS as unidades: zera overrides e fixa o padrão do item.
+      db.prepare('DELETE FROM distribuicao_coeficiente WHERE codigo_item = ?').run(codigo_item);
+      if (!remover) {
+        db.prepare("INSERT INTO distribuicao_coeficiente (codigo_item, unidade, coeficiente) VALUES (?, '', ?)").run(codigo_item, coefNum);
+      }
+    } else if (remover) {
+      db.prepare('DELETE FROM distribuicao_coeficiente WHERE codigo_item = ? AND unidade = ?').run(codigo_item, un);
+    } else {
+      db.prepare(`INSERT INTO distribuicao_coeficiente (codigo_item, unidade, coeficiente, atualizado_em)
+                  VALUES (?, ?, ?, datetime('now'))
+                  ON CONFLICT(codigo_item, unidade) DO UPDATE SET coeficiente = excluded.coeficiente, atualizado_em = datetime('now')`)
+        .run(codigo_item, un, coefNum);
+    }
+  });
+  tx();
+  res.json({ ok: true });
+});
 
 // Lista os itens já validados (para a tela mostrar o estado dos botões).
 router.get('/grade', (req, res) => {

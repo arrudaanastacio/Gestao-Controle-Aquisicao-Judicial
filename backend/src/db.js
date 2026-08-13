@@ -550,6 +550,21 @@ CREATE TABLE IF NOT EXISTS distribuicao_locais_entrega (
 db.exec(`CREATE INDEX IF NOT EXISTS idx_distlocais_local ON distribuicao_locais_entrega(local_entrega);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_distlocais_cod ON distribuicao_locais_entrega(cod_local);`);
 
+// Coeficiente (autonomia-alvo em meses) da Sugestão de Reposição, ajustável por
+// item — e, opcionalmente, por item + unidade. Substitui o antigo alvo fixo de
+// 3 meses. Persistente (não some nas importações diárias). Regra em cascata:
+//   1) coeficiente do item NAQUELA unidade  ->  2) padrão do item  ->  3) 3 (fixo)
+// unidade = '' guarda o PADRÃO do item. coeficiente 0 = não distribuir.
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_coeficiente (
+  codigo_item TEXT NOT NULL,
+  unidade TEXT NOT NULL DEFAULT '',
+  coeficiente REAL NOT NULL,
+  atualizado_em TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (codigo_item, unidade)
+);
+`);
+
 // Grade validada da reposição: itens que o usuário aprovou ("Validar") para
 // enviar ao operador logístico, no layout do arquivo "9.Modelo grade.xlsx".
 // Uma linha por item (SCODES) por local de entrega — "Negar" apaga a linha.

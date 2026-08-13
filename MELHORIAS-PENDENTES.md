@@ -7,6 +7,7 @@
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
 | 1 | Estoque Geral: cards dinâmicos por programa. Trocados os 5 cards estáticos por 4 que reagem à busca/filtros (Judicial · CF/Adm · JEFAZ · Total), mostrando demanda e consumo somados de todas as unidades do conjunto filtrado. `/resumo` passou a respeitar busca/filtros. | (homolog) | 13/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
+| 2 | Distribuição (Sugestão de Reposição): **coeficiente (alvo em meses) ajustável por item** e por **item × unidade**, substituindo o alvo fixo de 3. Coluna "Coef" editável na linha + botão "todas" (aplica a todas as unidades do item). 0 = não distribuir. Persistente (`distribuicao_coeficiente`). Vale para Reposição geral e Hospital Escola. | (homolog) | 13/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
 
 ## Publicadas recentemente
 

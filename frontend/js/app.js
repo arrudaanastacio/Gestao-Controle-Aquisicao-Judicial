@@ -2645,9 +2645,12 @@ function criarPainelReposicao(cfg) {
   function recalcularSku(sku) {
     const grupo = dadosBrutos.filter((it) => it.codigo_sku === sku);
     if (!grupo.length) return;
-    const alvo = autonomiaPorSku.has(sku) ? autonomiaPorSku.get(sku) : autonomiaAlvoPadrao;
+    // Ajuste rápido por SKU (não salvo) sobrepõe; senão usa o coeficiente
+    // persistente de cada item (item×unidade -> padrão do item -> 3).
+    const alvoSku = autonomiaPorSku.has(sku) ? autonomiaPorSku.get(sku) : null;
     grupo.forEach((it) => {
-      const sug = Math.max(0, Math.round(alvo * it.consumo_mensal - (it.estoque_convertido + it.fatura_transito)));
+      const alvo = alvoSku != null ? alvoSku : (it.coeficiente != null ? it.coeficiente : autonomiaAlvoPadrao);
+      const sug = alvo <= 0 ? 0 : Math.max(0, Math.round(alvo * it.consumo_mensal - (it.estoque_convertido + it.fatura_transito)));
       it.sugestao = sug;
       it.reposicao = sug > 0 ? ceilMultiplo(sug, it.multiplo_embalagem) : 0;
     });
@@ -2800,6 +2803,12 @@ function criarPainelReposicao(cfg) {
           <td>${fmtNumero(it.estoque_convertido)}${it.convertido ? ` <span class="descricao-item">(÷${fmtNumero(it.conversao)})</span>` : ''}</td>
           <td>${fmtNumero(it.fatura_transito)}</td>
           <td>${it.autonomia == null ? '—' : fmtNumero(it.autonomia)}</td>
+          <td class="col-coef">
+            <input type="number" min="0" step="0.5" value="${it.coeficiente}" class="input-coef-item"
+              data-cod="${escAttr(it.codigo_item)}" data-un="${escAttr(it.local_entrega)}"
+              title="${it.coeficiente_origem === 'padrao' ? 'Herdado do padrão (3)' : it.coeficiente_origem === 'item' ? 'Padrão do item' : 'Ajuste desta unidade'} — 0 = não distribuir">
+            <button type="button" class="btn-coef-todas" data-cod="${escAttr(it.codigo_item)}" title="Aplicar este coeficiente a TODAS as unidades deste item">todas</button>
+          </td>
           <td>${it.estoque_operador == null ? '—' : fmtNumero(it.estoque_operador)}</td>
           <td>${it.validade || '—'}</td>
           <td>${it.multiplo_embalagem == null ? '—' : fmtNumero(it.multiplo_embalagem)}</td>
@@ -2822,8 +2831,9 @@ function criarPainelReposicao(cfg) {
           <td colspan="9" style="text-align:right;">
             <strong>Subtotal do SKU ${g.sku} · ${g.itens.length} local(is)</strong>
             &nbsp;·&nbsp;<span class="rotulo-autonomia">Autonomia-alvo:</span>
-            <input type="number" min="0" step="0.5" value="${alvo}" class="input-autonomia-sku" data-sku="${String(g.sku).replace(/"/g, '&quot;')}" title="Meses de autonomia-alvo deste SKU">
+            <input type="number" min="0" step="0.5" value="${alvo}" class="input-autonomia-sku" data-sku="${String(g.sku).replace(/"/g, '&quot;')}" title="Meses de autonomia-alvo deste SKU (ajuste rápido, não salvo)">
           </td>
+          <td></td>
           <td title="Saldo do operador após a reposição">${celSaldo}</td>
           <td colspan="3"></td>
           <td><strong>${fmtNumero(subtotal)}</strong></td>
@@ -2863,6 +2873,35 @@ function criarPainelReposicao(cfg) {
     autonomiaPorSku.set(sku, v);
     recalcularSku(sku);
     renderizar();
+  });
+
+  // Coeficiente (alvo em meses) PERSISTENTE por item × unidade. Ao alterar,
+  // salva no banco e recarrega — o servidor recalcula a sugestão com o rateio.
+  async function salvarCoeficiente(codigoItem, unidade, valor, aplicarTodas) {
+    const bruto = String(valor).trim();
+    const coeficiente = bruto === '' ? '' : Number(bruto.replace(',', '.'));
+    if (coeficiente !== '' && (!Number.isFinite(coeficiente) || coeficiente < 0)) {
+      alert('Coeficiente inválido: use um número ≥ 0 (0 = não distribuir).');
+      return;
+    }
+    try {
+      await api('/distribuicao/coeficiente', {
+        method: 'PUT',
+        body: JSON.stringify({ codigo_item: codigoItem, unidade, coeficiente, aplicarTodas }),
+      });
+      await carregar();
+    } catch (e) { alert('Não foi possível salvar o coeficiente: ' + e.message); }
+  }
+  $('corpoTabela').addEventListener('change', (ev) => {
+    const inp = ev.target.closest && ev.target.closest('.input-coef-item');
+    if (!inp) return;
+    salvarCoeficiente(inp.dataset.cod, inp.dataset.un, inp.value, false);
+  });
+  $('corpoTabela').addEventListener('click', (ev) => {
+    const btn = ev.target.closest && ev.target.closest('.btn-coef-todas');
+    if (!btn) return;
+    const inp = btn.parentElement.querySelector('.input-coef-item');
+    salvarCoeficiente(btn.dataset.cod, '', inp ? inp.value : '', true);
   });
 
   // Validar / Negar por linha (grade compartilhada). Delegação no tbody.
