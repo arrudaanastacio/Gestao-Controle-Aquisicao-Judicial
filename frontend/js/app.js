@@ -98,6 +98,16 @@ function etiquetasProgramaHTML(it) {
   return tags.length ? `<div class="tags-programa">${tags.join('')}</div>` : '';
 }
 
+// Descrição do item com a MARCA em negrito — só quando a marca é diferente de
+// "SEM MARCA". A descrição termina com a marca (ex.: "… / UNIDADE / TRIKAFTA").
+function descricaoComMarcaHTML(it) {
+  const desc = it.descricao || '—';
+  const marca = (it.marca || '').trim();
+  if (!marca || /sem\s*marca/i.test(marca) || !desc.endsWith(marca)) return escHtml(desc);
+  const prefixo = desc.slice(0, desc.length - marca.length);
+  return escHtml(prefixo) + '<strong>' + escHtml(marca) + '</strong>';
+}
+
 // Classifica uma validade DD/MM/YYYY: 'vencido', 'proximo' (<=90 dias) ou ''.
 function classeValidade(validadeBR) {
   if (!validadeBR) return '';
@@ -1795,7 +1805,7 @@ async function carregarTabelaEstoque() {
       }
       return `
         <tr>
-          <td>${it.descricao || '—'}<br><span class="col-codigo">${it.codigo_item}</span>${etiquetasProgramaHTML(it)}</td>
+          <td>${descricaoComMarcaHTML(it)}<br><span class="col-codigo">${it.codigo_item}</span>${etiquetasProgramaHTML(it)}</td>
           <td>${fmtNumero(it.demandas)}</td>
           <td>${fmtNumero(it.consumo_mensal_total)}</td>
           <td>${fmtNumero(it.estoque)}</td>
@@ -2015,7 +2025,7 @@ async function carregarTabelaEstoqueGeral() {
       }
       return `
         <tr>
-          <td>${it.descricao || '—'}<br><span class="col-codigo">${it.codigo_item}</span>${etiquetasProgramaHTML(it)}</td>
+          <td>${descricaoComMarcaHTML(it)}<br><span class="col-codigo">${it.codigo_item}</span>${etiquetasProgramaHTML(it)}</td>
           <td>${it.unidade || '—'}</td>
           <td>${fmtNumero(it.demandas)}</td>
           <td>${fmtNumero(it.consumo_mensal_total)}</td>
