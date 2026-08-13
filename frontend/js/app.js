@@ -84,12 +84,17 @@ function proximaValidade(lotesTexto) {
 // item do estoque. Só mostra a etiqueta do programa a que o item pertence.
 function etiquetasProgramaHTML(it) {
   const tags = [];
-  if (it.prog_outras_demandas === 'Sim') tags.push('<span class="tag-programa od">Outras Demandas</span>');
-  if (it.prog_dose_certa === 'Sim') tags.push('<span class="tag-programa dc">Dose Certa</span>');
-  if (it.prog_inex === 'Sim') tags.push('<span class="tag-programa ix">Inex</span>');
-  if (it.subcategoria && String(it.subcategoria).trim()) {
-    tags.push(`<span class="tag-programa sub">${escHtml(String(it.subcategoria).trim())}</span>`);
-  }
+  const rotulos = new Set(); // evita etiquetas repetidas (ex.: subcategoria = "Outras Demandas")
+  const add = (rotulo, classe) => {
+    const chave = rotulo.toLowerCase();
+    if (rotulos.has(chave)) return;
+    rotulos.add(chave);
+    tags.push(`<span class="tag-programa ${classe}">${escHtml(rotulo)}</span>`);
+  };
+  if (it.prog_outras_demandas === 'Sim') add('Outras Demandas', 'od');
+  if (it.prog_dose_certa === 'Sim') add('Dose Certa', 'dc');
+  if (it.prog_inex === 'Sim') add('Inex', 'ix');
+  if (it.subcategoria && String(it.subcategoria).trim()) add(String(it.subcategoria).trim(), 'sub');
   return tags.length ? `<div class="tags-programa">${tags.join('')}</div>` : '';
 }
 
