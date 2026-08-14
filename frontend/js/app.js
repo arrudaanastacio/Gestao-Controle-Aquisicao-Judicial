@@ -1623,6 +1623,7 @@ document.getElementById('monBusca').addEventListener('input', () => {
   renderMonDinamico();
 });
 document.getElementById('monLimparFiltro').addEventListener('click', limparFiltroMon);
+document.getElementById('monExportar').addEventListener('click', exportarMonitoramento);
 // Clique em qualquer barra/fatia/legenda dos gráficos aplica o recorte.
 document.getElementById('monConteudo').addEventListener('click', (ev) => {
   const alvo = ev.target.closest('.mon-clic');
@@ -1844,6 +1845,38 @@ function baseFiltradaMon(exceto) {
 function alternarRecorteMon(dim, nome) {
   estadoMonFiltro[dim] = estadoMonFiltro[dim] === nome ? null : nome;
   renderMonDinamico();
+}
+
+// Exporta para Excel os itens exatamente como estão filtrados na tela.
+async function exportarMonitoramento() {
+  const qs = new URLSearchParams({ escopoUnidade: document.getElementById('monEscopo').value || 'udtp' });
+  if (!document.getElementById('monComDemanda').checked) qs.set('comDemanda', '0');
+  // Categoria: recorte do gráfico tem prioridade sobre o seletor.
+  const cat = estadoMonFiltro.categoria || document.getElementById('monCategoria').value;
+  if (cat) qs.set('categoria', cat);
+  const busca = (document.getElementById('monBusca').value || '').trim();
+  if (busca) qs.set('q', busca);
+  if (estadoMonFiltro.status_estoque) qs.set('status', estadoMonFiltro.status_estoque);
+  if (estadoMonFiltro.status_final) qs.set('statusFinal', estadoMonFiltro.status_final);
+  if (estadoMonFiltro.subcategoria) qs.set('subcategoria', estadoMonFiltro.subcategoria);
+
+  const btn = document.getElementById('monExportar');
+  const textoOrig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Gerando…';
+  try {
+    const resp = await fetch('/api/estoque/monitoramento/exportar?' + qs.toString());
+    if (!resp.ok) throw new Error('Falha ao gerar o Excel.');
+    const blob = await resp.blob();
+    const nome = (resp.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'Monitoramento_Estoque.xlsx';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nome; document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Não foi possível exportar: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = textoOrig;
+  }
 }
 
 // Zera busca + todos os recortes (e o seletor de categoria, se estiver ativo).

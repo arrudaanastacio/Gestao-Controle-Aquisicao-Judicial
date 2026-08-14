@@ -28,6 +28,12 @@ estoque já importado (nada de Excel manual).
   destacando o selecionado (um gráfico não filtra a si mesmo, então continua
   mostrando todas as fatias). Um **chip** mostra o filtro ativo e o botão
   **✕ Limpar filtro** zera busca + recortes (e o seletor de categoria).
+- **Exportar para Excel** (botão ⬇): baixa um `.xlsx` com **exatamente os itens
+  filtrados na tela** (mesmos filtros: escopo, categoria, comDemanda, busca e
+  recortes de clique). Colunas: SCODES, Siafísico, Descrição, Unidade,
+  Categoria, Sub-categoria, Marca, Demandas (total/AJ/CF/JEFAZ), Consumo,
+  Estoque, Autonomia, Status Estoque, Situação Final, Previsão de Falta,
+  Cobertura. Endpoint `GET /api/estoque/monitoramento/exportar` (SheetJS).
 - **Tabela classificada** com busca (medicamento/SCODES/siafísico).
 - **Filtros:** escopo (Tenente Pena / todas as unidades), categoria e
   **"Somente com demanda"** (ligado por padrão — reproduz o recorte da planilha:

@@ -647,6 +647,74 @@ function statusFinalDe(statusEstoque) {
   return 'Abastecido';
 }
 
+// Monta a lista de itens JÁ CLASSIFICADA para o monitoramento, aplicando os
+// filtros do servidor (escopo, categoria, comDemanda) + os filtros do cliente
+// que o export precisa reproduzir (busca q, status, situação final,
+// subcategoria). Devolve { dataRef, itens }.
+function construirItensMonitoramento(query) {
+  const { data, escopoUnidade, categoria } = query;
+  const soComDemanda = query.comDemanda !== '0';
+  let dataRef = data;
+  if (!dataRef) {
+    const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+    if (!ultima) return { dataRef: null, itens: [] };
+    dataRef = ultima.data_referencia;
+  }
+
+  const condicoes = ['e.data_referencia = ?'];
+  const params = [dataRef];
+  const escCond = condEscopoUnidade(escopoUnidade || 'udtp', 'e.');
+  if (escCond) condicoes.push(escCond);
+  if (categoria) { condicoes.push('e.categoria = ?'); params.push(categoria); }
+  if (soComDemanda) condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
+  const where = `WHERE ${condicoes.join(' AND ')}`;
+
+  const linhas = db.prepare(`
+    SELECT e.codigo_item, e.siafisico, e.descricao, e.unidade,
+           e.categoria, e.tipo_item, e.marca, e.importado, e.controlado, e.outras_demandas,
+           e.demandas, e.demandas_aj, e.demandas_cf, e.demandas_jefaz,
+           e.consumo_mensal_total, e.estoque, e.autonomia,
+           (SELECT ic.subcategoria FROM item_classificacao ic WHERE ic.codigo_item = e.codigo_item) AS subcategoria
+      FROM estoque_itens e ${where}
+      ORDER BY e.descricao
+  `).all(...params);
+
+  const hoje = new Date();
+  let itens = linhas.map((r) => {
+    const statusEstoque = classificarStatusEstoque(r.demandas, r.autonomia);
+    const statusFinal = statusFinalDe(statusEstoque);
+    let previsaoFalta = null, coberturaMes = null;
+    if (r.autonomia != null && (Number(r.consumo_mensal_total) || 0) > 0) {
+      const d = new Date(hoje.getTime());
+      d.setDate(d.getDate() + Math.round(Number(r.autonomia) * 30));
+      previsaoFalta = d.toISOString().slice(0, 10);
+      const m = new Date(hoje.getFullYear(), hoje.getMonth() + Math.round(Number(r.autonomia)), 1);
+      coberturaMes = m.toISOString().slice(0, 7);
+    }
+    return {
+      codigo_item: r.codigo_item, siafisico: r.siafisico, descricao: r.descricao, unidade: r.unidade,
+      categoria: r.categoria || 'Sem categoria', subcategoria: r.subcategoria || (r.categoria || 'Sem categoria'),
+      tipo_item: r.tipo_item, marca: r.marca, importado: r.importado, controlado: r.controlado,
+      demandas: r.demandas || 0, demandas_aj: r.demandas_aj || 0, demandas_cf: r.demandas_cf || 0, demandas_jefaz: r.demandas_jefaz || 0,
+      consumo_mensal_total: r.consumo_mensal_total || 0, estoque: r.estoque || 0, autonomia: r.autonomia,
+      status_estoque: statusEstoque, status_final: statusFinal,
+      previsao_falta: previsaoFalta, cobertura_mes: coberturaMes,
+      faixa_demanda: (Number(r.demandas) || 0) > 30 ? 'Acima 30' : 'Baixo 30',
+    };
+  });
+
+  // Filtros do cliente (reproduzidos para o export dar o MESMO conjunto da tela).
+  const q = (query.q || '').trim().toLowerCase();
+  if (q) itens = itens.filter((i) =>
+    (i.descricao || '').toLowerCase().includes(q) ||
+    (i.codigo_item || '').toLowerCase().includes(q) ||
+    (i.siafisico || '').toLowerCase().includes(q));
+  if (query.status) itens = itens.filter((i) => i.status_estoque === query.status);
+  if (query.statusFinal) itens = itens.filter((i) => i.status_final === query.statusFinal);
+  if (query.subcategoria) itens = itens.filter((i) => i.subcategoria === query.subcategoria);
+  return { dataRef, itens };
+}
+
 router.get('/monitoramento', (req, res) => {
   const { data, escopoUnidade, categoria } = req.query;
   // Por padrão só itens COM demanda (>0), como na planilha gerencial da CPDAE
@@ -742,6 +810,47 @@ router.get('/monitoramento', (req, res) => {
       demandasPorCategoria: somarPor('categoria', 'demandas'),
     },
   });
+});
+
+// Exporta para Excel EXATAMENTE os itens filtrados na tela (mesmos filtros:
+// escopo, categoria, comDemanda, busca q, status, situação final, subcategoria).
+router.get('/monitoramento/exportar', (req, res) => {
+  const { dataRef, itens } = construirItensMonitoramento(req.query);
+  if (!dataRef) return res.status(404).json({ erro: 'Nenhum estoque importado.' });
+
+  const cabecalho = [
+    'Código SCODES', 'Siafísico', 'Descrição', 'Unidade', 'Categoria', 'Sub-categoria',
+    'Marca', 'Demandas', 'Demanda AJ', 'Demanda CF', 'Demanda JEFAZ', 'Consumo Mensal',
+    'Estoque', 'Autonomia (meses)', 'Status Estoque', 'Situação Final',
+    'Previsão de Falta', 'Cobertura (mês)',
+  ];
+  const aoa = [cabecalho];
+  for (const i of itens) {
+    aoa.push([
+      i.codigo_item || '', i.siafisico || '', i.descricao || '', i.unidade || '',
+      i.categoria || '', i.subcategoria || '', i.marca || '',
+      i.demandas, i.demandas_aj, i.demandas_cf, i.demandas_jefaz, i.consumo_mensal_total,
+      i.estoque, i.autonomia == null ? '' : Number(i.autonomia),
+      i.status_estoque, i.status_final,
+      i.previsao_falta ? i.previsao_falta.split('-').reverse().join('/') : '',
+      i.cobertura_mes || '',
+    ]);
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [
+    { wch: 24 }, { wch: 12 }, { wch: 45 }, { wch: 22 }, { wch: 14 }, { wch: 14 },
+    { wch: 16 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 13 },
+    { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 14 }, { wch: 15 }, { wch: 13 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Monitoramento');
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  const nomeArq = `Monitoramento_Estoque_${dataRef}.xlsx`;
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${nomeArq}"`);
+  res.send(buffer);
 });
 
 // ---------- Histórico de estoque: lista dos snapshots arquivados (01/15) ----------
