@@ -29,6 +29,7 @@ const MODULOS = [
   { chave: 'relatorioComprasTP', rotulo: 'Relatório de Compras TP', acoes: ['visualizar', 'exportar'] },
   { chave: 'tabelaAnaliseTP', rotulo: 'Tabela Análise TP', acoes: ['visualizar', 'inserir', 'editar', 'excluir', 'exportar', 'importar'] },
   { chave: 'estoqueTP', rotulo: 'Estoque Tenente Pena', acoes: ['visualizar', 'exportar', 'importar'] },
+  { chave: 'monitoramentoEstoque', rotulo: 'Monitoramento de Estoque', acoes: ['visualizar', 'exportar'] },
   { chave: 'validadesTP', rotulo: 'Consultar Validades TP', acoes: ['visualizar', 'exportar'] },
   { chave: 'historicoEstoqueTP', rotulo: 'Histórico de Estoque', acoes: ['visualizar'] },
   { chave: 'evolucaoEstoqueTP', rotulo: 'Evolução de Estoque', acoes: ['visualizar'] },

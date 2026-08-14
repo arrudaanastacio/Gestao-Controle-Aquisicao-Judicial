@@ -240,7 +240,7 @@ function aplicarPermissoesNav() {
   const mapa = {
     relatorio: 'relatorioComprasTP', solicitacoes: 'tabelaAnaliseTP',
     solicitacoesOD: 'relatorioComprasOD', aquisicaoODAndamento: 'aquisicaoODAndamento',
-    estoque: 'estoqueTP', validades: 'validadesTP', historico: 'historicoEstoqueTP', evolucao: 'evolucaoEstoqueTP',
+    estoque: 'estoqueTP', monitoramento: 'monitoramentoEstoque', validades: 'validadesTP', historico: 'historicoEstoqueTP', evolucao: 'evolucaoEstoqueTP',
     estoqueGeral: 'estoqueGeral', estoqueOD: 'estoqueOD', distribuicao: 'distribuicao',
     relatorioItens: 'relatorioItens',
     planejamento: 'planejamento',
@@ -601,6 +601,7 @@ const TRILHAS = {
   relatorioReq: ['Tenente Pena', 'Compras', 'Relatório de Primeiro Atendimento'],
   cartasTroca: ['Tenente Pena', 'Compras', 'Cartas de Troca'],
   estoque: ['Tenente Pena', 'Estoque', 'Estoque Tenente Pena'],
+  monitoramento: ['Tenente Pena', 'Estoque', 'Monitoramento de Estoque'],
   evolucao: ['Tenente Pena', 'Estoque', 'Evolução de Estoque'],
   historico: ['Tenente Pena', 'Estoque', 'Histórico de Estoque'],
   entradaLotes: ['Tenente Pena', 'Estoque', 'Movimentação de Entrada'],

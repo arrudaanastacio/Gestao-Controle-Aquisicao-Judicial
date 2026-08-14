@@ -72,6 +72,7 @@ app.use('/api/alertas', autenticar, exigirModulo('alertas'), alertasRoutes);
 // (?escopoUnidade=geral), Consultar Validades TP (/validades), Histórico de
 // Estoque (/historico...) e Evolução de Estoque (/evolucao).
 app.use('/api/estoque', autenticar, exigirModuloDinamico((req) => {
+  if (req.path.startsWith('/monitoramento')) return 'monitoramentoEstoque';
   if (req.query.escopoUnidade === 'geral') return 'estoqueGeral';
   if (req.path.startsWith('/validades')) return 'validadesTP';
   if (req.path.startsWith('/historico')) return 'historicoEstoqueTP';
