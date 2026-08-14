@@ -6,12 +6,31 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Estoque Geral: cards dinâmicos por programa. Trocados os 5 cards estáticos por 4 que reagem à busca/filtros (Judicial · CF/Adm · JEFAZ · Total), mostrando demanda e consumo somados de todas as unidades do conjunto filtrado. `/resumo` passou a respeitar busca/filtros. | (homolog) | 13/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
-| 2 | Distribuição (Sugestão de Reposição): **coeficiente (alvo em meses) ajustável por item** e por **item × unidade**, substituindo o alvo fixo de 3. Coluna "Coef" editável na linha + botão "todas" (aplica a todas as unidades do item). 0 = não distribuir. Persistente (`distribuicao_coeficiente`). Vale para Reposição geral e Hospital Escola. | (homolog) | 13/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
-| 3 | Distribuição: botão **"Manual"** ao lado de "Validar" na Sugestão de Reposição — pergunta a quantidade (prompt) e grava na Grade Final como **manual** (pros casos que fogem à fórmula: D.E, rituximabe). Nova coluna `origem` na `distribuicao_grade` + etiqueta **Calculada/Manual** na Grade Final. | (homolog) | 13/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
-| 4 | Estoque TP e Itens em Estoque Geral: etiqueta de **SubCategoria** (do `item_classificacao`, oficial do REL) abaixo do código, junto das etiquetas de programa. | (homolog) | 13/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
+| — | (nada pendente no momento) | — | — | — |
 
 ## Publicadas recentemente
+
+### 14/08/2026 — Estoque (cards/etiquetas) + Distribuição (coeficiente e Manual) — commits a231ba5, e7e5069, 23351cb, fd04d3d, 7dc2235, d02d024, 19237d1
+
+Quatro melhorias publicadas juntas (empilhadas no histórico):
+
+- **Estoque Geral — cards dinâmicos por programa:** trocados os 5 cards estáticos
+  por 4 que reagem à busca/filtros (Judicial · CF/Adm · JEFAZ · Total), com demanda
+  e consumo somados de todas as unidades do conjunto filtrado. `/resumo` passou a
+  respeitar busca/filtros.
+- **Distribuição — coeficiente (alvo em meses) ajustável** por item e por item ×
+  unidade, no lugar do alvo fixo de 3. Coluna "Coef" editável + botão "todas".
+  0 = não distribuir. Persistente (`distribuicao_coeficiente`). Reposição geral + HE.
+- **Distribuição — botão "Manual"** ao lado de "Validar": pergunta a quantidade e
+  grava na Grade Final como manual (D.E, rituximabe). Nova coluna `origem` +
+  etiqueta Calculada/Manual na Grade Final.
+- **Estoque TP e Geral — etiqueta de SubCategoria** (sem repetir a de programa),
+  **marca em negrito** (quando ≠ SEM MARCA) e **siafísico ao lado do código SCODES**.
+
+**Pós-publicação (produção):** **reiniciar a produção** (`REINICIAR-PRODUCAO
+(porta 3000).bat`) — mudanças de backend (cards `/resumo`, tabelas
+`distribuicao_coeficiente` e coluna `origem`, subquery de subcategoria). Frontend
+por Ctrl+F5.
 
 ### 12/08/2026 — Listagem de Autores: só itens ATIVOS + Painel e botão "Ver" (commits 7d848b3, 0718318, 3265563, 85cdfb0)
 
