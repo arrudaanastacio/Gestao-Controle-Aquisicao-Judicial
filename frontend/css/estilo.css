@@ -683,6 +683,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaSolicitacoes:not([hidden])),
 .conteudo:has(> #paginaRelatorio:not([hidden])),
 .conteudo:has(> #paginaEstoque:not([hidden])),
+.conteudo:has(> #paginaMonitoramento:not([hidden])),
 .conteudo:has(> #paginaEstoqueGeral:not([hidden])),
 .conteudo:has(> #paginaHistorico:not([hidden])),
 .conteudo:has(> #paginaAutores:not([hidden])),
