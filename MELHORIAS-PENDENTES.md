@@ -10,7 +10,7 @@
 
 ## Publicadas recentemente
 
-### 14/08/2026 — E-mail bloqueado pela rede: gerar link de convite + tentativa Office365 (commits dcde94b, d235bfb)
+### 14/08/2026 — E-mail bloqueado pela rede: gerar link de convite + tentativa Office365 (commits dcde94b, d235bfb, 09d3aa9)
 
 - **SMTP forçado a IPv4** (`family:4`) — corrige `ENETUNREACH` (a máquina não tem
   rota IPv6). Depois descobrimos que a rede do governo **bloqueia toda saída SMTP**
@@ -23,6 +23,10 @@
   para enviar por e-mail/Teams. Convites pendentes ganham **"Copiar link"**. Backend:
   modo `link` no POST e `apenasLink` no reenviar.
   **Pós-publicação:** reiniciar produção (backend); frontend por Ctrl+F5.
+- **Mensagem de boas-vindas pronta** no modal do link (commit 09d3aa9, frontend):
+  além de "só o link", um campo com o texto completo (saudação com o primeiro nome,
+  boas-vindas ao sistema, o link de 48h e o passo a passo para criar a senha) + botão
+  **Copiar mensagem** — para colar direto no e-mail/Teams. Só Ctrl+F5.
 
 ### 14/08/2026 — Estoque (cards/etiquetas) + Distribuição (coeficiente e Manual) — commits a231ba5, e7e5069, 23351cb, fd04d3d, 7dc2235, d02d024, 19237d1
 
