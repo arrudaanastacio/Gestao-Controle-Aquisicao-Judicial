@@ -1805,7 +1805,7 @@ async function carregarTabelaEstoque() {
       }
       return `
         <tr>
-          <td>${descricaoComMarcaHTML(it)}<br><span class="col-codigo">${it.codigo_item}</span>${etiquetasProgramaHTML(it)}</td>
+          <td>${descricaoComMarcaHTML(it)}<br><span class="col-codigo">${it.codigo_item}</span>${it.siafisico ? ` · <span class="col-codigo">Siafísico: ${escHtml(String(it.siafisico))}</span>` : ''}${etiquetasProgramaHTML(it)}</td>
           <td>${fmtNumero(it.demandas)}</td>
           <td>${fmtNumero(it.consumo_mensal_total)}</td>
           <td>${fmtNumero(it.estoque)}</td>
@@ -2025,7 +2025,7 @@ async function carregarTabelaEstoqueGeral() {
       }
       return `
         <tr>
-          <td>${descricaoComMarcaHTML(it)}<br><span class="col-codigo">${it.codigo_item}</span>${etiquetasProgramaHTML(it)}</td>
+          <td>${descricaoComMarcaHTML(it)}<br><span class="col-codigo">${it.codigo_item}</span>${it.siafisico ? ` · <span class="col-codigo">Siafísico: ${escHtml(String(it.siafisico))}</span>` : ''}${etiquetasProgramaHTML(it)}</td>
           <td>${it.unidade || '—'}</td>
           <td>${fmtNumero(it.demandas)}</td>
           <td>${fmtNumero(it.consumo_mensal_total)}</td>
