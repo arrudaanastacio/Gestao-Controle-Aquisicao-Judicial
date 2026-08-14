@@ -1618,7 +1618,11 @@ document.getElementById('monComDemanda').addEventListener('change', () => {
   estadoMonFiltro.status = null;
   carregarMonitoramento();
 });
-document.getElementById('monBusca').addEventListener('input', () => renderTabelaMon());
+document.getElementById('monBusca').addEventListener('input', () => {
+  // Ao buscar, os gráficos e cards recalculam junto com a tabela (dinâmicos).
+  estadoMonFiltro.status = null;
+  renderMonDinamico();
+});
 
 // Liga cada menu suspenso de coluna para refazer a busca ao mudar
 ['filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas'].forEach((id) => {
@@ -1770,21 +1774,69 @@ async function carregarMonitoramento() {
     });
   }
 
-  renderCardsMon(dados.paineis.porStatusEstoque, dados.totalItens);
-  document.getElementById('monChartStatus').innerHTML = barrasHorizontais(dados.paineis.porStatusEstoque, (n) => CORES_STATUS[n] || '#8a94a6');
-  document.getElementById('monChartFinal').innerHTML = barrasHorizontais(dados.paineis.porStatusFinal, (n) => CORES_STATUS[n] || '#8a94a6');
-  document.getElementById('monChartCategoria').innerHTML = roscaSVG(dados.paineis.itensPorCategoria);
-  document.getElementById('monChartDemandas').innerHTML = roscaSVG(dados.paineis.demandasPorCategoria);
-  document.getElementById('monChartSubcategoria').innerHTML = barrasHorizontais(dados.paineis.porSubcategoria, (_, i) => PALETA_CAT[i % PALETA_CAT.length]);
-
   const aviso = document.getElementById('monTruncadoAviso');
-  if (dados.truncado) { aviso.hidden = false; aviso.textContent = `Mostrando os primeiros ${fmtNumero(dados.itens.length)} itens na tabela (os painéis acima consideram todos os ${fmtNumero(dados.totalItens)}).`; }
+  if (dados.truncado) { aviso.hidden = false; aviso.textContent = `Base grande: painéis e tabela consideram os primeiros ${fmtNumero(dados.itens.length)} de ${fmtNumero(dados.totalItens)} itens. Use o filtro de categoria para refinar.`; }
   else aviso.hidden = true;
 
-  renderTabelaMon();
+  // Ao recarregar do servidor, zera o recorte por status.
+  estadoMonFiltro.status = null;
+  renderMonDinamico();
 }
 
-// Cards de resumo por status (clicáveis para filtrar a tabela).
+// Ordem fixa dos status (do pior ao melhor) para os painéis/cards.
+const ORDEM_STATUS_MON = ['Estoque Zero', 'Estoque Baixo', 'Estoque Crítico', 'Regular', 'Abastecido', 'Sem Demanda'];
+const ORDEM_FINAL_MON = ['Desabastecido', 'Crítico', 'Abastecido', 'Sem Demanda'];
+
+// Recalcula os painéis (contagens/somas) a partir de uma lista de itens —
+// é isso que deixa os gráficos DINÂMICOS: mudam junto com a busca.
+function calcularPaineisMon(itens) {
+  const contar = (campo) => {
+    const m = new Map();
+    for (const it of itens) { const k = it[campo] || '—'; m.set(k, (m.get(k) || 0) + 1); }
+    return [...m.entries()].map(([nome, valor]) => ({ nome, valor })).sort((a, b) => b.valor - a.valor);
+  };
+  const somar = (campoChave, campoValor) => {
+    const m = new Map();
+    for (const it of itens) { const k = it[campoChave] || '—'; m.set(k, (m.get(k) || 0) + (Number(it[campoValor]) || 0)); }
+    return [...m.entries()].map(([nome, valor]) => ({ nome, valor })).sort((a, b) => b.valor - a.valor);
+  };
+  const porStatus = ORDEM_STATUS_MON.map((nome) => ({ nome, valor: itens.filter((i) => i.status_estoque === nome).length })).filter((x) => x.valor > 0);
+  const porFinal = ORDEM_FINAL_MON.map((nome) => ({ nome, valor: itens.filter((i) => i.status_final === nome).length })).filter((x) => x.valor > 0);
+  return {
+    porStatusEstoque: porStatus, porStatusFinal: porFinal,
+    itensPorCategoria: contar('categoria'), demandasPorCategoria: somar('categoria', 'demandas'),
+    porSubcategoria: contar('subcategoria'),
+  };
+}
+
+// Aplica só a busca (o recorte por status é da tabela) e devolve o conjunto
+// que alimenta cards + gráficos.
+function baseFiltradaMon() {
+  const dados = estadoMon.dados;
+  if (!dados) return [];
+  const busca = (document.getElementById('monBusca').value || '').trim().toLowerCase();
+  let itens = dados.itens;
+  if (busca) itens = itens.filter((i) =>
+    (i.descricao || '').toLowerCase().includes(busca) ||
+    (i.codigo_item || '').toLowerCase().includes(busca) ||
+    (i.siafisico || '').toLowerCase().includes(busca));
+  return itens;
+}
+
+// Redesenha cards + os 5 gráficos + a tabela a partir do estado atual dos filtros.
+function renderMonDinamico() {
+  const base = baseFiltradaMon();
+  const paineis = calcularPaineisMon(base);
+  renderCardsMon(paineis.porStatusEstoque, base.length);
+  document.getElementById('monChartStatus').innerHTML = barrasHorizontais(paineis.porStatusEstoque, (n) => CORES_STATUS[n] || '#8a94a6');
+  document.getElementById('monChartFinal').innerHTML = barrasHorizontais(paineis.porStatusFinal, (n) => CORES_STATUS[n] || '#8a94a6');
+  document.getElementById('monChartCategoria').innerHTML = roscaSVG(paineis.itensPorCategoria);
+  document.getElementById('monChartDemandas').innerHTML = roscaSVG(paineis.demandasPorCategoria);
+  document.getElementById('monChartSubcategoria').innerHTML = barrasHorizontais(paineis.porSubcategoria, (_, i) => PALETA_CAT[i % PALETA_CAT.length]);
+  renderTabelaMon(base);
+}
+
+// Cards de resumo por status (clicáveis para filtrar SÓ a tabela — drill-down).
 const estadoMonFiltro = { status: null };
 function renderCardsMon(porStatus, total) {
   const alvo = document.getElementById('monCards');
@@ -1795,15 +1847,16 @@ function renderCardsMon(porStatus, total) {
     return `<button type="button" class="cartao card-prog mon-card${ativo}" data-status="${escHtml(s.nome)}" style="border-top-color:${cor}; text-align:left; cursor:pointer;">
       <div class="prog-rotulo">${escHtml(s.nome)}</div>
       <div class="prog-metrica">${fmtNumero(s.valor)}</div>
-      <div class="prog-sub">${pct}% do total</div>
+      <div class="prog-sub">${pct}% do filtro</div>
     </button>`;
   }).join('');
   alvo.innerHTML = cards;
   alvo.querySelectorAll('.mon-card').forEach((b) => b.addEventListener('click', () => {
     const st = b.dataset.status;
     estadoMonFiltro.status = estadoMonFiltro.status === st ? null : st;
-    renderCardsMon(porStatus, total);
-    renderTabelaMon();
+    // O clique no card destaca o card e recorta a tabela (gráficos seguem a busca).
+    alvo.querySelectorAll('.mon-card').forEach((x) => x.classList.toggle('mon-card-ativo', x.dataset.status === estadoMonFiltro.status));
+    renderTabelaMon(baseFiltradaMon());
   }));
 }
 
@@ -1852,16 +1905,10 @@ function roscaSVG(dados) {
   return `<div class="mon-rosca"><svg viewBox="0 0 140 140" width="140" height="140" role="img">${setores}</svg><div class="mon-legenda">${legenda}</div></div>`;
 }
 
-function renderTabelaMon() {
-  const dados = estadoMon.dados;
-  if (!dados) return;
-  const busca = (document.getElementById('monBusca').value || '').trim().toLowerCase();
-  let itens = dados.itens;
+function renderTabelaMon(base) {
+  if (!estadoMon.dados) return;
+  let itens = base || baseFiltradaMon();
   if (estadoMonFiltro.status) itens = itens.filter((i) => i.status_estoque === estadoMonFiltro.status);
-  if (busca) itens = itens.filter((i) =>
-    (i.descricao || '').toLowerCase().includes(busca) ||
-    (i.codigo_item || '').toLowerCase().includes(busca) ||
-    (i.siafisico || '').toLowerCase().includes(busca));
 
   const corpo = document.getElementById('monTabelaCorpo');
   const LIM = 500;

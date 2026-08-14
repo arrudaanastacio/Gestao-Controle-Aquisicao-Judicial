@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Monitoramento de Estoque (reproduz a planilha da CPDAE) | _a preencher_ | 14/08/2026 | ✅ pronto em homolog |
+| 1 | Monitoramento de Estoque (reproduz a planilha da CPDAE) | c5ffac3 | 14/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1 — Monitoramento de Estoque
 
@@ -19,10 +19,11 @@ estoque já importado (nada de Excel manual).
   · 2–5 → *Regular* · ≥5 → *Abastecido*. **Situação Final**: Baixo/Crítico →
   *Crítico*, Zero → *Desabastecido*, resto → *Abastecido*. Também calcula
   *Previsão de Falta* (hoje + autonomia×30) e *Cobertura* (mês em que zera).
-- **5 painéis** em SVG puro (sem biblioteca): barras por Status de Estoque,
-  barras por Situação Final, rosca de itens por Categoria, rosca de demandas por
-  Categoria, barras por Sub-categoria. **Cards por status** clicáveis filtram a
-  tabela.
+- **5 painéis dinâmicos** em SVG puro (sem biblioteca): barras por Status de
+  Estoque, barras por Situação Final, rosca de itens por Categoria, rosca de
+  demandas por Categoria, barras por Sub-categoria. **Recalculam no navegador
+  junto com a busca** (digitou → gráficos e cards mudam na hora). **Cards por
+  status** clicáveis recortam só a tabela (drill-down).
 - **Tabela classificada** com busca (medicamento/SCODES/siafísico).
 - **Filtros:** escopo (Tenente Pena / todas as unidades), categoria e
   **"Somente com demanda"** (ligado por padrão — reproduz o recorte da planilha:
