@@ -7174,7 +7174,7 @@ function abrirModalUsuario(usuario) {
 
 document.getElementById('campoModoUsuario').addEventListener('change', atualizarVisibilidadeSenhaModo);
 
-const NOME_SISTEMA = 'Controle de Compras Judiciais – Tenente Pena';
+const NOME_SISTEMA = 'Elo — Entre Compras, Estoque e Demanda';
 
 // Monta a mensagem de boas-vindas pronta para o admin enviar por e-mail/Teams.
 function textoBoasVindasConvite(nome, link) {

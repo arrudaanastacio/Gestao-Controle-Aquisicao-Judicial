@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | (nada pendente no momento) | — | — | — |
+| 1 | Nome do sistema: **Elo — Entre Compras, Estoque e Demanda**. Aplicado no login, no topo do menu (monograma "Elo"), nos títulos das abas, na mensagem de boas-vindas do convite e no e-mail de convite. "Tenente Pena" saiu da marca. | (homolog) | 14/08/2026 | ⏳ Aguardando validar (Ctrl+F5; e-mail exige reiniciar) |
 
 ## Publicadas recentemente
 

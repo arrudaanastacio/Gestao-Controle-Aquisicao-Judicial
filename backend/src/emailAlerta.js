@@ -63,10 +63,10 @@ async function enviarConviteAcesso({ nome, email, link, validadeHoras }) {
   await t.sendMail({
     from: process.env.SMTP_USER,
     to: email,
-    subject: 'Acesso ao sistema Compras Judiciais — crie sua senha',
+    subject: 'Acesso ao Elo — crie sua senha',
     text:
       `Olá, ${nome}!\n\n` +
-      `Foi criado um acesso para você no sistema Compras Judiciais (Tenente Pena).\n` +
+      `Seja bem-vindo(a) ao Elo — Entre Compras, Estoque e Demanda.\n` +
       `Para criar sua senha e entrar, acesse o link abaixo:\n\n` +
       `${link}\n\n` +
       `Este link é pessoal e expira em ${validadeHoras} horas. Depois de criar a senha, ele deixa de funcionar.\n` +
