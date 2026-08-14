@@ -17,6 +17,10 @@ function obterTransportador() {
     port: parseInt(SMTP_PORT, 10) || 587,
     secure: (parseInt(SMTP_PORT, 10) || 587) === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASSWORD },
+    // Força IPv4: em máquinas sem rota IPv6, o Node tentava o endereço IPv6 do
+    // Gmail e falhava com ENETUNREACH (…2800:3f0:…:587). Com family 4 conecta
+    // sempre pelo IPv4.
+    family: 4,
   });
   return transportador;
 }
