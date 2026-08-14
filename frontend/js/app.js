@@ -7003,7 +7003,8 @@ async function carregarUsuarios() {
       <td>${textoAtividade(u.ultimo_acesso)}</td>
       <td>
         <button class="botao-editar" data-id="${u.id}">Editar</button>
-        ${u.pendente ? `<button class="botao-secundario" data-reenviar="${u.id}" style="margin-left:6px;">Reenviar convite</button>` : ''}
+        ${u.pendente ? `<button class="botao-secundario" data-copialink="${u.id}" style="margin-left:6px;">Copiar link</button>` : ''}
+        ${u.pendente ? `<button class="botao-secundario" data-reenviar="${u.id}" style="margin-left:6px;">Reenviar e-mail</button>` : ''}
         ${u.perfil === 'admin'
           ? '<span class="texto-secundario" style="margin-left:6px;">(pode tudo)</span>'
           : `<button class="botao-secundario" data-perm="${u.id}" data-nome="${u.nome}" style="margin-left:6px;">Permissões</button>`}
@@ -7014,6 +7015,18 @@ async function carregarUsuarios() {
   corpo.querySelectorAll('.botao-editar').forEach((btn) => {
     btn.addEventListener('click', () => abrirModalUsuario(usuarios.find((u) => u.id === Number(btn.dataset.id))));
   });
+  corpo.querySelectorAll('[data-copialink]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const u = usuarios.find((x) => x.id === Number(btn.dataset.copialink));
+      if (!confirm('Gerar um link novo de acesso para ' + u.email + '? O link anterior deixa de valer.')) return;
+      btn.disabled = true; btn.textContent = 'Gerando…';
+      try {
+        const r = await api(`/usuarios/${u.id}/reenviar-convite`, { method: 'POST', body: JSON.stringify({ apenasLink: true }) });
+        mostrarLinkConvite(r && r.link ? r.link : '', u.email);
+        carregarUsuarios();
+      } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Copiar link'; }
+    });
+  });
   corpo.querySelectorAll('[data-reenviar]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const u = usuarios.find((x) => x.id === Number(btn.dataset.reenviar));
@@ -7022,8 +7035,7 @@ async function carregarUsuarios() {
       try {
         const r = await api(`/usuarios/${u.id}/reenviar-convite`, { method: 'POST' });
         if (r && r.emailEnviado) alert('Convite reenviado para ' + u.email + '. O link expira em 48 horas.');
-        else alert('Não foi possível enviar o e-mail' + (r && r.erroEmail ? ' (' + r.erroEmail + ')' : '') +
-          '.\n\nCopie e envie este link ao colega (validade 48h):\n\n' + (r && r.link ? r.link : ''));
+        else mostrarLinkConvite(r && r.link ? r.link : '', u.email);
         carregarUsuarios();
       } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Reenviar convite'; }
     });
@@ -7136,7 +7148,7 @@ function atualizarVisibilidadeSenhaModo() {
   const modo = document.getElementById('campoModoUsuario').value;
   modoWrap.hidden = editando; // seletor de modo só no cadastro novo
   // No cadastro novo: senha aparece só quando modo = "senha". Na edição: sempre aparece.
-  senhaWrap.hidden = !editando && modo === 'convite';
+  senhaWrap.hidden = !editando && modo !== 'senha';
 }
 
 function abrirModalUsuario(usuario) {
@@ -7144,7 +7156,7 @@ function abrirModalUsuario(usuario) {
   formUsuario.reset();
   document.getElementById('tituloModalUsuario').textContent = usuario ? 'Editar usuário' : 'Novo usuário';
   document.getElementById('rotuloSenhaOpcional').textContent = usuario ? '(deixe em branco para manter)' : '';
-  document.getElementById('campoModoUsuario').value = 'convite'; // padrão: convite por e-mail
+  document.getElementById('campoModoUsuario').value = 'link'; // padrão: gerar link para enviar manualmente
 
   if (usuario) {
     document.getElementById('campoNomeUsuario').value = usuario.nome;
@@ -7161,6 +7173,31 @@ function abrirModalUsuario(usuario) {
 }
 
 document.getElementById('campoModoUsuario').addEventListener('change', atualizarVisibilidadeSenhaModo);
+
+// Abre o modal com o link de acesso, para o admin copiar e enviar (e-mail/Teams).
+function mostrarLinkConvite(link, email) {
+  const campo = document.getElementById('campoLinkConvite');
+  document.getElementById('avisoCopiadoLink').hidden = true;
+  campo.value = link || '';
+  document.getElementById('subLinkConvite').textContent = email
+    ? `Envie este link para ${email} criar a senha. Validade: 48 horas.`
+    : 'Copie o link abaixo e envie por e-mail ou Teams. Validade: 48 horas.';
+  document.getElementById('modalLinkConvite').hidden = false;
+  setTimeout(() => { campo.focus(); campo.select(); }, 50);
+}
+document.getElementById('botaoCopiarLinkConvite').addEventListener('click', async () => {
+  const campo = document.getElementById('campoLinkConvite');
+  campo.focus(); campo.select();
+  // navigator.clipboard exige contexto seguro (https). Em http://IP:3000 usa execCommand.
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(campo.value);
+    else document.execCommand('copy');
+  } catch (_) { try { document.execCommand('copy'); } catch (__) { /* nada */ } }
+  document.getElementById('avisoCopiadoLink').hidden = false;
+});
+document.getElementById('botaoFecharLinkConvite').addEventListener('click', () => {
+  document.getElementById('modalLinkConvite').hidden = true;
+});
 
 formUsuario.addEventListener('submit', async (ev) => {
   ev.preventDefault();
@@ -7180,18 +7217,19 @@ formUsuario.addEventListener('submit', async (ev) => {
     } else {
       const modo = document.getElementById('campoModoUsuario').value;
       if (modo === 'senha' && !senha) { alert('Defina uma senha para o novo usuário.'); return; }
-      const corpo = modo === 'convite' ? { nome, email, perfil, modo } : { nome, email, senha, perfil, modo };
+      const corpo = modo === 'senha' ? { nome, email, senha, perfil, modo } : { nome, email, perfil, modo };
       const r = await api('/usuarios', { method: 'POST', body: JSON.stringify(corpo) });
       modalUsuario.hidden = true;
       carregarUsuarios();
-      if (modo === 'convite') {
+      if (modo === 'link') {
+        // Gera o link e abre o modal para copiar e enviar por e-mail/Teams.
+        mostrarLinkConvite(r && r.link ? r.link : '', email);
+      } else if (modo === 'convite') {
         if (r && r.emailEnviado) {
           alert('Usuário criado! Um convite foi enviado para ' + email + '. O link para criar a senha expira em 48 horas.');
         } else {
           // E-mail não saiu: mostra o link para o admin copiar manualmente.
-          const link = r && r.link ? r.link : '';
-          alert('Usuário criado, mas o e-mail NÃO foi enviado' + (r && r.erroEmail ? ' (' + r.erroEmail + ')' : '') +
-            '.\n\nCopie e envie este link ao colega (validade 48h):\n\n' + link);
+          mostrarLinkConvite(r && r.link ? r.link : '', email);
         }
       }
     }

@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | (nada pendente no momento) | — | — | — |
+| 1 | Usuários: opção **"Gerar link para copiar"** (padrão) no cadastro — cria o usuário e mostra o link de definição de senha num modal com botão **Copiar**, para enviar por e-mail/Teams sem depender do envio automático (que a rede bloqueia). Botão **"Copiar link"** também nos convites pendentes. Backend: modo `link` no POST e `apenasLink` no reenviar. | (homolog) | 14/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
 
 ## Publicadas recentemente
 

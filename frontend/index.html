@@ -2501,7 +2501,8 @@
           <div class="campo-largo" id="campoModoAcessoWrap">
             <label for="campoModoUsuario">Como definir a senha</label>
             <select id="campoModoUsuario">
-              <option value="convite">Enviar convite por e-mail (o usuário cria a própria senha)</option>
+              <option value="link">Gerar link para copiar (você envia por e-mail/Teams)</option>
+              <option value="convite">Enviar convite por e-mail (automático)</option>
               <option value="senha">Definir a senha agora</option>
             </select>
           </div>
@@ -2529,6 +2530,21 @@
           <button type="submit" class="botao-primario">Salvar</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div class="fundo-modal" id="modalLinkConvite" hidden>
+    <div class="modal" style="max-width:560px;">
+      <h3>Link de acesso para o colega</h3>
+      <p class="texto-secundario" id="subLinkConvite" style="margin-top:-6px;">Copie o link abaixo e envie por e-mail ou Teams. Validade: 48 horas.</p>
+      <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+        <input type="text" id="campoLinkConvite" readonly style="flex:1; font-size:13px;">
+        <button type="button" class="botao-primario" id="botaoCopiarLinkConvite">Copiar</button>
+      </div>
+      <p class="texto-secundario" id="avisoCopiadoLink" style="margin-top:8px; color:var(--verde,#1b6b3a);" hidden>✓ Link copiado!</p>
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="botaoFecharLinkConvite">Fechar</button>
+      </div>
     </div>
   </div>
 

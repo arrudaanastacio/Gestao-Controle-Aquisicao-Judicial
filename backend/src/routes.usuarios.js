@@ -73,8 +73,10 @@ router.get('/', (req, res) => {
 
 router.post('/', async (req, res) => {
   const { nome, email, senha, perfil, modo } = req.body || {};
-  // modo = 'convite' (envia e-mail p/ o colega criar a senha) ou 'senha' (admin define agora).
-  const usarConvite = modo === 'convite';
+  // modo = 'convite' (envia e-mail), 'link' (só gera o link p/ o admin enviar
+  // manualmente) ou 'senha' (admin define agora). 'convite' e 'link' criam token.
+  const usarConvite = modo === 'convite' || modo === 'link';
+  const apenasLink = modo === 'link';
 
   if (!nome || !email || !['admin', 'consulta'].includes(perfil)) {
     return res.status(400).json({ erro: 'Dados inválidos. Informe nome, e-mail e perfil (admin|consulta).' });
@@ -113,9 +115,15 @@ router.post('/', async (req, res) => {
   // Modo senha: pronto.
   if (!usarConvite) return res.status(201).json({ id: info.lastInsertRowid, modo: 'senha' });
 
+  const link = montarLinkConvite(req, convite.token);
+
+  // Modo 'link': não tenta e-mail — devolve o link para o admin copiar e enviar.
+  if (apenasLink) {
+    return res.status(201).json({ id: info.lastInsertRowid, modo: 'link', emailEnviado: false, link });
+  }
+
   // Modo convite: tenta enviar o e-mail. Se falhar, o usuário JÁ foi criado com
   // token — devolvemos o link para o admin copiar manualmente e avisamos o erro.
-  const link = montarLinkConvite(req, convite.token);
   try {
     await enviarConviteAcesso({ nome, email, link, validadeHoras: VALIDADE_CONVITE_HORAS });
     res.status(201).json({ id: info.lastInsertRowid, modo: 'convite', emailEnviado: true });
@@ -138,6 +146,11 @@ router.post('/:id/reenviar-convite', async (req, res) => {
     .run(convite.token, convite.expira, usuario.id);
 
   const link = montarLinkConvite(req, convite.token);
+
+  // apenasLink: gera um link novo e devolve para copiar, sem tentar e-mail.
+  if (req.body && req.body.apenasLink) {
+    return res.json({ ok: true, emailEnviado: false, link });
+  }
   try {
     await enviarConviteAcesso({ nome: usuario.nome, email: usuario.email, link, validadeHoras: VALIDADE_CONVITE_HORAS });
     res.json({ ok: true, emailEnviado: true });
