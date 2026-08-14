@@ -6,9 +6,23 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Usuários: opção **"Gerar link para copiar"** (padrão) no cadastro — cria o usuário e mostra o link de definição de senha num modal com botão **Copiar**, para enviar por e-mail/Teams sem depender do envio automático (que a rede bloqueia). Botão **"Copiar link"** também nos convites pendentes. Backend: modo `link` no POST e `apenasLink` no reenviar. | (homolog) | 14/08/2026 | ⏳ Aguardando validar (reiniciar homolog p/ backend + Ctrl+F5) |
+| — | (nada pendente no momento) | — | — | — |
 
 ## Publicadas recentemente
+
+### 14/08/2026 — E-mail bloqueado pela rede: gerar link de convite + tentativa Office365 (commits dcde94b, d235bfb)
+
+- **SMTP forçado a IPv4** (`family:4`) — corrige `ENETUNREACH` (a máquina não tem
+  rota IPv6). Depois descobrimos que a rede do governo **bloqueia toda saída SMTP**
+  (Gmail 25/465/587 = timeout), mas **libera o Microsoft 365** (`smtp.office365.com:587`).
+  O `.env` de produção foi apontado para `smtp.office365.com` + `rafael.arruda@apoioprodesp.sp.gov.br`;
+  falta o **TI do Prodesp habilitar o SMTP AUTH** da caixa (erro `535 5.7.139`).
+- **Gerar link de convite para copiar** — como o e-mail está bloqueado, o cadastro
+  de usuário ganhou a opção (padrão) **"Gerar link para copiar"**: cria o usuário e
+  abre um modal com o link de definir-senha + botão **Copiar** (funciona em http://IP:3000),
+  para enviar por e-mail/Teams. Convites pendentes ganham **"Copiar link"**. Backend:
+  modo `link` no POST e `apenasLink` no reenviar.
+  **Pós-publicação:** reiniciar produção (backend); frontend por Ctrl+F5.
 
 ### 14/08/2026 — Estoque (cards/etiquetas) + Distribuição (coeficiente e Manual) — commits a231ba5, e7e5069, 23351cb, fd04d3d, 7dc2235, d02d024, 19237d1
 
