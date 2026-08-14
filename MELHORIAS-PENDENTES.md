@@ -6,7 +6,31 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | (nada pendente no momento) | — | — | — |
+| 1 | Monitoramento de Estoque (reproduz a planilha da CPDAE) | _a preencher_ | 14/08/2026 | ✅ pronto em homolog |
+
+### Detalhe do item 1 — Monitoramento de Estoque
+
+Reproduz a planilha gerencial **"Monitoramento Estoque.xlsm"** como uma **tela
+viva** no Elo (menu Estoque → *Monitoramento de Estoque*), alimentada pelo
+estoque já importado (nada de Excel manual).
+
+- **Classificação por autonomia** (faixas **fixas da planilha**): demanda 0 →
+  *Sem Demanda* · autonomia 0 → *Estoque Zero* · <1 → *Baixo* · 1–2 → *Crítico*
+  · 2–5 → *Regular* · ≥5 → *Abastecido*. **Situação Final**: Baixo/Crítico →
+  *Crítico*, Zero → *Desabastecido*, resto → *Abastecido*. Também calcula
+  *Previsão de Falta* (hoje + autonomia×30) e *Cobertura* (mês em que zera).
+- **5 painéis** em SVG puro (sem biblioteca): barras por Status de Estoque,
+  barras por Situação Final, rosca de itens por Categoria, rosca de demandas por
+  Categoria, barras por Sub-categoria. **Cards por status** clicáveis filtram a
+  tabela.
+- **Tabela classificada** com busca (medicamento/SCODES/siafísico).
+- **Filtros:** escopo (Tenente Pena / todas as unidades), categoria e
+  **"Somente com demanda"** (ligado por padrão — reproduz o recorte da planilha:
+  validado em **1.994 itens** vs. ~1.998 do arquivo original; contagens de status
+  batem quase 1:1).
+- Backend: `GET /api/estoque/monitoramento` (novo). Frontend: seção
+  `paginaMonitoramento` + `carregarMonitoramento()`.
+  **Pós-publicação:** reiniciar produção (backend novo) + Ctrl+F5 (frontend).
 
 ## Publicadas recentemente
 

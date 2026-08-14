@@ -43,6 +43,7 @@
           <div class="nav-subgrupo">
             <p class="nav-grupo-titulo nav-subgrupo-titulo">📊 Estoque</p>
             <a href="#" data-pagina="estoque">Estoque Tenente Pena</a>
+            <a href="#" data-pagina="monitoramento">Monitoramento de Estoque</a>
             <a href="#" data-pagina="evolucao">Evolução de Estoque</a>
             <a href="#" data-pagina="historico">Histórico de Estoque</a>
             <a href="#" data-pagina="entradaLotes">Movimentação de Entrada</a>
@@ -312,6 +313,77 @@
             </table>
           </div>
           <div class="estado-vazio" id="estadoVazioRelatorio" hidden>Nenhum registro encontrado.</div>
+        </div>
+      </section>
+
+      <section id="paginaMonitoramento" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Monitoramento de Estoque</h2>
+            <p id="subtituloMonitoramento">Classificação dos itens por situação de estoque — reproduz o painel gerencial da CPDAE.</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <select id="monEscopo" title="Escopo de unidades">
+              <option value="udtp" selected>UD 01 - Tenente Pena</option>
+              <option value="geral">Todas as unidades</option>
+            </select>
+            <select id="monCategoria" title="Filtrar por categoria"><option value="">Todas as categorias</option></select>
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; white-space:nowrap;">
+              <input type="checkbox" id="monComDemanda" checked> Somente com demanda
+            </label>
+          </div>
+        </div>
+
+        <div id="monAvisoVazio" class="estado-vazio" hidden>
+          Nenhum relatório de estoque importado ainda. Use o menu "Importar dados" para enviar o primeiro relatório.
+        </div>
+
+        <div id="monConteudo" hidden>
+          <div class="grade-resumo" id="monCards"></div>
+
+          <div class="mon-graficos">
+            <div class="cartao mon-grafico">
+              <h3>Status de Estoque</h3>
+              <div id="monChartStatus"></div>
+            </div>
+            <div class="cartao mon-grafico">
+              <h3>Situação Final</h3>
+              <div id="monChartFinal"></div>
+            </div>
+            <div class="cartao mon-grafico">
+              <h3>Itens por Categoria</h3>
+              <div id="monChartCategoria"></div>
+            </div>
+            <div class="cartao mon-grafico">
+              <h3>Demandas por Categoria</h3>
+              <div id="monChartDemandas"></div>
+            </div>
+            <div class="cartao mon-grafico mon-grafico-largo">
+              <h3>Itens por Sub-categoria</h3>
+              <div id="monChartSubcategoria"></div>
+            </div>
+          </div>
+
+          <div class="cartao" style="margin-top:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+              <h3 style="margin:0;">Itens classificados</h3>
+              <input type="search" id="monBusca" placeholder="Buscar medicamento, SCODES ou siafísico…" style="min-width:280px;">
+            </div>
+            <p id="monTruncadoAviso" class="dica" hidden></p>
+            <div class="tabela-rolavel">
+              <table class="tabela" id="monTabela">
+                <thead>
+                  <tr>
+                    <th>Código SCODES</th><th>Descrição</th><th>Categoria</th>
+                    <th class="num">Demanda</th><th class="num">Consumo</th>
+                    <th class="num">Estoque</th><th class="num">Autonomia</th>
+                    <th>Status Estoque</th><th>Situação Final</th><th>Previsão de Falta</th>
+                  </tr>
+                </thead>
+                <tbody id="monTabelaCorpo"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
 

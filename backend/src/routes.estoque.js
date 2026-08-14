@@ -621,6 +621,129 @@ router.get('/resumo', (req, res) => {
   });
 });
 
+// ---------- Monitoramento de Estoque (reproduz a planilha "Monitoramento Estoque.xlsm") ----------
+// Classifica cada item por autonomia (meses) em faixas fixas — as MESMAS da
+// planilha gerencial da CPDAE — e devolve os dados prontos para os 4 painéis:
+//   1) contagem de itens por Sub-categoria
+//   2) contagem de itens por Status Estoque
+//   3) itens por Categoria (rosca)  4) demandas por Categoria (rosca)
+// Faixas (coluna "Status Estoque" da planilha), sobre a Autonomia em meses:
+//   demanda 0 → Sem Demanda · autonomia 0 → Estoque Zero · <1 → Estoque Baixo ·
+//   1–2 → Estoque Crítico · 2–5 → Regular · ≥5 → Abastecido.
+function classificarStatusEstoque(demandas, autonomia) {
+  const d = Number(demandas) || 0;
+  const a = autonomia == null ? null : Number(autonomia);
+  if (d === 0) return 'Sem Demanda';
+  if (a === 0 || a == null) return 'Estoque Zero';
+  if (a > 0 && a < 1) return 'Estoque Baixo';
+  if (a >= 1 && a < 2) return 'Estoque Crítico';
+  if (a >= 2 && a < 5) return 'Regular';
+  return 'Abastecido';
+}
+function statusFinalDe(statusEstoque) {
+  if (statusEstoque === 'Sem Demanda') return 'Sem Demanda';
+  if (statusEstoque === 'Estoque Baixo' || statusEstoque === 'Estoque Crítico') return 'Crítico';
+  if (statusEstoque === 'Estoque Zero') return 'Desabastecido';
+  return 'Abastecido';
+}
+
+router.get('/monitoramento', (req, res) => {
+  const { data, escopoUnidade, categoria } = req.query;
+  // Por padrão só itens COM demanda (>0), como na planilha gerencial da CPDAE
+  // (os pivôs de lá ignoram os "Sem Demanda"). comDemanda=0 mostra tudo.
+  const soComDemanda = req.query.comDemanda !== '0';
+  let dataRef = data;
+  if (!dataRef) {
+    const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+    if (!ultima) return res.json({ dataReferencia: null, itens: [] });
+    dataRef = ultima.data_referencia;
+  }
+
+  const condicoes = ['e.data_referencia = ?'];
+  const params = [dataRef];
+  const escCond = condEscopoUnidade(escopoUnidade || 'udtp', 'e.');
+  if (escCond) condicoes.push(escCond);
+  if (categoria) { condicoes.push('e.categoria = ?'); params.push(categoria); }
+  if (soComDemanda) condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
+  const where = `WHERE ${condicoes.join(' AND ')}`;
+
+  const linhas = db.prepare(`
+    SELECT e.codigo_item, e.siafisico, e.descricao, e.unidade,
+           e.categoria, e.tipo_item, e.marca, e.importado, e.controlado, e.outras_demandas,
+           e.demandas, e.demandas_aj, e.demandas_cf, e.demandas_jefaz,
+           e.consumo_mensal_total, e.estoque, e.autonomia,
+           (SELECT ic.subcategoria FROM item_classificacao ic WHERE ic.codigo_item = e.codigo_item) AS subcategoria
+      FROM estoque_itens e ${where}
+      ORDER BY e.descricao
+  `).all(...params);
+
+  // Data-base para "Cobertura" (mês em que zera) e "Previsão de falta".
+  const hoje = new Date();
+  const itens = linhas.map((r) => {
+    const statusEstoque = classificarStatusEstoque(r.demandas, r.autonomia);
+    const statusFinal = statusFinalDe(statusEstoque);
+    let previsaoFalta = null, coberturaMes = null;
+    if (r.autonomia != null && (Number(r.consumo_mensal_total) || 0) > 0) {
+      const d = new Date(hoje.getTime());
+      d.setDate(d.getDate() + Math.round(Number(r.autonomia) * 30));
+      previsaoFalta = d.toISOString().slice(0, 10);
+      const m = new Date(hoje.getFullYear(), hoje.getMonth() + Math.round(Number(r.autonomia)), 1);
+      coberturaMes = m.toISOString().slice(0, 7);
+    }
+    return {
+      codigo_item: r.codigo_item, siafisico: r.siafisico, descricao: r.descricao, unidade: r.unidade,
+      categoria: r.categoria || 'Sem categoria', subcategoria: r.subcategoria || (r.categoria || 'Sem categoria'),
+      tipo_item: r.tipo_item, marca: r.marca, importado: r.importado, controlado: r.controlado,
+      demandas: r.demandas || 0, demandas_aj: r.demandas_aj || 0, demandas_cf: r.demandas_cf || 0, demandas_jefaz: r.demandas_jefaz || 0,
+      consumo_mensal_total: r.consumo_mensal_total || 0, estoque: r.estoque || 0, autonomia: r.autonomia,
+      status_estoque: statusEstoque, status_final: statusFinal,
+      previsao_falta: previsaoFalta, cobertura_mes: coberturaMes,
+      faixa_demanda: (Number(r.demandas) || 0) > 30 ? 'Acima 30' : 'Baixo 30',
+    };
+  });
+
+  // Agregações para os painéis.
+  const contar = (chave) => {
+    const m = new Map();
+    for (const it of itens) { const k = it[chave] || '—'; m.set(k, (m.get(k) || 0) + 1); }
+    return [...m.entries()].map(([nome, valor]) => ({ nome, valor })).sort((a, b) => b.valor - a.valor);
+  };
+  const somarPor = (chave, campo) => {
+    const m = new Map();
+    for (const it of itens) { const k = it[chave] || '—'; m.set(k, (m.get(k) || 0) + (Number(it[campo]) || 0)); }
+    return [...m.entries()].map(([nome, valor]) => ({ nome, valor })).sort((a, b) => b.valor - a.valor);
+  };
+
+  // Ordem fixa e cores para o Status Estoque (do pior ao melhor).
+  const ORDEM_STATUS = ['Estoque Zero', 'Estoque Baixo', 'Estoque Crítico', 'Regular', 'Abastecido', 'Sem Demanda'];
+  const porStatus = ORDEM_STATUS
+    .map((nome) => ({ nome, valor: itens.filter((i) => i.status_estoque === nome).length }))
+    .filter((x) => x.valor > 0);
+  const ORDEM_FINAL = ['Desabastecido', 'Crítico', 'Abastecido', 'Sem Demanda'];
+  const porFinal = ORDEM_FINAL
+    .map((nome) => ({ nome, valor: itens.filter((i) => i.status_final === nome).length }))
+    .filter((x) => x.valor > 0);
+
+  // No escopo geral (dezenas de milhares de itens) a tabela vai truncada para
+  // não estourar o payload; os painéis continuam calculados sobre TUDO.
+  const LIMITE_TABELA = 8000;
+  const truncado = itens.length > LIMITE_TABELA;
+
+  res.json({
+    dataReferencia: dataRef,
+    totalItens: itens.length,
+    truncado,
+    itens: truncado ? itens.slice(0, LIMITE_TABELA) : itens,
+    paineis: {
+      porSubcategoria: contar('subcategoria'),
+      porStatusEstoque: porStatus,
+      porStatusFinal: porFinal,
+      itensPorCategoria: contar('categoria'),
+      demandasPorCategoria: somarPor('categoria', 'demandas'),
+    },
+  });
+});
+
 // ---------- Histórico de estoque: lista dos snapshots arquivados (01/15) ----------
 router.get('/historico', (req, res) => {
   const snapshots = db.prepare(`

@@ -644,6 +644,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaBusca').hidden = pagina !== 'busca';
   document.getElementById('paginaRelatorio').hidden = pagina !== 'relatorio';
   document.getElementById('paginaEstoque').hidden = pagina !== 'estoque';
+  document.getElementById('paginaMonitoramento').hidden = pagina !== 'monitoramento';
   document.getElementById('paginaEstoqueGeral').hidden = pagina !== 'estoqueGeral';
   document.getElementById('paginaEstoqueOD').hidden = pagina !== 'estoqueOD';
   document.getElementById('paginaDistribuicao').hidden = pagina !== 'distribuicao';
@@ -678,6 +679,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'solicitacoes') await carregarSolicitacoes();
     if (pagina === 'relatorio') await carregarRelatorio();
     if (pagina === 'estoque') await carregarEstoque();
+    if (pagina === 'monitoramento') await carregarMonitoramento();
     if (pagina === 'estoqueGeral') await carregarEstoqueGeral();
     if (pagina === 'estoqueOD') await carregarEstoqueOD();
     if (pagina === 'distribuicao') await carregarDistribuicao();
@@ -1600,6 +1602,24 @@ document.getElementById('seletorDataEstoque').addEventListener('change', async (
   carregarTabelaEstoque();
 });
 
+// Filtros da tela de Monitoramento de Estoque.
+document.getElementById('monEscopo').addEventListener('change', () => {
+  // Ao trocar de escopo, o filtro de categoria é remontado do zero.
+  const selCat = document.getElementById('monCategoria');
+  selCat.innerHTML = '<option value="">Todas as categorias</option>';
+  estadoMonFiltro.status = null;
+  carregarMonitoramento();
+});
+document.getElementById('monCategoria').addEventListener('change', () => {
+  estadoMonFiltro.status = null;
+  carregarMonitoramento();
+});
+document.getElementById('monComDemanda').addEventListener('change', () => {
+  estadoMonFiltro.status = null;
+  carregarMonitoramento();
+});
+document.getElementById('monBusca').addEventListener('input', () => renderTabelaMon());
+
 // Liga cada menu suspenso de coluna para refazer a busca ao mudar
 ['filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => {
@@ -1707,6 +1727,165 @@ document.getElementById('botaoProximoEstoque').addEventListener('click', () => {
 document.getElementById('botaoFecharModalEstoque').addEventListener('click', () => {
   document.getElementById('modalEstoqueItem').hidden = true;
 });
+
+// -------------------- Monitoramento de Estoque --------------------
+// Reproduz a planilha gerencial "Monitoramento Estoque.xlsm": classifica cada
+// item por faixa de autonomia (fixas: <1 Baixo, 1–2 Crítico, 2–5 Regular,
+// ≥5 Abastecido) e monta os painéis + a tabela classificada.
+const estadoMon = { dados: null };
+
+// Cores por status/situação (alinhadas ao semáforo já usado no sistema).
+const CORES_STATUS = {
+  'Estoque Zero': '#b3261e', 'Estoque Baixo': '#eb6834', 'Estoque Crítico': '#e0a100',
+  'Regular': '#2a78d6', 'Abastecido': '#1baf7a', 'Sem Demanda': '#8a94a6',
+  'Desabastecido': '#b3261e', 'Crítico': '#eb6834',
+};
+const PALETA_CAT = ['#2a78d6', '#1baf7a', '#6c4bd1', '#eb6834', '#e0a100', '#0f9d9d', '#b3261e', '#8a94a6'];
+
+async function carregarMonitoramento() {
+  const escopo = document.getElementById('monEscopo').value || 'udtp';
+  const categoria = document.getElementById('monCategoria').value || '';
+  const comDemanda = document.getElementById('monComDemanda').checked;
+  const qs = new URLSearchParams({ escopoUnidade: escopo });
+  if (categoria) qs.set('categoria', categoria);
+  if (!comDemanda) qs.set('comDemanda', '0');
+  const dados = await api('/estoque/monitoramento?' + qs.toString());
+  estadoMon.dados = dados;
+
+  const vazio = document.getElementById('monAvisoVazio');
+  const conteudo = document.getElementById('monConteudo');
+  if (!dados.dataReferencia) {
+    vazio.hidden = false; conteudo.hidden = true; return;
+  }
+  vazio.hidden = true; conteudo.hidden = false;
+
+  document.getElementById('subtituloMonitoramento').textContent =
+    `Situação em ${formatarData(dados.dataReferencia)} — ${fmtNumero(dados.totalItens)} itens · faixas fixas da planilha CPDAE.`;
+
+  // Preenche o filtro de categoria (uma vez, a partir dos painéis).
+  const selCat = document.getElementById('monCategoria');
+  if (selCat.options.length <= 1) {
+    dados.paineis.itensPorCategoria.forEach((c) => {
+      const o = document.createElement('option'); o.value = c.nome; o.textContent = c.nome; selCat.appendChild(o);
+    });
+  }
+
+  renderCardsMon(dados.paineis.porStatusEstoque, dados.totalItens);
+  document.getElementById('monChartStatus').innerHTML = barrasHorizontais(dados.paineis.porStatusEstoque, (n) => CORES_STATUS[n] || '#8a94a6');
+  document.getElementById('monChartFinal').innerHTML = barrasHorizontais(dados.paineis.porStatusFinal, (n) => CORES_STATUS[n] || '#8a94a6');
+  document.getElementById('monChartCategoria').innerHTML = roscaSVG(dados.paineis.itensPorCategoria);
+  document.getElementById('monChartDemandas').innerHTML = roscaSVG(dados.paineis.demandasPorCategoria);
+  document.getElementById('monChartSubcategoria').innerHTML = barrasHorizontais(dados.paineis.porSubcategoria, (_, i) => PALETA_CAT[i % PALETA_CAT.length]);
+
+  const aviso = document.getElementById('monTruncadoAviso');
+  if (dados.truncado) { aviso.hidden = false; aviso.textContent = `Mostrando os primeiros ${fmtNumero(dados.itens.length)} itens na tabela (os painéis acima consideram todos os ${fmtNumero(dados.totalItens)}).`; }
+  else aviso.hidden = true;
+
+  renderTabelaMon();
+}
+
+// Cards de resumo por status (clicáveis para filtrar a tabela).
+const estadoMonFiltro = { status: null };
+function renderCardsMon(porStatus, total) {
+  const alvo = document.getElementById('monCards');
+  const cards = porStatus.map((s) => {
+    const pct = total ? Math.round((s.valor / total) * 100) : 0;
+    const cor = CORES_STATUS[s.nome] || '#8a94a6';
+    const ativo = estadoMonFiltro.status === s.nome ? ' mon-card-ativo' : '';
+    return `<button type="button" class="cartao card-prog mon-card${ativo}" data-status="${escHtml(s.nome)}" style="border-top-color:${cor}; text-align:left; cursor:pointer;">
+      <div class="prog-rotulo">${escHtml(s.nome)}</div>
+      <div class="prog-metrica">${fmtNumero(s.valor)}</div>
+      <div class="prog-sub">${pct}% do total</div>
+    </button>`;
+  }).join('');
+  alvo.innerHTML = cards;
+  alvo.querySelectorAll('.mon-card').forEach((b) => b.addEventListener('click', () => {
+    const st = b.dataset.status;
+    estadoMonFiltro.status = estadoMonFiltro.status === st ? null : st;
+    renderCardsMon(porStatus, total);
+    renderTabelaMon();
+  }));
+}
+
+// Gráfico de barras horizontais em SVG puro (rótulo + barra + valor).
+function barrasHorizontais(dados, corFn) {
+  if (!dados || !dados.length) return '<p class="dica">Sem dados.</p>';
+  const max = Math.max(...dados.map((d) => d.valor), 1);
+  const linha = 30, margemTopo = 6, largRotulo = 118, largBarra = 240, largValor = 60;
+  const largura = largRotulo + largBarra + largValor;
+  const altura = margemTopo * 2 + dados.length * linha;
+  const linhas = dados.map((d, i) => {
+    const y = margemTopo + i * linha;
+    const w = Math.max(2, (d.valor / max) * largBarra);
+    const cor = corFn(d.nome, i);
+    const rot = String(d.nome).length > 16 ? String(d.nome).slice(0, 15) + '…' : d.nome;
+    return `<text x="${largRotulo - 8}" y="${y + 18}" text-anchor="end" class="mon-bar-rot">${escHtml(rot)}</text>
+      <rect x="${largRotulo}" y="${y + 5}" width="${w}" height="18" rx="4" fill="${cor}"></rect>
+      <text x="${largRotulo + w + 6}" y="${y + 18}" class="mon-bar-val">${fmtNumero(d.valor)}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${largura} ${altura}" width="100%" style="max-width:${largura}px" role="img">${linhas}</svg>`;
+}
+
+// Gráfico de rosca (doughnut) em SVG puro + legenda com valor e %.
+function roscaSVG(dados) {
+  if (!dados || !dados.length) return '<p class="dica">Sem dados.</p>';
+  const total = dados.reduce((s, d) => s + d.valor, 0) || 1;
+  const R = 60, r = 36, cx = 70, cy = 70;
+  let ang = -Math.PI / 2;
+  const setores = dados.map((d, i) => {
+    const frac = d.valor / total;
+    const a2 = ang + frac * 2 * Math.PI;
+    const grande = frac > 0.5 ? 1 : 0;
+    const x1 = cx + R * Math.cos(ang), y1 = cy + R * Math.sin(ang);
+    const x2 = cx + R * Math.cos(a2), y2 = cy + R * Math.sin(a2);
+    const xi2 = cx + r * Math.cos(a2), yi2 = cy + r * Math.sin(a2);
+    const xi1 = cx + r * Math.cos(ang), yi1 = cy + r * Math.sin(ang);
+    ang = a2;
+    const cor = PALETA_CAT[i % PALETA_CAT.length];
+    if (frac >= 0.999) return `<circle cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="${cor}" stroke-width="${R - r}"></circle>`;
+    return `<path d="M ${x1} ${y1} A ${R} ${R} 0 ${grande} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${r} ${r} 0 ${grande} 0 ${xi1} ${yi1} Z" fill="${cor}"></path>`;
+  }).join('');
+  const legenda = dados.map((d, i) => {
+    const pct = Math.round((d.valor / total) * 100);
+    return `<div class="mon-leg-item"><span class="mon-leg-cor" style="background:${PALETA_CAT[i % PALETA_CAT.length]}"></span>${escHtml(d.nome)} — <strong>${fmtNumero(d.valor)}</strong> (${pct}%)</div>`;
+  }).join('');
+  return `<div class="mon-rosca"><svg viewBox="0 0 140 140" width="140" height="140" role="img">${setores}</svg><div class="mon-legenda">${legenda}</div></div>`;
+}
+
+function renderTabelaMon() {
+  const dados = estadoMon.dados;
+  if (!dados) return;
+  const busca = (document.getElementById('monBusca').value || '').trim().toLowerCase();
+  let itens = dados.itens;
+  if (estadoMonFiltro.status) itens = itens.filter((i) => i.status_estoque === estadoMonFiltro.status);
+  if (busca) itens = itens.filter((i) =>
+    (i.descricao || '').toLowerCase().includes(busca) ||
+    (i.codigo_item || '').toLowerCase().includes(busca) ||
+    (i.siafisico || '').toLowerCase().includes(busca));
+
+  const corpo = document.getElementById('monTabelaCorpo');
+  const LIM = 500;
+  const mostra = itens.slice(0, LIM);
+  corpo.innerHTML = mostra.map((i) => {
+    const corE = CORES_STATUS[i.status_estoque] || '#8a94a6';
+    const corF = CORES_STATUS[i.status_final] || '#8a94a6';
+    return `<tr>
+      <td>${escHtml(i.codigo_item || '—')}${i.siafisico ? '<br><span class="col-codigo">Siafísico: ' + escHtml(i.siafisico) + '</span>' : ''}</td>
+      <td>${escHtml(i.descricao || '—')}</td>
+      <td>${escHtml(i.categoria || '—')}</td>
+      <td class="num">${fmtNumero(i.demandas)}</td>
+      <td class="num">${fmtNumero(i.consumo_mensal_total)}</td>
+      <td class="num">${fmtNumero(i.estoque)}</td>
+      <td class="num">${i.autonomia == null ? '—' : Number(i.autonomia).toFixed(1)}</td>
+      <td><span class="tag-status" style="background:${corE}22; color:${corE}; border:1px solid ${corE}55;">${escHtml(i.status_estoque)}</span></td>
+      <td><span class="tag-status" style="background:${corF}22; color:${corF}; border:1px solid ${corF}55;">${escHtml(i.status_final)}</span></td>
+      <td>${i.previsao_falta ? formatarData(i.previsao_falta) : '—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="10" class="dica" style="text-align:center;">Nenhum item para o filtro atual.</td></tr>';
+
+  const h3 = document.querySelector('#monConteudo .cartao h3');
+  if (h3) h3.textContent = `Itens classificados (${fmtNumero(itens.length)}${itens.length > LIM ? ', mostrando ' + LIM : ''})`;
+}
 
 async function carregarEstoque() {
   const resumo = await api('/estoque/resumo?escopoUnidade=udtp');
