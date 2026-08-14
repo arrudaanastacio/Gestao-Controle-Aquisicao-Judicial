@@ -6,9 +6,13 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Monitoramento de Estoque (reproduz a planilha da CPDAE) | c5ffac3 | 14/08/2026 | ✅ pronto em homolog |
+| — | (nada pendente no momento) | — | — | — |
 
-### Detalhe do item 1 — Monitoramento de Estoque
+## Publicadas recentemente
+
+### 14/08/2026 — Monitoramento de Estoque (publicado, commit fea4b16)
+
+Detalhe do item — Monitoramento de Estoque
 
 Reproduz a planilha gerencial **"Monitoramento Estoque.xlsm"** como uma **tela
 viva** no Elo (menu Estoque → *Monitoramento de Estoque*), alimentada pelo
@@ -42,8 +46,6 @@ estoque já importado (nada de Excel manual).
 - Backend: `GET /api/estoque/monitoramento` (novo). Frontend: seção
   `paginaMonitoramento` + `carregarMonitoramento()`.
   **Pós-publicação:** reiniciar produção (backend novo) + Ctrl+F5 (frontend).
-
-## Publicadas recentemente
 
 ### 14/08/2026 — E-mail bloqueado pela rede: gerar link de convite + tentativa Office365 (commits dcde94b, d235bfb, 09d3aa9)
 
