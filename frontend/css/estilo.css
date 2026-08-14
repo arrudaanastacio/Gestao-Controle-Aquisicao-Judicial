@@ -355,11 +355,21 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 }
 
 .marca-lateral {
-  font-family: var(--fonte-titulo);
-  font-size: 18px;
-  line-height: 1.25;
+  font-family: var(--fonte-corpo);
+  font-size: 11.5px;
+  line-height: 1.3;
+  opacity: 0.82;
   margin-bottom: 4px;
 }
+
+/* Wordmark "Elo" — sans moderno e forte (fonte do sistema, funciona offline) */
+.marca-wordmark {
+  font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.barra-lateral .marca-wordmark { font-size: 25px; line-height: 1; color: #eafff6; margin-bottom: 2px; }
+.cartao-login h1.marca-wordmark { font-size: 42px; line-height: 1; color: var(--selo); margin-bottom: 4px; }
 
 .marca-lateral-eyebrow {
   font-family: var(--fonte-mono);
