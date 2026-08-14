@@ -1607,21 +1607,27 @@ document.getElementById('monEscopo').addEventListener('change', () => {
   // Ao trocar de escopo, o filtro de categoria é remontado do zero.
   const selCat = document.getElementById('monCategoria');
   selCat.innerHTML = '<option value="">Todas as categorias</option>';
-  estadoMonFiltro.status = null;
+  Object.keys(DIMENSOES_MON).forEach((d) => { estadoMonFiltro[d] = null; });
   carregarMonitoramento();
 });
 document.getElementById('monCategoria').addEventListener('change', () => {
-  estadoMonFiltro.status = null;
+  Object.keys(DIMENSOES_MON).forEach((d) => { estadoMonFiltro[d] = null; });
   carregarMonitoramento();
 });
 document.getElementById('monComDemanda').addEventListener('change', () => {
-  estadoMonFiltro.status = null;
+  Object.keys(DIMENSOES_MON).forEach((d) => { estadoMonFiltro[d] = null; });
   carregarMonitoramento();
 });
 document.getElementById('monBusca').addEventListener('input', () => {
   // Ao buscar, os gráficos e cards recalculam junto com a tabela (dinâmicos).
-  estadoMonFiltro.status = null;
   renderMonDinamico();
+});
+document.getElementById('monLimparFiltro').addEventListener('click', limparFiltroMon);
+// Clique em qualquer barra/fatia/legenda dos gráficos aplica o recorte.
+document.getElementById('monConteudo').addEventListener('click', (ev) => {
+  const alvo = ev.target.closest('.mon-clic');
+  if (!alvo || !alvo.dataset.dim) return;
+  alternarRecorteMon(alvo.dataset.dim, alvo.dataset.nome);
 });
 
 // Liga cada menu suspenso de coluna para refazer a busca ao mudar
@@ -1779,7 +1785,7 @@ async function carregarMonitoramento() {
   else aviso.hidden = true;
 
   // Ao recarregar do servidor, zera o recorte por status.
-  estadoMonFiltro.status = null;
+  Object.keys(DIMENSOES_MON).forEach((d) => { estadoMonFiltro[d] = null; });
   renderMonDinamico();
 }
 
@@ -1809,9 +1815,16 @@ function calcularPaineisMon(itens) {
   };
 }
 
-// Aplica só a busca (o recorte por status é da tabela) e devolve o conjunto
-// que alimenta cards + gráficos.
-function baseFiltradaMon() {
+// Recortes ativos por clique (cross-filter): busca + dimensões dos gráficos.
+// Cada dimensão aponta para o campo do item que ela filtra.
+const DIMENSOES_MON = {
+  status_estoque: 'Status de Estoque', status_final: 'Situação Final',
+  categoria: 'Categoria', subcategoria: 'Sub-categoria',
+};
+
+// Aplica a busca + os recortes de clique (opcionalmente ignorando UMA dimensão,
+// para que um gráfico não filtre a si mesmo). É o que faz tudo filtrar junto.
+function baseFiltradaMon(exceto) {
   const dados = estadoMon.dados;
   if (!dados) return [];
   const busca = (document.getElementById('monBusca').value || '').trim().toLowerCase();
@@ -1820,70 +1833,116 @@ function baseFiltradaMon() {
     (i.descricao || '').toLowerCase().includes(busca) ||
     (i.codigo_item || '').toLowerCase().includes(busca) ||
     (i.siafisico || '').toLowerCase().includes(busca));
+  for (const dim of Object.keys(DIMENSOES_MON)) {
+    if (dim === exceto) continue;
+    if (estadoMonFiltro[dim]) itens = itens.filter((i) => (i[dim] || '—') === estadoMonFiltro[dim]);
+  }
   return itens;
 }
 
-// Redesenha cards + os 5 gráficos + a tabela a partir do estado atual dos filtros.
-function renderMonDinamico() {
-  const base = baseFiltradaMon();
-  const paineis = calcularPaineisMon(base);
-  renderCardsMon(paineis.porStatusEstoque, base.length);
-  document.getElementById('monChartStatus').innerHTML = barrasHorizontais(paineis.porStatusEstoque, (n) => CORES_STATUS[n] || '#8a94a6');
-  document.getElementById('monChartFinal').innerHTML = barrasHorizontais(paineis.porStatusFinal, (n) => CORES_STATUS[n] || '#8a94a6');
-  document.getElementById('monChartCategoria').innerHTML = roscaSVG(paineis.itensPorCategoria);
-  document.getElementById('monChartDemandas').innerHTML = roscaSVG(paineis.demandasPorCategoria);
-  document.getElementById('monChartSubcategoria').innerHTML = barrasHorizontais(paineis.porSubcategoria, (_, i) => PALETA_CAT[i % PALETA_CAT.length]);
-  renderTabelaMon(base);
+// Liga/desliga um recorte de dimensão (clique em barra/fatia/card) e redesenha.
+function alternarRecorteMon(dim, nome) {
+  estadoMonFiltro[dim] = estadoMonFiltro[dim] === nome ? null : nome;
+  renderMonDinamico();
 }
 
-// Cards de resumo por status (clicáveis para filtrar SÓ a tabela — drill-down).
-const estadoMonFiltro = { status: null };
-function renderCardsMon(porStatus, total) {
+// Zera busca + todos os recortes (e o seletor de categoria, se estiver ativo).
+function limparFiltroMon() {
+  document.getElementById('monBusca').value = '';
+  for (const dim of Object.keys(DIMENSOES_MON)) estadoMonFiltro[dim] = null;
+  const selCat = document.getElementById('monCategoria');
+  if (selCat.value) { selCat.value = ''; carregarMonitoramento(); return; } // recarrega do servidor
+  renderMonDinamico();
+}
+
+// Mostra/oculta o botão "Limpar filtro" e o chip com o filtro ativo.
+function atualizarIndicadorFiltroMon() {
+  const ativos = [];
+  const busca = (document.getElementById('monBusca').value || '').trim();
+  if (busca) ativos.push(`busca "${busca}"`);
+  for (const [dim, rot] of Object.entries(DIMENSOES_MON)) {
+    if (estadoMonFiltro[dim]) ativos.push(`${rot}: ${estadoMonFiltro[dim]}`);
+  }
+  const btn = document.getElementById('monLimparFiltro');
+  const chip = document.getElementById('monFiltroAtivo');
+  btn.hidden = ativos.length === 0;
+  if (ativos.length) { chip.hidden = false; chip.textContent = 'filtrando por ' + ativos.join(' · '); }
+  else chip.hidden = true;
+}
+
+// Recortes ativos por dimensão. Cada gráfico usa a base "exceto ele mesmo",
+// então clicar num status mantém todos os status visíveis (só destaca o
+// escolhido) e filtra o resto (tabela + demais gráficos).
+const estadoMonFiltro = { status_estoque: null, status_final: null, categoria: null, subcategoria: null };
+
+// Redesenha cards + os 5 gráficos + a tabela a partir do estado atual dos filtros.
+function renderMonDinamico() {
+  const pStatus = calcularPaineisMon(baseFiltradaMon('status_estoque'));
+  const pFinal = calcularPaineisMon(baseFiltradaMon('status_final'));
+  const pCat = calcularPaineisMon(baseFiltradaMon('categoria'));
+  const pSub = calcularPaineisMon(baseFiltradaMon('subcategoria'));
+
+  renderCardsMon(pStatus.porStatusEstoque);
+  document.getElementById('monChartStatus').innerHTML = barrasHorizontais(pStatus.porStatusEstoque, (n) => CORES_STATUS[n] || '#8a94a6', 'status_estoque');
+  document.getElementById('monChartFinal').innerHTML = barrasHorizontais(pFinal.porStatusFinal, (n) => CORES_STATUS[n] || '#8a94a6', 'status_final');
+  document.getElementById('monChartCategoria').innerHTML = roscaSVG(pCat.itensPorCategoria, 'categoria');
+  document.getElementById('monChartDemandas').innerHTML = roscaSVG(pCat.demandasPorCategoria, 'categoria');
+  document.getElementById('monChartSubcategoria').innerHTML = barrasHorizontais(pSub.porSubcategoria, (_, i) => PALETA_CAT[i % PALETA_CAT.length], 'subcategoria');
+
+  renderTabelaMon(baseFiltradaMon());
+  atualizarIndicadorFiltroMon();
+}
+
+// Cards de resumo por status (clicáveis — mesmo recorte da barra de status).
+function renderCardsMon(porStatus) {
+  const total = porStatus.reduce((s, x) => s + x.valor, 0) || 1;
   const alvo = document.getElementById('monCards');
-  const cards = porStatus.map((s) => {
-    const pct = total ? Math.round((s.valor / total) * 100) : 0;
+  alvo.innerHTML = porStatus.map((s) => {
+    const pct = Math.round((s.valor / total) * 100);
     const cor = CORES_STATUS[s.nome] || '#8a94a6';
-    const ativo = estadoMonFiltro.status === s.nome ? ' mon-card-ativo' : '';
-    return `<button type="button" class="cartao card-prog mon-card${ativo}" data-status="${escHtml(s.nome)}" style="border-top-color:${cor}; text-align:left; cursor:pointer;">
+    const ativo = estadoMonFiltro.status_estoque === s.nome ? ' mon-card-ativo' : '';
+    return `<button type="button" class="cartao card-prog mon-card${ativo}" data-nome="${escHtml(s.nome)}" style="border-top-color:${cor}; text-align:left; cursor:pointer;">
       <div class="prog-rotulo">${escHtml(s.nome)}</div>
       <div class="prog-metrica">${fmtNumero(s.valor)}</div>
       <div class="prog-sub">${pct}% do filtro</div>
     </button>`;
   }).join('');
-  alvo.innerHTML = cards;
-  alvo.querySelectorAll('.mon-card').forEach((b) => b.addEventListener('click', () => {
-    const st = b.dataset.status;
-    estadoMonFiltro.status = estadoMonFiltro.status === st ? null : st;
-    // O clique no card destaca o card e recorta a tabela (gráficos seguem a busca).
-    alvo.querySelectorAll('.mon-card').forEach((x) => x.classList.toggle('mon-card-ativo', x.dataset.status === estadoMonFiltro.status));
-    renderTabelaMon(baseFiltradaMon());
-  }));
+  alvo.querySelectorAll('.mon-card').forEach((b) =>
+    b.addEventListener('click', () => alternarRecorteMon('status_estoque', b.dataset.nome)));
 }
 
 // Gráfico de barras horizontais em SVG puro (rótulo + barra + valor).
-function barrasHorizontais(dados, corFn) {
+// dim = dimensão do cross-filter; cada barra vira clicável.
+function barrasHorizontais(dados, corFn, dim) {
   if (!dados || !dados.length) return '<p class="dica">Sem dados.</p>';
   const max = Math.max(...dados.map((d) => d.valor), 1);
   const linha = 30, margemTopo = 6, largRotulo = 118, largBarra = 240, largValor = 60;
   const largura = largRotulo + largBarra + largValor;
   const altura = margemTopo * 2 + dados.length * linha;
+  const sel = dim ? estadoMonFiltro[dim] : null;
   const linhas = dados.map((d, i) => {
     const y = margemTopo + i * linha;
     const w = Math.max(2, (d.valor / max) * largBarra);
     const cor = corFn(d.nome, i);
     const rot = String(d.nome).length > 16 ? String(d.nome).slice(0, 15) + '…' : d.nome;
-    return `<text x="${largRotulo - 8}" y="${y + 18}" text-anchor="end" class="mon-bar-rot">${escHtml(rot)}</text>
+    const opac = sel && sel !== d.nome ? ' opacity="0.35"' : '';
+    return `<g class="mon-clic" data-dim="${dim || ''}" data-nome="${escHtml(d.nome)}" style="cursor:pointer"${opac}>
+      <rect x="0" y="${y}" width="${largura}" height="${linha}" fill="transparent"></rect>
+      <text x="${largRotulo - 8}" y="${y + 18}" text-anchor="end" class="mon-bar-rot">${escHtml(rot)}</text>
       <rect x="${largRotulo}" y="${y + 5}" width="${w}" height="18" rx="4" fill="${cor}"></rect>
-      <text x="${largRotulo + w + 6}" y="${y + 18}" class="mon-bar-val">${fmtNumero(d.valor)}</text>`;
+      <text x="${largRotulo + w + 6}" y="${y + 18}" class="mon-bar-val">${fmtNumero(d.valor)}</text>
+    </g>`;
   }).join('');
   return `<svg viewBox="0 0 ${largura} ${altura}" width="100%" style="max-width:${largura}px" role="img">${linhas}</svg>`;
 }
 
-// Gráfico de rosca (doughnut) em SVG puro + legenda com valor e %.
-function roscaSVG(dados) {
+// Gráfico de rosca (doughnut) em SVG puro + legenda com valor e %. Fatias e
+// itens da legenda são clicáveis (cross-filter pela dimensão dim).
+function roscaSVG(dados, dim) {
   if (!dados || !dados.length) return '<p class="dica">Sem dados.</p>';
   const total = dados.reduce((s, d) => s + d.valor, 0) || 1;
   const R = 60, r = 36, cx = 70, cy = 70;
+  const sel = dim ? estadoMonFiltro[dim] : null;
   let ang = -Math.PI / 2;
   const setores = dados.map((d, i) => {
     const frac = d.valor / total;
@@ -1895,20 +1954,22 @@ function roscaSVG(dados) {
     const xi1 = cx + r * Math.cos(ang), yi1 = cy + r * Math.sin(ang);
     ang = a2;
     const cor = PALETA_CAT[i % PALETA_CAT.length];
-    if (frac >= 0.999) return `<circle cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="${cor}" stroke-width="${R - r}"></circle>`;
-    return `<path d="M ${x1} ${y1} A ${R} ${R} 0 ${grande} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${r} ${r} 0 ${grande} 0 ${xi1} ${yi1} Z" fill="${cor}"></path>`;
+    const opac = sel && sel !== d.nome ? ' opacity="0.35"' : '';
+    const attrs = `class="mon-clic" data-dim="${dim || ''}" data-nome="${escHtml(d.nome)}" style="cursor:pointer"${opac}`;
+    if (frac >= 0.999) return `<circle ${attrs} cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="${cor}" stroke-width="${R - r}"></circle>`;
+    return `<path ${attrs} d="M ${x1} ${y1} A ${R} ${R} 0 ${grande} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${r} ${r} 0 ${grande} 0 ${xi1} ${yi1} Z" fill="${cor}"></path>`;
   }).join('');
   const legenda = dados.map((d, i) => {
     const pct = Math.round((d.valor / total) * 100);
-    return `<div class="mon-leg-item"><span class="mon-leg-cor" style="background:${PALETA_CAT[i % PALETA_CAT.length]}"></span>${escHtml(d.nome)} — <strong>${fmtNumero(d.valor)}</strong> (${pct}%)</div>`;
+    const opac = sel && sel !== d.nome ? 'opacity:0.45;' : '';
+    return `<div class="mon-leg-item mon-clic" data-dim="${dim || ''}" data-nome="${escHtml(d.nome)}" style="cursor:pointer;${opac}"><span class="mon-leg-cor" style="background:${PALETA_CAT[i % PALETA_CAT.length]}"></span>${escHtml(d.nome)} — <strong>${fmtNumero(d.valor)}</strong> (${pct}%)</div>`;
   }).join('');
   return `<div class="mon-rosca"><svg viewBox="0 0 140 140" width="140" height="140" role="img">${setores}</svg><div class="mon-legenda">${legenda}</div></div>`;
 }
 
 function renderTabelaMon(base) {
   if (!estadoMon.dados) return;
-  let itens = base || baseFiltradaMon();
-  if (estadoMonFiltro.status) itens = itens.filter((i) => i.status_estoque === estadoMonFiltro.status);
+  const itens = base || baseFiltradaMon();
 
   const corpo = document.getElementById('monTabelaCorpo');
   const LIM = 500;

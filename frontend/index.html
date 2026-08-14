@@ -331,6 +331,7 @@
             <label style="display:flex; align-items:center; gap:6px; font-size:13px; white-space:nowrap;">
               <input type="checkbox" id="monComDemanda" checked> Somente com demanda
             </label>
+            <button id="monLimparFiltro" class="botao-secundario" type="button" hidden>✕ Limpar filtro</button>
           </div>
         </div>
 
@@ -366,7 +367,7 @@
 
           <div class="cartao" style="margin-top:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
-              <h3 style="margin:0;">Itens classificados</h3>
+              <h3 style="margin:0;">Itens classificados <span id="monFiltroAtivo" class="mon-chip-filtro" hidden></span></h3>
               <input type="search" id="monBusca" placeholder="Buscar medicamento, SCODES ou siafísico…" style="min-width:280px;">
             </div>
             <p id="monTruncadoAviso" class="dica" hidden></p>

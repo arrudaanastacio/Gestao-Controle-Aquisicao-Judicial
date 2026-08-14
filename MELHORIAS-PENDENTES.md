@@ -22,8 +22,12 @@ estoque já importado (nada de Excel manual).
 - **5 painéis dinâmicos** em SVG puro (sem biblioteca): barras por Status de
   Estoque, barras por Situação Final, rosca de itens por Categoria, rosca de
   demandas por Categoria, barras por Sub-categoria. **Recalculam no navegador
-  junto com a busca** (digitou → gráficos e cards mudam na hora). **Cards por
-  status** clicáveis recortam só a tabela (drill-down).
+  junto com a busca**.
+- **Cross-filter por clique:** clicar em qualquer barra/fatia/legenda (ou nos
+  cards de status) filtra **tudo junto** — tabela e os demais gráficos —
+  destacando o selecionado (um gráfico não filtra a si mesmo, então continua
+  mostrando todas as fatias). Um **chip** mostra o filtro ativo e o botão
+  **✕ Limpar filtro** zera busca + recortes (e o seletor de categoria).
 - **Tabela classificada** com busca (medicamento/SCODES/siafísico).
 - **Filtros:** escopo (Tenente Pena / todas as unidades), categoria e
   **"Somente com demanda"** (ligado por padrão — reproduz o recorte da planilha:
