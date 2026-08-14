@@ -7022,7 +7022,7 @@ async function carregarUsuarios() {
       btn.disabled = true; btn.textContent = 'Gerando…';
       try {
         const r = await api(`/usuarios/${u.id}/reenviar-convite`, { method: 'POST', body: JSON.stringify({ apenasLink: true }) });
-        mostrarLinkConvite(r && r.link ? r.link : '', u.email);
+        mostrarLinkConvite(r && r.link ? r.link : '', u.email, u.nome);
         carregarUsuarios();
       } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Copiar link'; }
     });
@@ -7035,7 +7035,7 @@ async function carregarUsuarios() {
       try {
         const r = await api(`/usuarios/${u.id}/reenviar-convite`, { method: 'POST' });
         if (r && r.emailEnviado) alert('Convite reenviado para ' + u.email + '. O link expira em 48 horas.');
-        else mostrarLinkConvite(r && r.link ? r.link : '', u.email);
+        else mostrarLinkConvite(r && r.link ? r.link : '', u.email, u.nome);
         carregarUsuarios();
       } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Reenviar convite'; }
     });
@@ -7174,27 +7174,51 @@ function abrirModalUsuario(usuario) {
 
 document.getElementById('campoModoUsuario').addEventListener('change', atualizarVisibilidadeSenhaModo);
 
-// Abre o modal com o link de acesso, para o admin copiar e enviar (e-mail/Teams).
-function mostrarLinkConvite(link, email) {
-  const campo = document.getElementById('campoLinkConvite');
-  document.getElementById('avisoCopiadoLink').hidden = true;
-  campo.value = link || '';
-  document.getElementById('subLinkConvite').textContent = email
-    ? `Envie este link para ${email} criar a senha. Validade: 48 horas.`
-    : 'Copie o link abaixo e envie por e-mail ou Teams. Validade: 48 horas.';
-  document.getElementById('modalLinkConvite').hidden = false;
-  setTimeout(() => { campo.focus(); campo.select(); }, 50);
+const NOME_SISTEMA = 'Controle de Compras Judiciais – Tenente Pena';
+
+// Monta a mensagem de boas-vindas pronta para o admin enviar por e-mail/Teams.
+function textoBoasVindasConvite(nome, link) {
+  const primeiroNome = (nome || '').trim().split(/\s+/)[0] || '';
+  const saudacao = primeiroNome ? `Olá, ${primeiroNome}!` : 'Olá!';
+  return `${saudacao}
+
+Seja bem-vindo(a) ao ${NOME_SISTEMA}.
+
+Para acessar o sistema, primeiro você precisa criar a sua senha. É rápido:
+
+1) Abra o link abaixo (válido por 48 horas):
+${link}
+
+2) Crie uma senha de sua preferência (mínimo de 6 caracteres) e confirme.
+
+3) Pronto! Depois é só entrar com o seu e-mail e a senha que você criou.
+
+Qualquer dúvida, estou à disposição.`;
 }
-document.getElementById('botaoCopiarLinkConvite').addEventListener('click', async () => {
-  const campo = document.getElementById('campoLinkConvite');
+
+// Abre o modal com o link + mensagem pronta, para o admin copiar e enviar.
+function mostrarLinkConvite(link, email, nome) {
+  document.getElementById('avisoCopiadoLink').hidden = true;
+  document.getElementById('campoLinkConvite').value = link || '';
+  document.getElementById('campoMensagemConvite').value = textoBoasVindasConvite(nome, link || '');
+  document.getElementById('subLinkConvite').textContent = email
+    ? `Envie o link (ou a mensagem pronta) para ${email} criar a senha. Validade: 48 horas.`
+    : 'Copie o link ou a mensagem pronta e envie por e-mail ou Teams. Validade: 48 horas.';
+  document.getElementById('modalLinkConvite').hidden = false;
+}
+
+// Copia o conteúdo de um campo (funciona em http://IP:3000 via execCommand).
+function copiarCampo(id) {
+  const campo = document.getElementById(id);
   campo.focus(); campo.select();
-  // navigator.clipboard exige contexto seguro (https). Em http://IP:3000 usa execCommand.
   try {
-    if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(campo.value);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(campo.value);
     else document.execCommand('copy');
   } catch (_) { try { document.execCommand('copy'); } catch (__) { /* nada */ } }
   document.getElementById('avisoCopiadoLink').hidden = false;
-});
+}
+document.getElementById('botaoCopiarLinkConvite').addEventListener('click', () => copiarCampo('campoLinkConvite'));
+document.getElementById('botaoCopiarMensagemConvite').addEventListener('click', () => copiarCampo('campoMensagemConvite'));
 document.getElementById('botaoFecharLinkConvite').addEventListener('click', () => {
   document.getElementById('modalLinkConvite').hidden = true;
 });
@@ -7223,13 +7247,13 @@ formUsuario.addEventListener('submit', async (ev) => {
       carregarUsuarios();
       if (modo === 'link') {
         // Gera o link e abre o modal para copiar e enviar por e-mail/Teams.
-        mostrarLinkConvite(r && r.link ? r.link : '', email);
+        mostrarLinkConvite(r && r.link ? r.link : '', email, nome);
       } else if (modo === 'convite') {
         if (r && r.emailEnviado) {
           alert('Usuário criado! Um convite foi enviado para ' + email + '. O link para criar a senha expira em 48 horas.');
         } else {
           // E-mail não saiu: mostra o link para o admin copiar manualmente.
-          mostrarLinkConvite(r && r.link ? r.link : '', email);
+          mostrarLinkConvite(r && r.link ? r.link : '', email, nome);
         }
       }
     }

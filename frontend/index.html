@@ -2537,11 +2537,19 @@
     <div class="modal" style="max-width:560px;">
       <h3>Link de acesso para o colega</h3>
       <p class="texto-secundario" id="subLinkConvite" style="margin-top:-6px;">Copie o link abaixo e envie por e-mail ou Teams. Validade: 48 horas.</p>
-      <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+      <label style="font-size:13px; font-weight:600; display:block; margin-top:6px;">Só o link</label>
+      <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
         <input type="text" id="campoLinkConvite" readonly style="flex:1; font-size:13px;">
-        <button type="button" class="botao-primario" id="botaoCopiarLinkConvite">Copiar</button>
+        <button type="button" class="botao-secundario" id="botaoCopiarLinkConvite">Copiar link</button>
       </div>
-      <p class="texto-secundario" id="avisoCopiadoLink" style="margin-top:8px; color:var(--verde,#1b6b3a);" hidden>✓ Link copiado!</p>
+
+      <label style="font-size:13px; font-weight:600; display:block; margin-top:14px;">Mensagem pronta (boas-vindas + instruções)</label>
+      <textarea id="campoMensagemConvite" readonly rows="10" style="width:100%; font-size:13px; margin-top:4px; resize:vertical;"></textarea>
+      <div style="display:flex; justify-content:flex-end; margin-top:6px;">
+        <button type="button" class="botao-primario" id="botaoCopiarMensagemConvite">Copiar mensagem</button>
+      </div>
+
+      <p class="texto-secundario" id="avisoCopiadoLink" style="margin-top:8px; color:var(--verde,#1b6b3a);" hidden>✓ Copiado!</p>
       <div class="acoes-modal">
         <button type="button" class="botao-secundario" id="botaoFecharLinkConvite">Fechar</button>
       </div>
