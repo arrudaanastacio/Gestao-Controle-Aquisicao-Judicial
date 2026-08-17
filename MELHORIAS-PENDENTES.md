@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Monitoramento: escolher uma ou mais unidades específicas | _a preencher_ | 17/08/2026 | ✅ pronto em homolog |
+| 1 | Monitoramento: escolher uma ou mais unidades específicas | 5432cee | 17/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
