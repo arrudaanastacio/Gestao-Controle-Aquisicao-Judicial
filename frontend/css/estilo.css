@@ -175,7 +175,14 @@ h1, h2, h3 {
   font-size: 12.5px;
   line-height: 1.55;
   text-align: center;
-  margin: 6px 0 26px;
+  margin: 6px 0 14px;
+}
+.descricao-login-sec {
+  font-size: 12px;
+  font-style: italic;
+  padding-top: 12px;
+  margin: 0 0 26px;
+  border-top: 1px solid var(--linha);
 }
 
 form label {
