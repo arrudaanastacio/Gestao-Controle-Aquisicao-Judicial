@@ -5873,6 +5873,7 @@ function abrirRequisicao() {
   document.getElementById('reqModoColetiva').hidden = true;
   document.getElementById('colVoltar').hidden = true;
   document.getElementById('botaoGerarColetiva').hidden = true;
+  colItensSelecionados = []; // zera a solicitação coletiva anterior
   voltarParaBuscaPaciente();
 }
 
@@ -6199,27 +6200,26 @@ async function gerarRequisicao() {
   }
 }
 
-// ==================== Requisição — modo AÇÃO COLETIVA ====================
-// Um medicamento → vários pacientes (mesmo item e mesmo SEI). Gera uma
-// requisição por paciente (mantém 1 linha por paciente no Relatório).
+// ==================== Requisição — modo SOLICITAÇÃO COLETIVA ====================
+// Vários medicamentos → vários pacientes (mesmo SEI). Cada paciente entra com
+// os itens (dos escolhidos) que ele tem na demanda; gera UMA requisição por
+// paciente (podendo ter vários itens). Mantém 1 linha por paciente no Relatório.
 let reqModoAtual = 'paciente';
-let colItemAtual = null;
+let colItensSelecionados = []; // medicamentos escolhidos (objetos da busca)
 let colPacientesAtuais = [];
 
-// Alterna entre "Por paciente" e "Ação coletiva".
+// Alterna entre "Por paciente" e "Solicitação coletiva".
 function setModoRequisicao(modo) {
   reqModoAtual = modo;
   document.querySelectorAll('#reqModoAbas .req-modo-aba').forEach((b) =>
     b.classList.toggle('ativo', b.dataset.modo === modo));
   const ehColetiva = modo === 'coletiva';
-  // Mostra/oculta os blocos de cada modo.
   document.getElementById('reqModoColetiva').hidden = !ehColetiva;
   document.getElementById('reqEtapaPaciente').hidden = ehColetiva;
   document.getElementById('reqEtapaItens').hidden = true;
   document.getElementById('reqDescricaoModo').textContent = ehColetiva
-    ? 'Escolha o medicamento e marque os pacientes da ação coletiva.'
+    ? 'Escolha os medicamentos e marque os pacientes da solicitação coletiva.'
     : 'Selecione o paciente e marque os medicamentos para aquisição.';
-  // Botões do rodapé.
   document.getElementById('reqVoltar').hidden = true;
   document.getElementById('botaoGerarRequisicao').hidden = true;
   document.getElementById('colVoltar').hidden = true;
@@ -6228,13 +6228,13 @@ function setModoRequisicao(modo) {
 }
 
 function voltarParaBuscaItemColetiva() {
-  colItemAtual = null;
   document.getElementById('colEtapaItem').hidden = false;
   document.getElementById('colEtapaPacientes').hidden = true;
   document.getElementById('colVoltar').hidden = true;
   document.getElementById('botaoGerarColetiva').hidden = true;
-  document.getElementById('colBuscaItem').value = '';
   document.getElementById('colResultadosItem').innerHTML = '';
+  document.getElementById('colBuscaItem').value = '';
+  renderItensSelecionadosColetiva();
   document.getElementById('colBuscaItem').focus();
 }
 
@@ -6242,25 +6242,56 @@ let colBuscaTimer = null;
 async function buscarItensColetiva() {
   const q = document.getElementById('colBuscaItem').value.trim();
   const alvo = document.getElementById('colResultadosItem');
-  if (q.length < 2) { alvo.innerHTML = '<p class="texto-apoio" style="font-size:12px;">Digite ao menos 2 caracteres.</p>'; return; }
+  if (q.length < 2) { alvo.innerHTML = ''; return; }
   let dados;
   try { dados = await api(`/autores/itens-busca?q=${encodeURIComponent(q)}`); }
   catch (e) { alvo.innerHTML = `<p class="texto-apoio">${e.message}</p>`; return; }
   if (!dados.itens.length) { alvo.innerHTML = '<p class="texto-apoio" style="font-size:12px;">Nenhum medicamento encontrado na demanda da Tenente Pena.</p>'; return; }
-  alvo.innerHTML = dados.itens.map((it, i) => `
-    <button type="button" class="col-item-op" data-idx="${i}" style="display:block; width:100%; text-align:left; background:var(--papel); border:1px solid var(--linha); border-radius:8px; padding:9px 12px; margin-bottom:6px; cursor:pointer;">
-      <div style="font-size:13px; font-weight:500;">${escHtml(it.descricao_item || '—')}</div>
+  alvo.innerHTML = dados.itens.map((it, i) => {
+    const jaTem = colItensSelecionados.some((s) => s.codigo_item === it.codigo_item);
+    return `
+    <button type="button" class="col-item-op" data-idx="${i}" ${jaTem ? 'disabled' : ''} style="display:block; width:100%; text-align:left; background:var(--papel); border:1px solid var(--linha); border-radius:8px; padding:9px 12px; margin-bottom:6px; cursor:${jaTem ? 'default' : 'pointer'}; opacity:${jaTem ? '0.5' : '1'};">
+      <div style="font-size:13px; font-weight:500;">${escHtml(it.descricao_item || '—')} ${jaTem ? '<span style="color:var(--selo-escuro); font-size:11px;">✓ já adicionado</span>' : ''}</div>
       <div class="col-codigo">${escHtml(it.codigo_item || '')}${it.cod_siafisico ? ' · SIAF ' + escHtml(String(it.cod_siafisico)) : ''}</div>
       <div style="font-size:11px; color:var(--selo-escuro); margin-top:2px;">${it.n_pacientes} paciente${it.n_pacientes > 1 ? 's' : ''} com este item</div>
-    </button>`).join('');
-  alvo.querySelectorAll('.col-item-op').forEach((b) =>
-    b.addEventListener('click', () => selecionarItemColetiva(dados.itens[Number(b.dataset.idx)])));
+    </button>`;
+  }).join('');
+  alvo.querySelectorAll('.col-item-op:not([disabled])').forEach((b) =>
+    b.addEventListener('click', () => adicionarItemColetiva(dados.itens[Number(b.dataset.idx)])));
 }
 
-async function selecionarItemColetiva(item) {
-  colItemAtual = item;
+function adicionarItemColetiva(item) {
+  if (colItensSelecionados.some((s) => s.codigo_item === item.codigo_item)) return;
+  colItensSelecionados.push(item);
+  document.getElementById('colBuscaItem').value = '';
+  document.getElementById('colResultadosItem').innerHTML = '';
+  renderItensSelecionadosColetiva();
+}
+function removerItemColetiva(codigo) {
+  colItensSelecionados = colItensSelecionados.filter((s) => s.codigo_item !== codigo);
+  renderItensSelecionadosColetiva();
+}
+function renderItensSelecionadosColetiva() {
+  const alvo = document.getElementById('colItensSelecionados');
+  if (!colItensSelecionados.length) {
+    alvo.innerHTML = '<p class="texto-apoio" style="font-size:12px;">Nenhum medicamento adicionado ainda.</p>';
+    document.getElementById('colVerPacientes').hidden = true;
+    return;
+  }
+  alvo.innerHTML = `<div style="font-size:12px; color:var(--cinza-texto); margin-bottom:4px;">Medicamentos adicionados (${colItensSelecionados.length}):</div>` +
+    colItensSelecionados.map((it) => `
+      <span class="col-chip-item">${escHtml(it.descricao_item)}
+        <button type="button" data-cod="${escHtml(it.codigo_item)}" aria-label="Remover" class="col-chip-x">✕</button>
+      </span>`).join('');
+  alvo.querySelectorAll('.col-chip-x').forEach((b) => b.addEventListener('click', () => removerItemColetiva(b.dataset.cod)));
+  document.getElementById('colVerPacientes').hidden = false;
+}
+
+async function verPacientesColetiva() {
+  if (!colItensSelecionados.length) return;
+  const codigos = colItensSelecionados.map((s) => s.codigo_item).join(',');
   let dados;
-  try { dados = await api(`/autores/item-pacientes?codigo_item=${encodeURIComponent(item.codigo_item)}`); }
+  try { dados = await api(`/autores/itens-pacientes?codigos=${encodeURIComponent(codigos)}`); }
   catch (e) { alert('Erro ao carregar pacientes: ' + e.message); return; }
   colPacientesAtuais = dados.pacientes || [];
 
@@ -6269,12 +6300,10 @@ async function selecionarItemColetiva(item) {
   document.getElementById('colVoltar').hidden = false;
   document.getElementById('botaoGerarColetiva').hidden = false;
 
-  const sub = item.subcategoria ? `<div class="tags-programa"><span class="tag-programa sub">${escHtml(item.subcategoria)}</span></div>` : '';
   document.getElementById('colItemCabecalho').innerHTML = `
-    <div style="background:var(--papel); border:1px solid var(--selo); border-radius:8px; padding:12px 14px;">
-      <div style="font-size:14px; font-weight:600;">${escHtml(item.descricao_item)}</div>
-      <div class="col-codigo">${escHtml(item.codigo_item)}${item.cod_siafisico ? ' · SIAF ' + escHtml(String(item.cod_siafisico)) : ''}</div>
-      ${sub}
+    <div style="background:var(--papel); border:1px solid var(--selo); border-radius:8px; padding:10px 14px;">
+      <div style="font-size:12px; color:var(--cinza-texto); margin-bottom:4px;">Solicitação de ${colItensSelecionados.length} medicamento(s):</div>
+      ${colItensSelecionados.map((it) => `<span class="col-chip-item" style="cursor:default;">${escHtml(it.descricao_item)}</span>`).join('')}
     </div>`;
 
   document.getElementById('colMarcarTodos').checked = true;
@@ -6284,26 +6313,20 @@ async function selecionarItemColetiva(item) {
 function renderPacientesColetiva() {
   const alvo = document.getElementById('colListaPacientes');
   if (!colPacientesAtuais.length) {
-    alvo.innerHTML = '<p class="texto-apoio">Nenhum paciente com este item na demanda da Tenente Pena.</p>';
+    alvo.innerHTML = '<p class="texto-apoio">Nenhum paciente com esses medicamentos na demanda da Tenente Pena.</p>';
     atualizarContadorColetiva();
     return;
   }
   alvo.innerHTML = colPacientesAtuais.map((p, idx) => {
-    const aut = p.autonomia_atual;
-    let badge = '<span style="color:var(--cinza-texto); font-size:11px;">sem dado de estoque</span>';
-    if (aut !== null && aut !== undefined) {
-      const cls = aut <= 0 ? 'cancelado' : (aut <= 2 ? 'atrasado' : 'finalizado');
-      badge = `<span class="etiqueta-status ${cls}">estoque ${fmtNumero(p.estoque_atual)} · autonomia ${fmtNumero(aut)} m</span>`;
-    }
-    const info = [p.processo ? 'Proc. ' + p.processo : '', p.qtde_consumo != null ? 'consumo ' + p.qtde_consumo : '', p.prazo || '']
-      .filter(Boolean).join(' · ');
+    const info = [p.processo ? 'Proc. ' + p.processo : '', p.protocolo ? 'Prot. ' + p.protocolo : ''].filter(Boolean).join(' · ');
+    const tagsItens = p.itens.map((it) => `<span class="tag-programa sub" title="consumo ${it.qtde_consumo ?? '—'}">${escHtml((it.descricao_item || '').split(' / ')[0])}</span>`).join('');
     return `
-      <label class="req-item" style="display:grid; grid-template-columns:24px 1fr; gap:10px; align-items:center; padding:9px 6px; border-bottom:1px solid var(--linha-tabela); cursor:pointer;">
-        <input type="checkbox" class="col-pac-check" data-idx="${idx}" checked style="width:auto;">
+      <label class="req-item" style="display:grid; grid-template-columns:24px 1fr; gap:10px; align-items:start; padding:9px 6px; border-bottom:1px solid var(--linha-tabela); cursor:pointer;">
+        <input type="checkbox" class="col-pac-check" data-idx="${idx}" checked style="width:auto; margin-top:2px;">
         <div>
-          <div style="font-size:13px; font-weight:500;">${escHtml(p.autor || '—')}</div>
-          <div class="col-codigo">${escHtml(info)}</div>
-          <div style="margin-top:3px;">${badge}</div>
+          <div style="font-size:13px; font-weight:500;">${escHtml(p.autor || '—')} <span style="font-weight:400; color:var(--cinza-texto); font-size:11px;">— ${p.itens.length} item(ns)</span></div>
+          ${info ? `<div class="col-codigo">${escHtml(info)}</div>` : ''}
+          <div class="tags-programa" style="margin-top:3px;">${tagsItens}</div>
         </div>
       </label>`;
   }).join('');
@@ -6311,28 +6334,37 @@ function renderPacientesColetiva() {
   atualizarContadorColetiva();
 }
 
-function atualizarContadorColetiva() {
-  const marcados = Array.from(document.querySelectorAll('#colListaPacientes .col-pac-check:checked'))
+function marcadosColetiva() {
+  return Array.from(document.querySelectorAll('#colListaPacientes .col-pac-check:checked'))
     .map((c) => colPacientesAtuais[Number(c.dataset.idx)]);
+}
+
+function atualizarContadorColetiva() {
+  const marcados = marcadosColetiva();
   const autonomia = parseNumeroReq(document.getElementById('colAutonomia').value) || 0;
-  const consumoTotal = marcados.reduce((s, p) => s + parseNumeroReq(p.qtde_consumo), 0);
+  let totalItens = 0, consumoTotal = 0;
+  marcados.forEach((p) => p.itens.forEach((it) => { totalItens++; consumoTotal += parseNumeroReq(it.qtde_consumo); }));
   const aquisicaoTotal = +(consumoTotal * autonomia).toFixed(2);
   document.getElementById('colContador').textContent =
-    `${marcados.length} paciente${marcados.length !== 1 ? 's' : ''} · consumo total ${fmtNumero(consumoTotal)} · aquisição total ${fmtNumero(aquisicaoTotal)}`;
+    `${marcados.length} paciente${marcados.length !== 1 ? 's' : ''} · ${totalItens} item(ns) · consumo total ${fmtNumero(consumoTotal)} · aquisição total ${fmtNumero(aquisicaoTotal)}`;
 }
 
 async function gerarColetiva() {
   const sei = document.getElementById('colSEI').value.trim();
-  if (!sei) { alert('Informe o Nº do SEI da ação coletiva.'); document.getElementById('colSEI').focus(); return; }
+  if (!sei) { alert('Informe o Nº do SEI da solicitação coletiva.'); document.getElementById('colSEI').focus(); return; }
   const autonomia = parseNumeroReq(document.getElementById('colAutonomia').value) || 0;
-  const marcados = Array.from(document.querySelectorAll('#colListaPacientes .col-pac-check:checked'))
-    .map((c) => colPacientesAtuais[Number(c.dataset.idx)]);
+  const marcados = marcadosColetiva();
   if (!marcados.length) { alert('Marque ao menos um paciente.'); return; }
 
   const pacientes = marcados.map((p) => ({
-    ...p,
-    autonomia_compra: String(autonomia),
-    quantidade: +(parseNumeroReq(p.qtde_consumo) * autonomia).toFixed(2),
+    autor: p.autor, idade: p.idade, unidade_dispensadora: p.unidade_dispensadora,
+    procurador_estado: p.procurador_estado, protocolo: p.protocolo, processo: p.processo, tipo_demanda: p.tipo_demanda,
+    itens: p.itens.map((it) => ({
+      codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
+      categoria: it.categoria, catmat: it.catmat, qtde_consumo: it.qtde_consumo, prazo: it.prazo,
+      periodicidade: it.periodicidade, dispensacoes_autorizadas: it.dispensacoes_autorizadas,
+      autonomia_compra: String(autonomia), quantidade: +(parseNumeroReq(it.qtde_consumo) * autonomia).toFixed(2),
+    })),
   }));
 
   const botao = document.getElementById('botaoGerarColetiva');
@@ -6340,15 +6372,9 @@ async function gerarColetiva() {
   try {
     const r = await api('/autores/requisicoes/coletiva', {
       method: 'POST',
-      body: JSON.stringify({
-        item: {
-          codigo_item: colItemAtual.codigo_item, descricao_item: colItemAtual.descricao_item,
-          cod_siafisico: colItemAtual.cod_siafisico, categoria: colItemAtual.categoria, catmat: colItemAtual.catmat,
-        },
-        sei, pacientes,
-      }),
+      body: JSON.stringify({ sei, pacientes }),
     });
-    alert(`✓ ${r.total} requisição(ões) gerada(s) para "${colItemAtual.descricao_item}" (SEI ${sei}).`);
+    alert(`✓ ${r.total} requisição(ões) gerada(s) para ${r.totalItens} item(ns) — SEI ${sei}.`);
     modalRequisicao.hidden = true;
     if (estado.paginaAtual === 'relatorioReq') carregarTabelaRelReq();
   } catch (e) {
@@ -6364,6 +6390,7 @@ document.querySelectorAll('#reqModoAbas .req-modo-aba').forEach((b) =>
 document.getElementById('colBuscaItem').addEventListener('input', () => {
   clearTimeout(colBuscaTimer); colBuscaTimer = setTimeout(buscarItensColetiva, 300);
 });
+document.getElementById('colVerPacientes').addEventListener('click', verPacientesColetiva);
 document.getElementById('colVoltar').addEventListener('click', voltarParaBuscaItemColetiva);
 document.getElementById('botaoGerarColetiva').addEventListener('click', gerarColetiva);
 document.getElementById('colAutonomia').addEventListener('input', atualizarContadorColetiva);

@@ -2235,3 +2235,15 @@ th.ordenavel .seta { opacity: 0.45; font-size: 10px; margin-left: 3px; }
 }
 .req-modo-aba.ativo { background: var(--selo); color: #fff; font-weight: 600; }
 .col-item-op:hover { border-color: var(--selo) !important; background: #eef4f0 !important; }
+
+/* Chips de medicamentos na Solicitação Coletiva */
+.col-chip-item {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0 6px 6px 0;
+  background: #eef4f0; border: 1px solid var(--linha); border-radius: 16px;
+  padding: 3px 10px; font-size: 12px; color: var(--selo-escuro); max-width: 100%;
+}
+.col-chip-x {
+  background: none; border: none; cursor: pointer; color: var(--cinza-texto);
+  font-size: 12px; line-height: 1; padding: 0;
+}
+.col-chip-x:hover { color: #c0392b; }

@@ -2936,21 +2936,26 @@
 
       <div class="req-modo-abas" id="reqModoAbas">
         <button type="button" class="req-modo-aba ativo" data-modo="paciente">Por paciente</button>
-        <button type="button" class="req-modo-aba" data-modo="coletiva">Ação coletiva</button>
+        <button type="button" class="req-modo-aba" data-modo="coletiva">Solicitação coletiva</button>
       </div>
 
-      <!-- ===== Modo AÇÃO COLETIVA (um medicamento → vários pacientes) ===== -->
+      <!-- ===== Modo SOLICITAÇÃO COLETIVA (vários medicamentos → vários pacientes) ===== -->
       <div id="reqModoColetiva" hidden>
         <div id="colEtapaItem">
-          <input type="text" id="colBuscaItem" placeholder="Buscar medicamento por nome ou código…" style="width:100%; padding:9px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
-          <div id="colResultadosItem" style="margin-top:10px; max-height:340px; overflow-y:auto;"></div>
+          <label style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Medicamentos da solicitação</label>
+          <input type="text" id="colBuscaItem" placeholder="Buscar medicamento por nome ou código e clicar para adicionar…" style="width:100%; padding:9px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
+          <div id="colResultadosItem" style="margin-top:8px; max-height:240px; overflow-y:auto;"></div>
+          <div id="colItensSelecionados" style="margin-top:10px;"></div>
+          <div style="margin-top:12px; text-align:right;">
+            <button type="button" class="botao-primario" id="colVerPacientes" hidden>Ver pacientes →</button>
+          </div>
         </div>
 
         <div id="colEtapaPacientes" hidden>
           <div id="colItemCabecalho" style="margin-bottom:12px;"></div>
           <div style="display:flex; gap:12px; align-items:end; margin-bottom:10px; flex-wrap:wrap;">
             <div style="flex:1; min-width:220px;">
-              <label style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Nº do SEI <span style="color:#c0392b;">*</span> <span style="font-weight:400; color:var(--cinza-texto);">(único da ação coletiva)</span></label>
+              <label style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Nº do SEI <span style="color:#c0392b;">*</span> <span style="font-weight:400; color:var(--cinza-texto);">(único da solicitação coletiva)</span></label>
               <input type="text" id="colSEI" placeholder="Ex.: 00103.000123/2026-45" style="width:100%; padding:8px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
             </div>
             <div style="width:150px;">
