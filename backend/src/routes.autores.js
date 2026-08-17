@@ -336,6 +336,7 @@ router.get('/paciente', (req, res) => {
     SELECT a.id_demanda, a.processo, a.protocolo, a.codigo_item, a.cod_siafisico,
            a.descricao_item, a.qtde_consumo, a.periodicidade, a.prazo, a.status_item, a.categoria,
            a.tipo_demanda, a.dispensacoes_autorizadas,
+           (SELECT ic.subcategoria FROM item_classificacao ic WHERE ic.codigo_item = a.codigo_item) AS subcategoria,
            (SELECT ri.catmat FROM relatorio_itens ri WHERE ri.codigo = a.codigo_item AND ri.catmat IS NOT NULL AND ri.catmat <> '' ORDER BY ri.data_referencia DESC LIMIT 1) AS catmat,
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
            (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual

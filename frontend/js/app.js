@@ -5987,6 +5987,7 @@ async function selecionarPaciente(autor) {
         <div>
           <div style="font-size:13px;">${it.descricao_item || '—'}</div>
           <div class="col-codigo">${it.codigo_item || ''}${it.cod_siafisico ? ' · SIAF ' + it.cod_siafisico : ''}</div>
+          ${it.subcategoria && String(it.subcategoria).trim() ? `<div class="tags-programa"><span class="tag-programa sub">${escHtml(String(it.subcategoria).trim())}</span></div>` : ''}
           ${detalhes ? `<div style="margin-top:3px;">${detalhes}</div>` : ''}
           <div style="margin-top:3px;">${badge}</div>
         </div>

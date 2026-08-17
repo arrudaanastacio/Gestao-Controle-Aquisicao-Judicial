@@ -6,34 +6,14 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | (nada pendente no momento) | — | — | — |
+| 1 | Etiqueta de subcategoria no modal da Requisição de Compra | _a preencher_ | 17/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
-No **Monitoramento de Estoque**, novo seletor **"Unidades específicas"** (múltipla
-escolha) ao lado do escopo. Permite escolher uma ou mais unidades além da
-Tenente Pena; quando há unidades marcadas, elas têm prioridade sobre o escopo
-udtp/geral. Vale para os painéis, a tabela e o export.
-Backend: `construirItensMonitoramento` aceita `unidade` (lista, filtro `IN`); o
-handler `/monitoramento` foi refatorado para reusar esse construtor (fim da
-duplicação). **Atualização:** os dois filtros de unidade viraram **um só** —
-um seletor de "Unidades" com Tenente Pena por padrão + opção "Todas as
-unidades" (removido o antigo seletor de escopo). **Pós-publicação:** reiniciar
-produção (backend) + Ctrl+F5.
-
-### Detalhe do item 2 — Modernização das 3 telas antigas (Fase 4)
-
-Aplica o padrão ERP (KPIs/cards/gráfico) nas 3 telas que ainda estavam no
-formato antigo:
-- **Histórico de Estoque:** 4 KPIs (snapshots, valor no último, variação de
-  valor com cor, itens) + **sparkline** da evolução do valor. Frontend.
-- **Relatório de Primeiro Atendimento:** 4 KPIs (requisições, aguardando,
-  finalizadas, telegramas enviados). Backend: `/autores/requisicoes/itens`
-  passa a devolver `resumo` (contagens sobre todo o filtro).
-- **Busca de medicamento:** exemplos clicáveis, estado inicial amigável e uma
-  faixa de mini-KPIs por medicamento (solicitações, em andamento, finalizadas,
-  última compra), calculada do histórico. Frontend.
-**Pós-publicação:** reiniciar produção (backend do Relatório) + Ctrl+F5.
+No modal 🛒 **Requisição de Compra** (lista de itens do paciente), cada item
+ganha a **etiqueta de Sub-categoria** (mesmo estilo `tag-programa sub` do
+Estoque). Backend: `/autores/paciente` passa a trazer `subcategoria` (subquery
+em `item_classificacao`). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
 
 ## Publicadas recentemente
 
