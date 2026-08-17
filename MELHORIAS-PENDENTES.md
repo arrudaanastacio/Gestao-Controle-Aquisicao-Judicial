@@ -6,7 +6,19 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | (nada pendente no momento) | — | — | — |
+| 1 | Logos oficiais (símbolo no menu + logo completo no login) | _a preencher_ | 17/08/2026 | ✅ pronto em homolog |
+
+### Detalhe do item 1
+
+Substitui a marca provisória (SVG de 3 nós + wordmark) pelos **logos oficiais**
+(arte da CAF), como PNG em `frontend/img/`:
+- **Símbolo do infinito** (`ELO_simbolo_alta_resolucao.png`) no topo do menu
+  lateral, num chip branco (o símbolo tem partes grafite que sumiriam na barra
+  escura).
+- **Logo completo** (`ELO_logo_completo_alta_resolucao.png`) na tela de login,
+  no lugar do símbolo+nome; cartão de login alargado (360→440px). Descrição do
+  sistema mantida abaixo.
+- Só frontend (imagens estáticas) → **Ctrl+F5**, sem reiniciar.
 
 ## Publicadas recentemente
 
