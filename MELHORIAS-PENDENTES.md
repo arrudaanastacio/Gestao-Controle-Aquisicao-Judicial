@@ -6,9 +6,11 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Logos oficiais (símbolo no menu + logo completo no login) | 18c7de5 | 17/08/2026 | ✅ pronto em homolog |
+| — | (nada pendente no momento) | — | — | — |
 
-### Detalhe do item 1
+## Publicadas recentemente
+
+### 17/08/2026 — Logos oficiais + textos da tela de login (publicado, commit cf9c268)
 
 Substitui a marca provisória (SVG de 3 nós + wordmark) pelos **logos oficiais**
 (arte da CAF), como PNG em `frontend/img/`:
@@ -16,11 +18,12 @@ Substitui a marca provisória (SVG de 3 nós + wordmark) pelos **logos oficiais*
   lateral, num chip branco (o símbolo tem partes grafite que sumiriam na barra
   escura).
 - **Logo completo** (`ELO_logo_completo_alta_resolucao.png`) na tela de login,
-  no lugar do símbolo+nome; cartão de login alargado (360→440px). Descrição do
-  sistema mantida abaixo.
+  no lugar do símbolo+nome; cartão de login alargado (360→440px).
+- **Texto do login:** parágrafo com o significado do nome ELO (o elo entre
+  demandas administrativas/judiciais, estoques e aquisição).
 - Só frontend (imagens estáticas) → **Ctrl+F5**, sem reiniciar.
 
-## Publicadas recentemente
+## Publicadas recentemente (histórico)
 
 ### 17/08/2026 — Modal de pacientes: coluna Tipo de Demanda (publicado, commit 2ef5676)
 
