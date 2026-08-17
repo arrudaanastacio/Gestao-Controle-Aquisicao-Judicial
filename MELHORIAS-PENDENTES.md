@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Etiqueta de subcategoria no modal da Requisição de Compra | _a preencher_ | 17/08/2026 | ✅ pronto em homolog |
+| 1 | Etiqueta de subcategoria no modal da Requisição de Compra | eb392ff | 17/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
