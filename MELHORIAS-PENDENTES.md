@@ -6,17 +6,16 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Coluna "Tipo de Demanda" no modal de pacientes | 16fe487 | 17/08/2026 | ✅ pronto em homolog |
+| — | (nada pendente no momento) | — | — | — |
 
-### Detalhe do item 1
+## Publicadas recentemente
+
+### 17/08/2026 — Modal de pacientes: coluna Tipo de Demanda (publicado, commit 2ef5676)
 
 No modal de detalhe do item (tabela **Pacientes**), nova coluna **Tipo de
 Demanda** logo após o Protocolo, com a etiqueta colorida já usada na Listagem
 de Autores (Judicial / Comissão de Farmacologia / Jefaz). Backend:
 `routes.estoque.js` passa a selecionar `tipo_demanda` nos pacientes.
-**Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
-
-## Publicadas recentemente
 
 ### 14/08/2026 — Monitoramento de Estoque (publicado, commit fea4b16)
 
