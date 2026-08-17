@@ -7,7 +7,7 @@
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
 | 1 | Etiqueta de subcategoria no modal da Requisição de Compra | eb392ff | 17/08/2026 | ✅ pronto em homolog |
-| 2 | Requisição — modo "Solicitação Coletiva" (vários medicamentos → vários pacientes) | 79eaa3e | 17/08/2026 | ✅ pronto em homolog |
+| 2 | Requisição — modo "Solicitação Coletiva" (vários medicamentos → vários pacientes) | 699e0ab | 17/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
