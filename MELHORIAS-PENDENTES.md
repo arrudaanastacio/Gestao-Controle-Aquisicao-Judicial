@@ -7,6 +7,7 @@
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
 | 1 | Etiqueta de subcategoria no modal da Requisição de Compra | eb392ff | 17/08/2026 | ✅ pronto em homolog |
+| 2 | Requisição — modo "Ação Coletiva" (1 medicamento → vários pacientes) | _a preencher_ | 17/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
@@ -14,6 +15,20 @@ No modal 🛒 **Requisição de Compra** (lista de itens do paciente), cada item
 ganha a **etiqueta de Sub-categoria** (mesmo estilo `tag-programa sub` do
 Estoque). Backend: `/autores/paciente` passa a trazer `subcategoria` (subquery
 em `item_classificacao`). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
+
+### Detalhe do item 2 — Ação Coletiva
+
+Novo **modo "Ação coletiva"** no modal de Requisição de Compra (aba ao lado de
+"Por paciente"): escolhe **1 medicamento** → o sistema lista **os pacientes da
+Tenente Pena que têm esse item na demanda** → marca (com "marcar todos") →
+informa **um único SEI** + **Autonomia de compra** → **Gerar** cria **uma
+requisição por paciente** (mesmo item e SEI). No Relatório de Primeiro
+Atendimento aparece **1 linha por paciente**; o contador mostra o **total**
+(pacientes, consumo e aquisição). Quantidade por paciente = consumo × autonomia
+(mesma regra do fluxo por paciente).
+Backend novo: `GET /autores/itens-busca`, `GET /autores/item-pacientes`,
+`POST /autores/requisicoes/coletiva` (transação, uma auditoria).
+**Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
 
 ## Publicadas recentemente
 

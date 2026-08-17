@@ -2932,8 +2932,43 @@
   <div class="fundo-modal" id="modalRequisicao" hidden>
     <div class="modal" style="max-width:860px;">
       <h3>🛒 Requisição de Compra</h3>
-      <p class="descricao-item">Selecione o paciente e marque os medicamentos para aquisição.</p>
+      <p class="descricao-item" id="reqDescricaoModo">Selecione o paciente e marque os medicamentos para aquisição.</p>
 
+      <div class="req-modo-abas" id="reqModoAbas">
+        <button type="button" class="req-modo-aba ativo" data-modo="paciente">Por paciente</button>
+        <button type="button" class="req-modo-aba" data-modo="coletiva">Ação coletiva</button>
+      </div>
+
+      <!-- ===== Modo AÇÃO COLETIVA (um medicamento → vários pacientes) ===== -->
+      <div id="reqModoColetiva" hidden>
+        <div id="colEtapaItem">
+          <input type="text" id="colBuscaItem" placeholder="Buscar medicamento por nome ou código…" style="width:100%; padding:9px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
+          <div id="colResultadosItem" style="margin-top:10px; max-height:340px; overflow-y:auto;"></div>
+        </div>
+
+        <div id="colEtapaPacientes" hidden>
+          <div id="colItemCabecalho" style="margin-bottom:12px;"></div>
+          <div style="display:flex; gap:12px; align-items:end; margin-bottom:10px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:220px;">
+              <label style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Nº do SEI <span style="color:#c0392b;">*</span> <span style="font-weight:400; color:var(--cinza-texto);">(único da ação coletiva)</span></label>
+              <input type="text" id="colSEI" placeholder="Ex.: 00103.000123/2026-45" style="width:100%; padding:8px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
+            </div>
+            <div style="width:150px;">
+              <label style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Autonomia de compra</label>
+              <input type="number" id="colAutonomia" value="1" min="0" step="1" style="width:100%; padding:8px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;" title="Qtde de Aquisição = Consumo do paciente × Autonomia de compra">
+            </div>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="colMarcarTodos" checked> Marcar todos
+            </label>
+            <span id="colContador" style="font-size:12.5px; color:var(--cinza-texto);">0 pacientes selecionados</span>
+          </div>
+          <div id="colListaPacientes" style="max-height:360px; overflow-y:auto;"></div>
+        </div>
+      </div>
+
+      <!-- ===== Modo POR PACIENTE (fluxo original) ===== -->
       <div id="reqEtapaPaciente">
         <input type="text" id="reqInputPaciente" placeholder="Buscar paciente por nome, processo ou protocolo…" style="width:100%; padding:9px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
         <div id="reqResultadosPaciente" style="margin-top:10px; max-height:320px; overflow-y:auto;"></div>
@@ -2960,8 +2995,10 @@
 
       <div class="acoes-modal">
         <button type="button" class="botao-secundario" id="reqVoltar" hidden>← Trocar paciente</button>
+        <button type="button" class="botao-secundario" id="colVoltar" hidden>← Trocar medicamento</button>
         <button type="button" class="botao-secundario" id="botaoFecharRequisicao">Fechar</button>
         <button type="button" class="botao-primario" id="botaoGerarRequisicao" hidden>Gerar requisição →</button>
+        <button type="button" class="botao-primario" id="botaoGerarColetiva" hidden>Gerar requisições →</button>
       </div>
     </div>
   </div>

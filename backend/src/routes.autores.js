@@ -352,6 +352,91 @@ router.get('/paciente', (req, res) => {
   res.json({ info, itens });
 });
 
+// ---------- Ação coletiva: buscar itens (medicamentos) da base de autores ----------
+// Lista itens distintos (por código) presentes na demanda da Tenente Pena,
+// para o operador escolher UM medicamento e cadastrar vários pacientes.
+router.get('/itens-busca', (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ itens: [] });
+  const like = `%${q}%`;
+  const itens = db.prepare(`
+    SELECT a.codigo_item, a.descricao_item,
+           MAX(a.cod_siafisico) AS cod_siafisico, MAX(a.categoria) AS categoria,
+           (SELECT ic.subcategoria FROM item_classificacao ic WHERE ic.codigo_item = a.codigo_item) AS subcategoria,
+           COUNT(DISTINCT a.autor) AS n_pacientes
+    FROM autores_itens a
+    WHERE a.data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
+      AND (a.unidade_dispensadora IS NULL OR a.unidade_dispensadora LIKE '%Tenente Pena%')
+      AND (a.descricao_item LIKE ? OR a.codigo_item LIKE ? OR a.cod_siafisico LIKE ?)
+    GROUP BY a.codigo_item, a.descricao_item
+    ORDER BY a.descricao_item
+    LIMIT 30
+  `).all(like, like, like);
+  res.json({ itens });
+});
+
+// ---------- Ação coletiva: pacientes que têm um item na demanda ----------
+router.get('/item-pacientes', (req, res) => {
+  const { codigo_item } = req.query;
+  if (!codigo_item) return res.status(400).json({ erro: 'Informe o código do item.' });
+  const escTP = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
+  const pacientes = db.prepare(`
+    SELECT a.autor, a.idade, a.unidade_dispensadora, a.procurador_estado,
+           a.protocolo, a.processo, a.tipo_demanda,
+           a.codigo_item, a.cod_siafisico, a.descricao_item, a.categoria,
+           a.qtde_consumo, a.prazo, a.periodicidade, a.dispensacoes_autorizadas,
+           (SELECT ri.catmat FROM relatorio_itens ri WHERE ri.codigo = a.codigo_item AND ri.catmat IS NOT NULL AND ri.catmat <> '' ORDER BY ri.data_referencia DESC LIMIT 1) AS catmat,
+           (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
+           (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual
+    FROM autores_itens a
+    WHERE a.codigo_item = ?
+      AND a.data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
+      AND (a.unidade_dispensadora IS NULL OR a.unidade_dispensadora LIKE '%Tenente Pena%')
+    ORDER BY a.autor
+  `).all(codigo_item);
+  res.json({ codigo_item, pacientes });
+});
+
+// ---------- Ação coletiva: gerar uma requisição por paciente (mesmo item/SEI) ----------
+router.post('/requisicoes/coletiva', (req, res) => {
+  const { item, sei, pacientes } = req.body || {};
+  if (!item || !item.codigo_item || !Array.isArray(pacientes) || pacientes.length === 0) {
+    return res.status(400).json({ erro: 'Informe o item e ao menos um paciente.' });
+  }
+  const ano = new Date().getFullYear();
+  const insReq = db.prepare(`
+    INSERT INTO requisicoes (autor, idade, unidade, procurador, sei, operador_nome, operador_email, total_itens, protocolo, processo, tipo_demanda)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insItem = db.prepare(`
+    INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
+                                  tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+
+  const gerar = db.transaction((lista) => {
+    const criados = [];
+    for (const p of lista) {
+      const info = insReq.run(p.autor, p.idade || null, p.unidade_dispensadora || null, p.procurador_estado || null,
+        sei || null, req.usuario.nome, req.usuario.email, 1, p.protocolo || null, p.processo || null, p.tipo_demanda || null);
+      const id = info.lastInsertRowid;
+      const codigoControle = `REQ-${ano}-${String(id).padStart(5, '0')}`;
+      db.prepare('UPDATE requisicoes SET codigo_controle = ? WHERE id = ?').run(codigoControle, id);
+      insItem.run(id, item.codigo_item, item.cod_siafisico || p.cod_siafisico || null, item.descricao_item || p.descricao_item || null,
+        item.categoria || p.categoria || null, String(p.quantidade ?? ''),
+        p.tipo_demanda || null, p.qtde_consumo != null ? String(p.qtde_consumo) : null, p.prazo || null, p.periodicidade || null,
+        p.dispensacoes_autorizadas || null, p.autonomia_compra != null ? String(p.autonomia_compra) : null, item.catmat || p.catmat || null);
+      criados.push({ id, codigo_controle: codigoControle, autor: p.autor });
+    }
+    return criados;
+  });
+
+  const criados = gerar(pacientes);
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'gerar_requisicao_coletiva', 'requisicoes', null,
+      JSON.stringify({ codigo_item: item.codigo_item, descricao: item.descricao_item, sei, total: criados.length, autores: criados.map((c) => c.autor) }));
+
+  res.status(201).json({ total: criados.length, criados });
+});
+
 // ---------- Requisições: salvar (gera ID de controle) ----------
 router.post('/requisicoes', (req, res) => {
   const { autor, idade, unidade, procurador, sei, itens, protocolo, processo, tipo_demanda } = req.body || {};
