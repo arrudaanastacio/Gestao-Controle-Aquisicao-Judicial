@@ -448,7 +448,18 @@ router.get('/requisicoes/itens', (req, res) => {
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
 
-  res.json({ total, itens, page: Number(page), pageSize: limit });
+  // Resumo (sobre TODO o conjunto filtrado, não só a página) para os KPIs.
+  const resumo = db.prepare(`
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN ri.status_atendimento = 'Solicitado' THEN 1 ELSE 0 END) AS solicitado,
+      SUM(CASE WHEN ri.status_atendimento = 'Finalizado' THEN 1 ELSE 0 END) AS finalizado,
+      SUM(CASE WHEN ri.status_atendimento = 'Cancelado'  THEN 1 ELSE 0 END) AS cancelado,
+      SUM(CASE WHEN ri.telegrama_enviado = 'Sim' THEN 1 ELSE 0 END) AS enviados
+    FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id ${where}
+  `).get(...params);
+
+  res.json({ total, itens, page: Number(page), pageSize: limit, resumo });
 });
 
 // ---------- Requisições: atualizar o atendimento de um item ----------

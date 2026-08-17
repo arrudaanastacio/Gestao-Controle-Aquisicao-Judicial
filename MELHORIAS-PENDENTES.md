@@ -7,6 +7,7 @@
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
 | 1 | Monitoramento: escolher uma ou mais unidades específicas | 5432cee | 17/08/2026 | ✅ pronto em homolog |
+| 2 | Modernização das 3 telas antigas (Histórico, 1º Atendimento, Busca) | _a preencher_ | 17/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
@@ -17,6 +18,20 @@ udtp/geral (que fica desabilitado). Vale para os painéis, a tabela e o export.
 Backend: `construirItensMonitoramento` aceita `unidade` (lista, filtro `IN`); o
 handler `/monitoramento` foi refatorado para reusar esse construtor (fim da
 duplicação). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
+
+### Detalhe do item 2 — Modernização das 3 telas antigas (Fase 4)
+
+Aplica o padrão ERP (KPIs/cards/gráfico) nas 3 telas que ainda estavam no
+formato antigo:
+- **Histórico de Estoque:** 4 KPIs (snapshots, valor no último, variação de
+  valor com cor, itens) + **sparkline** da evolução do valor. Frontend.
+- **Relatório de Primeiro Atendimento:** 4 KPIs (requisições, aguardando,
+  finalizadas, telegramas enviados). Backend: `/autores/requisicoes/itens`
+  passa a devolver `resumo` (contagens sobre todo o filtro).
+- **Busca de medicamento:** exemplos clicáveis, estado inicial amigável e uma
+  faixa de mini-KPIs por medicamento (solicitações, em andamento, finalizadas,
+  última compra), calculada do histórico. Frontend.
+**Pós-publicação:** reiniciar produção (backend do Relatório) + Ctrl+F5.
 
 ## Publicadas recentemente
 

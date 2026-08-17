@@ -1177,6 +1177,20 @@ const campoBuscaMedicamento = document.getElementById('campoBuscaMedicamento');
 const botaoBuscarMedicamento = document.getElementById('botaoBuscarMedicamento');
 
 botaoBuscarMedicamento.addEventListener('click', buscarMedicamento);
+
+// Exemplos clicáveis abaixo do campo de busca (preenchem e já buscam).
+(function montarExemplosBusca() {
+  const wrap = document.getElementById('buscaExemplos');
+  if (!wrap) return;
+  ['abatacepte', 'rituximabe', 'lanadelumabe', 'trikafta'].forEach((ex) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip-exemplo';
+    b.textContent = ex;
+    b.addEventListener('click', () => { campoBuscaMedicamento.value = ex; buscarMedicamento(); });
+    wrap.appendChild(b);
+  });
+})();
 campoBuscaMedicamento.addEventListener('keydown', (ev) => {
   if (ev.key === 'Enter') buscarMedicamento();
 });
@@ -1203,13 +1217,30 @@ async function buscarMedicamento() {
     return;
   }
 
+  const ABERTO_BUSCA = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
   container.innerHTML = dados.resultados.map((r) => {
     const semHistorico = r.historico.length === 0;
+    // Mini-KPIs do medicamento, calculados do próprio histórico.
+    const total = r.historico.length;
+    const emAndamento = r.historico.filter((h) => ABERTO_BUSCA.includes(h.status)).length;
+    const finalizadas = r.historico.filter((h) => h.status === 'Finalizado').length;
+    const ultima = r.historico.reduce((best, h) => {
+      const v = (Number(h.ano) || 0) * 12 + (Number(h.mes) || 0);
+      return v > best.v ? { v, txt: `${h.mes}/${h.ano}` } : best;
+    }, { v: -1, txt: '—' }).txt;
+    const chip = (rot, val, cor) => `<span class="busca-kpi"><span class="busca-kpi-num" style="color:${cor}">${val}</span> ${rot}</span>`;
+    const faixaKpi = semHistorico ? '' : `<div class="busca-kpi-faixa">
+      ${chip('solicitações', total, 'var(--selo-escuro)')}
+      ${chip('em andamento', emAndamento, '#2a78d6')}
+      ${chip('finalizadas', finalizadas, '#1baf7a')}
+      <span class="busca-kpi"><span class="busca-kpi-num" style="color:var(--selo-escuro)">${ultima}</span> última compra</span>
+    </div>`;
     return `
     <div class="tabela-wrap" style="margin-bottom:18px;">
       <div style="padding:14px 16px; border-bottom:1px solid var(--linha); background:var(--zebra);">
         <strong>${r.item.descricao}</strong>
         <div class="col-codigo" style="margin-top:2px;">${r.item.codigo_item}${r.item.codigo_siafisico ? ' · SIAFI ' + r.item.codigo_siafisico : ''}</div>
+        ${faixaKpi}
       </div>
       ${semHistorico
         ? '<div class="estado-vazio">Nenhuma solicitação registrada para este item ainda.</div>'
@@ -4071,6 +4102,37 @@ function formatarRef(iso) {
   return formatarData(iso);
 }
 
+// Mini-gráfico de linha (sparkline) do valor total por snapshot, em SVG puro.
+function sparklineValorHist(serie, reais) {
+  if (!serie || serie.length === 0) return '<p class="texto-apoio">Sem dados.</p>';
+  if (serie.length === 1) {
+    return `<p class="texto-apoio">Só há 1 snapshot (${formatarRef(serie[0].referencia_historica)} — ${reais(serie[0].valor_total)}). O gráfico ganha forma conforme novos snapshots forem guardados.</p>`;
+  }
+  const W = 720, H = 130, mL = 8, mR = 8, mT = 12, mB = 24;
+  const vals = serie.map((s) => Number(s.valor_total) || 0);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const span = max - min || 1;
+  const x = (i) => mL + (i * (W - mL - mR)) / (serie.length - 1);
+  const y = (v) => mT + (1 - (v - min) / span) * (H - mT - mB);
+  const pts = serie.map((s, i) => `${x(i).toFixed(1)},${y(vals[i]).toFixed(1)}`).join(' ');
+  const area = `${mL},${(H - mB).toFixed(1)} ${pts} ${(W - mR)},${(H - mB).toFixed(1)}`;
+  const pontos = serie.map((s, i) => {
+    const rot = formatarRef(s.referencia_historica);
+    return `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="3.5" fill="#1f5c52"><title>${rot}: ${reais(s.valor_total)}</title></circle>`;
+  }).join('');
+  // rótulos: primeiro, último e o de maior valor
+  const idxMax = vals.indexOf(max);
+  const rotulos = [0, serie.length - 1, idxMax].filter((v, i, a) => a.indexOf(v) === i).map((i) => {
+    const anchor = i === 0 ? 'start' : i === serie.length - 1 ? 'end' : 'middle';
+    return `<text x="${x(i).toFixed(1)}" y="${(H - 8).toFixed(1)}" text-anchor="${anchor}" font-size="10" fill="var(--cinza-texto)">${formatarRef(serie[i].referencia_historica)}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:100%" role="img" aria-label="Evolução do valor em estoque">
+    <polygon points="${area}" fill="#1f5c52" opacity="0.08"></polygon>
+    <polyline points="${pts}" fill="none" stroke="#1f5c52" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>
+    ${pontos}${rotulos}
+  </svg>`;
+}
+
 async function carregarHistorico() {
   const { snapshots } = await api('/estoque/historico');
 
@@ -4086,6 +4148,28 @@ async function carregarHistorico() {
 
   // Tabela de snapshots
   const reais = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+
+  // ----- KPIs + sparkline (padrão ERP) -----
+  // snapshots vem em ordem DECRESCENTE (mais recente primeiro).
+  const ultimo = snapshots[0];
+  const anterior = snapshots[1];
+  const nInt = (v) => Number(v || 0).toLocaleString('pt-BR');
+  const deltaValor = anterior ? (ultimo.valor_total || 0) - (anterior.valor_total || 0) : 0;
+  const pctValor = anterior && anterior.valor_total ? Math.round((deltaValor / anterior.valor_total) * 100) : 0;
+  const deltaItens = anterior ? (ultimo.total_itens || 0) - (anterior.total_itens || 0) : 0;
+  const sinal = (v) => (v > 0 ? '▲ ' : v < 0 ? '▼ ' : '') ;
+  const subVar = anterior
+    ? `${sinal(deltaValor)}${reais(Math.abs(deltaValor))} (${pctValor >= 0 ? '+' : ''}${pctValor}%) vs. ${formatarRef(anterior.referencia_historica)}`
+    : 'sem período anterior';
+  document.getElementById('kpisHistorico').innerHTML =
+    kpiCard('relogio', nInt(snapshots.length), 'Snapshots guardados', 'fotos de estoque arquivadas') +
+    kpiCard('chart', reais(ultimo.valor_total), 'Valor no último snapshot', formatarRef(ultimo.referencia_historica)) +
+    kpiCard('chart', (deltaValor >= 0 ? '+' : '−') + reais(Math.abs(deltaValor)), 'Variação de valor', subVar, deltaValor < 0 ? 'aviso' : '') +
+    kpiCard('list', nInt(ultimo.total_itens) + (anterior ? ` (${deltaItens >= 0 ? '+' : ''}${nInt(deltaItens)})` : ''), 'Itens no último snapshot', anterior ? `vs. ${formatarRef(anterior.referencia_historica)}` : '');
+
+  // Sparkline do valor total (mais antigo → mais recente).
+  const serie = snapshots.slice().reverse();
+  document.getElementById('histSparkline').innerHTML = sparklineValorHist(serie, reais);
   document.getElementById('corpoTabelaHistorico').innerHTML = snapshots.map((s) => {
     const coletaDiferente = s.data_coleta !== s.referencia_historica;
     return `<tr>
@@ -6819,6 +6903,20 @@ async function carregarTabelaRelReq() {
   const dados = await api(`/autores/requisicoes/itens?${params.toString()}`);
   const corpo = document.getElementById('corpoTabelaRelatorioReq');
   const vazio = document.getElementById('estadoVazioRelatorioReq');
+
+  // KPIs (sobre todo o conjunto filtrado) — padrão ERP.
+  const alvoKpi = document.getElementById('kpisRelatorioReq');
+  if (alvoKpi && dados.resumo) {
+    const r = dados.resumo;
+    const nK = (v) => Number(v || 0).toLocaleString('pt-BR');
+    const totalK = Number(r.total || 0);
+    const pctFin = totalK ? Math.round((Number(r.finalizado || 0) / totalK) * 100) : 0;
+    alvoKpi.innerHTML =
+      kpiCard('doc', nK(r.total), 'Requisições (filtro atual)', 'itens no recorte') +
+      kpiCard('relogio', nK(r.solicitado), 'Aguardando', 'status "Solicitado"', 'aviso') +
+      kpiCard('check', nK(r.finalizado), 'Finalizadas', `${pctFin}% do total`) +
+      kpiCard('chart', nK(r.enviados), 'Telegramas enviados', 'primeiro atendimento comunicado');
+  }
 
   const opc = (lista, atual) => lista.map((o) =>
     `<option value="${o}" ${o === atual ? 'selected' : ''}>${o}</option>`).join('');
