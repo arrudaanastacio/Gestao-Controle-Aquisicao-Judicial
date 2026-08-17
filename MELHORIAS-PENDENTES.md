@@ -6,7 +6,15 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | (nada pendente no momento) | — | — | — |
+| 1 | Coluna "Tipo de Demanda" no modal de pacientes | _a preencher_ | 17/08/2026 | ✅ pronto em homolog |
+
+### Detalhe do item 1
+
+No modal de detalhe do item (tabela **Pacientes**), nova coluna **Tipo de
+Demanda** logo após o Protocolo, com a etiqueta colorida já usada na Listagem
+de Autores (Judicial / Comissão de Farmacologia / Jefaz). Backend:
+`routes.estoque.js` passa a selecionar `tipo_demanda` nos pacientes.
+**Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
 
 ## Publicadas recentemente
 

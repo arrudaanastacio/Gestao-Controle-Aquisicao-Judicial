@@ -3759,11 +3759,12 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp', unidade = '')
   if (!dados.pacientes || dados.pacientes.length === 0) {
     html += `<p class="texto-apoio">Nenhum paciente cadastrado com este item ${dados.unidade ? 'na ' + nomeUnidadePac : 'na Tenente Pena'}.</p>`;
   } else {
-    html += `<div class="rolagem-tabela"><table><thead><tr><th>Nome</th><th>Protocolo</th><th>Qtde. Consumo</th><th>Prazo</th><th>Periodicidade</th><th>Data de retirada</th><th>Próx. data de retorno</th></tr></thead><tbody>`;
+    html += `<div class="rolagem-tabela"><table><thead><tr><th>Nome</th><th>Protocolo</th><th>Tipo de Demanda</th><th>Qtde. Consumo</th><th>Prazo</th><th>Periodicidade</th><th>Data de retirada</th><th>Próx. data de retorno</th></tr></thead><tbody>`;
     html += dados.pacientes.map((p) => `
       <tr>
         <td>${p.autor || '—'}</td>
         <td>${p.protocolo || '—'}</td>
+        <td>${tagTipoDemanda(p.tipo_demanda)}</td>
         <td>${p.qtde_consumo || '—'}</td>
         <td>${p.prazo || '—'}</td>
         <td>${p.periodicidade || '—'}</td>

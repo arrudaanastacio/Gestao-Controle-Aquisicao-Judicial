@@ -1163,7 +1163,7 @@ router.get('/item/:codigo', (req, res) => {
   // Pacientes (Listagem de Autores): da unidade dispensadora clicada (no geral)
   // ou da Tenente Pena (padrão).
   const pacientes = db.prepare(`
-    SELECT autor, protocolo, qtde_consumo, prazo, periodicidade,
+    SELECT autor, protocolo, tipo_demanda, qtde_consumo, prazo, periodicidade,
            data_ultima_dispensacao, data_ultimo_retorno
     FROM autores_itens
     WHERE codigo_item = ?
