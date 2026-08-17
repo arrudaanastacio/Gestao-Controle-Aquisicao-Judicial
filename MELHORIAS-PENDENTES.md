@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Coluna "Tipo de Demanda" no modal de pacientes | _a preencher_ | 17/08/2026 | ✅ pronto em homolog |
+| 1 | Coluna "Tipo de Demanda" no modal de pacientes | 16fe487 | 17/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
