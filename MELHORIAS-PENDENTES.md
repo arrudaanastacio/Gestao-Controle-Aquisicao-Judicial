@@ -16,21 +16,22 @@ ganha a **etiqueta de Sub-categoria** (mesmo estilo `tag-programa sub` do
 Estoque). Backend: `/autores/paciente` passa a trazer `subcategoria` (subquery
 em `item_classificacao`). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
 
-### Detalhe do item 2 — Solicitação Coletiva
+### Detalhe do item 2 — Solicitação Coletiva (abas por medicamento)
 
-Novo **modo "Solicitação coletiva"** no modal de Requisição de Compra (aba ao
-lado de "Por paciente"): adiciona **vários medicamentos** (busca → chips) →
-**Ver pacientes** lista **os pacientes da Tenente Pena que têm QUALQUER um dos
-itens escolhidos**, cada um com etiquetas dos itens que possui → marca (com
-"marcar todos") → informa **um único SEI** + **Autonomia de compra** →
-**Gerar** cria **uma requisição por paciente**, cada uma com **os itens que
-aquele paciente tem** entre os escolhidos. No Relatório: **1 linha por
-paciente**; contador mostra **total** (pacientes, itens, consumo, aquisição).
-Quantidade por item = consumo × autonomia.
-Backend: `GET /autores/itens-busca`, `GET /autores/itens-pacientes` (vários
-códigos, agrupado por autor), `POST /autores/requisicoes/coletiva` (vários
-itens por paciente, transação, uma auditoria).
-**Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
+Novo **modo "Solicitação coletiva"** no modal de Requisição de Compra. Modelo
+com **uma aba por medicamento**: busca um medicamento → vira **aba** com a lista
+de pacientes que o têm, **cada paciente com os mesmos dados do fluxo por
+paciente** (tipo de demanda, consumo, prazo, periodicidade, dispensações,
+estoque/autonomia) + **autonomia de compra INDIVIDUAL** (e Qtde de Aquisição =
+consumo × autonomia). Botão **+ Inserir medicamento** abre a busca e cria nova
+aba; **navegar entre abas preserva** o que já foi selecionado (contagem por aba).
+Cada aba tem ✕ para remover. **Um único SEI**. **Marcar todos** age na aba
+atual. Contador geral = pacientes únicos · itens · aquisição total. **Gerar**
+agrupa por paciente e cria **1 requisição por paciente** com os itens marcados
+(de todas as abas). **Fechar** pede confirmação (perde a solicitação montada).
+Backend (já pronto): `itens-busca`, `itens-pacientes`, `requisicoes/coletiva`.
+Só frontend nesta etapa. **Pós-publicação:** reiniciar produção (backend das
+etapas anteriores) + Ctrl+F5.
 
 ## Publicadas recentemente
 

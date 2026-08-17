@@ -2939,37 +2939,34 @@
         <button type="button" class="req-modo-aba" data-modo="coletiva">Solicitação coletiva</button>
       </div>
 
-      <!-- ===== Modo SOLICITAÇÃO COLETIVA (vários medicamentos → vários pacientes) ===== -->
+      <!-- ===== Modo SOLICITAÇÃO COLETIVA (abas por medicamento) ===== -->
       <div id="reqModoColetiva" hidden>
-        <div id="colEtapaItem">
-          <label style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Medicamentos da solicitação</label>
-          <input type="text" id="colBuscaItem" placeholder="Buscar medicamento por nome ou código e clicar para adicionar…" style="width:100%; padding:9px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
-          <div id="colResultadosItem" style="margin-top:8px; max-height:240px; overflow-y:auto;"></div>
-          <div id="colItensSelecionados" style="margin-top:10px;"></div>
-          <div style="margin-top:12px; text-align:right;">
-            <button type="button" class="botao-primario" id="colVerPacientes" hidden>Ver pacientes →</button>
+        <!-- Painel de busca (inicial e ao inserir novo medicamento) -->
+        <div id="colBuscaPanel">
+          <label id="colBuscaLabel" style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Buscar o primeiro medicamento da solicitação</label>
+          <input type="text" id="colBuscaItem" placeholder="Buscar medicamento por nome ou código…" style="width:100%; padding:9px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
+          <div id="colResultadosItem" style="margin-top:8px; max-height:260px; overflow-y:auto;"></div>
+          <div style="margin-top:8px; text-align:right;">
+            <button type="button" class="botao-secundario" id="colCancelarBusca" hidden>Cancelar</button>
           </div>
         </div>
 
-        <div id="colEtapaPacientes" hidden>
-          <div id="colItemCabecalho" style="margin-bottom:12px;"></div>
-          <div style="display:flex; gap:12px; align-items:end; margin-bottom:10px; flex-wrap:wrap;">
-            <div style="flex:1; min-width:220px;">
-              <label style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Nº do SEI <span style="color:#c0392b;">*</span> <span style="font-weight:400; color:var(--cinza-texto);">(único da solicitação coletiva)</span></label>
-              <input type="text" id="colSEI" placeholder="Ex.: 00103.000123/2026-45" style="width:100%; padding:8px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
-            </div>
-            <div style="width:150px;">
-              <label style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Autonomia de compra</label>
-              <input type="number" id="colAutonomia" value="1" min="0" step="1" style="width:100%; padding:8px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;" title="Qtde de Aquisição = Consumo do paciente × Autonomia de compra">
-            </div>
+        <!-- Área de trabalho: SEI + abas (uma por medicamento) + pacientes -->
+        <div id="colTrabalho" hidden>
+          <div style="margin-bottom:12px;">
+            <label style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Nº do SEI <span style="color:#c0392b;">*</span> <span style="font-weight:400; color:var(--cinza-texto);">(único da solicitação coletiva)</span></label>
+            <input type="text" id="colSEI" placeholder="Ex.: 00103.000123/2026-45" style="width:100%; padding:8px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
           </div>
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+
+          <div class="col-abas-bar" id="colTabsBar"></div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin:10px 0 8px;">
             <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" id="colMarcarTodos" checked> Marcar todos
+              <input type="checkbox" id="colMarcarTodos" checked> Marcar todos (deste medicamento)
             </label>
-            <span id="colContador" style="font-size:12.5px; color:var(--cinza-texto);">0 pacientes selecionados</span>
+            <span id="colContador" style="font-size:12px; color:var(--cinza-texto);">—</span>
           </div>
-          <div id="colListaPacientes" style="max-height:360px; overflow-y:auto;"></div>
+          <div id="colListaPacientes" style="max-height:340px; overflow-y:auto;"></div>
         </div>
       </div>
 
@@ -3000,7 +2997,6 @@
 
       <div class="acoes-modal">
         <button type="button" class="botao-secundario" id="reqVoltar" hidden>← Trocar paciente</button>
-        <button type="button" class="botao-secundario" id="colVoltar" hidden>← Trocar medicamento</button>
         <button type="button" class="botao-secundario" id="botaoFecharRequisicao">Fechar</button>
         <button type="button" class="botao-primario" id="botaoGerarRequisicao" hidden>Gerar requisição →</button>
         <button type="button" class="botao-primario" id="botaoGerarColetiva" hidden>Gerar requisições →</button>

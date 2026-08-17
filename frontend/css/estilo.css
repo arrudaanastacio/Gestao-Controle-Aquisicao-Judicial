@@ -2247,3 +2247,20 @@ th.ordenavel .seta { opacity: 0.45; font-size: 10px; margin-left: 3px; }
   font-size: 12px; line-height: 1; padding: 0;
 }
 .col-chip-x:hover { color: #c0392b; }
+
+/* Abas por medicamento (Solicitação Coletiva) */
+.col-abas-bar { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--linha); padding-bottom: 8px; }
+.col-aba {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  background: var(--realce-tabela); border: 1px solid var(--linha); border-radius: 8px 8px 0 0;
+  padding: 6px 12px; font-size: 12.5px; font-family: var(--fonte-corpo); color: var(--tinta-suave);
+}
+.col-aba.ativo { background: var(--selo); color: #fff; border-color: var(--selo); font-weight: 600; }
+.col-aba-cont {
+  background: rgba(0,0,0,0.12); border-radius: 10px; padding: 0 7px; font-size: 11px; font-weight: 600;
+}
+.col-aba.ativo .col-aba-cont { background: rgba(255,255,255,0.28); }
+.col-aba-x { font-size: 11px; opacity: .7; }
+.col-aba-x:hover { opacity: 1; color: #ffd7d0; }
+.col-aba-add { background: none; border: 1px dashed var(--linha); color: var(--selo-escuro); border-radius: 8px; }
+.col-aba-add:hover { border-color: var(--selo); background: #eef4f0; }
