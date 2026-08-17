@@ -6,7 +6,7 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Logos oficiais (símbolo no menu + logo completo no login) | _a preencher_ | 17/08/2026 | ✅ pronto em homolog |
+| 1 | Logos oficiais (símbolo no menu + logo completo no login) | 18c7de5 | 17/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
