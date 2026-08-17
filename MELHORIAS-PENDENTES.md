@@ -14,10 +14,13 @@
 No **Monitoramento de Estoque**, novo seletor **"Unidades específicas"** (múltipla
 escolha) ao lado do escopo. Permite escolher uma ou mais unidades além da
 Tenente Pena; quando há unidades marcadas, elas têm prioridade sobre o escopo
-udtp/geral (que fica desabilitado). Vale para os painéis, a tabela e o export.
+udtp/geral. Vale para os painéis, a tabela e o export.
 Backend: `construirItensMonitoramento` aceita `unidade` (lista, filtro `IN`); o
 handler `/monitoramento` foi refatorado para reusar esse construtor (fim da
-duplicação). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
+duplicação). **Atualização:** os dois filtros de unidade viraram **um só** —
+um seletor de "Unidades" com Tenente Pena por padrão + opção "Todas as
+unidades" (removido o antigo seletor de escopo). **Pós-publicação:** reiniciar
+produção (backend) + Ctrl+F5.
 
 ### Detalhe do item 2 — Modernização das 3 telas antigas (Fase 4)
 

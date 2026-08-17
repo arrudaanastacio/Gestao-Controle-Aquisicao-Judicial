@@ -1635,13 +1635,6 @@ document.getElementById('seletorDataEstoque').addEventListener('change', async (
 });
 
 // Filtros da tela de Monitoramento de Estoque.
-document.getElementById('monEscopo').addEventListener('change', () => {
-  // Ao trocar de escopo, o filtro de categoria é remontado do zero.
-  const selCat = document.getElementById('monCategoria');
-  selCat.innerHTML = '<option value="">Todas as categorias</option>';
-  Object.keys(DIMENSOES_MON).forEach((d) => { estadoMonFiltro[d] = null; });
-  carregarMonitoramento();
-});
 document.getElementById('monCategoria').addEventListener('change', () => {
   Object.keys(DIMENSOES_MON).forEach((d) => { estadoMonFiltro[d] = null; });
   carregarMonitoramento();
@@ -1795,53 +1788,77 @@ const CORES_STATUS = {
 };
 const PALETA_CAT = ['#2a78d6', '#1baf7a', '#6c4bd1', '#eb6834', '#e0a100', '#0f9d9d', '#b3261e', '#8a94a6'];
 
-// Unidades específicas escolhidas no Monitoramento (vazio = usa o escopo).
-let monUnidadesSelecionadas = [];
+// Seletor ÚNICO de unidades do Monitoramento.
+//   monUnidadeTodas = true  → todas as unidades (escopo geral)
+//   monUnidadesSelecionadas = [...] → unidades específicas (padrão: Tenente Pena)
+const UNIDADE_TP = 'UD 01 - Tenente Pena';
+let monUnidadesSelecionadas = [UNIDADE_TP];
+let monUnidadeTodas = false;
 let monUnidadesCarregadas = false;
 
-// Busca a lista de unidades (uma vez) e monta as caixas de seleção.
+// Busca a lista de unidades (uma vez) e monta as caixas de seleção, com a opção
+// "Todas as unidades" no topo e a Tenente Pena marcada por padrão.
 async function garantirUnidadesMon() {
   if (monUnidadesCarregadas) return;
   const painel = document.getElementById('monUnidadePainel');
   try {
     const dados = await api('/estoque/filtros?escopoUnidade=geral');
-    const unidades = (dados.unidade || []).filter(Boolean);
-    if (!unidades.length) {
-      painel.innerHTML = '<div style="padding:6px 4px; color:var(--cinza-texto); font-size:12px;">Sem unidades nesta data.</div>';
-    } else {
-      painel.innerHTML = unidades.map((v) => {
-        const esc = v.replace(/"/g, '&quot;');
-        return `<label class="multi-filtro-item"><input type="checkbox" value="${esc}"> ${escHtml(v)}</label>`;
-      }).join('');
-      painel.querySelectorAll('input[type="checkbox"]').forEach((cb) => cb.addEventListener('change', () => {
-        monUnidadesSelecionadas = Array.from(painel.querySelectorAll('input:checked')).map((c) => c.value);
-        atualizarRotuloUnidadeMon();
-        carregarMonitoramento();
-      }));
-    }
+    let unidades = (dados.unidade || []).filter(Boolean);
+    // Garante a Tenente Pena na lista e no topo.
+    if (!unidades.includes(UNIDADE_TP)) unidades.unshift(UNIDADE_TP);
+    else unidades = [UNIDADE_TP, ...unidades.filter((u) => u !== UNIDADE_TP)];
+
+    const itemTodas = `<label class="multi-filtro-item" style="font-weight:600; border-bottom:1px solid var(--linha);"><input type="checkbox" id="monUnidadeTodasCb"> Todas as unidades</label>`;
+    const itensUnid = unidades.map((v) => {
+      const esc = v.replace(/"/g, '&quot;');
+      const marcado = monUnidadesSelecionadas.includes(v) ? 'checked' : '';
+      return `<label class="multi-filtro-item"><input type="checkbox" class="mon-uni-cb" value="${esc}" ${marcado}> ${escHtml(v)}</label>`;
+    }).join('');
+    painel.innerHTML = itemTodas + itensUnid;
+
+    const cbTodas = painel.querySelector('#monUnidadeTodasCb');
+    const cbsUnid = Array.from(painel.querySelectorAll('.mon-uni-cb'));
+    // "Todas" desmarca as individuais; marcar uma individual desliga "Todas".
+    cbTodas.addEventListener('change', () => {
+      monUnidadeTodas = cbTodas.checked;
+      if (monUnidadeTodas) { cbsUnid.forEach((c) => { c.checked = false; c.disabled = true; }); monUnidadesSelecionadas = []; }
+      else { cbsUnid.forEach((c) => { c.disabled = false; }); monUnidadesSelecionadas = [UNIDADE_TP]; cbsUnid.forEach((c) => { c.checked = c.value === UNIDADE_TP; }); }
+      Object.keys(DIMENSOES_MON).forEach((d) => { estadoMonFiltro[d] = null; });
+      atualizarRotuloUnidadeMon();
+      carregarMonitoramento();
+    });
+    cbsUnid.forEach((cb) => cb.addEventListener('change', () => {
+      monUnidadeTodas = false; cbTodas.checked = false; cbsUnid.forEach((c) => { c.disabled = false; });
+      monUnidadesSelecionadas = cbsUnid.filter((c) => c.checked).map((c) => c.value);
+      // Nunca deixa vazio: se desmarcou tudo, volta para Tenente Pena.
+      if (!monUnidadesSelecionadas.length) { monUnidadesSelecionadas = [UNIDADE_TP]; cbsUnid.forEach((c) => { c.checked = c.value === UNIDADE_TP; }); }
+      Object.keys(DIMENSOES_MON).forEach((d) => { estadoMonFiltro[d] = null; });
+      atualizarRotuloUnidadeMon();
+      carregarMonitoramento();
+    }));
     monUnidadesCarregadas = true;
-  } catch (e) { /* silencioso: mantém só o escopo */ }
+    atualizarRotuloUnidadeMon();
+  } catch (e) { /* silencioso: mantém o padrão Tenente Pena */ }
 }
 
 function atualizarRotuloUnidadeMon() {
-  const n = monUnidadesSelecionadas.length;
-  document.getElementById('monUnidadeBotao').innerHTML =
-    (n === 0 ? 'Unidades específicas' : `${n} unidade${n > 1 ? 's' : ''} selecionada${n > 1 ? 's' : ''}`) + ' <span aria-hidden="true">▾</span>';
+  let txt;
+  if (monUnidadeTodas) txt = 'Todas as unidades';
+  else if (monUnidadesSelecionadas.length === 1) txt = monUnidadesSelecionadas[0] === UNIDADE_TP ? 'Tenente Pena' : monUnidadesSelecionadas[0].replace(/^UD \d+ - /, '');
+  else txt = `${monUnidadesSelecionadas.length} unidades`;
+  document.getElementById('monUnidadeBotao').innerHTML = `Unidades: ${escHtml(txt)} <span aria-hidden="true">▾</span>`;
 }
 
 async function carregarMonitoramento() {
   await garantirUnidadesMon();
-  const escopo = document.getElementById('monEscopo').value || 'udtp';
   const categoria = document.getElementById('monCategoria').value || '';
   const comDemanda = document.getElementById('monComDemanda').checked;
   const qs = new URLSearchParams();
-  // Unidades específicas têm prioridade sobre o escopo udtp/geral.
-  if (monUnidadesSelecionadas.length) qs.set('unidade', monUnidadesSelecionadas.join(','));
-  else qs.set('escopoUnidade', escopo);
+  // "Todas" → escopo geral; senão, a lista de unidades escolhidas.
+  if (monUnidadeTodas) qs.set('escopoUnidade', 'geral');
+  else qs.set('unidade', monUnidadesSelecionadas.join(','));
   if (categoria) qs.set('categoria', categoria);
   if (!comDemanda) qs.set('comDemanda', '0');
-  // Quando há unidades específicas, o escopo fica desabilitado (para não confundir).
-  document.getElementById('monEscopo').disabled = monUnidadesSelecionadas.length > 0;
   const dados = await api('/estoque/monitoramento?' + qs.toString());
   estadoMon.dados = dados;
 
@@ -1932,8 +1949,8 @@ function alternarRecorteMon(dim, nome) {
 // Exporta para Excel os itens exatamente como estão filtrados na tela.
 async function exportarMonitoramento() {
   const qs = new URLSearchParams();
-  if (monUnidadesSelecionadas.length) qs.set('unidade', monUnidadesSelecionadas.join(','));
-  else qs.set('escopoUnidade', document.getElementById('monEscopo').value || 'udtp');
+  if (monUnidadeTodas) qs.set('escopoUnidade', 'geral');
+  else qs.set('unidade', monUnidadesSelecionadas.join(','));
   if (!document.getElementById('monComDemanda').checked) qs.set('comDemanda', '0');
   // Categoria: recorte do gráfico tem prioridade sobre o seletor.
   const cat = estadoMonFiltro.categoria || document.getElementById('monCategoria').value;
