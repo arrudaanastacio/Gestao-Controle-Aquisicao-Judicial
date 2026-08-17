@@ -1625,6 +1625,16 @@ document.getElementById('monBusca').addEventListener('input', () => {
 });
 document.getElementById('monLimparFiltro').addEventListener('click', limparFiltroMon);
 document.getElementById('monExportar').addEventListener('click', exportarMonitoramento);
+// Seletor de unidades específicas: abre/fecha o painel e fecha ao clicar fora.
+document.getElementById('monUnidadeBotao').addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  const p = document.getElementById('monUnidadePainel');
+  p.hidden = !p.hidden;
+});
+document.addEventListener('click', (ev) => {
+  const wrap = document.getElementById('monUnidadeWrap');
+  if (wrap && !wrap.contains(ev.target)) document.getElementById('monUnidadePainel').hidden = true;
+});
 // Clique em qualquer barra/fatia/legenda dos gráficos aplica o recorte.
 document.getElementById('monConteudo').addEventListener('click', (ev) => {
   const alvo = ev.target.closest('.mon-clic');
@@ -1754,13 +1764,53 @@ const CORES_STATUS = {
 };
 const PALETA_CAT = ['#2a78d6', '#1baf7a', '#6c4bd1', '#eb6834', '#e0a100', '#0f9d9d', '#b3261e', '#8a94a6'];
 
+// Unidades específicas escolhidas no Monitoramento (vazio = usa o escopo).
+let monUnidadesSelecionadas = [];
+let monUnidadesCarregadas = false;
+
+// Busca a lista de unidades (uma vez) e monta as caixas de seleção.
+async function garantirUnidadesMon() {
+  if (monUnidadesCarregadas) return;
+  const painel = document.getElementById('monUnidadePainel');
+  try {
+    const dados = await api('/estoque/filtros?escopoUnidade=geral');
+    const unidades = (dados.unidade || []).filter(Boolean);
+    if (!unidades.length) {
+      painel.innerHTML = '<div style="padding:6px 4px; color:var(--cinza-texto); font-size:12px;">Sem unidades nesta data.</div>';
+    } else {
+      painel.innerHTML = unidades.map((v) => {
+        const esc = v.replace(/"/g, '&quot;');
+        return `<label class="multi-filtro-item"><input type="checkbox" value="${esc}"> ${escHtml(v)}</label>`;
+      }).join('');
+      painel.querySelectorAll('input[type="checkbox"]').forEach((cb) => cb.addEventListener('change', () => {
+        monUnidadesSelecionadas = Array.from(painel.querySelectorAll('input:checked')).map((c) => c.value);
+        atualizarRotuloUnidadeMon();
+        carregarMonitoramento();
+      }));
+    }
+    monUnidadesCarregadas = true;
+  } catch (e) { /* silencioso: mantém só o escopo */ }
+}
+
+function atualizarRotuloUnidadeMon() {
+  const n = monUnidadesSelecionadas.length;
+  document.getElementById('monUnidadeBotao').innerHTML =
+    (n === 0 ? 'Unidades específicas' : `${n} unidade${n > 1 ? 's' : ''} selecionada${n > 1 ? 's' : ''}`) + ' <span aria-hidden="true">▾</span>';
+}
+
 async function carregarMonitoramento() {
+  await garantirUnidadesMon();
   const escopo = document.getElementById('monEscopo').value || 'udtp';
   const categoria = document.getElementById('monCategoria').value || '';
   const comDemanda = document.getElementById('monComDemanda').checked;
-  const qs = new URLSearchParams({ escopoUnidade: escopo });
+  const qs = new URLSearchParams();
+  // Unidades específicas têm prioridade sobre o escopo udtp/geral.
+  if (monUnidadesSelecionadas.length) qs.set('unidade', monUnidadesSelecionadas.join(','));
+  else qs.set('escopoUnidade', escopo);
   if (categoria) qs.set('categoria', categoria);
   if (!comDemanda) qs.set('comDemanda', '0');
+  // Quando há unidades específicas, o escopo fica desabilitado (para não confundir).
+  document.getElementById('monEscopo').disabled = monUnidadesSelecionadas.length > 0;
   const dados = await api('/estoque/monitoramento?' + qs.toString());
   estadoMon.dados = dados;
 
@@ -1850,7 +1900,9 @@ function alternarRecorteMon(dim, nome) {
 
 // Exporta para Excel os itens exatamente como estão filtrados na tela.
 async function exportarMonitoramento() {
-  const qs = new URLSearchParams({ escopoUnidade: document.getElementById('monEscopo').value || 'udtp' });
+  const qs = new URLSearchParams();
+  if (monUnidadesSelecionadas.length) qs.set('unidade', monUnidadesSelecionadas.join(','));
+  else qs.set('escopoUnidade', document.getElementById('monEscopo').value || 'udtp');
   if (!document.getElementById('monComDemanda').checked) qs.set('comDemanda', '0');
   // Categoria: recorte do gráfico tem prioridade sobre o seletor.
   const cat = estadoMonFiltro.categoria || document.getElementById('monCategoria').value;

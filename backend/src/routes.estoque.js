@@ -663,8 +663,16 @@ function construirItensMonitoramento(query) {
 
   const condicoes = ['e.data_referencia = ?'];
   const params = [dataRef];
-  const escCond = condEscopoUnidade(escopoUnidade || 'udtp', 'e.');
-  if (escCond) condicoes.push(escCond);
+  // Se o usuário escolheu unidades específicas, filtra por elas (IN) e ignora
+  // o escopo udtp/geral. Senão, usa o escopo (Tenente Pena por padrão).
+  const unidadesEscolhidas = String(query.unidade || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (unidadesEscolhidas.length) {
+    condicoes.push(`e.unidade IN (${unidadesEscolhidas.map(() => '?').join(',')})`);
+    params.push(...unidadesEscolhidas);
+  } else {
+    const escCond = condEscopoUnidade(escopoUnidade || 'udtp', 'e.');
+    if (escCond) condicoes.push(escCond);
+  }
   if (categoria) { condicoes.push('e.categoria = ?'); params.push(categoria); }
   if (soComDemanda) condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
   const where = `WHERE ${condicoes.join(' AND ')}`;
@@ -716,59 +724,13 @@ function construirItensMonitoramento(query) {
 }
 
 router.get('/monitoramento', (req, res) => {
-  const { data, escopoUnidade, categoria } = req.query;
-  // Por padrão só itens COM demanda (>0), como na planilha gerencial da CPDAE
-  // (os pivôs de lá ignoram os "Sem Demanda"). comDemanda=0 mostra tudo.
-  const soComDemanda = req.query.comDemanda !== '0';
-  let dataRef = data;
-  if (!dataRef) {
-    const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
-    if (!ultima) return res.json({ dataReferencia: null, itens: [] });
-    dataRef = ultima.data_referencia;
-  }
-
-  const condicoes = ['e.data_referencia = ?'];
-  const params = [dataRef];
-  const escCond = condEscopoUnidade(escopoUnidade || 'udtp', 'e.');
-  if (escCond) condicoes.push(escCond);
-  if (categoria) { condicoes.push('e.categoria = ?'); params.push(categoria); }
-  if (soComDemanda) condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
-  const where = `WHERE ${condicoes.join(' AND ')}`;
-
-  const linhas = db.prepare(`
-    SELECT e.codigo_item, e.siafisico, e.descricao, e.unidade,
-           e.categoria, e.tipo_item, e.marca, e.importado, e.controlado, e.outras_demandas,
-           e.demandas, e.demandas_aj, e.demandas_cf, e.demandas_jefaz,
-           e.consumo_mensal_total, e.estoque, e.autonomia,
-           (SELECT ic.subcategoria FROM item_classificacao ic WHERE ic.codigo_item = e.codigo_item) AS subcategoria
-      FROM estoque_itens e ${where}
-      ORDER BY e.descricao
-  `).all(...params);
-
-  // Data-base para "Cobertura" (mês em que zera) e "Previsão de falta".
-  const hoje = new Date();
-  const itens = linhas.map((r) => {
-    const statusEstoque = classificarStatusEstoque(r.demandas, r.autonomia);
-    const statusFinal = statusFinalDe(statusEstoque);
-    let previsaoFalta = null, coberturaMes = null;
-    if (r.autonomia != null && (Number(r.consumo_mensal_total) || 0) > 0) {
-      const d = new Date(hoje.getTime());
-      d.setDate(d.getDate() + Math.round(Number(r.autonomia) * 30));
-      previsaoFalta = d.toISOString().slice(0, 10);
-      const m = new Date(hoje.getFullYear(), hoje.getMonth() + Math.round(Number(r.autonomia)), 1);
-      coberturaMes = m.toISOString().slice(0, 7);
-    }
-    return {
-      codigo_item: r.codigo_item, siafisico: r.siafisico, descricao: r.descricao, unidade: r.unidade,
-      categoria: r.categoria || 'Sem categoria', subcategoria: r.subcategoria || (r.categoria || 'Sem categoria'),
-      tipo_item: r.tipo_item, marca: r.marca, importado: r.importado, controlado: r.controlado,
-      demandas: r.demandas || 0, demandas_aj: r.demandas_aj || 0, demandas_cf: r.demandas_cf || 0, demandas_jefaz: r.demandas_jefaz || 0,
-      consumo_mensal_total: r.consumo_mensal_total || 0, estoque: r.estoque || 0, autonomia: r.autonomia,
-      status_estoque: statusEstoque, status_final: statusFinal,
-      previsao_falta: previsaoFalta, cobertura_mes: coberturaMes,
-      faixa_demanda: (Number(r.demandas) || 0) > 30 ? 'Acima 30' : 'Baixo 30',
-    };
+  // Reaproveita o mesmo construtor do export (escopo/unidade/categoria/comDemanda).
+  // Aqui NÃO aplicamos q/status/etc — esses recortes são feitos no navegador.
+  const { dataRef, itens } = construirItensMonitoramento({
+    data: req.query.data, escopoUnidade: req.query.escopoUnidade,
+    categoria: req.query.categoria, comDemanda: req.query.comDemanda, unidade: req.query.unidade,
   });
+  if (!dataRef) return res.json({ dataReferencia: null, itens: [] });
 
   // Agregações para os painéis.
   const contar = (chave) => {

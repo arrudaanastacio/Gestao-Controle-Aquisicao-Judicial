@@ -6,7 +6,17 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| — | (nada pendente no momento) | — | — | — |
+| 1 | Monitoramento: escolher uma ou mais unidades específicas | _a preencher_ | 17/08/2026 | ✅ pronto em homolog |
+
+### Detalhe do item 1
+
+No **Monitoramento de Estoque**, novo seletor **"Unidades específicas"** (múltipla
+escolha) ao lado do escopo. Permite escolher uma ou mais unidades além da
+Tenente Pena; quando há unidades marcadas, elas têm prioridade sobre o escopo
+udtp/geral (que fica desabilitado). Vale para os painéis, a tabela e o export.
+Backend: `construirItensMonitoramento` aceita `unidade` (lista, filtro `IN`); o
+handler `/monitoramento` foi refatorado para reusar esse construtor (fim da
+duplicação). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
 
 ## Publicadas recentemente
 
