@@ -6039,7 +6039,8 @@ async function selecionarPaciente(autor) {
     let badge = '<span style="color:var(--cinza-texto); font-size:12px;">sem dado de estoque</span>';
     if (aut !== null && aut !== undefined) {
       const cls = aut <= 0 ? 'cancelado' : (aut <= 2 ? 'atrasado' : 'finalizado');
-      badge = `<span class="etiqueta-status ${cls}">estoque: ${fmtNumero(it.estoque_atual)} · autonomia ${fmtNumero(aut)} m</span>`;
+      const dem = (it.demanda_atual !== null && it.demanda_atual !== undefined) ? `demanda: ${fmtNumero(it.demanda_atual)} · ` : '';
+      badge = `<span class="etiqueta-status ${cls}">${dem}estoque: ${fmtNumero(it.estoque_atual)} · autonomia ${fmtNumero(aut)} m</span>`;
     }
     const chip = (rotulo, valor) => (valor !== null && valor !== undefined && String(valor).trim() !== '')
       ? `<span style="display:inline-block; background:var(--realce-tabela); border:1px solid var(--linha); border-radius:4px; padding:1px 7px; margin:2px 4px 0 0; font-size:11px;"><strong>${rotulo}:</strong> ${valor}</span>`
@@ -6145,7 +6146,15 @@ function coletarItensSelecionados() {
 
 // Monta o HTML do documento da requisição (reutilizado ao gerar e ao reabrir)
 function montarDocumentoRequisicao(d) {
-  const linhas = d.itens.map((it, i) => `
+  const preco = (v) => { if (v == null || v === '') return null; const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
+  const brl = (v) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  let totalGeral = 0, temValor = false;
+  const linhas = d.itens.map((it, i) => {
+    const uni = preco(it.valor_unitario);
+    const qtd = parseNumeroReq(it.quantidade);
+    const tot = (uni != null && qtd) ? uni * qtd : null;
+    if (tot != null) { totalGeral += tot; temValor = true; }
+    return `
     <tr>
       <td style="text-align:center;">${i + 1}</td>
       <td>${it.codigo_item || '—'}</td>
@@ -6154,7 +6163,13 @@ function montarDocumentoRequisicao(d) {
       <td>${it.descricao_item || '—'}</td>
       <td style="text-align:center;">${it.qtde_consumo || '—'}</td>
       <td style="text-align:center;"><strong>${it.quantidade || '—'}</strong></td>
-    </tr>`).join('');
+      <td style="text-align:right;">${brl(uni)}</td>
+      <td style="text-align:right;">${brl(tot)}</td>
+    </tr>`;
+  }).join('');
+  const totalRow = temValor
+    ? `<tr><td colspan="8" style="text-align:right;"><strong>Total da aquisição</strong></td><td style="text-align:right;"><strong>${brl(totalGeral)}</strong></td></tr>`
+    : '';
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${d.codigoControle || 'Requisição'} - ${d.autor}</title>
     <style>
@@ -6184,8 +6199,8 @@ function montarDocumentoRequisicao(d) {
       <strong>Operador:</strong> ${d.operadorNome || '—'} &nbsp;|&nbsp; <strong>Login:</strong> ${d.operadorEmail || '—'}
     </div>
     <table>
-      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th>Qtde Consumo</th><th style="width:90px;">Quantidade de Aquisição</th></tr></thead>
-      <tbody>${linhas}</tbody>
+      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th>Qtde Consumo</th><th style="width:90px;">Quantidade de Aquisição</th><th style="width:90px;">Valor Unitário</th><th style="width:100px;">Valor Total</th></tr></thead>
+      <tbody>${linhas}${totalRow}</tbody>
     </table>
     </body></html>`;
 }
@@ -6193,7 +6208,15 @@ function montarDocumentoRequisicao(d) {
 // Documento consolidado de uma Solicitação Coletiva (pacientes + total por item).
 function montarDocumentoColetiva(r, itens, pacientes) {
   const op = estado.usuario || {};
-  const linhasItens = itens.map((it, i) => `
+  const preco = (v) => { if (v == null || v === '') return null; const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
+  const brl = (v) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  let totalGeral = 0, temValor = false;
+  const linhasItens = itens.map((it, i) => {
+    const uni = preco(it.valor_unitario);
+    const qtd = parseNumeroReq(it.quantidade);
+    const tot = (uni != null && qtd) ? uni * qtd : null;
+    if (tot != null) { totalGeral += tot; temValor = true; }
+    return `
     <tr>
       <td style="text-align:center;">${i + 1}</td>
       <td>${it.codigo_item || '—'}</td>
@@ -6202,7 +6225,13 @@ function montarDocumentoColetiva(r, itens, pacientes) {
       <td>${it.descricao_item || '—'}</td>
       <td style="text-align:center;">${it.n_pacientes != null ? it.n_pacientes : (it.detalhe ? it.detalhe.length : '—')}</td>
       <td style="text-align:center;"><strong>${it.quantidade || '—'}</strong></td>
-    </tr>`).join('');
+      <td style="text-align:right;">${brl(uni)}</td>
+      <td style="text-align:right;">${brl(tot)}</td>
+    </tr>`;
+  }).join('');
+  const totalRowItens = temValor
+    ? `<tr><td colspan="8" style="text-align:right;"><strong>Total da aquisição</strong></td><td style="text-align:right;"><strong>${brl(totalGeral)}</strong></td></tr>`
+    : '';
   const linhasPac = (pacientes || []).map((p, i) => `
     <tr>
       <td style="text-align:center;">${i + 1}</td>
@@ -6231,8 +6260,8 @@ function montarDocumentoColetiva(r, itens, pacientes) {
     </div>
     <h2>Total consolidado por medicamento</h2>
     <table>
-      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th style="width:70px;">Pacientes</th><th style="width:90px;">Qtde total</th></tr></thead>
-      <tbody>${linhasItens}</tbody>
+      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th style="width:70px;">Pacientes</th><th style="width:90px;">Qtde total</th><th style="width:90px;">Valor Unitário</th><th style="width:100px;">Valor Total</th></tr></thead>
+      <tbody>${linhasItens}${totalRowItens}</tbody>
     </table>
     <h2>Pacientes da solicitação (${pacientes ? pacientes.length : 0})</h2>
     <table>
@@ -6554,7 +6583,8 @@ function renderSelecionadosPac() {
     let badge = '<span style="color:var(--cinza-texto); font-size:11px;">sem dado de estoque</span>';
     if (aut !== null && aut !== undefined) {
       const cls = aut <= 0 ? 'cancelado' : (aut <= 2 ? 'atrasado' : 'finalizado');
-      badge = `<span class="etiqueta-status ${cls}">estoque ${fmtNumero(it.estoque_atual)} · autonomia ${fmtNumero(aut)} m</span>`;
+      const dem = (it.demanda_atual !== null && it.demanda_atual !== undefined) ? `demanda ${fmtNumero(it.demanda_atual)} · ` : '';
+      badge = `<span class="etiqueta-status ${cls}">${dem}estoque ${fmtNumero(it.estoque_atual)} · autonomia ${fmtNumero(aut)} m</span>`;
     }
     const detalhes = [
       chip('Tipo de demanda', p.tipo_demanda), chip('Qtde de consumo', it.qtde_consumo),
@@ -6640,6 +6670,7 @@ async function gerarColetiva() {
         autonomia_compra: String(s.autonomia || 0),
         quantidade: +(parseNumeroReq(it.qtde_consumo) * (s.autonomia || 0)).toFixed(2),
         situacao_ata: situacaoAta, escolha_ata: escolhaAta,
+        valor_unitario: it.valor_unitario != null ? it.valor_unitario : null,
       });
     });
   });

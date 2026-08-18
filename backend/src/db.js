@@ -799,6 +799,7 @@ if (!colunasReqItens.includes('detalhe_json')) db.exec("ALTER TABLE requisicao_i
 if (!colunasReqItens.includes('n_pacientes')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN n_pacientes INTEGER");
 if (!colunasReqItens.includes('situacao_ata')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN situacao_ata TEXT");
 if (!colunasReqItens.includes('escolha_ata')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN escolha_ata TEXT");
+if (!colunasReqItens.includes('valor_unitario')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN valor_unitario TEXT");
 
 // Relatório de Itens (catálogo completo) — substitui Consulta/Catálogo.
 // Substituído por completo a cada importação.

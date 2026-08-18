@@ -340,7 +340,9 @@ router.get('/paciente', (req, res) => {
            (SELECT ic.subcategoria FROM item_classificacao ic WHERE ic.codigo_item = a.codigo_item) AS subcategoria,
            (SELECT ri.catmat FROM relatorio_itens ri WHERE ri.codigo = a.codigo_item AND ri.catmat IS NOT NULL AND ri.catmat <> '' ORDER BY ri.data_referencia DESC LIMIT 1) AS catmat,
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
-           (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual
+           (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual,
+           (SELECT e.demandas  FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS demanda_atual,
+           (SELECT COALESCE(NULLIF(e.valor_medio_unitario,0), e.custo_unitario) FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS valor_unitario
     FROM autores_itens a
     WHERE a.autor = ? AND a.data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
     ORDER BY a.descricao_item
@@ -395,7 +397,9 @@ router.get('/itens-pacientes', (req, res) => {
            a.qtde_consumo, a.prazo, a.periodicidade, a.dispensacoes_autorizadas,
            (SELECT ri.catmat FROM relatorio_itens ri WHERE ri.codigo = a.codigo_item AND ri.catmat IS NOT NULL AND ri.catmat <> '' ORDER BY ri.data_referencia DESC LIMIT 1) AS catmat,
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
-           (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual
+           (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual,
+           (SELECT e.demandas  FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS demanda_atual,
+           (SELECT COALESCE(NULLIF(e.valor_medio_unitario,0), e.custo_unitario) FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS valor_unitario
     FROM autores_itens a
     WHERE a.codigo_item IN (${ph})
       AND a.data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
@@ -419,6 +423,7 @@ router.get('/itens-pacientes', (req, res) => {
       categoria: r.categoria, catmat: r.catmat, qtde_consumo: r.qtde_consumo, prazo: r.prazo,
       periodicidade: r.periodicidade, dispensacoes_autorizadas: r.dispensacoes_autorizadas,
       estoque_atual: r.estoque_atual, autonomia_atual: r.autonomia_atual,
+      demanda_atual: r.demanda_atual, valor_unitario: r.valor_unitario,
       ata: calcAta(r.codigo_item, r.cod_siafisico),
     });
   }
@@ -446,6 +451,7 @@ router.post('/requisicoes/coletiva', (req, res) => {
           codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
           categoria: it.categoria, catmat: it.catmat, quantidade: 0, qtde_consumo: 0, detalhe: [],
           situacao_ata: it.situacao_ata || null, escolha_ata: it.escolha_ata || null,
+          valor_unitario: it.valor_unitario != null ? it.valor_unitario : null,
         });
       }
       const agg = mapaItem.get(k);
@@ -473,12 +479,13 @@ router.post('/requisicoes/coletiva', (req, res) => {
 
     const insItem = db.prepare(`
       INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
-                                    qtde_consumo, catmat, detalhe_json, n_pacientes, situacao_ata, escolha_ata)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                                    qtde_consumo, catmat, detalhe_json, n_pacientes, situacao_ata, escolha_ata, valor_unitario)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     for (const it of itensConsolidados) {
       insItem.run(id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null,
         String(+it.quantidade.toFixed(2)), String(+it.qtde_consumo.toFixed(2)), it.catmat || null,
-        JSON.stringify(it.detalhe), it.detalhe.length, it.situacao_ata || null, it.escolha_ata || null);
+        JSON.stringify(it.detalhe), it.detalhe.length, it.situacao_ata || null, it.escolha_ata || null,
+        it.valor_unitario != null ? String(it.valor_unitario) : null);
     }
     db.exec('COMMIT');
   } catch (e) {
@@ -514,14 +521,14 @@ router.post('/requisicoes', (req, res) => {
   const stmt = db.prepare(`
     INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
                                   tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat,
-                                  situacao_ata, escolha_ata)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  situacao_ata, escolha_ata, valor_unitario)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const it of itens) {
     stmt.run(id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''),
       it.tipo_demanda || null, it.qtde_consumo != null ? String(it.qtde_consumo) : null, it.prazo || null, it.periodicidade || null, it.dispensacoes_autorizadas || null,
       it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null,
-      it.situacao_ata || null, it.escolha_ata || null);
+      it.situacao_ata || null, it.escolha_ata || null, it.valor_unitario != null ? String(it.valor_unitario) : null);
   }
 
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
@@ -703,13 +710,15 @@ router.put('/requisicoes/:id', (req, res) => {
   db.prepare('DELETE FROM requisicao_itens WHERE requisicao_id = ?').run(r.id);
   const stmt = db.prepare(`
     INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
-                                  tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat,
+                                  situacao_ata, escolha_ata, valor_unitario)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const it of itens) {
     stmt.run(r.id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''),
       it.tipo_demanda || null, it.qtde_consumo != null ? String(it.qtde_consumo) : null, it.prazo || null, it.periodicidade || null, it.dispensacoes_autorizadas || null,
-      it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null);
+      it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null,
+      it.situacao_ata || null, it.escolha_ata || null, it.valor_unitario != null ? String(it.valor_unitario) : null);
   }
 
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')

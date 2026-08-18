@@ -42,6 +42,16 @@ grava, não aparece no documento impresso): colunas `situacao_ata` e
 `htmlEtiquetaAta()` + estados no `estilo.css`.
 **Pós-publicação:** reiniciar produção (backend + migração) + Ctrl+F5.
 
+**Extras (mesmo commit):**
+- **Quantidade de demanda antes do estoque** no cartão do item (nos dois
+  fluxos): a etiqueta passa a mostrar `demanda X · estoque Y · autonomia Z m`
+  (fonte: `estoque_itens.demandas` da foto TP mais recente).
+- **Valor unitário e Valor total na filipeta impressa** (documento por paciente
+  e documento consolidado da coletiva): duas colunas novas + linha **Total da
+  aquisição**. Valor unitário = `COALESCE(NULLIF(valor_medio_unitario,0),
+  custo_unitario)` da foto TP; total = unitário × Qtde de Aquisição. Gravado na
+  requisição (`requisicao_itens.valor_unitario`) para valer também ao reabrir.
+
 ### Detalhe do item 2 — modo "Por Item" CONSOLIDADO (abas por medicamento)
 
 **Refinamento de UX (nova etapa, só frontend):** o botão do modo foi renomeado
