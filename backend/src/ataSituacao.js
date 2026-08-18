@@ -73,6 +73,8 @@ function criarCalculadoraAta() {
         vencimento: ata.vencimento || null,
         nome_comercial: ata.nome_comercial || null,
         detentor: ata.detentor_registro || null,
+        valor: (ata.ultimo_valor_publicado != null && Number(ata.ultimo_valor_publicado) > 0)
+          ? Number(ata.ultimo_valor_publicado) : null,
         marca_estoque: marca,
       };
     }

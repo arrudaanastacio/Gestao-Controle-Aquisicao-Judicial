@@ -5961,6 +5961,44 @@ async function buscarPacienteRequisicao() {
 // Guarda a escolha do técnico (ATA/SEM_ATA) para itens de "Avaliação técnica",
 // por id único. Zerado ao trocar de paciente / iniciar nova coletiva.
 const escolhasAta = new Map();
+// Valor unitário informado manualmente pelo técnico (quando não há valor), por id.
+const valoresManual = new Map();
+
+// Valor unitário efetivo do item: ATA usa o valor da ata; demais usam o valor
+// médio; se ambos vazios, usa o que o técnico digitou (valoresManual).
+function valorUnitFinal(item, id) {
+  const ata = item.ata || {};
+  const usaAta = ata.situacao === 'ATA' || (ata.situacao === 'AVALIACAO' && escolhasAta.get(id) === 'ATA');
+  let base = usaAta ? ata.valor : item.valor_medio;
+  base = (base != null && Number(base) > 0) ? Number(base) : null;
+  if (base != null) return base;
+  const man = valoresManual.get(id);
+  return (man != null && man !== '' && isFinite(Number(man))) ? Number(man) : null;
+}
+
+// Container (vazio) do valor unitário do item; preenchido por preencherValorUnit.
+function htmlValorUnit(item, id) {
+  const ata = item.ata || {};
+  return `<div class="ata-valor" data-vid="${id}" data-sit="${ata.situacao || ''}" data-vata="${ata.valor != null ? ata.valor : ''}" data-vmedio="${item.valor_medio != null ? item.valor_medio : ''}"></div>`;
+}
+
+// Preenche o container do valor: mostra o valor (ATA / valor médio) ou, se
+// vazio, um campo para o técnico informar.
+function preencherValorUnit(el) {
+  const id = el.dataset.vid;
+  const sit = el.dataset.sit;
+  const vata = el.dataset.vata !== '' ? Number(el.dataset.vata) : null;
+  const vmedio = el.dataset.vmedio !== '' ? Number(el.dataset.vmedio) : null;
+  const usaAta = sit === 'ATA' || (sit === 'AVALIACAO' && escolhasAta.get(id) === 'ATA');
+  let base = usaAta ? vata : vmedio;
+  base = (base != null && base > 0) ? base : null;
+  if (base != null) {
+    el.innerHTML = `<span class="ata-valor-rot">Valor unitário:</span> <strong>${brlPlan(base)}</strong> <span class="ata-valor-fonte">(${usaAta ? 'ATA' : 'valor médio'})</span>`;
+  } else {
+    const man = valoresManual.get(id);
+    el.innerHTML = `<span class="ata-valor-rot">Valor unitário (informar):</span> <input type="number" class="ata-valor-inp" data-vid="${id}" value="${man != null ? man : ''}" min="0" step="0.01" placeholder="R$" style="width:120px; padding:5px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px;">`;
+  }
+}
 
 function fmtDataAta(iso) {
   if (!iso) return '—';
@@ -6013,11 +6051,20 @@ document.addEventListener('click', (ev) => {
     if (escolhasAta.get(id) === novo) escolhasAta.delete(id); else escolhasAta.set(id, novo);
     esc.parentElement.querySelectorAll('.ata-escolha').forEach((b) =>
       b.classList.toggle('on', escolhasAta.get(id) === b.dataset.esc));
+    // A escolha ATA/SEM ATA muda a fonte do valor unitário — repinta o campo.
+    document.querySelectorAll(`.ata-valor[data-vid="${cssEsc(id)}"]`).forEach(preencherValorUnit);
   }
+});
+
+// Valor unitário informado manualmente pelo técnico.
+document.addEventListener('input', (ev) => {
+  const inp = ev.target.closest('.ata-valor-inp');
+  if (inp) valoresManual.set(inp.dataset.vid, inp.value);
 });
 
 async function selecionarPaciente(autor) {
   escolhasAta.clear();
+  valoresManual.clear();
   const dados = await api(`/autores/paciente?autor=${encodeURIComponent(autor)}`);
   reqPacienteAtual = dados.info;
   reqItensAtuais = dados.itens;
@@ -6063,6 +6110,7 @@ async function selecionarPaciente(autor) {
           ${detalhes ? `<div style="margin-top:3px;">${detalhes}</div>` : ''}
           <div style="margin-top:3px;">${badge}</div>
           ${htmlEtiquetaAta(it.ata, 'pac_' + idx)}
+          ${htmlValorUnit(it, 'pac_' + idx)}
         </div>
         <div>
           <label style="font-size:10px; color:var(--cinza-texto); display:block;">Autonomia de compra</label>
@@ -6081,6 +6129,7 @@ async function selecionarPaciente(autor) {
   document.querySelectorAll('#reqListaItens .req-autonomia').forEach((inp) => {
     inp.addEventListener('input', () => recalcularAquisicao(inp));
   });
+  document.querySelectorAll('#reqListaItens .ata-valor').forEach(preencherValorUnit);
   aplicarModoApenasRegistro();
   atualizarContadorReq();
 }
@@ -6139,7 +6188,8 @@ function coletarItensSelecionados() {
     const item = reqItensAtuais[idx];
     const situacaoAta = item.ata ? item.ata.situacao : null;
     const escolhaAta = situacaoAta === 'AVALIACAO' ? (escolhasAta.get('pac_' + idx) || null) : null;
-    selecionados.push({ ...item, quantidade: qtd, autonomia_compra: autonomiaCompra, situacao_ata: situacaoAta, escolha_ata: escolhaAta });
+    const valorUnit = valorUnitFinal(item, 'pac_' + idx);
+    selecionados.push({ ...item, quantidade: qtd, autonomia_compra: autonomiaCompra, situacao_ata: situacaoAta, escolha_ata: escolhaAta, valor_unitario: valorUnit });
   });
   return selecionados;
 }
@@ -6376,6 +6426,7 @@ function resetColetiva() {
   colTabAtivo = 0;
   colInserindo = false;
   escolhasAta.clear();
+  valoresManual.clear();
   mostrarBuscaColetiva(false);
 }
 
@@ -6493,7 +6544,12 @@ function renderPacientesTab() {
   const titulo = document.getElementById('colPacSelTitulo');
   const tagAta = document.getElementById('colAtaTag');
   if (!tab) { res.innerHTML = ''; alvo.innerHTML = ''; titulo.hidden = true; busca.value = ''; if (tagAta) tagAta.innerHTML = ''; return; }
-  if (tagAta) tagAta.innerHTML = htmlEtiquetaAta(tab.ata, 'coltab_' + colTabAtivo);
+  if (tagAta) {
+    const itemTab = tab.pacientes.length ? (tab.pacientes[0].item || {}) : null;
+    const idTab = 'coltab_' + colTabAtivo;
+    tagAta.innerHTML = htmlEtiquetaAta(tab.ata, idTab) + (itemTab ? htmlValorUnit(itemTab, idTab) : '');
+    tagAta.querySelectorAll('.ata-valor').forEach(preencherValorUnit);
+  }
   busca.value = tab.filtro || '';
   if (!tab.pacientes.length) {
     res.innerHTML = '<p class="texto-apoio">Nenhum paciente com este medicamento na demanda da Tenente Pena.</p>';
@@ -6652,6 +6708,8 @@ async function gerarColetiva() {
   colTabs.forEach((t, ti) => {
     const situacaoAta = t.ata ? t.ata.situacao : null;
     const escolhaAta = situacaoAta === 'AVALIACAO' ? (escolhasAta.get('coltab_' + ti) || null) : null;
+    const itemTab = t.pacientes.length ? t.pacientes[0].item : {};
+    const valorUnit = valorUnitFinal(itemTab, 'coltab_' + ti);
     t.pacientes.forEach((p) => {
       const s = t.sel[p.autor];
       if (!s || !s.checked) return;
@@ -6670,7 +6728,7 @@ async function gerarColetiva() {
         autonomia_compra: String(s.autonomia || 0),
         quantidade: +(parseNumeroReq(it.qtde_consumo) * (s.autonomia || 0)).toFixed(2),
         situacao_ata: situacaoAta, escolha_ata: escolhaAta,
-        valor_unitario: it.valor_unitario != null ? it.valor_unitario : null,
+        valor_unitario: valorUnit,
       });
     });
   });

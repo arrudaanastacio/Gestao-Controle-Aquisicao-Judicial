@@ -342,7 +342,7 @@ router.get('/paciente', (req, res) => {
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
            (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual,
            (SELECT e.demandas  FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS demanda_atual,
-           (SELECT COALESCE(NULLIF(e.valor_medio_unitario,0), e.custo_unitario) FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS valor_unitario
+           (SELECT NULLIF(e.valor_medio_unitario,0) FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS valor_medio
     FROM autores_itens a
     WHERE a.autor = ? AND a.data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
     ORDER BY a.descricao_item
@@ -399,7 +399,7 @@ router.get('/itens-pacientes', (req, res) => {
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
            (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual,
            (SELECT e.demandas  FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS demanda_atual,
-           (SELECT COALESCE(NULLIF(e.valor_medio_unitario,0), e.custo_unitario) FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS valor_unitario
+           (SELECT NULLIF(e.valor_medio_unitario,0) FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS valor_medio
     FROM autores_itens a
     WHERE a.codigo_item IN (${ph})
       AND a.data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
@@ -423,7 +423,7 @@ router.get('/itens-pacientes', (req, res) => {
       categoria: r.categoria, catmat: r.catmat, qtde_consumo: r.qtde_consumo, prazo: r.prazo,
       periodicidade: r.periodicidade, dispensacoes_autorizadas: r.dispensacoes_autorizadas,
       estoque_atual: r.estoque_atual, autonomia_atual: r.autonomia_atual,
-      demanda_atual: r.demanda_atual, valor_unitario: r.valor_unitario,
+      demanda_atual: r.demanda_atual, valor_medio: r.valor_medio,
       ata: calcAta(r.codigo_item, r.cod_siafisico),
     });
   }

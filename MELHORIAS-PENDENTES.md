@@ -48,9 +48,16 @@ grava, não aparece no documento impresso): colunas `situacao_ata` e
   (fonte: `estoque_itens.demandas` da foto TP mais recente).
 - **Valor unitário e Valor total na filipeta impressa** (documento por paciente
   e documento consolidado da coletiva): duas colunas novas + linha **Total da
-  aquisição**. Valor unitário = `COALESCE(NULLIF(valor_medio_unitario,0),
-  custo_unitario)` da foto TP; total = unitário × Qtde de Aquisição. Gravado na
-  requisição (`requisicao_itens.valor_unitario`) para valer também ao reabrir.
+  aquisição**. Total = valor unitário × Qtde de Aquisição. Gravado na requisição
+  (`requisicao_itens.valor_unitario`) para valer também ao reabrir.
+- **Valor unitário conforme a etiqueta:** item **ATA** (ou Avaliação técnica com
+  o técnico escolhendo **ATA**) usa o **último valor publicado da ATA**; as
+  demais etiquetas usam o **valor médio** (`valor_medio_unitario`). Se o valor
+  vier **vazio/zero**, o cartão libera um **campo para o técnico informar** o
+  valor (repinta automaticamente quando a escolha ATA/SEM ATA muda). No Por Item
+  o valor é único por medicamento (nível da aba). Backend: `ataSituacao.js`
+  passa a devolver `valor` (da ata); `/paciente` e `/itens-pacientes` trazem
+  `valor_medio`.
 
 ### Detalhe do item 2 — modo "Por Item" CONSOLIDADO (abas por medicamento)
 
