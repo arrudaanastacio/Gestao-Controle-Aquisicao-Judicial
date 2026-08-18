@@ -434,10 +434,12 @@ router.post('/requisicoes/coletiva', (req, res) => {
                                   tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 
-  const gerar = db.transaction((lista) => {
-    const criados = [];
-    let totalItens = 0;
-    for (const p of lista) {
+  // Transação manual — o SQLite nativo (node:sqlite) não tem db.transaction().
+  const criados = [];
+  let totalItens = 0;
+  db.exec('BEGIN');
+  try {
+    for (const p of pacientes) {
       const itens = Array.isArray(p.itens) ? p.itens : [];
       if (!itens.length) continue; // paciente sem item marcado é ignorado
       const info = insReq.run(p.autor, p.idade || null, p.unidade_dispensadora || null, p.procurador_estado || null,
@@ -454,10 +456,11 @@ router.post('/requisicoes/coletiva', (req, res) => {
       }
       criados.push({ id, codigo_controle: codigoControle, autor: p.autor, itens: itens.length });
     }
-    return { criados, totalItens };
-  });
-
-  const { criados, totalItens } = gerar(pacientes);
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    return res.status(500).json({ erro: 'Falha ao gerar as requisições: ' + e.message });
+  }
   if (!criados.length) return res.status(400).json({ erro: 'Nenhum paciente com item marcado.' });
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
     .run(req.usuario.id, req.usuario.email, 'gerar_solicitacao_coletiva', 'requisicoes', null,
