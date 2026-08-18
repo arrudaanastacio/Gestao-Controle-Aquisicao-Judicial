@@ -7,7 +7,7 @@
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
 | 1 | Etiqueta de subcategoria no modal da Requisição de Compra | eb392ff | 17/08/2026 | ✅ pronto em homolog |
-| 2 | Requisição — modo "Solicitação Coletiva" (vários medicamentos → vários pacientes) | 699e0ab | 17/08/2026 | ✅ pronto em homolog |
+| 2 | Requisição — modo "Por Item" (ex-"Solicitação Coletiva"): consolidada + filtro de paciente | 699e0ab | 17/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
@@ -16,9 +16,22 @@ ganha a **etiqueta de Sub-categoria** (mesmo estilo `tag-programa sub` do
 Estoque). Backend: `/autores/paciente` passa a trazer `subcategoria` (subquery
 em `item_classificacao`). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
 
-### Detalhe do item 2 — Solicitação Coletiva CONSOLIDADA (abas por medicamento)
+### Detalhe do item 2 — modo "Por Item" CONSOLIDADO (abas por medicamento)
 
-**Consolidação (nova etapa):** a coletiva agora gera **UM único número de
+**Refinamento de UX (nova etapa, só frontend):** o botão do modo foi renomeado
+de "Solicitação coletiva" para **"Por Item"**. Dentro de cada aba de medicamento,
+em vez de listar TODOS os pacientes de uma vez (inviável para itens com milhares,
+ex. dieta enteral), agora há um **campo de filtro de paciente** (nome/processo/
+protocolo, sem acento). Os resultados aparecem como linhas compactas; **ao clicar
+em "+ selecionar"** o paciente vira um **cartão detalhado** (mesmos dados do fluxo
+por paciente: tipo de demanda, consumo, prazo, periodicidade, dispensações,
+estoque/autonomia + autonomia de compra individual e Qtde de Aquisição). Cartões
+selecionados ficam numa seção "Pacientes selecionados" (com ✕ para remover).
+Nenhum paciente vem marcado por padrão; **"Marcar todos os filtrados"** age só
+sobre o subconjunto do filtro (confirma se > 200). Só `frontend/` (index.html +
+app.js) — **Ctrl+F5**, sem reiniciar.
+
+**Consolidação (etapa anterior, tem backend):** a coletiva agora gera **UM único número de
 controle** (não mais N). No **Relatório de Primeiro Atendimento** vira **1 linha**
 ("Fulano e mais N pacientes", etiqueta **COLETIVA**, "X medicamento(s) · Y
 paciente(s)"), com **status/telegrama ÚNICO do grupo**. Ao **clicar no controle**,

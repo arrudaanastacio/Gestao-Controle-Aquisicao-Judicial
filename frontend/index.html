@@ -2936,7 +2936,7 @@
 
       <div class="req-modo-abas" id="reqModoAbas">
         <button type="button" class="req-modo-aba ativo" data-modo="paciente">Por paciente</button>
-        <button type="button" class="req-modo-aba" data-modo="coletiva">Solicitação coletiva</button>
+        <button type="button" class="req-modo-aba" data-modo="coletiva">Por Item</button>
       </div>
 
       <!-- ===== Modo SOLICITAÇÃO COLETIVA (abas por medicamento) ===== -->
@@ -2960,12 +2960,15 @@
 
           <div class="col-abas-bar" id="colTabsBar"></div>
 
-          <div style="display:flex; justify-content:space-between; align-items:center; margin:10px 0 8px;">
+          <input type="text" id="colPacBusca" placeholder="Filtrar paciente por nome, processo ou protocolo…" style="width:100%; padding:8px 11px; border:1px solid var(--linha); border-radius:6px; font-size:13.5px; margin:10px 0 4px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin:4px 0 8px;">
             <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" id="colMarcarTodos" checked> Marcar todos (deste medicamento)
+              <input type="checkbox" id="colMarcarTodos"> <span id="colMarcarTodosRot">Marcar todos os filtrados</span>
             </label>
             <span id="colContador" style="font-size:12px; color:var(--cinza-texto);">—</span>
           </div>
+          <div id="colPacResultados" style="max-height:220px; overflow-y:auto; margin-bottom:8px;"></div>
+          <div id="colPacSelTitulo" style="font-size:12px; font-weight:600; color:var(--tinta-suave); margin:8px 0 4px; border-top:1px solid var(--linha-tabela); padding-top:8px;" hidden>Pacientes selecionados</div>
           <div id="colListaPacientes" style="max-height:340px; overflow-y:auto;"></div>
         </div>
       </div>

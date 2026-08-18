@@ -6337,8 +6337,8 @@ async function adicionarMedicamentoColetiva(item) {
   // Cada paciente tem exatamente 1 item (esta busca é de um só código).
   const pacientes = (dados.pacientes || []).map((p) => ({ ...p, item: p.itens[0] }));
   const sel = {};
-  pacientes.forEach((p) => { sel[p.autor] = { checked: true, autonomia: 1 }; });
-  colTabs.push({ item, pacientes, sel });
+  pacientes.forEach((p) => { sel[p.autor] = { checked: false, autonomia: 1 }; });
+  colTabs.push({ item, pacientes, sel, filtro: '' });
   colTabAtivo = colTabs.length - 1;
   mostrarTrabalhoColetiva();
 }
@@ -6373,21 +6373,111 @@ function removerTabColetiva(i) {
   renderTabsColetiva(); renderPacientesTab();
 }
 
-// Lista de pacientes da aba ativa, com detalhes e autonomia individual.
+// Normaliza texto para busca (sem acento, minúsculo).
+function normPac(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+// Pacientes da aba que casam com o filtro digitado.
+function pacientesFiltrados(tab) {
+  const q = normPac(tab.filtro).trim();
+  if (!q) return tab.pacientes;
+  const termos = q.split(/\s+/);
+  return tab.pacientes.filter((p) => {
+    const alvo = normPac(`${p.autor} ${p.processo || ''} ${p.protocolo || ''}`);
+    return termos.every((t) => alvo.includes(t));
+  });
+}
+
+// Orquestra a aba ativa: campo de busca + resultados + cartões selecionados.
 function renderPacientesTab() {
   const tab = colTabs[colTabAtivo];
+  const busca = document.getElementById('colPacBusca');
+  const res = document.getElementById('colPacResultados');
   const alvo = document.getElementById('colListaPacientes');
-  if (!tab) { alvo.innerHTML = ''; return; }
+  const titulo = document.getElementById('colPacSelTitulo');
+  if (!tab) { res.innerHTML = ''; alvo.innerHTML = ''; titulo.hidden = true; busca.value = ''; return; }
+  busca.value = tab.filtro || '';
   if (!tab.pacientes.length) {
-    alvo.innerHTML = '<p class="texto-apoio">Nenhum paciente com este medicamento na demanda da Tenente Pena.</p>';
+    res.innerHTML = '<p class="texto-apoio">Nenhum paciente com este medicamento na demanda da Tenente Pena.</p>';
+    alvo.innerHTML = ''; titulo.hidden = true;
     document.getElementById('colMarcarTodos').checked = false;
     atualizarContadorColetiva();
     return;
   }
+  renderResultadosPac();
+  renderSelecionadosPac();
+  atualizarContadorColetiva();
+}
+
+// Lista compacta de resultados do filtro; clicar seleciona (mostra o cartão).
+function renderResultadosPac() {
+  const tab = colTabs[colTabAtivo];
+  const res = document.getElementById('colPacResultados');
+  const LIMITE = 60;
+  const filtrados = pacientesFiltrados(tab);
+  const naoSel = filtrados.filter((p) => !tab.sel[p.autor].checked);
+  const total = tab.pacientes.length;
+  const selCount = tab.pacientes.filter((p) => tab.sel[p.autor].checked).length;
+
+  const cabecalho = `<div style="font-size:11.5px; color:var(--cinza-texto); margin-bottom:6px;">
+    ${filtrados.length} de ${total} paciente(s)${tab.filtro ? ' no filtro' : ''} · ${selCount} selecionado(s)</div>`;
+
+  if (!naoSel.length) {
+    res.innerHTML = cabecalho + (filtrados.length
+      ? '<p class="texto-apoio" style="font-size:12px; margin:4px 0;">Todos os pacientes deste filtro já foram selecionados.</p>'
+      : '<p class="texto-apoio" style="font-size:12px; margin:4px 0;">Nenhum paciente encontrado com esse filtro.</p>');
+  } else {
+    const mostra = naoSel.slice(0, LIMITE);
+    res.innerHTML = cabecalho + mostra.map((p) => {
+      const it = p.item || {};
+      const aut = it.autonomia_atual;
+      let badge = '';
+      if (aut !== null && aut !== undefined) {
+        const cls = aut <= 0 ? 'cancelado' : (aut <= 2 ? 'atrasado' : 'finalizado');
+        badge = `<span class="etiqueta-status ${cls}" style="font-size:10px;">aut. ${fmtNumero(aut)} m</span>`;
+      }
+      return `<button type="button" class="col-pac-op" data-autor="${escHtml(p.autor)}" style="display:flex; justify-content:space-between; align-items:center; gap:8px; width:100%; text-align:left; background:var(--papel); border:1px solid var(--linha); border-radius:7px; padding:7px 11px; margin-bottom:5px; cursor:pointer;">
+        <span>
+          <span style="font-size:12.5px; font-weight:500;">${escHtml(p.autor || '—')}</span>
+          <span class="col-codigo" style="display:block;">${[p.processo ? 'Proc. ' + p.processo : '', p.protocolo ? 'Prot. ' + p.protocolo : ''].filter(Boolean).join(' · ')}</span>
+        </span>
+        <span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">${badge}<span style="color:var(--selo-escuro); font-size:12px; font-weight:600;">+ selecionar</span></span>
+      </button>`;
+    }).join('') + (naoSel.length > LIMITE
+      ? `<p class="texto-apoio" style="font-size:11px; margin:2px 0;">Mostrando ${LIMITE} de ${naoSel.length}. Refine o filtro para ver os demais.</p>` : '');
+    res.querySelectorAll('.col-pac-op').forEach((b) => b.addEventListener('click', () => {
+      tab.sel[b.dataset.autor].checked = true;
+      renderResultadosPac(); renderSelecionadosPac(); renderTabsColetiva(); atualizarContadorColetiva();
+      sincronizarMarcarTodos();
+    }));
+  }
+  sincronizarMarcarTodos();
+}
+
+// Marca/atualiza o checkbox "Marcar todos os filtrados".
+function sincronizarMarcarTodos() {
+  const tab = colTabs[colTabAtivo];
+  const cb = document.getElementById('colMarcarTodos');
+  if (!tab) { cb.checked = false; return; }
+  const filtrados = pacientesFiltrados(tab);
+  cb.checked = filtrados.length > 0 && filtrados.every((p) => tab.sel[p.autor].checked);
+}
+
+// Cartões detalhados dos pacientes já selecionados (com autonomia individual).
+function renderSelecionadosPac() {
+  const tab = colTabs[colTabAtivo];
+  const alvo = document.getElementById('colListaPacientes');
+  const titulo = document.getElementById('colPacSelTitulo');
+  const selecionados = tab.pacientes.filter((p) => tab.sel[p.autor].checked);
+  titulo.hidden = selecionados.length === 0;
+  if (titulo && !titulo.hidden) titulo.textContent = `Pacientes selecionados (${selecionados.length})`;
+  if (!selecionados.length) { alvo.innerHTML = ''; return; }
+
   const chip = (rot, val) => (val !== null && val !== undefined && String(val).trim() !== '')
     ? `<span style="display:inline-block; background:var(--realce-tabela); border:1px solid var(--linha); border-radius:4px; padding:1px 7px; margin:2px 4px 0 0; font-size:11px;"><strong>${rot}:</strong> ${escHtml(String(val))}</span>` : '';
 
-  alvo.innerHTML = tab.pacientes.map((p, idx) => {
+  alvo.innerHTML = selecionados.map((p) => {
     const it = p.item || {};
     const s = tab.sel[p.autor];
     const consumo = parseNumeroReq(it.qtde_consumo);
@@ -6404,8 +6494,8 @@ function renderPacientesTab() {
       chip('Dispensações autorizadas', it.dispensacoes_autorizadas),
     ].join('');
     return `
-      <div class="req-item" style="display:grid; grid-template-columns:24px 1fr 95px 110px; gap:10px; align-items:center; padding:9px 6px; border-bottom:1px solid var(--linha-tabela);">
-        <input type="checkbox" class="col-pac-check" data-autor="${escHtml(p.autor)}" ${s.checked ? 'checked' : ''} style="width:auto;">
+      <div class="req-item" style="display:grid; grid-template-columns:28px 1fr 95px 110px; gap:10px; align-items:center; padding:9px 6px; border-bottom:1px solid var(--linha-tabela);">
+        <button type="button" class="col-pac-rem" data-autor="${escHtml(p.autor)}" title="Remover paciente" style="background:none; border:none; color:#c0392b; font-size:16px; cursor:pointer; padding:0;">✕</button>
         <div>
           <div style="font-size:13px; font-weight:500;">${escHtml(p.autor || '—')}</div>
           <div class="col-codigo">${[p.processo ? 'Proc. ' + p.processo : '', p.protocolo ? 'Prot. ' + p.protocolo : ''].filter(Boolean).join(' · ')}</div>
@@ -6423,9 +6513,9 @@ function renderPacientesTab() {
       </div>`;
   }).join('');
 
-  alvo.querySelectorAll('.col-pac-check').forEach((c) => c.addEventListener('change', () => {
-    tab.sel[c.dataset.autor].checked = c.checked;
-    renderTabsColetiva(); atualizarContadorColetiva();
+  alvo.querySelectorAll('.col-pac-rem').forEach((b) => b.addEventListener('click', () => {
+    tab.sel[b.dataset.autor].checked = false;
+    renderResultadosPac(); renderSelecionadosPac(); renderTabsColetiva(); atualizarContadorColetiva();
   }));
   alvo.querySelectorAll('.col-pac-aut').forEach((inp) => inp.addEventListener('input', () => {
     const a = parseNumeroReq(inp.value);
@@ -6435,9 +6525,6 @@ function renderPacientesTab() {
     if (campo) campo.value = q;
     atualizarContadorColetiva();
   }));
-  const todosMarcados = tab.pacientes.every((p) => tab.sel[p.autor].checked);
-  document.getElementById('colMarcarTodos').checked = todosMarcados;
-  atualizarContadorColetiva();
 }
 
 // Escapa um valor para uso seguro em seletor de atributo.
@@ -6521,11 +6608,22 @@ document.getElementById('colBuscaItem').addEventListener('input', () => {
 });
 document.getElementById('colCancelarBusca').addEventListener('click', () => { if (colTabs.length) mostrarTrabalhoColetiva(); });
 document.getElementById('botaoGerarColetiva').addEventListener('click', gerarColetiva);
+document.getElementById('colPacBusca').addEventListener('input', (ev) => {
+  const tab = colTabs[colTabAtivo];
+  if (!tab) return;
+  tab.filtro = ev.target.value;
+  renderResultadosPac();
+});
 document.getElementById('colMarcarTodos').addEventListener('change', (ev) => {
   const tab = colTabs[colTabAtivo];
   if (!tab) return;
-  tab.pacientes.forEach((p) => { tab.sel[p.autor].checked = ev.target.checked; });
-  renderPacientesTab(); renderTabsColetiva();
+  const filtrados = pacientesFiltrados(tab);
+  if (ev.target.checked && filtrados.length > 200 &&
+      !confirm(`Selecionar ${filtrados.length} pacientes de uma vez?`)) {
+    ev.target.checked = false; return;
+  }
+  filtrados.forEach((p) => { tab.sel[p.autor].checked = ev.target.checked; });
+  renderResultadosPac(); renderSelecionadosPac(); renderTabsColetiva(); atualizarContadorColetiva();
 });
 
 // Reabre/imprime uma requisição salva (a partir do Relatório Primeiro Atendimento)
