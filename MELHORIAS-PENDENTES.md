@@ -8,7 +8,7 @@
 |---|----------|----------------------|------|--------|
 | 1 | Etiqueta de subcategoria no modal da Requisição de Compra | eb392ff | 17/08/2026 | ✅ pronto em homolog |
 | 2 | Requisição — modo "Por Item" (ex-"Solicitação Coletiva"): consolidada + filtro de paciente | 699e0ab | 17/08/2026 | ✅ pronto em homolog |
-| 3 | Requisição — etiqueta de ATA por item (ATA / Avaliação técnica / Sem ATA) | (a commitar) | 18/08/2026 | ✅ pronto em homolog |
+| 3 | Requisição — etiqueta de ATA por item (ATA / Avaliação técnica / Sem ATA) | 179eeaa | 18/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
