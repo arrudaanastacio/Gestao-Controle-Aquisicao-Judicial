@@ -6000,6 +6000,33 @@ function preencherValorUnit(el) {
   }
 }
 
+// Modalidade efetiva do item para o aviso de mistura: ATA (etiqueta ATA ou
+// Avaliação técnica decidida como ATA), SEM_ATA, ou null (avaliação sem decisão).
+function modalidadeEfetiva(situacao, escolha) {
+  if (situacao === 'ATA') return 'ATA';
+  if (situacao === 'SEM_ATA') return 'SEM_ATA';
+  if (situacao === 'AVALIACAO') return escolha === 'ATA' ? 'ATA' : (escolha === 'SEM_ATA' ? 'SEM_ATA' : null);
+  return null;
+}
+
+// Se a requisição mistura itens COM ATA e SEM ATA, pede confirmação.
+// Recebe uma lista de modalidades efetivas ('ATA' | 'SEM_ATA' | null).
+// Devolve true para prosseguir, false para cancelar.
+function confirmarMisturaAta(modalidades) {
+  const nAta = modalidades.filter((m) => m === 'ATA').length;
+  const nSem = modalidades.filter((m) => m === 'SEM_ATA').length;
+  if (nAta > 0 && nSem > 0) {
+    return confirm(
+      '⚠️ Esta requisição mistura itens COM ATA e itens SEM ATA.\n\n' +
+      `• ${nAta} item(ns) com ATA\n` +
+      `• ${nSem} item(ns) SEM ATA\n\n` +
+      'O recomendado é separar a aquisição por modalidade — uma requisição para os itens de ATA e outra para os itens sem ATA.\n\n' +
+      'Tem certeza disso?'
+    );
+  }
+  return true;
+}
+
 function fmtDataAta(iso) {
   if (!iso) return '—';
   const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -6010,7 +6037,7 @@ function fmtDataAta(iso) {
 function htmlEtiquetaAta(ata, id) {
   if (!ata || !ata.situacao) return '';
   if (ata.situacao === 'SEM_ATA') {
-    return '<div class="ata-box"><span class="ata-pill sem">Sem ATA</span></div>';
+    return '<div class="ata-box"><span class="ata-pill sem">SEM ATA</span></div>';
   }
   const detalhe = `
     <div class="ata-detalhe" id="atadet-${id}"${ata.situacao === 'ATA' ? ' hidden' : ''}>
@@ -6340,6 +6367,9 @@ async function gerarRequisicao() {
     campoSei.focus();
     return;
   }
+  // Aviso quando a requisição mistura ATA e SEM ATA.
+  if (!confirmarMisturaAta(itens.map((it) => modalidadeEfetiva(it.situacao_ata, it.escolha_ata)))) return;
+
   const operador = estado.usuario || {};
   const botao = document.getElementById('botaoGerarRequisicao');
   botao.disabled = true;
@@ -6350,6 +6380,7 @@ async function gerarRequisicao() {
     tipo_demanda: it.tipo_demanda, qtde_consumo: it.qtde_consumo, prazo: it.prazo,
     periodicidade: it.periodicidade, dispensacoes_autorizadas: it.dispensacoes_autorizadas,
     autonomia_compra: it.autonomia_compra, catmat: it.catmat,
+    situacao_ata: it.situacao_ata, escolha_ata: it.escolha_ata, valor_unitario: it.valor_unitario,
   }));
 
   try {
@@ -6734,6 +6765,13 @@ async function gerarColetiva() {
   });
   const pacientes = [...mapa.values()];
   if (!pacientes.length) { alert('Marque ao menos um paciente.'); return; }
+
+  // Aviso quando a solicitação mistura ATA e SEM ATA (por medicamento distinto).
+  const modMap = new Map();
+  pacientes.forEach((p) => p.itens.forEach((it) => {
+    if (!modMap.has(it.codigo_item)) modMap.set(it.codigo_item, modalidadeEfetiva(it.situacao_ata, it.escolha_ata));
+  }));
+  if (!confirmarMisturaAta([...modMap.values()])) return;
 
   const botao = document.getElementById('botaoGerarColetiva');
   botao.disabled = true;

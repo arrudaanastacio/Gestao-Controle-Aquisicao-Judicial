@@ -58,6 +58,13 @@ grava, não aparece no documento impresso): colunas `situacao_ata` e
   o valor é único por medicamento (nível da aba). Backend: `ataSituacao.js`
   passa a devolver `valor` (da ata); `/paciente` e `/itens-pacientes` trazem
   `valor_medio`.
+- **Aviso ao misturar ATA e SEM ATA:** antes de gerar (nos dois fluxos), se a
+  requisição tiver itens **com ATA** e itens **SEM ATA** juntos, um pop-up mostra
+  a contagem de cada modalidade, recomenda separar a aquisição e termina com
+  **"Tem certeza disso?"** — só gera se confirmar. (Correção junto: no fluxo Por
+  paciente o `corpoItens` agora envia `situacao_ata`/`escolha_ata`/`valor_unitario`
+  ao backend — antes eram descartados na montagem do payload.) Etiqueta ajustada
+  para **"SEM ATA"** (maiúsculas).
 
 ### Detalhe do item 2 — modo "Por Item" CONSOLIDADO (abas por medicamento)
 
