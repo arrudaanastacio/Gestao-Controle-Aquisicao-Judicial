@@ -3,6 +3,7 @@ const XLSX = require('xlsx');
 const multer = require('multer');
 const db = require('./db');
 const { autenticar, exigirPerfil } = require('./auth');
+const { criarCalculadoraAta } = require('./ataSituacao');
 
 const router = express.Router();
 router.use(autenticar);
@@ -349,6 +350,10 @@ router.get('/paciente', (req, res) => {
     'SELECT autor, idade, dt_nascimento, unidade_dispensadora, procurador_estado, protocolo, processo, tipo_demanda FROM autores_itens WHERE autor = ? AND data_referencia = (SELECT MAX(data_referencia) FROM autores_itens) LIMIT 1'
   ).get(autor) || { autor };
 
+  // Etiqueta de ATA (cruza siafísico × atas vigentes × marca do estoque).
+  const calcAta = criarCalculadoraAta();
+  for (const it of itens) it.ata = calcAta(it.codigo_item, it.cod_siafisico);
+
   res.json({ info, itens });
 });
 
@@ -399,6 +404,7 @@ router.get('/itens-pacientes', (req, res) => {
   `).all(...codigos);
 
   // Agrupa por paciente (autor), acumulando os itens de cada um.
+  const calcAta = criarCalculadoraAta();
   const mapa = new Map();
   for (const r of linhas) {
     if (!mapa.has(r.autor)) {
@@ -413,6 +419,7 @@ router.get('/itens-pacientes', (req, res) => {
       categoria: r.categoria, catmat: r.catmat, qtde_consumo: r.qtde_consumo, prazo: r.prazo,
       periodicidade: r.periodicidade, dispensacoes_autorizadas: r.dispensacoes_autorizadas,
       estoque_atual: r.estoque_atual, autonomia_atual: r.autonomia_atual,
+      ata: calcAta(r.codigo_item, r.cod_siafisico),
     });
   }
   res.json({ pacientes: [...mapa.values()] });
@@ -438,6 +445,7 @@ router.post('/requisicoes/coletiva', (req, res) => {
         mapaItem.set(k, {
           codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
           categoria: it.categoria, catmat: it.catmat, quantidade: 0, qtde_consumo: 0, detalhe: [],
+          situacao_ata: it.situacao_ata || null, escolha_ata: it.escolha_ata || null,
         });
       }
       const agg = mapaItem.get(k);
@@ -465,12 +473,12 @@ router.post('/requisicoes/coletiva', (req, res) => {
 
     const insItem = db.prepare(`
       INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
-                                    qtde_consumo, catmat, detalhe_json, n_pacientes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                                    qtde_consumo, catmat, detalhe_json, n_pacientes, situacao_ata, escolha_ata)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     for (const it of itensConsolidados) {
       insItem.run(id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null,
         String(+it.quantidade.toFixed(2)), String(+it.qtde_consumo.toFixed(2)), it.catmat || null,
-        JSON.stringify(it.detalhe), it.detalhe.length);
+        JSON.stringify(it.detalhe), it.detalhe.length, it.situacao_ata || null, it.escolha_ata || null);
     }
     db.exec('COMMIT');
   } catch (e) {
@@ -505,13 +513,15 @@ router.post('/requisicoes', (req, res) => {
 
   const stmt = db.prepare(`
     INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
-                                  tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat,
+                                  situacao_ata, escolha_ata)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const it of itens) {
     stmt.run(id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''),
       it.tipo_demanda || null, it.qtde_consumo != null ? String(it.qtde_consumo) : null, it.prazo || null, it.periodicidade || null, it.dispensacoes_autorizadas || null,
-      it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null);
+      it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null,
+      it.situacao_ata || null, it.escolha_ata || null);
   }
 
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')

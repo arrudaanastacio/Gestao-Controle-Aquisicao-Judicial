@@ -5957,7 +5957,67 @@ async function buscarPacienteRequisicao() {
   });
 }
 
+// ===== Etiqueta de ATA na Requisição (visual; escolha vale só nesta requisição) =====
+// Guarda a escolha do técnico (ATA/SEM_ATA) para itens de "Avaliação técnica",
+// por id único. Zerado ao trocar de paciente / iniciar nova coletiva.
+const escolhasAta = new Map();
+
+function fmtDataAta(iso) {
+  if (!iso) return '—';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso);
+}
+
+// Monta o HTML da etiqueta de ATA. `id` deve ser único e seguro (a-z0-9_).
+function htmlEtiquetaAta(ata, id) {
+  if (!ata || !ata.situacao) return '';
+  if (ata.situacao === 'SEM_ATA') {
+    return '<div class="ata-box"><span class="ata-pill sem">Sem ATA</span></div>';
+  }
+  const detalhe = `
+    <div class="ata-detalhe" id="atadet-${id}"${ata.situacao === 'ATA' ? ' hidden' : ''}>
+      <div><span class="rot">Nome comercial:</span> ${escHtml(ata.nome_comercial || '—')}</div>
+      <div><span class="rot">Nº da ATA:</span> ${escHtml(ata.ata_numero || '—')} · <span class="rot">Detentor:</span> ${escHtml(ata.detentor || '—')}</div>
+      <div><span class="rot">Vencimento:</span> ${fmtDataAta(ata.vencimento)}</div>
+    </div>`;
+  if (ata.situacao === 'ATA') {
+    return `<div class="ata-box">
+      <span class="ata-pill ata ata-toggle" data-id="${id}" role="button" tabindex="0">ATA ▾</span>
+      ${detalhe}
+    </div>`;
+  }
+  // AVALIACAO — o técnico decide ATA / SEM ATA
+  const esc = escolhasAta.get(id) || '';
+  return `<div class="ata-box">
+    <span class="ata-pill av">⚠ Avaliação técnica</span>
+    ${detalhe}
+    <div>
+      <span class="ata-esc ata-escolha ${esc === 'ATA' ? 'on' : ''}" data-id="${id}" data-esc="ATA">ATA</span>
+      <span class="ata-esc ata-escolha ${esc === 'SEM_ATA' ? 'on' : ''}" data-id="${id}" data-esc="SEM_ATA">SEM ATA</span>
+    </div>
+  </div>`;
+}
+
+// Delegação global: abrir/fechar o detalhe da ATA e registrar a escolha.
+document.addEventListener('click', (ev) => {
+  const tog = ev.target.closest('.ata-toggle');
+  if (tog) {
+    const d = document.getElementById('atadet-' + tog.dataset.id);
+    if (d) d.hidden = !d.hidden;
+    return;
+  }
+  const esc = ev.target.closest('.ata-escolha');
+  if (esc) {
+    const id = esc.dataset.id;
+    const novo = esc.dataset.esc;
+    if (escolhasAta.get(id) === novo) escolhasAta.delete(id); else escolhasAta.set(id, novo);
+    esc.parentElement.querySelectorAll('.ata-escolha').forEach((b) =>
+      b.classList.toggle('on', escolhasAta.get(id) === b.dataset.esc));
+  }
+});
+
 async function selecionarPaciente(autor) {
+  escolhasAta.clear();
   const dados = await api(`/autores/paciente?autor=${encodeURIComponent(autor)}`);
   reqPacienteAtual = dados.info;
   reqItensAtuais = dados.itens;
@@ -6001,6 +6061,7 @@ async function selecionarPaciente(autor) {
           ${it.subcategoria && String(it.subcategoria).trim() ? `<div class="tags-programa"><span class="tag-programa sub">${escHtml(String(it.subcategoria).trim())}</span></div>` : ''}
           ${detalhes ? `<div style="margin-top:3px;">${detalhes}</div>` : ''}
           <div style="margin-top:3px;">${badge}</div>
+          ${htmlEtiquetaAta(it.ata, 'pac_' + idx)}
         </div>
         <div>
           <label style="font-size:10px; color:var(--cinza-texto); display:block;">Autonomia de compra</label>
@@ -6074,7 +6135,10 @@ function coletarItensSelecionados() {
     const idx = Number(c.dataset.idx);
     const qtd = apenasRegistro ? 'Apenas registro' : document.querySelector(`.req-qtd[data-idx="${idx}"]`).value;
     const autonomiaCompra = apenasRegistro ? '' : document.querySelector(`.req-autonomia[data-idx="${idx}"]`).value;
-    selecionados.push({ ...reqItensAtuais[idx], quantidade: qtd, autonomia_compra: autonomiaCompra });
+    const item = reqItensAtuais[idx];
+    const situacaoAta = item.ata ? item.ata.situacao : null;
+    const escolhaAta = situacaoAta === 'AVALIACAO' ? (escolhasAta.get('pac_' + idx) || null) : null;
+    selecionados.push({ ...item, quantidade: qtd, autonomia_compra: autonomiaCompra, situacao_ata: situacaoAta, escolha_ata: escolhaAta });
   });
   return selecionados;
 }
@@ -6282,6 +6346,7 @@ function resetColetiva() {
   colTabs = [];
   colTabAtivo = 0;
   colInserindo = false;
+  escolhasAta.clear();
   mostrarBuscaColetiva(false);
 }
 
@@ -6338,7 +6403,8 @@ async function adicionarMedicamentoColetiva(item) {
   const pacientes = (dados.pacientes || []).map((p) => ({ ...p, item: p.itens[0] }));
   const sel = {};
   pacientes.forEach((p) => { sel[p.autor] = { checked: false, autonomia: 1 }; });
-  colTabs.push({ item, pacientes, sel, filtro: '' });
+  const ataItem = pacientes.length ? (pacientes[0].item || {}).ata : null;
+  colTabs.push({ item, pacientes, sel, filtro: '', ata: ataItem || null });
   colTabAtivo = colTabs.length - 1;
   mostrarTrabalhoColetiva();
 }
@@ -6396,7 +6462,9 @@ function renderPacientesTab() {
   const res = document.getElementById('colPacResultados');
   const alvo = document.getElementById('colListaPacientes');
   const titulo = document.getElementById('colPacSelTitulo');
-  if (!tab) { res.innerHTML = ''; alvo.innerHTML = ''; titulo.hidden = true; busca.value = ''; return; }
+  const tagAta = document.getElementById('colAtaTag');
+  if (!tab) { res.innerHTML = ''; alvo.innerHTML = ''; titulo.hidden = true; busca.value = ''; if (tagAta) tagAta.innerHTML = ''; return; }
+  if (tagAta) tagAta.innerHTML = htmlEtiquetaAta(tab.ata, 'coltab_' + colTabAtivo);
   busca.value = tab.filtro || '';
   if (!tab.pacientes.length) {
     res.innerHTML = '<p class="texto-apoio">Nenhum paciente com este medicamento na demanda da Tenente Pena.</p>';
@@ -6551,25 +6619,30 @@ async function gerarColetiva() {
 
   // Agrupa por paciente os itens marcados em todas as abas.
   const mapa = new Map();
-  colTabs.forEach((t) => t.pacientes.forEach((p) => {
-    const s = t.sel[p.autor];
-    if (!s || !s.checked) return;
-    const it = p.item;
-    if (!mapa.has(p.autor)) {
-      mapa.set(p.autor, {
-        autor: p.autor, idade: p.idade, unidade_dispensadora: p.unidade_dispensadora,
-        procurador_estado: p.procurador_estado, protocolo: p.protocolo, processo: p.processo,
-        tipo_demanda: p.tipo_demanda, itens: [],
+  colTabs.forEach((t, ti) => {
+    const situacaoAta = t.ata ? t.ata.situacao : null;
+    const escolhaAta = situacaoAta === 'AVALIACAO' ? (escolhasAta.get('coltab_' + ti) || null) : null;
+    t.pacientes.forEach((p) => {
+      const s = t.sel[p.autor];
+      if (!s || !s.checked) return;
+      const it = p.item;
+      if (!mapa.has(p.autor)) {
+        mapa.set(p.autor, {
+          autor: p.autor, idade: p.idade, unidade_dispensadora: p.unidade_dispensadora,
+          procurador_estado: p.procurador_estado, protocolo: p.protocolo, processo: p.processo,
+          tipo_demanda: p.tipo_demanda, itens: [],
+        });
+      }
+      mapa.get(p.autor).itens.push({
+        codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
+        categoria: it.categoria, catmat: it.catmat, qtde_consumo: it.qtde_consumo, prazo: it.prazo,
+        periodicidade: it.periodicidade, dispensacoes_autorizadas: it.dispensacoes_autorizadas,
+        autonomia_compra: String(s.autonomia || 0),
+        quantidade: +(parseNumeroReq(it.qtde_consumo) * (s.autonomia || 0)).toFixed(2),
+        situacao_ata: situacaoAta, escolha_ata: escolhaAta,
       });
-    }
-    mapa.get(p.autor).itens.push({
-      codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
-      categoria: it.categoria, catmat: it.catmat, qtde_consumo: it.qtde_consumo, prazo: it.prazo,
-      periodicidade: it.periodicidade, dispensacoes_autorizadas: it.dispensacoes_autorizadas,
-      autonomia_compra: String(s.autonomia || 0),
-      quantidade: +(parseNumeroReq(it.qtde_consumo) * (s.autonomia || 0)).toFixed(2),
     });
-  }));
+  });
   const pacientes = [...mapa.values()];
   if (!pacientes.length) { alert('Marque ao menos um paciente.'); return; }
 

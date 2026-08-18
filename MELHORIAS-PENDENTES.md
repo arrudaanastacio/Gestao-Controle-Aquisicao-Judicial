@@ -8,6 +8,7 @@
 |---|----------|----------------------|------|--------|
 | 1 | Etiqueta de subcategoria no modal da Requisição de Compra | eb392ff | 17/08/2026 | ✅ pronto em homolog |
 | 2 | Requisição — modo "Por Item" (ex-"Solicitação Coletiva"): consolidada + filtro de paciente | 699e0ab | 17/08/2026 | ✅ pronto em homolog |
+| 3 | Requisição — etiqueta de ATA por item (ATA / Avaliação técnica / Sem ATA) | (a commitar) | 18/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
@@ -15,6 +16,31 @@ No modal 🛒 **Requisição de Compra** (lista de itens do paciente), cada item
 ganha a **etiqueta de Sub-categoria** (mesmo estilo `tag-programa sub` do
 Estoque). Backend: `/autores/paciente` passa a trazer `subcategoria` (subquery
 em `item_classificacao`). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
+
+### Detalhe do item 3 — Etiqueta de ATA na Requisição de Compra
+
+Nos dois fluxos da Requisição (**Por paciente** e **Por Item**), cada
+medicamento ganha uma **etiqueta de ATA**, cruzando o **siafísico** com o
+módulo de **Atas de Registro de Preço** (foto mais recente, só atas vigentes:
+vencimento ≥ hoje) e com a **marca do estoque** (SCODES) — a **mesma regra do
+Planejamento** (`planejamentoMotor.js`):
+
+- **ATA** (verde, clicável) — siafísico tem ata vigente e a marca é "Sem Marca"
+  (ou bate com a da ata). Ao clicar, abre **nome comercial, nº da ATA, detentor
+  e vencimento**.
+- **Avaliação técnica** (âmbar) — tem ata vigente mas a marca do estoque é
+  **diferente** da ata. Aparecem os botões **ATA / SEM ATA** para o técnico
+  decidir (a decisão fica **só nesta requisição**; qualquer um que abre a
+  requisição pode escolher).
+- **Sem ATA** (cinza) — o siafísico não retornou nenhuma ata vigente.
+
+Backend: novo `ataSituacao.js` (com cache por item — 1 cálculo por medicamento,
+essencial na coletiva de milhares de pacientes); `/autores/paciente` e
+`/autores/itens-pacientes` passam a trazer `ata` por item. Persistência (só
+grava, não aparece no documento impresso): colunas `situacao_ata` e
+`escolha_ata` em `requisicao_itens` (migração idempotente). Frontend:
+`htmlEtiquetaAta()` + estados no `estilo.css`.
+**Pós-publicação:** reiniciar produção (backend + migração) + Ctrl+F5.
 
 ### Detalhe do item 2 — modo "Por Item" CONSOLIDADO (abas por medicamento)
 

@@ -1273,6 +1273,28 @@ tbody tr.linha-revisar:hover td { background: #fbdcd4; }
 .etiqueta-status.revogado { background: var(--vermelho-fundo); color: var(--vermelho); }
 .etiqueta-status.atrasado { background: var(--ambar-fundo); color: var(--ambar); }
 
+/* Etiqueta de ATA na Requisição de Compra (siafísico × ata vigente × marca) */
+.ata-box { margin-top: 5px; }
+.ata-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 600; padding: 4px 10px;
+  border-radius: 6px; border: 1px solid transparent; white-space: nowrap;
+}
+.ata-pill.ata { background: var(--verde-ok-fundo); color: var(--verde-ok); border-color: var(--verde-ok); cursor: pointer; }
+.ata-pill.av  { background: var(--ambar-fundo); color: var(--ambar); border-color: var(--ambar); }
+.ata-pill.sem { background: var(--realce-tabela); color: var(--cinza-texto); border-color: var(--linha); }
+.ata-detalhe {
+  margin-top: 6px; background: var(--realce-tabela); border: 1px solid var(--linha);
+  border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--tinta-suave); line-height: 1.5;
+}
+.ata-detalhe .rot { color: var(--cinza-texto); }
+.ata-esc {
+  display: inline-block; margin: 6px 6px 0 0; padding: 4px 13px; font-size: 12px;
+  border: 1px solid var(--linha); border-radius: 6px; cursor: pointer; color: var(--tinta-suave);
+}
+.ata-esc:hover { border-color: var(--selo); }
+.ata-esc.on { background: var(--selo); color: #fff; border-color: var(--selo); font-weight: 600; }
+
 .botao-editar {
   background: none;
   border: 1px solid var(--linha);
