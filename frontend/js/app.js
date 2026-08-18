@@ -6126,6 +6126,58 @@ function montarDocumentoRequisicao(d) {
     </body></html>`;
 }
 
+// Documento consolidado de uma Solicitação Coletiva (pacientes + total por item).
+function montarDocumentoColetiva(r, itens, pacientes) {
+  const op = estado.usuario || {};
+  const linhasItens = itens.map((it, i) => `
+    <tr>
+      <td style="text-align:center;">${i + 1}</td>
+      <td>${it.codigo_item || '—'}</td>
+      <td>${it.cod_siafisico || '—'}</td>
+      <td>${it.catmat || '—'}</td>
+      <td>${it.descricao_item || '—'}</td>
+      <td style="text-align:center;">${it.n_pacientes != null ? it.n_pacientes : (it.detalhe ? it.detalhe.length : '—')}</td>
+      <td style="text-align:center;"><strong>${it.quantidade || '—'}</strong></td>
+    </tr>`).join('');
+  const linhasPac = (pacientes || []).map((p, i) => `
+    <tr>
+      <td style="text-align:center;">${i + 1}</td>
+      <td>${escHtml(p.autor || '—')}</td>
+      <td>${escHtml(p.protocolo || '—')}</td>
+      <td>${escHtml(p.processo || '—')}</td>
+    </tr>`).join('');
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${r.codigo_controle || 'Solicitação Coletiva'}</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:32px;}
+      h1{font-size:18px;margin:0 0 2px;} h2{font-size:14px;margin:18px 0 6px;}
+      .id{display:inline-block;background:#1f4c3c;color:#fff;font-size:13px;font-weight:bold;padding:3px 10px;border-radius:5px;margin-bottom:8px;}
+      .sub{color:#666;font-size:12px;margin:0 0 16px;}
+      .box{border:1px solid #ccc;border-radius:6px;padding:10px 14px;margin-bottom:8px;font-size:13px;}
+      table{width:100%;border-collapse:collapse;font-size:12.5px;} th,td{border:1px solid #bbb;padding:6px 8px;text-align:left;vertical-align:top;} th{background:#eee;}
+      @media print{.no-print{display:none;}} button{padding:8px 16px;font-size:14px;cursor:pointer;}
+    </style></head><body>
+    <div class="no-print" style="margin-bottom:18px;"><button onclick="window.print()">🖨 Imprimir / Salvar PDF</button></div>
+    <div class="id">Nº de controle: ${r.codigo_controle || '—'}</div><br>
+    <h1>SOLICITAÇÃO COLETIVA DE COMPRA</h1>
+    <p class="sub">Unidade Tenente Pena (UDTP) · Emitida em ${formatarDataHora(r.criado_em)}${r.sei ? ' · SEI Nº ' + r.sei : ''}</p>
+    <div class="box">
+      ${r.sei ? '<strong>Nº SEI:</strong> ' + r.sei + '<br>' : ''}
+      <strong>Pacientes:</strong> ${r.total_pacientes || (pacientes ? pacientes.length : 0)} &nbsp;|&nbsp; <strong>Medicamentos:</strong> ${itens.length}<br>
+      <strong>Operador:</strong> ${r.operador_nome || '—'} &nbsp;|&nbsp; <strong>Login:</strong> ${r.operador_email || '—'}
+    </div>
+    <h2>Total consolidado por medicamento</h2>
+    <table>
+      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th style="width:70px;">Pacientes</th><th style="width:90px;">Qtde total</th></tr></thead>
+      <tbody>${linhasItens}</tbody>
+    </table>
+    <h2>Pacientes da solicitação (${pacientes ? pacientes.length : 0})</h2>
+    <table>
+      <thead><tr><th style="width:28px;">#</th><th>Paciente</th><th>Protocolo</th><th>Processo</th></tr></thead>
+      <tbody>${linhasPac}</tbody>
+    </table>
+    </body></html>`;
+}
+
 function abrirDocumento(html) {
   const win = window.open('', '_blank');
   if (!win) { alert('Permita pop-ups para abrir a requisição.'); return; }
@@ -6441,9 +6493,10 @@ async function gerarColetiva() {
       method: 'POST',
       body: JSON.stringify({ sei, pacientes }),
     });
-    alert(`✓ ${r.total} requisição(ões) gerada(s) para ${r.totalItens} item(ns) — SEI ${sei}.`);
+    alert(`✓ Solicitação coletiva ${r.codigo_controle} gerada — ${r.totalPacientes} paciente(s) · ${r.totalItens} medicamento(s) · SEI ${sei}.`);
     colTabs = [];
     modalRequisicao.hidden = true;
+    if (r.id) reabrirRequisicao(r.id); // abre o documento consolidado
     if (estado.paginaAtual === 'relatorioReq') carregarTabelaRelReq();
   } catch (e) {
     alert('Erro ao gerar as requisições: ' + e.message);
@@ -6479,6 +6532,7 @@ document.getElementById('colMarcarTodos').addEventListener('change', (ev) => {
 async function reabrirRequisicao(id) {
   const dados = await api(`/autores/requisicoes/${id}`);
   const r = dados.requisicao;
+  if (r.coletiva) { abrirDocumento(montarDocumentoColetiva(r, dados.itens, dados.pacientes || [])); return; }
   const html = montarDocumentoRequisicao({
     codigoControle: r.codigo_controle,
     autor: r.autor, unidade: r.unidade, procurador: r.procurador, sei: r.sei,
@@ -7241,6 +7295,25 @@ async function carregarTabelaRelReq() {
   } else {
     vazio.hidden = true;
     corpo.innerHTML = dados.itens.map((it) => {
+      // ----- Linha CONSOLIDADA de uma Solicitação Coletiva -----
+      if (it.tipo === 'coletiva') {
+        const enviadoC = it.telegrama_enviado === 'Sim';
+        const disC = enviadoC && !ehAdmin ? 'disabled' : '';
+        const maisN = (it.total_pacientes || 1) - 1;
+        const nomePac = `${it.autor || '—'}${maisN > 0 ? ` <span style="color:var(--cinza-texto);">e mais ${maisN} paciente${maisN > 1 ? 's' : ''}</span>` : ''}`;
+        return `
+        <tr data-req="${it.requisicao_id}" data-coletiva="1">
+          <td class="col-codigo"><a href="#" class="req-abrir-doc" data-req="${it.requisicao_id}"><strong>${it.codigo_controle || ('#' + it.requisicao_id)}</strong></a> <span class="tag-programa sub" style="font-size:9px;">COLETIVA</span></td>
+          <td>${nomePac}</td>
+          <td class="col-codigo">${it.sei || '—'}</td>
+          <td colspan="4" style="color:var(--cinza-texto);">${fmtNumero(it.total_itens)} medicamento(s) · ${fmtNumero(it.total_pacientes)} paciente(s) <span style="font-size:11px;">— abra o nº de controle para o consolidado</span></td>
+          <td>—</td>
+          <td><select class="req-at-status" ${disC}>${opc(['Solicitado', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select></td>
+          <td><input type="text" class="req-at-gsnet" value="${(it.requisicao_gsnet || '').replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;" ${disC}></td>
+          <td><select class="req-at-tel" ${disC}>${opc(['Não', 'Sim'], it.telegrama_enviado)}</select></td>
+          <td><input type="date" class="req-at-data" value="${it.data_envio || ''}" ${disC}></td>
+        </tr>`;
+      }
       const aut = it.autonomia_atual;
       let stEstoque = '<span style="color:var(--cinza-texto); font-size:12px;">—</span>';
       if (aut !== null && aut !== undefined) {
@@ -7303,8 +7376,8 @@ async function carregarTabelaRelReq() {
         a.textContent = mostrar ? 'Ocultar detalhes' : 'Exibir detalhes';
       });
     });
-    // Salvar ao alterar qualquer controle da linha
-    corpo.querySelectorAll('tr[data-id]').forEach((tr) => {
+    // Salvar ao alterar qualquer controle da linha (individual ou coletiva)
+    corpo.querySelectorAll('tr[data-id], tr[data-coletiva]').forEach((tr) => {
       const selTel = tr.querySelector('.req-at-tel');
       const selStatus = tr.querySelector('.req-at-status');
       const inpData = tr.querySelector('.req-at-data');
@@ -7336,7 +7409,6 @@ async function carregarTabelaRelReq() {
 }
 
 async function salvarAtendimentoItem(tr) {
-  const id = tr.dataset.id;
   const qtdeEl = tr.querySelector('.req-at-qtde');
   const corpo = {
     status_atendimento: tr.querySelector('.req-at-status').value,
@@ -7346,8 +7418,12 @@ async function salvarAtendimentoItem(tr) {
     quantidade: qtdeEl ? (qtdeEl.value.trim() || null) : undefined,
   };
   const eraSim = tr.querySelector('.req-det') !== null; // já estava enviado
+  // Coletiva: status é do GRUPO (endpoint próprio); individual: por item.
+  const url = tr.dataset.coletiva === '1'
+    ? `/autores/requisicoes/${tr.dataset.req}/status-coletiva`
+    : `/autores/requisicoes/item/${tr.dataset.id}`;
   try {
-    await api(`/autores/requisicoes/item/${id}`, { method: 'PUT', body: JSON.stringify(corpo) });
+    await api(url, { method: 'PUT', body: JSON.stringify(corpo) });
     tr.style.background = '#eaf5ee';
     // Se virou "Sim" (ou um admin desfez), recarrega para aplicar trava e detalhes
     if (corpo.telegrama_enviado === 'Sim' || eraSim) {

@@ -767,6 +767,17 @@ if (!colunasReq.includes('cancelado_por')) db.exec("ALTER TABLE requisicoes ADD 
 if (!colunasReq.includes('protocolo')) db.exec("ALTER TABLE requisicoes ADD COLUMN protocolo TEXT");
 if (!colunasReq.includes('processo')) db.exec("ALTER TABLE requisicoes ADD COLUMN processo TEXT");
 if (!colunasReq.includes('tipo_demanda')) db.exec("ALTER TABLE requisicoes ADD COLUMN tipo_demanda TEXT");
+// Solicitação Coletiva: uma requisição consolida vários pacientes + itens somados.
+if (!colunasReq.includes('coletiva')) db.exec("ALTER TABLE requisicoes ADD COLUMN coletiva INTEGER NOT NULL DEFAULT 0");
+if (!colunasReq.includes('total_pacientes')) db.exec("ALTER TABLE requisicoes ADD COLUMN total_pacientes INTEGER");
+if (!colunasReq.includes('pacientes_json')) db.exec("ALTER TABLE requisicoes ADD COLUMN pacientes_json TEXT");
+// Status ÚNICO do grupo (só para coletiva; a individual usa o status por item).
+if (!colunasReq.includes('status_atendimento')) db.exec("ALTER TABLE requisicoes ADD COLUMN status_atendimento TEXT DEFAULT 'Solicitado'");
+if (!colunasReq.includes('telegrama_enviado')) db.exec("ALTER TABLE requisicoes ADD COLUMN telegrama_enviado TEXT DEFAULT 'Não'");
+if (!colunasReq.includes('data_envio')) db.exec("ALTER TABLE requisicoes ADD COLUMN data_envio TEXT");
+if (!colunasReq.includes('requisicao_gsnet')) db.exec("ALTER TABLE requisicoes ADD COLUMN requisicao_gsnet TEXT");
+if (!colunasReq.includes('telegrama_enviado_por')) db.exec("ALTER TABLE requisicoes ADD COLUMN telegrama_enviado_por TEXT");
+if (!colunasReq.includes('telegrama_enviado_em')) db.exec("ALTER TABLE requisicoes ADD COLUMN telegrama_enviado_em TEXT");
 
 // Fluxo de atendimento por item da requisição (editável pelos usuários)
 const colunasReqItens = db.prepare("PRAGMA table_info(requisicao_itens)").all().map((c) => c.name);
@@ -783,6 +794,9 @@ if (!colunasReqItens.includes('periodicidade')) db.exec("ALTER TABLE requisicao_
 if (!colunasReqItens.includes('dispensacoes_autorizadas')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN dispensacoes_autorizadas TEXT");
 if (!colunasReqItens.includes('autonomia_compra')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN autonomia_compra TEXT");
 if (!colunasReqItens.includes('catmat')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN catmat TEXT");
+// Coletiva: detalhe por paciente do item consolidado (JSON) + nº de pacientes.
+if (!colunasReqItens.includes('detalhe_json')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN detalhe_json TEXT");
+if (!colunasReqItens.includes('n_pacientes')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN n_pacientes INTEGER");
 
 // Relatório de Itens (catálogo completo) — substitui Consulta/Catálogo.
 // Substituído por completo a cada importação.

@@ -418,55 +418,71 @@ router.get('/itens-pacientes', (req, res) => {
   res.json({ pacientes: [...mapa.values()] });
 });
 
-// ---------- Solicitação coletiva: gera uma requisição por paciente (mesmo SEI) ----------
-// Cada paciente pode ter VÁRIOS itens (os que ele tem entre os escolhidos).
+// ---------- Solicitação coletiva: gera UMA requisição consolidada ----------
+// Um único controle, vários pacientes e itens somados por medicamento.
+// Status/telegrama é ÚNICO (nível da requisição).
 router.post('/requisicoes/coletiva', (req, res) => {
   const { sei, pacientes } = req.body || {};
-  if (!Array.isArray(pacientes) || pacientes.length === 0) {
-    return res.status(400).json({ erro: 'Informe ao menos um paciente.' });
-  }
-  const ano = new Date().getFullYear();
-  const insReq = db.prepare(`
-    INSERT INTO requisicoes (autor, idade, unidade, procurador, sei, operador_nome, operador_email, total_itens, protocolo, processo, tipo_demanda)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const insItem = db.prepare(`
-    INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
-                                  tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const lista = (Array.isArray(pacientes) ? pacientes : []).filter((p) => Array.isArray(p.itens) && p.itens.length);
+  if (!lista.length) return res.status(400).json({ erro: 'Informe ao menos um paciente com item marcado.' });
 
-  // Transação manual — o SQLite nativo (node:sqlite) não tem db.transaction().
-  const criados = [];
-  let totalItens = 0;
-  db.exec('BEGIN');
-  try {
-    for (const p of pacientes) {
-      const itens = Array.isArray(p.itens) ? p.itens : [];
-      if (!itens.length) continue; // paciente sem item marcado é ignorado
-      const info = insReq.run(p.autor, p.idade || null, p.unidade_dispensadora || null, p.procurador_estado || null,
-        sei || null, req.usuario.nome, req.usuario.email, itens.length, p.protocolo || null, p.processo || null, p.tipo_demanda || null);
-      const id = info.lastInsertRowid;
-      const codigoControle = `REQ-${ano}-${String(id).padStart(5, '0')}`;
-      db.prepare('UPDATE requisicoes SET codigo_controle = ? WHERE id = ?').run(codigoControle, id);
-      for (const it of itens) {
-        insItem.run(id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null,
-          it.categoria || null, String(it.quantidade ?? ''),
-          p.tipo_demanda || null, it.qtde_consumo != null ? String(it.qtde_consumo) : null, it.prazo || null, it.periodicidade || null,
-          it.dispensacoes_autorizadas || null, it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null);
-        totalItens++;
+  const num = (v) => { const n = parseFloat(String(v ?? '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; };
+
+  // Consolida os itens por código, somando quantidade e consumo, e guardando o
+  // detalhe por paciente.
+  const mapaItem = new Map();
+  for (const p of lista) {
+    for (const it of p.itens) {
+      const k = it.codigo_item;
+      if (!mapaItem.has(k)) {
+        mapaItem.set(k, {
+          codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
+          categoria: it.categoria, catmat: it.catmat, quantidade: 0, qtde_consumo: 0, detalhe: [],
+        });
       }
-      criados.push({ id, codigo_controle: codigoControle, autor: p.autor, itens: itens.length });
+      const agg = mapaItem.get(k);
+      agg.quantidade += num(it.quantidade);
+      agg.qtde_consumo += num(it.qtde_consumo);
+      agg.detalhe.push({ autor: p.autor, qtde_consumo: it.qtde_consumo, autonomia_compra: it.autonomia_compra, quantidade: it.quantidade });
+    }
+  }
+  const itensConsolidados = [...mapaItem.values()];
+  const pacientesInfo = lista.map((p) => ({ autor: p.autor, protocolo: p.protocolo, processo: p.processo, tipo_demanda: p.tipo_demanda }));
+
+  db.exec('BEGIN');
+  let id, codigoControle;
+  try {
+    const primeiro = lista[0];
+    const info = db.prepare(`
+      INSERT INTO requisicoes (autor, unidade, sei, operador_nome, operador_email, total_itens,
+                               coletiva, total_pacientes, pacientes_json, status_atendimento, telegrama_enviado)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, 'Solicitado', 'Não')`).run(
+      primeiro.autor, primeiro.unidade_dispensadora || null, sei || null, req.usuario.nome, req.usuario.email,
+      itensConsolidados.length, lista.length, JSON.stringify(pacientesInfo));
+    id = info.lastInsertRowid;
+    codigoControle = `REQ-${new Date().getFullYear()}-${String(id).padStart(5, '0')}`;
+    db.prepare('UPDATE requisicoes SET codigo_controle = ? WHERE id = ?').run(codigoControle, id);
+
+    const insItem = db.prepare(`
+      INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
+                                    qtde_consumo, catmat, detalhe_json, n_pacientes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    for (const it of itensConsolidados) {
+      insItem.run(id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null,
+        String(+it.quantidade.toFixed(2)), String(+it.qtde_consumo.toFixed(2)), it.catmat || null,
+        JSON.stringify(it.detalhe), it.detalhe.length);
     }
     db.exec('COMMIT');
   } catch (e) {
     db.exec('ROLLBACK');
-    return res.status(500).json({ erro: 'Falha ao gerar as requisições: ' + e.message });
+    return res.status(500).json({ erro: 'Falha ao gerar a solicitação coletiva: ' + e.message });
   }
-  if (!criados.length) return res.status(400).json({ erro: 'Nenhum paciente com item marcado.' });
-  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(req.usuario.id, req.usuario.email, 'gerar_solicitacao_coletiva', 'requisicoes', null,
-      JSON.stringify({ sei, pacientes: criados.length, itens: totalItens, autores: criados.map((c) => c.autor) }));
 
-  res.status(201).json({ total: criados.length, totalItens, criados });
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'gerar_solicitacao_coletiva', 'requisicoes', id,
+      JSON.stringify({ codigo_controle: codigoControle, sei, pacientes: lista.length, itens: itensConsolidados.length }));
+
+  res.status(201).json({ id, codigo_controle: codigoControle, totalPacientes: lista.length, totalItens: itensConsolidados.length });
 });
 
 // ---------- Requisições: salvar (gera ID de controle) ----------
@@ -539,43 +555,59 @@ router.get('/requisicoes/itens', (req, res) => {
   const { paciente, sei, codigo_item, descricao, categoria, page = 1, pageSize = 50 } = req.query;
   const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
   const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
-
-  const cond = [];
-  const params = [];
-  if (paciente) { cond.push('r.autor LIKE ?'); params.push(`%${paciente}%`); }
-  if (sei) { cond.push('r.sei LIKE ?'); params.push(`%${sei}%`); }
-  if (codigo_item) { cond.push('ri.codigo_item LIKE ?'); params.push(`%${codigo_item}%`); }
-  if (descricao) { cond.push('ri.descricao_item LIKE ?'); params.push(`%${descricao}%`); }
-  if (categoria) { cond.push('ri.categoria = ?'); params.push(categoria); }
-  const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
-
   const escTP = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
-  const total = db.prepare(`SELECT COUNT(*) c FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id ${where}`).get(...params).c;
-  const itens = db.prepare(`
-    SELECT ri.id, ri.requisicao_id, r.codigo_controle, r.autor, r.sei, r.protocolo,
+
+  // --- Requisições INDIVIDUAIS: uma linha por item (coletiva = 0) ---
+  const condI = ['r.coletiva = 0'];
+  const paramsI = [];
+  if (paciente) { condI.push('r.autor LIKE ?'); paramsI.push(`%${paciente}%`); }
+  if (sei) { condI.push('r.sei LIKE ?'); paramsI.push(`%${sei}%`); }
+  if (codigo_item) { condI.push('ri.codigo_item LIKE ?'); paramsI.push(`%${codigo_item}%`); }
+  if (descricao) { condI.push('ri.descricao_item LIKE ?'); paramsI.push(`%${descricao}%`); }
+  if (categoria) { condI.push('ri.categoria = ?'); paramsI.push(categoria); }
+  const individuais = db.prepare(`
+    SELECT 'item' AS tipo, ri.id, ri.requisicao_id, r.codigo_controle, r.autor, r.sei, r.protocolo,
            ri.codigo_item, ri.descricao_item, ri.categoria,
            COALESCE((SELECT e.siafisico FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1), ri.cod_siafisico) AS siafisico,
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
            (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual,
            ri.quantidade, ri.status_atendimento, ri.telegrama_enviado, ri.data_envio, ri.requisicao_gsnet,
            ri.telegrama_enviado_por, ri.telegrama_enviado_em
-    FROM requisicao_itens ri
-    JOIN requisicoes r ON r.id = ri.requisicao_id
-    ${where}
-    ORDER BY r.id DESC, ri.id
-    LIMIT ? OFFSET ?
-  `).all(...params, limit, offset);
+    FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id
+    WHERE ${condI.join(' AND ')}
+  `).all(...paramsI);
 
-  // Resumo (sobre TODO o conjunto filtrado, não só a página) para os KPIs.
-  const resumo = db.prepare(`
-    SELECT
-      COUNT(*) AS total,
-      SUM(CASE WHEN ri.status_atendimento = 'Solicitado' THEN 1 ELSE 0 END) AS solicitado,
-      SUM(CASE WHEN ri.status_atendimento = 'Finalizado' THEN 1 ELSE 0 END) AS finalizado,
-      SUM(CASE WHEN ri.status_atendimento = 'Cancelado'  THEN 1 ELSE 0 END) AS cancelado,
-      SUM(CASE WHEN ri.telegrama_enviado = 'Sim' THEN 1 ELSE 0 END) AS enviados
-    FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id ${where}
-  `).get(...params);
+  // --- Requisições COLETIVAS: uma linha por requisição (coletiva = 1) ---
+  const condC = ['r.coletiva = 1'];
+  const paramsC = [];
+  if (paciente) { condC.push('(r.autor LIKE ? OR r.pacientes_json LIKE ?)'); paramsC.push(`%${paciente}%`, `%${paciente}%`); }
+  if (sei) { condC.push('r.sei LIKE ?'); paramsC.push(`%${sei}%`); }
+  const exists = (campo, op, val) => { condC.push(`EXISTS (SELECT 1 FROM requisicao_itens ri WHERE ri.requisicao_id = r.id AND ri.${campo} ${op} ?)`); paramsC.push(val); };
+  if (codigo_item) exists('codigo_item', 'LIKE', `%${codigo_item}%`);
+  if (descricao) exists('descricao_item', 'LIKE', `%${descricao}%`);
+  if (categoria) exists('categoria', '=', categoria);
+  const coletivas = db.prepare(`
+    SELECT 'coletiva' AS tipo, NULL AS id, r.id AS requisicao_id, r.codigo_controle, r.autor, r.sei,
+           r.total_pacientes, r.total_itens,
+           r.status_atendimento, r.telegrama_enviado, r.data_envio, r.requisicao_gsnet,
+           r.telegrama_enviado_por, r.telegrama_enviado_em
+    FROM requisicoes r WHERE ${condC.join(' AND ')}
+  `).all(...paramsC);
+
+  // Mescla, ordena (requisição mais nova primeiro) e pagina em memória.
+  const todos = [...individuais, ...coletivas].sort((a, b) =>
+    (b.requisicao_id - a.requisicao_id) || ((a.id || 0) - (b.id || 0)));
+  const total = todos.length;
+  const itens = todos.slice(offset, offset + limit);
+
+  // Resumo p/ KPIs — item individual conta 1; coletiva conta 1 (status do grupo).
+  const resumo = { total, solicitado: 0, finalizado: 0, cancelado: 0, enviados: 0 };
+  for (const r of todos) {
+    if (r.status_atendimento === 'Solicitado') resumo.solicitado++;
+    else if (r.status_atendimento === 'Finalizado') resumo.finalizado++;
+    else if (r.status_atendimento === 'Cancelado') resumo.cancelado++;
+    if (r.telegrama_enviado === 'Sim') resumo.enviados++;
+  }
 
   res.json({ total, itens, page: Number(page), pageSize: limit, resumo });
 });
@@ -696,7 +728,46 @@ router.get('/requisicoes/:id', (req, res) => {
   const r = db.prepare('SELECT * FROM requisicoes WHERE id = ?').get(req.params.id);
   if (!r) return res.status(404).json({ erro: 'Requisição não encontrada.' });
   const itens = db.prepare('SELECT * FROM requisicao_itens WHERE requisicao_id = ? ORDER BY id').all(r.id);
-  res.json({ requisicao: r, itens });
+  // Coletiva: devolve a lista de pacientes e o detalhe por item já parseados.
+  let pacientes = null;
+  if (r.coletiva) {
+    try { pacientes = JSON.parse(r.pacientes_json || '[]'); } catch (_) { pacientes = []; }
+    itens.forEach((it) => { try { it.detalhe = JSON.parse(it.detalhe_json || '[]'); } catch (_) { it.detalhe = []; } });
+  }
+  res.json({ requisicao: r, itens, pacientes });
+});
+
+// ---------- Coletiva: atualizar o status/telegrama do GRUPO ----------
+router.put('/requisicoes/:id/status-coletiva', (req, res) => {
+  const r = db.prepare('SELECT * FROM requisicoes WHERE id = ? AND coletiva = 1').get(req.params.id);
+  if (!r) return res.status(404).json({ erro: 'Solicitação coletiva não encontrada.' });
+  const eAdmin = req.usuario.perfil === 'admin';
+  const jaEnviado = r.telegrama_enviado === 'Sim';
+  if (jaEnviado && !eAdmin) return res.status(403).json({ erro: 'Telegrama já enviado. Apenas um administrador pode alterar.' });
+
+  const { status_atendimento, telegrama_enviado, data_envio, requisicao_gsnet } = req.body || {};
+  let status = status_atendimento ?? r.status_atendimento;
+  const telegrama = telegrama_enviado ?? r.telegrama_enviado;
+  let dataEnvio = data_envio !== undefined ? (data_envio || null) : r.data_envio;
+  const gsnet = requisicao_gsnet !== undefined ? (requisicao_gsnet || null) : r.requisicao_gsnet;
+  let enviadoPor = r.telegrama_enviado_por;
+  let enviadoEm = r.telegrama_enviado_em;
+  const agora = new Date();
+  if (telegrama === 'Sim' && !jaEnviado) {
+    status = 'Finalizado';
+    if (!dataEnvio) dataEnvio = agora.toISOString().slice(0, 10);
+    enviadoPor = req.usuario.nome || req.usuario.email;
+    enviadoEm = agora.toISOString();
+  } else if (telegrama !== 'Sim' && jaEnviado) {
+    dataEnvio = data_envio !== undefined ? (data_envio || null) : null;
+    enviadoPor = null; enviadoEm = null;
+  }
+  db.prepare('UPDATE requisicoes SET status_atendimento = ?, telegrama_enviado = ?, data_envio = ?, requisicao_gsnet = ?, telegrama_enviado_por = ?, telegrama_enviado_em = ? WHERE id = ?')
+    .run(status, telegrama, dataEnvio, gsnet, enviadoPor, enviadoEm, r.id);
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'atualizar_status_coletiva', 'requisicoes', r.id,
+      JSON.stringify({ status_atendimento: status, telegrama_enviado: telegrama, data_envio: dataEnvio, requisicao_gsnet: gsnet }));
+  res.json({ ok: true });
 });
 
 // ---------- Comparação entre a versão anterior e a atual ----------

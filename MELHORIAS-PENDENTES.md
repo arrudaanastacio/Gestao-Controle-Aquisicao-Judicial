@@ -16,6 +16,24 @@ ganha a **etiqueta de Sub-categoria** (mesmo estilo `tag-programa sub` do
 Estoque). Backend: `/autores/paciente` passa a trazer `subcategoria` (subquery
 em `item_classificacao`). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
 
+### Detalhe do item 2 — Solicitação Coletiva CONSOLIDADA (abas por medicamento)
+
+**Consolidação (nova etapa):** a coletiva agora gera **UM único número de
+controle** (não mais N). No **Relatório de Primeiro Atendimento** vira **1 linha**
+("Fulano e mais N pacientes", etiqueta **COLETIVA**, "X medicamento(s) · Y
+paciente(s)"), com **status/telegrama ÚNICO do grupo**. Ao **clicar no controle**,
+abre o **documento consolidado**: SEI, **total por medicamento** (qtde somada +
+nº de pacientes) e a **lista de pacientes** (nome/protocolo/processo).
+Banco (migração idempotente): `requisicoes` ganhou `coletiva`, `total_pacientes`,
+`pacientes_json` e status do grupo; `requisicao_itens` ganhou `detalhe_json`,
+`n_pacientes`. Backend: `/requisicoes/coletiva` consolida; `/requisicoes/itens`
+mescla itens individuais + coletivas (1 linha); `/requisicoes/:id` devolve
+pacientes+detalhe; novo `PUT /requisicoes/:id/status-coletiva`.
+**Pós-publicação:** reiniciar produção (backend + migração) + Ctrl+F5.
+
+---
+_Histórico do item 2 (etapas anteriores):_
+
 ### Detalhe do item 2 — Solicitação Coletiva (abas por medicamento)
 
 Novo **modo "Solicitação coletiva"** no modal de Requisição de Compra. Modelo
