@@ -430,6 +430,12 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   opacity: 0.82;
   margin-bottom: 4px;
 }
+/* A tagline pode quebrar em 2 linhas quando o menu está expandido (o pai
+   .marca-texto força nowrap para os rótulos, mas aqui deixamos quebrar para
+   não cortar "…Estoque e Demanda"). min-width:0 deixa o bloco encolher e
+   quebrar em vez de estourar a largura ao lado do botão de fixar. */
+.barra-lateral .marca-texto { min-width: 0; }
+.barra-lateral .marca-lateral { white-space: normal; overflow: visible; }
 
 /* Wordmark "Elo" — sans moderno e forte (fonte do sistema, funciona offline) */
 .marca-wordmark {
