@@ -10,7 +10,6 @@
 
 require('dotenv').config();
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const puppeteer = require('puppeteer-core');
 
@@ -22,7 +21,6 @@ const SENHA = process.env.GSNET_SENHA;
 const UNIDADE = process.env.GSNET_UNIDADE || 'Gabinete do Coordenador - CAF';
 const PERIODO_INICIO = process.env.GSNET_PERIODO_INICIO || '01/2023';
 const PASTA_DOWNLOAD = process.env.PASTA_DOWNLOAD || path.join(__dirname, 'downloads');
-const DOWNLOADS_WIN = process.env.DOWNLOADS_WIN || path.join(os.homedir(), 'Downloads');
 const HEADLESS = /^(1|true|sim)$/i.test(process.env.HEADLESS || '');
 
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -108,26 +106,25 @@ async function marcarRadio(page, name, value) {
   if (!ok) throw new Error(`Nao achei o radio ${name}=${value}`);
 }
 
-function xlsxNaPasta(pasta) {
-  if (!fs.existsSync(pasta)) return new Set();
-  return new Set(fs.readdirSync(pasta).filter((f) => /\.xlsx$/i.test(f)));
-}
-
-// Espera aparecer um .xlsx NOVO em QUALQUER uma das pastas vigiadas.
-// `antesPorPasta` é um Map pasta->Set(nomes que ja existiam).
-async function esperarDownload(pastas, antesPorPasta, timeoutMs) {
+// Espera um .xlsx MODIFICADO depois de `desdeMs` aparecer na pasta, com o
+// download concluido (sem .crdownload) e o tamanho estavel entre duas leituras.
+// O site salva sempre com o mesmo nome ("RelatorioEstrategicoEmpenho.xlsx"),
+// entao detectamos pela data de modificacao, nao por "nome novo".
+async function esperarXlsxNovo(pasta, desdeMs, timeoutMs) {
   const ateh = Date.now() + timeoutMs;
   while (Date.now() < ateh) {
-    for (const pasta of pastas) {
-      if (!fs.existsSync(pasta)) continue;
+    if (fs.existsSync(pasta)) {
       const temParcial = fs.readdirSync(pasta).some((f) => /\.crdownload$/i.test(f));
-      const antes = antesPorPasta.get(pasta) || new Set();
-      const novos = [...xlsxNaPasta(pasta)].filter((f) => !antes.has(f));
-      if (novos.length && !temParcial) {
-        const p = path.join(pasta, novos.sort((a, b) => fs.statSync(path.join(pasta, b)).mtimeMs - fs.statSync(path.join(pasta, a)).mtimeMs)[0]);
+      const candidatos = fs.readdirSync(pasta)
+        .filter((f) => /\.xlsx$/i.test(f))
+        .map((f) => path.join(pasta, f))
+        .filter((p) => fs.statSync(p).mtimeMs >= desdeMs)
+        .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+      if (candidatos.length && !temParcial) {
+        const p = candidatos[0];
         const t1 = fs.statSync(p).size;
         await espera(1500);
-        if (fs.existsSync(p) && fs.statSync(p).size === t1) return p;
+        if (fs.existsSync(p) && fs.statSync(p).size === t1 && t1 > 1000) return p;
       }
     }
     await espera(1500);
@@ -232,6 +229,21 @@ function log(m) {
         await espera(2500);
         continue;
       }
+      // IMPORTANTE: o dropdown de Unidade so carrega as opcoes QUANDO O CAMPO
+      // RECEBE FOCO. O proprio site faz $('#P_ID_UNID_INSTIT').on('focus', ...)
+      // que dispara o AJAX CarregarDropDownListUI. Sem esse foco, o <select> fica
+      // eternamente so com "Selecione". Entao disparamos o foco de 3 jeitos para
+      // garantir que o handler (jQuery ou nativo) rode.
+      await espera(1200);
+      await page.evaluate(() => {
+        const el = document.querySelector('#P_ID_UNID_INSTIT');
+        if (!el) return;
+        if (window.jQuery) { try { window.jQuery(el).trigger('focus'); } catch (e) {} }
+        try { el.focus(); } catch (e) {}
+        el.dispatchEvent(new Event('focus', { bubbles: true }));
+        el.dispatchEvent(new Event('focusin', { bubbles: true }));
+      });
+      await page.focus('#P_ID_UNID_INSTIT').catch(() => {});
       // Espera a opcao desejada (CAF) aparecer no dropdown (ate 18s).
       unidadeOk = await page.waitForFunction((alvoNorm) => {
         const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -261,43 +273,45 @@ function log(m) {
     await espera(800);
 
     console.log('4/5  Exportando (pode demorar enquanto o relatorio e gerado)...');
-    // Vigia tanto a nossa pasta quanto a pasta Downloads do Windows (onde o
-    // export manual costuma cair, caso o redirecionamento de download nao pegue).
-    const pastas = [PASTA_DOWNLOAD, DOWNLOADS_WIN].filter((p, i, a) => p && a.indexOf(p) === i);
-    const antesPorPasta = new Map(pastas.map((p) => [p, xlsxNaPasta(p)]));
+    // Como o site baixa o arquivo:
+    //   1) POST fnRelatorioEstrategicoEmpenho  -> gera o relatorio na sessao (OK)
+    //   2) coloca a URL fnRelatorioEstrategicoGerarExcel no <iframe id=hiddenFrame>,
+    //      que devolve os BYTES do .xlsx. O Chrome (com Page.setDownloadBehavior
+    //      apontando p/ PASTA_DOWNLOAD) salva esse arquivo com o NOME FIXO
+    //      "RelatorioEstrategicoEmpenho.xlsx".
+    // Como o nome e sempre o mesmo, NAO da p/ detectar "arquivo novo" — o certo e
+    // esperar um .xlsx que tenha sido MODIFICADO depois do clique e cujo tamanho
+    // parou de crescer (download concluido). NAO tentamos reler os bytes por
+    // fetch: a 2a chamada volta uma pagina de erro (a sessao ja foi consumida).
 
+    // So loga a resposta do POST/Excel p/ diagnostico (nao lemos o corpo do xlsx:
+    // o Chrome o consome como download e resp.buffer() falha).
+    const onResponse = async (resp) => {
+      const u = resp.url();
+      if (/fnRelatorioEstrategicoEmpenho\b/i.test(u)) {
+        try { log('  [gerar] ' + resp.status() + ' -> ' + (await resp.text()).slice(0, 200).replace(/\s+/g, ' ')); } catch (_) {}
+      } else if (/fnRelatorioEstrategicoGerarExcel\b/i.test(u)) {
+        log('  [excel] resposta ' + resp.status() + ' (' + (resp.headers()['content-type'] || '') + ', ' + (resp.headers()['content-length'] || '?') + ' bytes)');
+      }
+    };
+    page.on('response', onResponse);
+
+    const t0 = Date.now() - 2000; // margem p/ relogio/sistema de arquivos
     // Clique REAL (evento confiavel) no botao verde Exportar.
     await page.click('#btnExportar').catch(async () => {
       await page.evaluate(() => { const b = document.querySelector('#btnExportar'); if (b) b.click(); });
     });
-    await espera(3000);
+
+    // Espera um .xlsx modificado apos o clique, sem .crdownload e com tamanho
+    // estavel. Ate 5 min (relatorios grandes demoram p/ serem gerados).
+    const arquivo = await esperarXlsxNovo(PASTA_DOWNLOAD, t0, 300000);
+    page.off('response', onResponse);
     try { await page.screenshot({ path: path.join(__dirname, 'apos-exportar.png'), fullPage: true }); } catch (_) {}
-
-    // Se abriu uma janela pedindo o formato (ex.: Excel/PDF), escolhe Excel e
-    // confirma no botao azul #btnExportar_v01.
-    await page.evaluate(() => {
-      const btn = document.querySelector('#btnExportar_v01');
-      const visivel = btn && btn.offsetParent !== null;
-      if (visivel) {
-        const radios = [...document.querySelectorAll('input[type=radio]')];
-        const xls = radios.find((r) => /xls|excel/i.test((r.id || '') + (r.value || '') + (r.nextElementSibling?.textContent || '')));
-        if (xls) { xls.checked = true; xls.click(); }
-        btn.click();
-      }
-    });
-
-    let arquivo = await esperarDownload(pastas, antesPorPasta, 240000);
-    if (!arquivo) throw new Error('O download do .xlsx nao apareceu em 4 minutos. Veja erro.png e apos-exportar.png.');
-
-    // Garante que o arquivo esteja na PASTA_DOWNLOAD (o importador le de la).
-    if (path.dirname(arquivo) !== path.resolve(PASTA_DOWNLOAD)) {
-      const destino = path.join(PASTA_DOWNLOAD, path.basename(arquivo));
-      fs.copyFileSync(arquivo, destino);
-      console.log('     (copiei o arquivo da pasta Downloads para', PASTA_DOWNLOAD + ')');
-      arquivo = destino;
+    if (!arquivo) {
+      throw new Error('O .xlsx do Relatorio de Empenhos nao apareceu na pasta em 5 minutos. Veja o log e apos-exportar.png.');
     }
 
-    log('5/5  PRONTO! Arquivo baixado: ' + arquivo);
+    log('5/5  PRONTO! Arquivo salvo (' + fs.statSync(arquivo).size + ' bytes): ' + arquivo);
     await espera(1500);
     await browser.close();
     process.exit(0);
