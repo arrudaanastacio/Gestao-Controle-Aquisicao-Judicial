@@ -407,6 +407,27 @@ const ICONES_NAV = {
   });
 })();
 
+// Fixar/desafixar o menu lateral: quando fixo, o menu fica sempre aberto (e o
+// conteúdo desloca). Preferência guardada no navegador (localStorage).
+(function fixarMenu() {
+  const barra = document.querySelector('.barra-lateral');
+  const botao = document.getElementById('botaoFixarMenu');
+  if (!barra || !botao) return;
+  function aplicar(fixo) {
+    barra.classList.toggle('fixo', fixo);
+    botao.classList.toggle('ativo', fixo);
+    botao.setAttribute('aria-pressed', fixo ? 'true' : 'false');
+    botao.title = fixo ? 'Desafixar menu' : 'Fixar menu aberto';
+    botao.setAttribute('aria-label', botao.title);
+  }
+  aplicar(localStorage.getItem('menuFixo') === '1');
+  botao.addEventListener('click', () => {
+    const fixo = !barra.classList.contains('fixo');
+    localStorage.setItem('menuFixo', fixo ? '1' : '0');
+    aplicar(fixo);
+  });
+})();
+
 // Busca "Ir para tela…" da topbar: filtra as telas pela trilha e navega.
 // Só oferece telas que o usuário pode ver (respeita a permissão do menu).
 (function buscaTelas() {

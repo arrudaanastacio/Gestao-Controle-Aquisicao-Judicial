@@ -302,9 +302,14 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 }
 
 /* ----- Menu lateral em trilho de ícones (desktop): recolhe e expande no hover ----- */
+/* Quando FIXADO (.barra-lateral.fixo), fica expandido de forma permanente e o
+   conteúdo desloca para não ficar por baixo. A mesma aparência do hover vale
+   para o estado fixo — por isso os seletores abaixo casam ":hover, .fixo". */
 @media (min-width: 761px) {
   .app-shell { grid-template-columns: 76px 1fr; }
   .app-shell .conteudo { grid-column: 2; }
+  /* Menu fixado: reserva a largura expandida no layout (o conteúdo desloca). */
+  .app-shell:has(.barra-lateral.fixo) { grid-template-columns: 288px 1fr; }
 
   .barra-lateral {
     position: fixed;
@@ -316,11 +321,13 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
     padding: 22px 14px;
     transition: width 0.2s ease, padding 0.2s ease, box-shadow 0.2s ease;
   }
-  .barra-lateral:hover {
+  .barra-lateral:hover,
+  .barra-lateral.fixo {
     width: 288px;
     overflow-y: auto;
-    box-shadow: 10px 0 40px rgba(0, 0, 0, 0.38);
   }
+  /* A sombra forte é só do estado "flutuante" (hover); fixado é parte do layout. */
+  .barra-lateral:hover:not(.fixo) { box-shadow: 10px 0 40px rgba(0, 0, 0, 0.38); }
 
   /* Recolhido: mostra só os ícones, centralizados; some os rótulos */
   .barra-lateral .nav-rotulo,
@@ -335,39 +342,49 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
     transition: opacity 0.12s ease;
   }
   /* Rótulos longos ganham reticências em vez de corte seco (barra expandida) */
-  .barra-lateral:hover .nav-rotulo { max-width: 222px; }
+  .barra-lateral:hover .nav-rotulo,
+  .barra-lateral.fixo .nav-rotulo { max-width: 222px; }
   /* No trilho recolhido, some a estrela de favorito e a setinha de recolher. */
-  .barra-lateral:not(:hover) .fav-estrela,
-  .barra-lateral:not(:hover) .nav-cev { display: none; }
+  .barra-lateral:not(:hover):not(.fixo) .fav-estrela,
+  .barra-lateral:not(:hover):not(.fixo) .nav-cev { display: none; }
   .barra-lateral:hover .nav-rotulo,
   .barra-lateral:hover .marca-texto,
   .barra-lateral:hover .rodape-info,
-  .barra-lateral:hover .rotulo-sair {
+  .barra-lateral:hover .rotulo-sair,
+  .barra-lateral.fixo .nav-rotulo,
+  .barra-lateral.fixo .marca-texto,
+  .barra-lateral.fixo .rodape-info,
+  .barra-lateral.fixo .rotulo-sair {
     opacity: 1;
     width: auto;
   }
 
   .barra-lateral .nav-lateral a { justify-content: center; padding: 11px; gap: 0; }
-  .barra-lateral:hover .nav-lateral a { justify-content: flex-start; padding: 9px 11px; gap: 11px; }
+  .barra-lateral:hover .nav-lateral a,
+  .barra-lateral.fixo .nav-lateral a { justify-content: flex-start; padding: 9px 11px; gap: 11px; }
   .barra-lateral .nav-lateral a svg { width: 19px; height: 19px; }
-  .barra-lateral:hover .nav-lateral a svg { width: 17px; height: 17px; }
+  .barra-lateral:hover .nav-lateral a svg,
+  .barra-lateral.fixo .nav-lateral a svg { width: 17px; height: 17px; }
 
   /* Títulos de grupo e subtítulos viram só uma divisória quando recolhido */
   .barra-lateral .nav-grupo-titulo,
   .barra-lateral .nav-sub {
     height: 0; margin: 0; opacity: 0; overflow: hidden;
   }
-  .barra-lateral:hover .nav-grupo-titulo { height: auto; margin: 0 0 8px; opacity: 1; }
-  .barra-lateral:hover .nav-sub { height: auto; margin: 7px 0 2px; opacity: 1; }
+  .barra-lateral:hover .nav-grupo-titulo,
+  .barra-lateral.fixo .nav-grupo-titulo { height: auto; margin: 0 0 8px; opacity: 1; }
+  .barra-lateral:hover .nav-sub,
+  .barra-lateral.fixo .nav-sub { height: auto; margin: 7px 0 2px; opacity: 1; }
 
   /* Marca e rodapé centralizados quando recolhido */
   .barra-lateral .rodape-usuario { justify-content: center; margin-bottom: 8px; }
-  .barra-lateral:hover .rodape-usuario { justify-content: flex-start; }
+  .barra-lateral:hover .rodape-usuario,
+  .barra-lateral.fixo .rodape-usuario { justify-content: flex-start; }
   .barra-lateral .rodape-lateral button { padding: 9px; }
 
   /* Indicador de alertas vira um pontinho no ícone quando recolhido */
   .barra-lateral #linkAlertas { position: relative; }
-  .barra-lateral:not(:hover) #linkAlertas:has(.badge-alerta:not([hidden]))::after {
+  .barra-lateral:not(:hover):not(.fixo) #linkAlertas:has(.badge-alerta:not([hidden]))::after {
     content: '';
     position: absolute;
     top: 8px;
@@ -378,7 +395,31 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
     background: var(--vermelho);
     border: 2px solid var(--selo-escuro);
   }
+
+  /* Botão de fixar/desafixar: só aparece com o menu expandido (hover ou fixo) */
+  .btn-fixar-menu { display: flex; opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+  .barra-lateral:hover .btn-fixar-menu,
+  .barra-lateral.fixo .btn-fixar-menu { opacity: 1; pointer-events: auto; }
 }
+
+/* Botão de fixar o menu (base). Fica escondido no mobile (menu vira gaveta). */
+.btn-fixar-menu {
+  display: none;
+  margin-left: auto;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 15px;
+  line-height: 1;
+  padding: 5px 6px;
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+.btn-fixar-menu:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.btn-fixar-menu.ativo { color: #ffd76a; }
 
 .marca-lateral {
   font-family: var(--fonte-corpo);
