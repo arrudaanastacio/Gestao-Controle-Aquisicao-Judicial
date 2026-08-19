@@ -396,8 +396,10 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
     border: 2px solid var(--selo-escuro);
   }
 
-  /* Botão de fixar/desafixar: só aparece com o menu expandido (hover ou fixo) */
-  .btn-fixar-menu { display: flex; opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+  /* Botão de fixar/desafixar: só aparece com o menu expandido (hover ou fixo).
+     Seletor com .barra-lateral para vencer a regra base (.btn-fixar-menu) que
+     vem depois no arquivo e esconde o botão no mobile. */
+  .barra-lateral .btn-fixar-menu { display: flex; opacity: 0; pointer-events: none; transition: opacity .12s ease; }
   .barra-lateral:hover .btn-fixar-menu,
   .barra-lateral.fixo .btn-fixar-menu { opacity: 1; pointer-events: auto; }
 }
