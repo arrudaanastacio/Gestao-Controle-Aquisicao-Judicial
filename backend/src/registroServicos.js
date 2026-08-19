@@ -70,6 +70,16 @@ const CATALOGO = [
     intervaloEsperadoH: null,
   },
   {
+    id: 'atasSiscoa',
+    nome: 'Atas do SISCOA (busca direta)',
+    descricao: 'Baixa o relatório de Atas de Registro de Preço direto do site do SISCOA (login automático) e importa, sem depender do arquivo na pasta de rede.',
+    categoria: 'Integração',
+    tipo: 'agendado',
+    agendamento: () => `Diário às ${horaEnv('HORA_SYNC_ATAS', 6, 'MINUTO_SYNC_ATAS', 0)}`,
+    envDesliga: { chave: 'AUTO_IMPORTAR_ATAS_SISCOA', valor: 'false' },
+    intervaloEsperadoH: 26,
+  },
+  {
     id: 'estoqueOD',
     nome: 'Estoque GSNET / IBL',
     descricao: 'Importa e concilia o estoque dos sistemas GSNET e IBL das Outras Demandas.',

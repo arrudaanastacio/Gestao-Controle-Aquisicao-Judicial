@@ -204,6 +204,7 @@ async function carregarUsuario() {
     document.getElementById('botaoImportarClassificacao').hidden = false;
     verificarStatusOracleRelatorioItens();
     document.querySelectorAll('.botao-atualizar-agora').forEach((b) => { b.hidden = false; });
+    document.getElementById('acoesAtasAdmin').hidden = false;
     atualizarBadgeAlertas();
     carregarConfigLimiar();
   } else {
@@ -8446,6 +8447,26 @@ document.getElementById('botaoAnteriorAtas').addEventListener('click', () => {
 });
 document.getElementById('botaoProximoAtas').addEventListener('click', () => {
   estado.atas.pagina++; carregarAtas();
+});
+document.getElementById('botaoBuscarAtasSiscoa').addEventListener('click', async () => {
+  const botao = document.getElementById('botaoBuscarAtasSiscoa');
+  const textoOriginal = botao.textContent;
+  botao.disabled = true;
+  botao.textContent = '⏳ Buscando no SISCOA…';
+  try {
+    const r = await api('/servicos/atasSiscoa/executar', { method: 'POST' });
+    const resumo = r && r.resultado;
+    alert(resumo
+      ? `Atas atualizadas do SISCOA:\n${fmtNumero(resumo.totalLinhas)} linhas / ${fmtNumero(resumo.totalAtas)} atas (referência ${formatarData(resumo.dataReferencia)}).`
+      : (r.mensagem || 'Busca do SISCOA concluída.'));
+    estado.atas.pagina = 1;
+    await carregarAtas();
+  } catch (e) {
+    alert('Não consegui buscar do SISCOA: ' + e.message);
+  } finally {
+    botao.disabled = false;
+    botao.textContent = textoOriginal;
+  }
 });
 
 async function carregarAtas() {

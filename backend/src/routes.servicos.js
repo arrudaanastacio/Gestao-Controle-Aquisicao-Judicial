@@ -147,6 +147,7 @@ const EXECUTORES = {
   autores: () => require('./vigiaAutores').executarAgora(),
   relatorioItens: () => require('./vigiaRelatorioItens').executarAgora(),
   atas: () => require('./vigiaAtas').executarAgora(),
+  atasSiscoa: (email, id) => require('./vigiaAtasSiscoa').executarAgora(email, id),
   estoqueOD: () => require('./vigiaEstoqueOD').executarAgora(),
   distribuicao: () => require('./vigiaDistribuicao').executarAgora(),
   solicitacoesTP: (email, id) => require('./vigiaSolicitacoes').forcarImportacaoSolicitacoes(email, id),

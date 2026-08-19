@@ -9,6 +9,7 @@
 | 1 | Etiqueta de subcategoria no modal da Requisição de Compra | eb392ff | 17/08/2026 | ✅ pronto em homolog |
 | 2 | Requisição — modo "Por Item" (ex-"Solicitação Coletiva"): consolidada + filtro de paciente | 699e0ab | 17/08/2026 | ✅ pronto em homolog |
 | 3 | Requisição — etiqueta de ATA por item (ATA / Avaliação técnica / Sem ATA) | 179eeaa | 18/08/2026 | ✅ pronto em homolog |
+| 4 | Atas — busca direta do SISCOA (login automático + download), sem depender do arquivo na rede: botão "Buscar do SISCOA agora" + rotina diária | f1de8e4 | 19/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
@@ -16,6 +17,33 @@ No modal 🛒 **Requisição de Compra** (lista de itens do paciente), cada item
 ganha a **etiqueta de Sub-categoria** (mesmo estilo `tag-programa sub` do
 Estoque). Backend: `/autores/paciente` passa a trazer `subcategoria` (subquery
 em `item_classificacao`). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
+
+### Detalhe do item 4 — Atas: busca direta do SISCOA
+
+Agora o sistema busca o relatório de **Atas de Registro de Preço** direto do
+site do **SISCOA** (`siscoa.saude.sp.gov.br`), por HTTP autenticado, sem
+depender do arquivo `Atas SISCOA.xls` copiado na pasta de rede.
+
+- **Como funciona:** login por sessão (`GET /login` → `POST /login/logar` com
+  `loginEmail`/`loginSenha`) e download do export DisplayTag do relatório
+  (formato Excel). O XLS baixado cai no **mesmo** `importarAtasDeBuffer` que já
+  existia — tabela, regras de vigência e a tela de Atas ficam idênticas.
+- **Botão "🔄 Buscar do SISCOA agora"** na tela de Atas (só admin) — baixa e
+  importa na hora.
+- **Rotina diária automática** às 06:00 (igual à UDTP), com recuperação se o
+  PC subir depois do horário. Aparece na tela **Status dos Serviços** como
+  "Atas do SISCOA (busca direta)".
+- **Credenciais:** `SISCOA_USUARIO` / `SISCOA_SENHA` no `.env` local (o robô de
+  extração já usava as mesmas). **Nunca vão pro GitHub** (repo público).
+- Novos arquivos: `siscoaApi.js` (cliente), `vigiaAtasSiscoa.js` (agendador),
+  `testarSiscoa.js` (diagnóstico). O vigia de arquivo antigo (`vigiaAtas.js`)
+  **continua ativo** — dá pra desligar depois com `AUTO_IMPORTAR_ATAS=false`,
+  já que agora a fonte direta cobre o mesmo.
+- **.env novos:** `AUTO_IMPORTAR_ATAS_SISCOA` (padrão on), `HORA_SYNC_ATAS`
+  (6), `MINUTO_SYNC_ATAS` (0).
+
+**Pós-publicação:** preencher `SISCOA_USUARIO`/`SISCOA_SENHA` no `.env` de
+produção, reiniciar produção (backend) + Ctrl+F5.
 
 ### Detalhe do item 3 — Etiqueta de ATA na Requisição de Compra
 
