@@ -12,6 +12,7 @@
 | 4 | Atas — busca direta do SISCOA (login automático + download), sem depender do arquivo na rede: botão "Buscar do SISCOA agora" + rotina diária | f1de8e4 | 19/08/2026 | ✅ pronto em homolog |
 | 5 | Listagem de Autores (TP e Demais Unidades) — modal "Ver" passa a mostrar Demanda, Consumo, Estoque e Autonomia da respectiva unidade | b3b2a1b | 19/08/2026 | ✅ pronto em homolog |
 | 6 | Menu lateral — botão 📌 para fixar/desafixar (mantém o menu aberto e desloca o conteúdo); preferência lembrada no navegador | cb7eb5c | 19/08/2026 | ✅ pronto em homolog |
+| 7 | Modal "Ver" dos Autores (TP e Demais Unidades) — etiquetas de subcategoria e Dose Certa (e demais de programa) no topo | 6447da7 | 19/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
@@ -19,6 +20,16 @@ No modal 🛒 **Requisição de Compra** (lista de itens do paciente), cada item
 ganha a **etiqueta de Sub-categoria** (mesmo estilo `tag-programa sub` do
 Estoque). Backend: `/autores/paciente` passa a trazer `subcategoria` (subquery
 em `item_classificacao`). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
+
+### Detalhe do item 7 — Etiquetas de programa no modal "Ver" dos Autores
+
+No topo do modal 👁 **Ver** (abaixo do nome/descrição), nas duas listagens de
+autores, aparecem as **etiquetas de programa** do item: **Subcategoria**,
+**Dose Certa** (só quando "Sim"), e também **Outras Demandas** e **Inex** quando
+o item pertencer — reaproveitando `etiquetasProgramaHTML()` e os estilos do
+Estoque. Fonte: `item_classificacao` (dose_certa, inex, subcategoria) e
+`relatorio_itens.outras_demandas`, por `codigo_item`. Vêm no mesmo endpoint
+`/autores/estoque-unidade`. **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
 
 ### Detalhe do item 5 — Estoque da unidade no modal "Ver" dos Autores
 

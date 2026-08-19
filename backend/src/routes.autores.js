@@ -352,7 +352,18 @@ router.get('/estoque-unidade', (req, res) => {
      LIMIT 1
   `).get(...params);
 
-  res.json(linha || { demanda: null, consumo: null, estoque: null, autonomia: null, unidade: temUnidade ? unidade : null, data_referencia: null, semDados: true });
+  // Etiquetas de programa/subcategoria do item (mesma fonte do Estoque):
+  // subcategoria + Dose Certa/Inex de item_classificacao, Outras Demandas de
+  // relatorio_itens. Independem da unidade — dependem só do código do item.
+  const clas = db.prepare(`
+    SELECT (SELECT ri.outras_demandas FROM relatorio_itens ri WHERE ri.codigo = ? ORDER BY ri.data_referencia DESC LIMIT 1) AS prog_outras_demandas,
+           (SELECT ic.dose_certa   FROM item_classificacao ic WHERE ic.codigo_item = ?) AS prog_dose_certa,
+           (SELECT ic.inex         FROM item_classificacao ic WHERE ic.codigo_item = ?) AS prog_inex,
+           (SELECT ic.subcategoria FROM item_classificacao ic WHERE ic.codigo_item = ?) AS subcategoria
+  `).get(codigo_item, codigo_item, codigo_item, codigo_item) || {};
+
+  const base = linha || { demanda: null, consumo: null, estoque: null, autonomia: null, unidade: temUnidade ? unidade : null, data_referencia: null, semDados: true };
+  res.json({ ...base, ...clas });
 });
 
 // ---------- Requisição de compra: itens de um paciente + situação de estoque ----------

@@ -4634,6 +4634,7 @@ async function abrirDetalheDemanda(d) {
        <span class="texto-secundario">${rot}</span><strong>${escHtml(val || '—')}</strong></div>`;
   const corpo = document.getElementById('corpoDetalheDemanda');
   const base =
+    '<div id="etiquetasDetalheDemanda" style="margin:0 0 10px;"></div>' +
     linha('Prazo', d.prazo) +
     linha('Periodicidade', d.periodicidade) +
     linha('Data Última Dispensação', d.data_ultima_dispensacao) +
@@ -4666,6 +4667,9 @@ async function abrirDetalheDemanda(d) {
     // O modal pode ter sido fechado/reaberto enquanto carregava — só escreve se ainda existe.
     const alvo = document.getElementById('corpoEstoqueUnidade');
     if (alvo) alvo.innerHTML = html;
+    // Etiquetas de programa/subcategoria (mesmo helper e estilo do Estoque).
+    const et = document.getElementById('etiquetasDetalheDemanda');
+    if (et) et.innerHTML = etiquetasProgramaHTML(e);
   } catch (err) {
     const alvo = document.getElementById('corpoEstoqueUnidade');
     if (alvo) alvo.innerHTML = `<div style="padding:9px 0; color:var(--vermelho);">Não consegui carregar o estoque da unidade.</div>`;
