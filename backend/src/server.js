@@ -155,6 +155,8 @@ app.listen(PORT, '0.0.0.0', () => {
   iniciarVigiaRelatorioItens();
   const { iniciarVigiaAtas } = require('./vigiaAtas');
   iniciarVigiaAtas();
+  const { iniciarVigiaAtasSiscoa } = require('./vigiaAtasSiscoa');
+  iniciarVigiaAtasSiscoa();
   const { iniciarVigiaEstoqueOD } = require('./vigiaEstoqueOD');
   iniciarVigiaEstoqueOD();
   const { iniciarVigiaSolicitacoes } = require('./vigiaSolicitacoes');
