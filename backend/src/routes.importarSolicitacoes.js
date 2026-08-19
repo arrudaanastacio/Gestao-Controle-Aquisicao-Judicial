@@ -31,6 +31,16 @@ function limpar(v) {
   return v;
 }
 
+// Nº da Requisição GSNET sem casa decimal: a planilha traz a célula como número
+// (ex.: 4508 -> vira "4508.0" ao gravar como texto). Guarda inteiro como string
+// limpa; preserva GSNET alfanumérico e eventuais decimais reais.
+function limparGsnet(v) {
+  const t = limpar(v);
+  if (t === null) return null;
+  if (typeof t === 'number') return Number.isInteger(t) ? String(t) : String(t);
+  return String(t).replace(/^(\d+)\.0+$/, '$1');
+}
+
 function paraDataIso(v) {
   v = limpar(v);
   if (v === null) return null;
@@ -80,7 +90,7 @@ function processarPlanilha(buffer) {
         n_oficio: limpar(linha[COL.n_oficio]),
         qtde_solicitada: limpar(linha[COL.qtde_solicitada]),
         data_solicitacao: paraDataIso(linha[COL.data_solicitacao]),
-        requisicao_gsnet: limpar(linha[COL.requisicao_gsnet]),
+        requisicao_gsnet: limparGsnet(linha[COL.requisicao_gsnet]),
         n_empenho: limpar(linha[COL.n_empenho]),
         quantidade_empenho: limpar(linha[COL.quantidade_empenho]),
         data_previsao_entrega: paraDataIso(linha[COL.data_previsao_entrega]),

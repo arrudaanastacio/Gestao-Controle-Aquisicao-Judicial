@@ -1012,7 +1012,7 @@ async function carregarSolicitacoes() {
           <td class="col-codigo">${s.n_oficio || '—'}</td>
           <td>${valorCelula(s.qtde_solicitada)}</td>
           <td class="col-data">${formatarData(s.data_solicitacao)}</td>
-          <td class="col-codigo">${s.requisicao_gsnet || '—'}</td>
+          <td class="col-codigo">${fmtGsnet(s.requisicao_gsnet) || '—'}</td>
           <td class="col-codigo">${s.n_empenho || '—'}</td>
           <td class="col-data">${formatarData(s.data_entrega)}</td>
           <td>${valorCelula(s.qtde_entregue)}</td>
@@ -1386,7 +1386,7 @@ async function carregarRelatorio() {
         <td class="col-codigo">${s.n_oficio || '—'}</td>
         <td>${valorCelula(s.qtde_solicitada)}</td>
         <td class="col-data">${formatarData(s.data_solicitacao)}</td>
-        <td class="col-codigo">${s.requisicao_gsnet || '—'}</td>
+        <td class="col-codigo">${fmtGsnet(s.requisicao_gsnet) || '—'}</td>
         <td class="col-codigo">${s.n_empenho || '—'}</td>
         <td class="col-data">${formatarData(s.data_entrega)}</td>
         <td>${valorCelula(s.qtde_entregue)}</td>
@@ -1623,6 +1623,14 @@ function fmtNumero(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return '—';
   return n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+}
+
+// Número da Requisição GSNET sem casa decimal: a importação às vezes traz o
+// valor como "4508.0" (célula numérica do Excel). Remove só o ".0"/".00" de
+// finais inteiros; não mexe em GSNET alfanumérico nem em decimais reais.
+function fmtGsnet(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/^(\d+)\.0+$/, '$1');
 }
 
 function classeAutonomia(item, limiar) {
@@ -3645,7 +3653,7 @@ async function carregarTabelaSolicitacoesOD() {
         <td>${s.modalidade_compra || '—'}</td>
         <td class="col-codigo">${s.n_oficio || '—'}</td>
         <td>${valorCelula(s.qtde_solicitada)}</td>
-        <td class="col-codigo">${s.requisicao_gsnet || '—'}</td>
+        <td class="col-codigo">${fmtGsnet(s.requisicao_gsnet) || '—'}</td>
         <td class="col-codigo">${s.n_empenho || '—'}</td>
         <td class="col-data">${formatarData(s.data_previsao_entrega)}</td>
         <td class="col-data">${formatarData(s.data_entrega)}</td>
@@ -3752,7 +3760,7 @@ async function carregarTabelaAquisicaoODAndamento() {
         <td>${s.modalidade_compra || '—'}</td>
         <td class="col-codigo">${s.n_oficio || '—'}</td>
         <td>${valorCelula(s.qtde_solicitada)}</td>
-        <td class="col-codigo">${s.requisicao_gsnet || '—'}</td>
+        <td class="col-codigo">${fmtGsnet(s.requisicao_gsnet) || '—'}</td>
         <td class="col-codigo">${s.n_empenho || '—'}</td>
         <td class="col-data">${formatarData(s.data_previsao_entrega)}</td>
         <td>${valorCelula(s.qtde_pendente)}</td>
@@ -7667,7 +7675,7 @@ async function carregarTabelaRelReq() {
           <td colspan="4" style="color:var(--cinza-texto);">${fmtNumero(it.total_itens)} medicamento(s) · ${fmtNumero(it.total_pacientes)} paciente(s) <span style="font-size:11px;">— abra o nº de controle para o consolidado</span></td>
           <td>—</td>
           <td><select class="req-at-status" ${disC}>${opc(['Solicitado', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select></td>
-          <td><input type="text" class="req-at-gsnet" value="${(it.requisicao_gsnet || '').replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;" ${disC}></td>
+          <td><input type="text" class="req-at-gsnet" value="${fmtGsnet(it.requisicao_gsnet).replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;" ${disC}></td>
           <td><select class="req-at-tel" ${disC}>${opc(['Não', 'Sim'], it.telegrama_enviado)}</select></td>
           <td><input type="date" class="req-at-data" value="${it.data_envio || ''}" ${disC}></td>
         </tr>`;
@@ -7708,7 +7716,7 @@ async function carregarTabelaRelReq() {
             <select class="req-at-status" ${dis}>${opc(['Solicitado', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select>
           </td>
           <td>
-            <input type="text" class="req-at-gsnet" value="${(it.requisicao_gsnet || '').replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;" ${dis}>
+            <input type="text" class="req-at-gsnet" value="${fmtGsnet(it.requisicao_gsnet).replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;" ${dis}>
           </td>
           <td>
             <select class="req-at-tel" ${dis}>${opc(['Não', 'Sim'], it.telegrama_enviado)}</select>
