@@ -341,9 +341,16 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
     text-overflow: ellipsis;
     transition: opacity 0.12s ease;
   }
-  /* Rótulos longos ganham reticências em vez de corte seco (barra expandida) */
+  /* Barra expandida: rótulos longos QUEBRAM em 2+ linhas em vez de cortar com
+     reticências (ex.: "Listagem de Autores Demais Unidades"). */
   .barra-lateral:hover .nav-rotulo,
-  .barra-lateral.fixo .nav-rotulo { max-width: 222px; }
+  .barra-lateral.fixo .nav-rotulo {
+    max-width: 210px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.2;
+  }
   /* No trilho recolhido, some a estrela de favorito e a setinha de recolher. */
   .barra-lateral:not(:hover):not(.fixo) .fav-estrela,
   .barra-lateral:not(:hover):not(.fixo) .nav-cev { display: none; }
@@ -361,8 +368,9 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 
   .barra-lateral .nav-lateral a { justify-content: center; padding: 11px; gap: 0; }
   .barra-lateral:hover .nav-lateral a,
-  .barra-lateral.fixo .nav-lateral a { justify-content: flex-start; padding: 9px 11px; gap: 11px; }
-  .barra-lateral .nav-lateral a svg { width: 19px; height: 19px; }
+  .barra-lateral.fixo .nav-lateral a { justify-content: flex-start; align-items: center; padding: 9px 11px; gap: 11px; }
+  /* O ícone não encolhe quando o rótulo quebra em duas linhas. */
+  .barra-lateral .nav-lateral a svg { width: 19px; height: 19px; flex: 0 0 auto; }
   .barra-lateral:hover .nav-lateral a svg,
   .barra-lateral.fixo .nav-lateral a svg { width: 17px; height: 17px; }
 
