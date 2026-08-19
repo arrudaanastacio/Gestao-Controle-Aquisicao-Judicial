@@ -10,6 +10,7 @@
 | 2 | Requisição — modo "Por Item" (ex-"Solicitação Coletiva"): consolidada + filtro de paciente | 699e0ab | 17/08/2026 | ✅ pronto em homolog |
 | 3 | Requisição — etiqueta de ATA por item (ATA / Avaliação técnica / Sem ATA) | 179eeaa | 18/08/2026 | ✅ pronto em homolog |
 | 4 | Atas — busca direta do SISCOA (login automático + download), sem depender do arquivo na rede: botão "Buscar do SISCOA agora" + rotina diária | f1de8e4 | 19/08/2026 | ✅ pronto em homolog |
+| 5 | Listagem de Autores (TP e Demais Unidades) — modal "Ver" passa a mostrar Demanda, Consumo, Estoque e Autonomia da respectiva unidade | b3b2a1b | 19/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
@@ -17,6 +18,23 @@ No modal 🛒 **Requisição de Compra** (lista de itens do paciente), cada item
 ganha a **etiqueta de Sub-categoria** (mesmo estilo `tag-programa sub` do
 Estoque). Backend: `/autores/paciente` passa a trazer `subcategoria` (subquery
 em `item_classificacao`). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
+
+### Detalhe do item 5 — Estoque da unidade no modal "Ver" dos Autores
+
+Na **Listagem de Autores** (Tenente Pena **e** Demais Unidades), o modal 👁 **Ver**
+de cada linha passa a mostrar, além de Prazo/Periodicidade/datas, um bloco
+**"Estoque — <unidade>"** com **Demanda, Consumo médio mensal, Estoque e
+Autonomia** daquele item **na unidade dispensadora daquela linha** (não só a TP).
+
+- Backend: novo endpoint `GET /autores/estoque-unidade?codigo_item=&unidade=`
+  que cruza `estoque_itens.unidade` com `autores_itens.unidade_dispensadora`
+  (mesmo texto, ex.: "UD 01 - Tenente Pena") e devolve a foto mais recente.
+  Carrega **sob demanda** (1 linha por clique) para não pesar a listagem.
+- Se a unidade não tiver estoque importado, mostra "Sem dados de estoque para
+  esta unidade" (comum em unidades pequenas que não vêm no relatório).
+- Frontend: `abrirDetalheDemanda` virou async e busca o bloco; `btDadosDemanda`
+  passou a levar `codigo_item` e `unidade`.
+**Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
 
 ### Detalhe do item 4 — Atas: busca direta do SISCOA
 

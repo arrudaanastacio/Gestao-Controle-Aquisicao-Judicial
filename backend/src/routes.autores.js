@@ -327,6 +327,34 @@ router.get('/pacientes', (req, res) => {
   res.json({ pacientes });
 });
 
+// ---------- Estoque da UNIDADE de uma linha da Listagem de Autores ----------
+// Para o modal "Ver": demanda, consumo, estoque e autonomia daquele item NA
+// UNIDADE DISPENSADORA daquela linha (não é só a Tenente Pena — na listagem
+// das demais unidades cada linha tem a sua). Casa estoque_itens.unidade com
+// autores_itens.unidade_dispensadora (mesmo texto, ex.: "UD 01 - Tenente Pena").
+router.get('/estoque-unidade', (req, res) => {
+  const { codigo_item, unidade } = req.query;
+  if (!codigo_item) return res.status(400).json({ erro: 'Informe o codigo_item.' });
+
+  // Se a unidade não veio, cai na Tenente Pena (comportamento da tela principal).
+  const temUnidade = unidade && String(unidade).trim() !== '';
+  const cond = temUnidade
+    ? 'e.codigo_item = ? AND e.unidade = ?'
+    : "e.codigo_item = ? AND (e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
+  const params = temUnidade ? [codigo_item, unidade] : [codigo_item];
+
+  const linha = db.prepare(`
+    SELECT e.demandas AS demanda, e.consumo_mensal_total AS consumo,
+           e.estoque, e.autonomia, e.unidade, e.data_referencia
+      FROM estoque_itens e
+     WHERE ${cond}
+     ORDER BY e.data_referencia DESC
+     LIMIT 1
+  `).get(...params);
+
+  res.json(linha || { demanda: null, consumo: null, estoque: null, autonomia: null, unidade: temUnidade ? unidade : null, data_referencia: null, semDados: true });
+});
+
 // ---------- Requisição de compra: itens de um paciente + situação de estoque ----------
 router.get('/paciente', (req, res) => {
   const { autor } = req.query;

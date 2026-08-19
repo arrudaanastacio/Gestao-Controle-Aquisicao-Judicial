@@ -4594,6 +4594,8 @@ function btDadosDemanda(a) {
   const d = {
     autor: a.autor || '',
     descricao_item: a.descricao_item || '',
+    codigo_item: a.codigo_item || '',
+    unidade: a.unidade_dispensadora || '',
     prazo: a.prazo || '',
     periodicidade: a.periodicidade || '',
     data_ultima_dispensacao: a.data_ultima_dispensacao || '',
@@ -4603,18 +4605,50 @@ function btDadosDemanda(a) {
   return JSON.stringify(d).replace(/&/g, '&amp;').replace(/'/g, '&#39;');
 }
 
-function abrirDetalheDemanda(d) {
+async function abrirDetalheDemanda(d) {
   document.getElementById('subDetalheDemanda').textContent =
     `${d.autor || '—'} — ${d.descricao_item || '—'}`;
   const linha = (rot, val) =>
     `<div style="display:flex; justify-content:space-between; gap:16px; padding:9px 0; border-bottom:1px solid var(--borda);">
        <span class="texto-secundario">${rot}</span><strong>${escHtml(val || '—')}</strong></div>`;
-  document.getElementById('corpoDetalheDemanda').innerHTML =
+  const corpo = document.getElementById('corpoDetalheDemanda');
+  const base =
     linha('Prazo', d.prazo) +
     linha('Periodicidade', d.periodicidade) +
     linha('Data Última Dispensação', d.data_ultima_dispensacao) +
     linha('Data Último Retorno', d.data_ultimo_retorno);
+  // Bloco de estoque da unidade (carrega enquanto o modal já aparece).
+  const rotuloUnidade = d.unidade ? escHtml(d.unidade) : 'unidade';
+  corpo.innerHTML = base +
+    `<div id="blocoEstoqueUnidade" style="margin-top:12px;">
+       <div class="texto-secundario" style="font-weight:600; margin-bottom:2px;">Estoque — ${rotuloUnidade}</div>
+       <div id="corpoEstoqueUnidade"><div style="padding:9px 0;" class="texto-secundario">Carregando…</div></div>
+     </div>`;
   document.getElementById('modalDetalheDemanda').hidden = false;
+
+  try {
+    const params = new URLSearchParams({ codigo_item: d.codigo_item || '' });
+    if (d.unidade) params.set('unidade', d.unidade);
+    const e = await api(`/autores/estoque-unidade?${params.toString()}`);
+    const num = (v) => (v === null || v === undefined || v === '' ? '—' : fmtNumero(v));
+    const meses = (v) => (v === null || v === undefined || v === '' ? '—' : `${fmtNumero(v)} m`);
+    let html =
+      linha('Demanda', num(e.demanda)) +
+      linha('Consumo médio mensal', num(e.consumo)) +
+      linha('Estoque', num(e.estoque)) +
+      linha('Autonomia', meses(e.autonomia));
+    if (e.semDados) {
+      html = `<div style="padding:9px 0;" class="texto-secundario">Sem dados de estoque para esta unidade.</div>` + html;
+    } else if (e.data_referencia) {
+      html += `<div class="texto-secundario" style="font-size:12px; margin-top:6px;">Foto de ${formatarData(e.data_referencia)}</div>`;
+    }
+    // O modal pode ter sido fechado/reaberto enquanto carregava — só escreve se ainda existe.
+    const alvo = document.getElementById('corpoEstoqueUnidade');
+    if (alvo) alvo.innerHTML = html;
+  } catch (err) {
+    const alvo = document.getElementById('corpoEstoqueUnidade');
+    if (alvo) alvo.innerHTML = `<div style="padding:9px 0; color:var(--vermelho);">Não consegui carregar o estoque da unidade.</div>`;
+  }
 }
 
 document.addEventListener('click', (ev) => {
