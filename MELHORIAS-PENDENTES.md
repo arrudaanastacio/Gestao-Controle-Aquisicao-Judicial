@@ -9,9 +9,9 @@
 | 1 | Etiqueta de subcategoria no modal da Requisição de Compra | eb392ff | 17/08/2026 | ✅ pronto em homolog |
 | 2 | Requisição — modo "Por Item" (ex-"Solicitação Coletiva"): consolidada + filtro de paciente | 699e0ab | 17/08/2026 | ✅ pronto em homolog |
 | 3 | Requisição — etiqueta de ATA por item (ATA / Avaliação técnica / Sem ATA) | 179eeaa | 18/08/2026 | ✅ pronto em homolog |
-| 4 | Atas — busca direta do SISCOA (login automático + download), sem depender do arquivo na rede: botão "Buscar do SISCOA agora" + rotina diária | f1de8e4 | 19/08/2026 | ✅ pronto em homolog |
+| 4 | Atas — busca direta do SISCOA (login automático + download), sem depender do arquivo na rede: botão "Buscar do SISCOA agora" + rotina diária | f1de8e4 | 19/08/2026 | 🚀 PUBLICADO (prod d039aed) |
 | 5 | Listagem de Autores (TP e Demais Unidades) — modal "Ver" passa a mostrar Demanda, Consumo, Estoque e Autonomia da respectiva unidade | b3b2a1b | 19/08/2026 | ✅ pronto em homolog |
-| 6 | Menu lateral — botão 📌 para fixar/desafixar (mantém o menu aberto e desloca o conteúdo); preferência lembrada no navegador | cb7eb5c | 19/08/2026 | ✅ pronto em homolog |
+| 6 | Menu lateral — botão 📌 para fixar/desafixar (mantém o menu aberto e desloca o conteúdo); preferência lembrada no navegador | cb7eb5c | 19/08/2026 | 🚀 PUBLICADO (prod d039aed) |
 | 7 | Modal "Ver" dos Autores (TP e Demais Unidades) — etiquetas de subcategoria e Dose Certa (e demais de programa) no topo | 6447da7 | 19/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
