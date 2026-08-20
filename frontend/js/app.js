@@ -5792,6 +5792,12 @@ async function carregarComparativo() {
     (dados.subcategorias || []).map((s) => `<option value="${s.replace(/"/g, '&quot;')}">${s}</option>`).join('');
   selSub.value = [...selSub.options].some((o) => o.value === subAtual) ? subAtual : '';
 
+  const selTipo = document.getElementById('filtroTipoDemandaComparativo');
+  const tipoAtual = selTipo.value;
+  selTipo.innerHTML = '<option value="">Tipo de demanda: todos</option>' +
+    (dados.tiposDemanda || []).map((t) => `<option value="${t.replace(/"/g, '&quot;')}">${t}</option>`).join('');
+  selTipo.value = [...selTipo.options].some((o) => o.value === tipoAtual) ? tipoAtual : '';
+
   renderAbaComparativo('novos');
 }
 
@@ -5807,9 +5813,10 @@ function renderAbaComparativo(aba) {
   document.getElementById('filtrosAlteracoes').hidden = !ehAlteracoes;
   document.getElementById('kpiAlteracoes').hidden = !ehAlteracoes;
 
-  // Filtro de subcategoria (vale para as 3 abas).
+  // Filtros de subcategoria e tipo de demanda (valem para as 3 abas).
   const fSub = document.getElementById('filtroSubcategoriaComparativo').value;
-  const passaSub = (e) => !fSub || e.subcategoria === fSub;
+  const fTipoDem = document.getElementById('filtroTipoDemandaComparativo').value;
+  const passaSub = (e) => (!fSub || e.subcategoria === fSub) && (!fTipoDem || e.tipo_demanda === fTipoDem);
 
   let cols = [];
   let linhas = [];
@@ -5881,9 +5888,11 @@ function renderAbaComparativo(aba) {
 ['filtroTipoAlteracao', 'filtroCategoriaAlteracao'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => renderAbaComparativo('alteracoes'));
 });
-// Filtro de subcategoria vale para as 3 abas: re-renderiza a aba ativa.
-document.getElementById('filtroSubcategoriaComparativo').addEventListener('change', () => {
-  renderAbaComparativo(abaComparativoAtiva || 'novos');
+// Filtros de subcategoria e tipo de demanda valem para as 3 abas: re-renderizam a aba ativa.
+['filtroSubcategoriaComparativo', 'filtroTipoDemandaComparativo'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => {
+    renderAbaComparativo(abaComparativoAtiva || 'novos');
+  });
 });
 
 // Monta {cols, linhas} em TEXTO PURO da aba (para exportar)

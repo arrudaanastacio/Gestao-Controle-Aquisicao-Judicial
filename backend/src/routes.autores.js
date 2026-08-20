@@ -900,7 +900,7 @@ function calcularComparacao() {
   for (const [autor, g] of mapAnt) {
     if (!mapAtual.has(autor)) {
       const ultimo = g.linhas[g.linhas.length - 1] || {};
-      encerrados.push({ autor, processo: g.processo, ultimo_item: ultimo.descricao_item || '—', codigo_item: ultimo.codigo_item || null, subcategoria: subcat(ultimo.codigo_item) });
+      encerrados.push({ autor, processo: g.processo, ultimo_item: ultimo.descricao_item || '—', codigo_item: ultimo.codigo_item || null, subcategoria: subcat(ultimo.codigo_item), tipo_demanda: ultimo.tipo_demanda || null });
     }
   }
 
@@ -911,11 +911,11 @@ function calcularComparacao() {
     if (!gP) continue;
     // itens novos
     for (const [cod, it] of gA.itens) {
-      if (!gP.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', subcategoria: subcat(cod), qtde_consumo: it.qtde_consumo || '—', alteracao: 'Novo medicamento', detalhe: it.descricao_item || cod });
+      if (!gP.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', subcategoria: subcat(cod), tipo_demanda: it.tipo_demanda || null, qtde_consumo: it.qtde_consumo || '—', alteracao: 'Novo medicamento', detalhe: it.descricao_item || cod });
     }
     // itens removidos
     for (const [cod, it] of gP.itens) {
-      if (!gA.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', subcategoria: subcat(cod), qtde_consumo: it.qtde_consumo || '—', alteracao: 'Item removido', detalhe: it.descricao_item || cod });
+      if (!gA.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', subcategoria: subcat(cod), tipo_demanda: it.tipo_demanda || null, qtde_consumo: it.qtde_consumo || '—', alteracao: 'Item removido', detalhe: it.descricao_item || cod });
     }
     // status alterado (mesmo item, status diferente)
     for (const [cod, itA] of gA.itens) {
@@ -927,7 +927,7 @@ function calcularComparacao() {
         const partes = [];
         if (mudouDemanda) partes.push(`demanda: "${itP.status_demanda || '—'}" → "${itA.status_demanda || '—'}"`);
         if (mudouItem) partes.push(`item: "${itP.status_item || '—'}" → "${itA.status_item || '—'}"`);
-        alteracoes.push({ autor, protocolo: itA.protocolo || '—', codigo_item: cod, categoria: itA.categoria || '—', subcategoria: subcat(cod), qtde_consumo: itA.qtde_consumo || '—', alteracao: 'Status alterado', detalhe: `${it_desc(itA)} — ${partes.join('; ')}` });
+        alteracoes.push({ autor, protocolo: itA.protocolo || '—', codigo_item: cod, categoria: itA.categoria || '—', subcategoria: subcat(cod), tipo_demanda: itA.tipo_demanda || null, qtde_consumo: itA.qtde_consumo || '—', alteracao: 'Status alterado', detalhe: `${it_desc(itA)} — ${partes.join('; ')}` });
       }
     }
   }
@@ -937,12 +937,17 @@ function calcularComparacao() {
   encerrados.sort((a, b) => a.autor.localeCompare(b.autor));
   alteracoes.sort((a, b) => a.autor.localeCompare(b.autor));
 
-  // Subcategorias presentes nas 3 listas, para popular o filtro.
+  // Subcategorias e tipos de demanda presentes nas 3 listas, para os filtros.
   const subSet = new Set();
+  const tipoSet = new Set();
   for (const arr of [novos, encerrados, alteracoes]) {
-    for (const e of arr) if (e.subcategoria) subSet.add(e.subcategoria);
+    for (const e of arr) {
+      if (e.subcategoria) subSet.add(e.subcategoria);
+      if (e.tipo_demanda && e.tipo_demanda !== '—') tipoSet.add(e.tipo_demanda);
+    }
   }
   const subcategorias = [...subSet].sort((a, b) => a.localeCompare(b));
+  const tiposDemanda = [...tipoSet].sort((a, b) => a.localeCompare(b));
 
   return {
     temAnterior: true,
@@ -955,6 +960,7 @@ function calcularComparacao() {
     encerrados,
     alteracoes,
     subcategorias,
+    tiposDemanda,
   };
 }
 
