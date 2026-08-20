@@ -16,6 +16,28 @@
 | 8 | Requisição GSNET — remover casa decimal (ex.: "6119.0" → "6119") na exibição e na importação (TP) | e95bddd | 19/08/2026 | 🚀 PUBLICADO (prod 0c24cf2) |
 | 9 | Modal de Permissões — aproveita a largura da tela, tabela 100%, rolagem vertical com cabeçalho fixo | c444a68 | 20/08/2026 | 🚀 PUBLICADO (prod 39c2f76) |
 | 10 | Comparativo de Autores — filtros de subcategoria e tipo de demanda (valem para as 3 abas: Novos, Inativos, Alterações) | 4866755 | 20/08/2026 | ✅ pronto em homolog |
+| 11 | Relatório de Primeiro Atendimento — caixas por categoria (Materiais/Medicamentos/Nutrição) com permissão por usuário | 455ddf5 | 20/08/2026 | ✅ pronto em homolog |
+
+### Detalhe do item 11 — Caixas do Relatório de Primeiro Atendimento
+
+O Relatório de Primeiro Atendimento passa a ter **abas por caixa**: **Materiais,
+Medicamentos, Nutrição** (+ **Todas**, e **Sem caixa** só para o admin). Cada
+solicitação cai na sua caixa **na criação**; o admin vê tudo e cada colaborador
+vê só a(s) caixa(s) que o admin liberou.
+
+- **Regra da caixa (por item):** subcategoria **Manipulado** → Medicamentos;
+  senão pela **categoria do Relatório de Itens** (Materiais/Medicamentos/Nutrição);
+  o resto (Procedimentos/Outros Itens) fica **sem caixa** (só admin, aba "Todas").
+  A solicitação inteira vai para a caixa **predominante** dos seus itens.
+- **Backend:** `caixaAtendimento.js` (regra + cache); coluna `requisicoes.caixa`
+  (gravada na criação + backfill único ao subir); coluna `usuarios.caixas_req`
+  (JSON das caixas liberadas; null = todas). `/requisicoes/itens` filtra por
+  permissão + aba e devolve as contagens por caixa.
+- **Permissões:** no modal de Permissões, seção nova com as 3 caixas por usuário
+  (admin sempre vê todas). `/usuarios/:id/permissoes` GET/PUT tratam `caixasReq`.
+- **Frontend:** barra de abas no relatório (reaproveita `.chip-faixa`).
+
+**Pós-publicação:** reiniciar produção (backend + migração + backfill) + Ctrl+F5.
 
 ### Detalhe do item 1
 

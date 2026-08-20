@@ -7608,7 +7608,7 @@ document.getElementById('ctModalAprovar').addEventListener('click', () => avalia
 document.getElementById('ctModalReprovar').addEventListener('click', () => avaliarCarta('Reprovada'));
 
 // -------------------- Relatório Primeiro Atendimento (requisições salvas) --------------------
-const estadoRelReq = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+const estadoRelReq = { pagina: 1, pageSize: 50, filtrosCarregados: false, caixa: 'todas' };
 
 let debounceRelReq;
 ['reqFiltroPaciente', 'reqFiltroSEI', 'reqFiltroCodigo', 'reqFiltroDescricao'].forEach((id) => {
@@ -7627,6 +7627,33 @@ document.getElementById('reqAnterior').addEventListener('click', () => {
   if (estadoRelReq.pagina > 1) { estadoRelReq.pagina--; carregarTabelaRelReq(); }
 });
 document.getElementById('reqProximo').addEventListener('click', () => { estadoRelReq.pagina++; carregarTabelaRelReq(); });
+
+// Abas por CAIXA (Materiais/Medicamentos/Nutrição). Admin vê "Todas" + as 3
+// (+ "Sem caixa" quando houver); colaborador vê "Todas" (= suas caixas) + as
+// caixas que tem direito.
+function renderAbasCaixaReq(caixas) {
+  const barra = document.getElementById('abasCaixaReq');
+  if (!barra) return;
+  if (!caixas) { barra.hidden = true; barra.innerHTML = ''; return; }
+  const { ehAdmin, visiveis = [], contagens = {}, totalPermitido = 0 } = caixas;
+  const abas = [{ chave: 'todas', rot: 'Todas', n: totalPermitido }];
+  for (const c of visiveis) abas.push({ chave: c, rot: c, n: contagens[c] || 0 });
+  if (ehAdmin && (contagens.sem || 0) > 0) abas.push({ chave: 'sem', rot: 'Sem caixa', n: contagens.sem });
+
+  // Se a aba ativa não existe mais (ex.: mudou de usuário), volta para "Todas".
+  if (!abas.some((a) => a.chave === estadoRelReq.caixa)) estadoRelReq.caixa = 'todas';
+
+  barra.hidden = false;
+  barra.innerHTML = abas.map((a) =>
+    `<button type="button" class="chip-faixa ${estadoRelReq.caixa === a.chave ? 'ativo' : ''}" data-caixa="${a.chave}">${escHtml(a.rot)} (${fmtNumero(a.n)})</button>`).join('');
+}
+document.getElementById('abasCaixaReq').addEventListener('click', (ev) => {
+  const b = ev.target.closest('.chip-faixa');
+  if (!b) return;
+  estadoRelReq.caixa = b.dataset.caixa;
+  estadoRelReq.pagina = 1;
+  carregarTabelaRelReq();
+});
 
 async function carregarRelatorioReq() {
   if (!estadoRelReq.filtrosCarregados) {
@@ -7650,8 +7677,10 @@ async function carregarTabelaRelReq() {
   set('descricao', 'reqFiltroDescricao');
   const cat = document.getElementById('reqFiltroCategoria').value;
   if (cat) params.set('categoria', cat);
+  if (estadoRelReq.caixa && estadoRelReq.caixa !== 'todas') params.set('caixa', estadoRelReq.caixa);
 
   const dados = await api(`/autores/requisicoes/itens?${params.toString()}`);
+  renderAbasCaixaReq(dados.caixas);
   const corpo = document.getElementById('corpoTabelaRelatorioReq');
   const vazio = document.getElementById('estadoVazioRelatorioReq');
 
@@ -8301,14 +8330,15 @@ async function abrirModalPermissoes(usuarioId, nome) {
   corpo.innerHTML = '<tr><td colspan="7">Carregando…</td></tr>';
   modalPermissoes.hidden = false;
 
-  let modulos, acoes, acoesRotulo, permissoes, habilitado;
+  let modulos, acoes, acoesRotulo, permissoes, habilitado, caixasReq, todasCaixas, perfilUsuario;
   try {
     const [reg, perm] = await Promise.all([
       api('/usuarios/modulos'),
       api(`/usuarios/${usuarioId}/permissoes`),
     ]);
     ({ modulos, acoes, acoesRotulo } = reg);
-    ({ permissoes, habilitado } = perm);
+    ({ permissoes, habilitado, caixasReq, todasCaixas } = perm);
+    perfilUsuario = perm.usuario && perm.usuario.perfil;
   } catch (e) {
     corpo.innerHTML = `<tr><td colspan="8" style="color:#c0392b;">Não consegui carregar a grade.<br>${e.message}<br><br>Provável causa: o servidor precisa ser <b>reiniciado</b> (feche e abra o "3 - iniciar-sistema.bat").</td></tr>`;
     return;
@@ -8334,6 +8364,19 @@ async function abrirModalPermissoes(usuarioId, nome) {
       ${celulas}
     </tr>`;
   }).join('');
+
+  // Caixas do Relatório de Primeiro Atendimento (só para não-admin; admin vê tudo).
+  const caixaBox = document.getElementById('caixasReqPermissoes');
+  const caixaLista = document.getElementById('caixasReqLista');
+  if (perfilUsuario === 'admin') {
+    caixaBox.hidden = true;
+    caixaLista.innerHTML = '';
+  } else {
+    caixaBox.hidden = false;
+    const marcadas = new Set(caixasReq || []);
+    caixaLista.innerHTML = (todasCaixas || []).map((c) =>
+      `<label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" class="chk-caixa-req" value="${escAttr(c)}" ${marcadas.has(c) ? 'checked' : ''}> ${escHtml(c)}</label>`).join('');
+  }
 
   // Quando o interruptor mestre muda, liga/desliga as caixinhas de ação da linha.
   corpo.querySelectorAll('.chk-habilitado').forEach((chk) => {
@@ -8365,10 +8408,11 @@ document.getElementById('botaoSalvarPermissoes').addEventListener('click', async
   modalPermissoes.querySelectorAll('input[data-hab]').forEach((c) => {
     habilitado[c.dataset.hab] = c.checked;
   });
+  const caixasReq = [...modalPermissoes.querySelectorAll('.chk-caixa-req:checked')].map((c) => c.value);
   try {
     await api(`/usuarios/${idUsuarioPermissoes}/permissoes`, {
       method: 'PUT',
-      body: JSON.stringify({ permissoes, habilitado }),
+      body: JSON.stringify({ permissoes, habilitado, caixasReq }),
     });
     modalPermissoes.hidden = true;
     alert('Permissões salvas! O usuário verá a mudança no próximo login (ou ao recarregar a página dele).');

@@ -4,9 +4,48 @@ const multer = require('multer');
 const db = require('./db');
 const { autenticar, exigirPerfil } = require('./auth');
 const { criarCalculadoraAta } = require('./ataSituacao');
+const { CAIXAS, criarCalculadoraCaixa, caixaPredominante } = require('./caixaAtendimento');
 
 const router = express.Router();
 router.use(autenticar);
+
+// Caixa (Materiais/Medicamentos/Nutrição) que o usuário pode ver no Relatório
+// de Primeiro Atendimento. Admin => todas. Não-admin: coluna usuarios.caixas_req
+// (JSON). NULL/ausente => todas (mantém quem já usava). '' guardado numa
+// requisição = "sem caixa" (só admin, na aba Todas).
+function caixasDoUsuario(usuario) {
+  if (!usuario || usuario.perfil === 'admin') return null; // null = todas + sem-caixa
+  try {
+    const raw = db.prepare('SELECT caixas_req FROM usuarios WHERE id = ?').get(usuario.id)?.caixas_req;
+    if (raw == null || raw === '') return CAIXAS.slice(); // não definido => todas as 3
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((c) => CAIXAS.includes(c)) : CAIXAS.slice();
+  } catch {
+    return CAIXAS.slice();
+  }
+}
+
+// Backfill único: preenche requisicoes.caixa onde ainda está NULL (guarda '' se
+// não cair em nenhuma das 3, para não recalcular a cada reinício).
+(function backfillCaixaRequisicoes() {
+  try {
+    const pend = db.prepare('SELECT id FROM requisicoes WHERE caixa IS NULL').all();
+    if (!pend.length) return;
+    const calc = criarCalculadoraCaixa();
+    const qItens = db.prepare('SELECT codigo_item FROM requisicao_itens WHERE requisicao_id = ?');
+    const upd = db.prepare('UPDATE requisicoes SET caixa = ? WHERE id = ?');
+    db.exec('BEGIN');
+    for (const r of pend) {
+      const cods = qItens.all(r.id).map((x) => x.codigo_item);
+      upd.run(caixaPredominante(cods, calc) || '', r.id);
+    }
+    db.exec('COMMIT');
+    console.log(`[CAIXA] Backfill de caixa em ${pend.length} requisicao(oes).`);
+  } catch (e) {
+    try { db.exec('ROLLBACK'); } catch (_) { /* ignore */ }
+    console.error('[CAIXA] Falha no backfill de caixa:', e.message);
+  }
+})();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024 } });
 
@@ -502,16 +541,18 @@ router.post('/requisicoes/coletiva', (req, res) => {
   const itensConsolidados = [...mapaItem.values()];
   const pacientesInfo = lista.map((p) => ({ autor: p.autor, protocolo: p.protocolo, processo: p.processo, tipo_demanda: p.tipo_demanda }));
 
+  const caixaReq = caixaPredominante(itensConsolidados.map((i) => i.codigo_item), criarCalculadoraCaixa()) || '';
+
   db.exec('BEGIN');
   let id, codigoControle;
   try {
     const primeiro = lista[0];
     const info = db.prepare(`
       INSERT INTO requisicoes (autor, unidade, sei, operador_nome, operador_email, total_itens,
-                               coletiva, total_pacientes, pacientes_json, status_atendimento, telegrama_enviado)
-      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, 'Solicitado', 'Não')`).run(
+                               coletiva, total_pacientes, pacientes_json, status_atendimento, telegrama_enviado, caixa)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, 'Solicitado', 'Não', ?)`).run(
       primeiro.autor, primeiro.unidade_dispensadora || null, sei || null, req.usuario.nome, req.usuario.email,
-      itensConsolidados.length, lista.length, JSON.stringify(pacientesInfo));
+      itensConsolidados.length, lista.length, JSON.stringify(pacientesInfo), caixaReq);
     id = info.lastInsertRowid;
     codigoControle = `REQ-${new Date().getFullYear()}-${String(id).padStart(5, '0')}`;
     db.prepare('UPDATE requisicoes SET codigo_controle = ? WHERE id = ?').run(codigoControle, id);
@@ -546,11 +587,12 @@ router.post('/requisicoes', (req, res) => {
     return res.status(400).json({ erro: 'Informe o paciente e ao menos um item.' });
   }
 
+  const caixaReq = caixaPredominante(itens.map((i) => i.codigo_item), criarCalculadoraCaixa()) || '';
   const info = db.prepare(`
-    INSERT INTO requisicoes (autor, idade, unidade, procurador, sei, operador_nome, operador_email, total_itens, protocolo, processo, tipo_demanda)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO requisicoes (autor, idade, unidade, procurador, sei, operador_nome, operador_email, total_itens, protocolo, processo, tipo_demanda, caixa)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(autor, idade || null, unidade || null, procurador || null, sei || null,
-    req.usuario.nome, req.usuario.email, itens.length, protocolo || null, processo || null, tipo_demanda || null);
+    req.usuario.nome, req.usuario.email, itens.length, protocolo || null, processo || null, tipo_demanda || null, caixaReq);
 
   const id = info.lastInsertRowid;
   const ano = new Date().getFullYear();
@@ -578,23 +620,55 @@ router.post('/requisicoes', (req, res) => {
 
 // ---------- Requisições: listar com filtros (Relatório Primeiro Atendimento) ----------
 router.get('/requisicoes', (req, res) => {
-  const { paciente, sei, codigo_item, descricao, categoria, page = 1, pageSize = 50 } = req.query;
+  const { paciente, sei, codigo_item, descricao, categoria, caixa, page = 1, pageSize = 50 } = req.query;
   const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
   const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
 
-  const cond = [];
-  const params = [];
-  if (paciente) { cond.push('r.autor LIKE ?'); params.push(`%${paciente}%`); }
-  if (sei) { cond.push('r.sei LIKE ?'); params.push(`%${sei}%`); }
-  // filtros por item: a requisição precisa conter um item que casa
+  // Filtros "base" (não incluem a aba de caixa) — usados também nas contagens.
+  const condBase = [];
+  const paramsBase = [];
+  if (paciente) { condBase.push('r.autor LIKE ?'); paramsBase.push(`%${paciente}%`); }
+  if (sei) { condBase.push('r.sei LIKE ?'); paramsBase.push(`%${sei}%`); }
   const itemCond = [];
   const itemParams = [];
   if (codigo_item) { itemCond.push('ri.codigo_item LIKE ?'); itemParams.push(`%${codigo_item}%`); }
   if (descricao) { itemCond.push('ri.descricao_item LIKE ?'); itemParams.push(`%${descricao}%`); }
   if (categoria) { itemCond.push('ri.categoria = ?'); itemParams.push(categoria); }
   if (itemCond.length) {
-    cond.push(`EXISTS (SELECT 1 FROM requisicao_itens ri WHERE ri.requisicao_id = r.id AND ${itemCond.join(' AND ')})`);
-    params.push(...itemParams);
+    condBase.push(`EXISTS (SELECT 1 FROM requisicao_itens ri WHERE ri.requisicao_id = r.id AND ${itemCond.join(' AND ')})`);
+    paramsBase.push(...itemParams);
+  }
+
+  // Permissão de caixa
+  const permitidas = caixasDoUsuario(req.usuario); // null = admin (todas + sem-caixa)
+  const ehAdmin = permitidas === null;
+
+  // Contagens por caixa (rótulos das abas), aplicando só os filtros base.
+  const whereBase = condBase.length ? `WHERE ${condBase.join(' AND ')}` : '';
+  const linhasCont = db.prepare(`SELECT COALESCE(NULLIF(r.caixa, ''), '(sem)') AS cx, COUNT(*) c FROM requisicoes r ${whereBase} GROUP BY cx`).all(...paramsBase);
+  const contagens = {};
+  let totalPermitido = 0;
+  for (const l of linhasCont) {
+    const cx = l.cx === '(sem)' ? 'sem' : l.cx;
+    contagens[cx] = l.c;
+    if (ehAdmin || permitidas.includes(cx)) totalPermitido += l.c;
+  }
+  const caixasVisiveis = ehAdmin ? CAIXAS : permitidas;
+
+  // Filtro da listagem: base + restrição de caixa (permissão + aba ativa).
+  const cond = [...condBase];
+  const params = [...paramsBase];
+  if (!ehAdmin) {
+    if (caixa && caixa !== 'todas' && permitidas.includes(caixa)) {
+      cond.push('r.caixa = ?'); params.push(caixa);
+    } else if (permitidas.length) {
+      cond.push(`r.caixa IN (${permitidas.map(() => '?').join(',')})`); params.push(...permitidas);
+    } else {
+      cond.push('1 = 0');
+    }
+  } else if (caixa && caixa !== 'todas') {
+    if (caixa === 'sem') cond.push("(r.caixa IS NULL OR r.caixa = '')");
+    else { cond.push('r.caixa = ?'); params.push(caixa); }
   }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
 
@@ -603,15 +677,32 @@ router.get('/requisicoes', (req, res) => {
     SELECT r.* FROM requisicoes r ${where} ORDER BY r.id DESC LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
 
-  res.json({ total, requisicoes, page: Number(page), pageSize: limit });
+  res.json({
+    total, requisicoes, page: Number(page), pageSize: limit,
+    caixas: { ehAdmin, visiveis: caixasVisiveis, contagens, totalPermitido },
+  });
 });
 
 // ---------- Requisições: itens (visão por item + situação de estoque) ----------
 router.get('/requisicoes/itens', (req, res) => {
-  const { paciente, sei, codigo_item, descricao, categoria, page = 1, pageSize = 50 } = req.query;
+  const { paciente, sei, codigo_item, descricao, categoria, caixa, page = 1, pageSize = 50 } = req.query;
   const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
   const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
   const escTP = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
+
+  // Permissão de caixa (Materiais/Medicamentos/Nutrição). Admin => todas.
+  const permitidas = caixasDoUsuario(req.usuario);
+  const ehAdmin = permitidas === null;
+  const aplicaCaixa = (cond, params) => {
+    if (!ehAdmin) {
+      if (caixa && caixa !== 'todas' && permitidas.includes(caixa)) { cond.push('r.caixa = ?'); params.push(caixa); }
+      else if (permitidas.length) { cond.push(`r.caixa IN (${permitidas.map(() => '?').join(',')})`); params.push(...permitidas); }
+      else cond.push('1 = 0');
+    } else if (caixa && caixa !== 'todas') {
+      if (caixa === 'sem') cond.push("(r.caixa IS NULL OR r.caixa = '')");
+      else { cond.push('r.caixa = ?'); params.push(caixa); }
+    }
+  };
 
   // --- Requisições INDIVIDUAIS: uma linha por item (coletiva = 0) ---
   const condI = ['r.coletiva = 0'];
@@ -621,6 +712,32 @@ router.get('/requisicoes/itens', (req, res) => {
   if (codigo_item) { condI.push('ri.codigo_item LIKE ?'); paramsI.push(`%${codigo_item}%`); }
   if (descricao) { condI.push('ri.descricao_item LIKE ?'); paramsI.push(`%${descricao}%`); }
   if (categoria) { condI.push('ri.categoria = ?'); paramsI.push(categoria); }
+
+  // --- Requisições COLETIVAS (base, sem filtro de caixa ainda) ---
+  const condC = ['r.coletiva = 1'];
+  const paramsC = [];
+  if (paciente) { condC.push('(r.autor LIKE ? OR r.pacientes_json LIKE ?)'); paramsC.push(`%${paciente}%`, `%${paciente}%`); }
+  if (sei) { condC.push('r.sei LIKE ?'); paramsC.push(`%${sei}%`); }
+  const existsC = (campo, op, val) => { condC.push(`EXISTS (SELECT 1 FROM requisicao_itens ri WHERE ri.requisicao_id = r.id AND ri.${campo} ${op} ?)`); paramsC.push(val); };
+  if (codigo_item) existsC('codigo_item', 'LIKE', `%${codigo_item}%`);
+  if (descricao) existsC('descricao_item', 'LIKE', `%${descricao}%`);
+  if (categoria) existsC('categoria', '=', categoria);
+
+  // Contagens por caixa (rótulos das abas), com os filtros base mas SEM a aba.
+  const contagens = {};
+  const somaCont = (rows) => { for (const l of rows) { const cx = (l.caixa == null || l.caixa === '') ? 'sem' : l.caixa; contagens[cx] = (contagens[cx] || 0) + l.c; } };
+  somaCont(db.prepare(`SELECT r.caixa, COUNT(*) c FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id WHERE ${condI.join(' AND ')} GROUP BY r.caixa`).all(...paramsI));
+  somaCont(db.prepare(`SELECT r.caixa, COUNT(*) c FROM requisicoes r WHERE ${condC.join(' AND ')} GROUP BY r.caixa`).all(...paramsC));
+  const caixasVisiveis = ehAdmin ? CAIXAS : permitidas;
+  let totalPermitido = 0;
+  for (const [cx, n] of Object.entries(contagens)) {
+    if (ehAdmin || (cx !== 'sem' && permitidas.includes(cx))) totalPermitido += n;
+  }
+
+  // Aplica a restrição de caixa (permissão + aba) às duas consultas.
+  aplicaCaixa(condI, paramsI);
+  aplicaCaixa(condC, paramsC);
+
   const individuais = db.prepare(`
     SELECT 'item' AS tipo, ri.id, ri.requisicao_id, r.codigo_controle, r.autor, r.sei, r.protocolo,
            ri.codigo_item, ri.descricao_item, ri.categoria,
@@ -634,14 +751,6 @@ router.get('/requisicoes/itens', (req, res) => {
   `).all(...paramsI);
 
   // --- Requisições COLETIVAS: uma linha por requisição (coletiva = 1) ---
-  const condC = ['r.coletiva = 1'];
-  const paramsC = [];
-  if (paciente) { condC.push('(r.autor LIKE ? OR r.pacientes_json LIKE ?)'); paramsC.push(`%${paciente}%`, `%${paciente}%`); }
-  if (sei) { condC.push('r.sei LIKE ?'); paramsC.push(`%${sei}%`); }
-  const exists = (campo, op, val) => { condC.push(`EXISTS (SELECT 1 FROM requisicao_itens ri WHERE ri.requisicao_id = r.id AND ri.${campo} ${op} ?)`); paramsC.push(val); };
-  if (codigo_item) exists('codigo_item', 'LIKE', `%${codigo_item}%`);
-  if (descricao) exists('descricao_item', 'LIKE', `%${descricao}%`);
-  if (categoria) exists('categoria', '=', categoria);
   const coletivas = db.prepare(`
     SELECT 'coletiva' AS tipo, NULL AS id, r.id AS requisicao_id, r.codigo_controle, r.autor, r.sei,
            r.total_pacientes, r.total_itens,
@@ -665,7 +774,10 @@ router.get('/requisicoes/itens', (req, res) => {
     if (r.telegrama_enviado === 'Sim') resumo.enviados++;
   }
 
-  res.json({ total, itens, page: Number(page), pageSize: limit, resumo });
+  res.json({
+    total, itens, page: Number(page), pageSize: limit, resumo,
+    caixas: { ehAdmin, visiveis: caixasVisiveis, contagens, totalPermitido },
+  });
 });
 
 // ---------- Requisições: atualizar o atendimento de um item ----------

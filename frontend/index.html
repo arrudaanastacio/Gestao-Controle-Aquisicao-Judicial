@@ -1837,6 +1837,8 @@
           <button id="reqLimparFiltros" class="botao-secundario" type="button">Limpar</button>
         </div>
 
+        <div class="filtros-faixa" id="abasCaixaReq" style="margin:4px 0 14px;" hidden></div>
+
         <div class="tabela-wrap">
           <div class="tabela-rolavel-x">
             <table>
@@ -2667,6 +2669,11 @@
           <thead><tr id="cabecalhoPermissoes"></tr></thead>
           <tbody id="corpoPermissoes"></tbody>
         </table>
+      </div>
+      <div id="caixasReqPermissoes" style="margin-top:16px;" hidden>
+        <div style="font-weight:600; margin-bottom:6px;">Relatório de Primeiro Atendimento — caixas que este usuário vê</div>
+        <p class="descricao-item" style="margin:0 0 8px;">Marque as caixas (por categoria do item) que aparecem para ele. Nenhuma marcada = não vê nenhuma. O administrador vê todas.</p>
+        <div id="caixasReqLista" style="display:flex; gap:18px; flex-wrap:wrap;"></div>
       </div>
       <div class="acoes-modal">
         <button type="button" class="botao-secundario" id="botaoCancelarPermissoes">Cancelar</button>

@@ -6,6 +6,7 @@ const db = require('./db');
 const { autenticar, exigirPerfil } = require('./auth');
 const { enviarConviteAcesso } = require('./emailAlerta');
 const { MODULOS, ACOES, ACOES_ROTULO, MODULO_CHAVES } = require('./permissoes');
+const { CAIXAS } = require('./caixaAtendimento');
 
 const router = express.Router();
 
@@ -194,8 +195,23 @@ router.get('/modulos', (req, res) => {
 
 // ---------- Lê a grade de permissões de um usuário ----------
 router.get('/:id/permissoes', (req, res) => {
-  const usuario = db.prepare('SELECT id, nome, email, perfil FROM usuarios WHERE id = ?').get(req.params.id);
+  const usuario = db.prepare('SELECT id, nome, email, perfil, caixas_req FROM usuarios WHERE id = ?').get(req.params.id);
   if (!usuario) return res.status(404).json({ erro: 'Usuário não encontrado.' });
+
+  // Caixas do Relatório de Primeiro Atendimento que o usuário pode ver.
+  // Admin => todas. Não-admin: caixas_req (null/'' => todas por padrão).
+  let caixasReq;
+  if (usuario.perfil === 'admin') {
+    caixasReq = CAIXAS.slice();
+  } else if (usuario.caixas_req == null || usuario.caixas_req === '') {
+    caixasReq = CAIXAS.slice();
+  } else {
+    try {
+      const arr = JSON.parse(usuario.caixas_req);
+      caixasReq = Array.isArray(arr) ? arr.filter((c) => CAIXAS.includes(c)) : CAIXAS.slice();
+    } catch { caixasReq = CAIXAS.slice(); }
+  }
+  delete usuario.caixas_req;
 
   const permissoes = {};
   const habilitado = {};
@@ -215,7 +231,7 @@ router.get('/:id/permissoes', (req, res) => {
       for (const a of ACOES) permissoes[m.chave][a] = l[a] === 1;
     }
   }
-  res.json({ usuario, permissoes, habilitado });
+  res.json({ usuario, permissoes, habilitado, caixasReq, todasCaixas: CAIXAS });
 });
 
 // ---------- Salva a grade de permissões de um usuário ----------
@@ -245,6 +261,13 @@ router.put('/:id/permissoes', (req, res) => {
       linha[a] = (m.acoes.includes(a) && dados[a]) ? 1 : 0;
     }
     upsert.run(linha);
+  }
+
+  // Caixas do Relatório de Primeiro Atendimento (Materiais/Medicamentos/Nutrição).
+  // Só grava se o campo vier no corpo; guarda o array filtrado (vazio = nenhuma).
+  if (Array.isArray(req.body && req.body.caixasReq)) {
+    const caixas = req.body.caixasReq.filter((c) => CAIXAS.includes(c));
+    db.prepare('UPDATE usuarios SET caixas_req = ? WHERE id = ?').run(JSON.stringify(caixas), usuario.id);
   }
 
   db.prepare(

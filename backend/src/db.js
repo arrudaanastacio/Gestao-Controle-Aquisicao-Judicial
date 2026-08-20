@@ -38,6 +38,12 @@ if (!colunasUsuarios.includes('token_convite')) {
 if (!colunasUsuarios.includes('token_expira')) {
   db.exec('ALTER TABLE usuarios ADD COLUMN token_expira TEXT');
 }
+// Caixas do Relatório de Primeiro Atendimento que o usuário pode ver (JSON
+// array, ex.: ["Materiais","Nutrição"]). NULL = todas (mantém quem já usa);
+// admin sempre vê todas. Definido pelo admin no modal de Permissões.
+if (!colunasUsuarios.includes('caixas_req')) {
+  db.exec('ALTER TABLE usuarios ADD COLUMN caixas_req TEXT');
+}
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS itens (
@@ -778,6 +784,10 @@ if (!colunasReq.includes('data_envio')) db.exec("ALTER TABLE requisicoes ADD COL
 if (!colunasReq.includes('requisicao_gsnet')) db.exec("ALTER TABLE requisicoes ADD COLUMN requisicao_gsnet TEXT");
 if (!colunasReq.includes('telegrama_enviado_por')) db.exec("ALTER TABLE requisicoes ADD COLUMN telegrama_enviado_por TEXT");
 if (!colunasReq.includes('telegrama_enviado_em')) db.exec("ALTER TABLE requisicoes ADD COLUMN telegrama_enviado_em TEXT");
+// Caixa do Relatório de Primeiro Atendimento (Materiais/Medicamentos/Nutrição;
+// null = sem caixa, só admin/aba "Todas"). Preenchida na criação; backfill em
+// routes.autores.js.
+if (!colunasReq.includes('caixa')) db.exec("ALTER TABLE requisicoes ADD COLUMN caixa TEXT");
 
 // Fluxo de atendimento por item da requisição (editável pelos usuários)
 const colunasReqItens = db.prepare("PRAGMA table_info(requisicao_itens)").all().map((c) => c.name);
