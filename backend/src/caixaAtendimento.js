@@ -1,8 +1,10 @@
 // caixaAtendimento.js — classifica cada item/solicitação numa "caixa" do
-// Relatório de Primeiro Atendimento: Materiais, Medicamentos ou Nutrição.
+// Relatório de Primeiro Atendimento: Materiais, Medicamentos, Nutrição ou
+// Manipulado.
 //
 // Regra (definida com o Rafael):
-//   - subcategoria "Manipulado" (item_classificacao) => caixa Medicamentos
+//   - subcategoria "Manipulado" ou "Homeopático" (item_classificacao) => caixa
+//     Manipulado (são medicamentos manipulados/homeopáticos).
 //   - senão, pela CATEGORIA do Relatório de Itens (relatorio_itens.categoria):
 //       Materiais -> Materiais | Medicamentos -> Medicamentos | Nutrição -> Nutrição
 //   - qualquer outra coisa (Procedimentos, Outros Itens, sem cadastro) => null
@@ -10,9 +12,18 @@
 //
 // A caixa de uma SOLICITAÇÃO é a predominante entre os itens (empate: a do
 // primeiro item que tiver caixa). Gravada em requisicoes.caixa na criação.
+//
+// REGRA_VERSAO: sobe quando a regra muda; routes.autores usa isso para
+// reclassificar as solicitações já gravadas (não só as sem caixa).
 const db = require('./db');
 
-const CAIXAS = ['Materiais', 'Medicamentos', 'Nutrição'];
+const CAIXAS = ['Materiais', 'Medicamentos', 'Nutrição', 'Manipulado'];
+const REGRA_VERSAO = '2';
+
+// Normaliza subcategoria para comparar sem acento/caixa (Homeopático/Homeopatico).
+function norm(s) {
+  return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
+}
 
 function criarCalculadoraCaixa() {
   const qCat = db.prepare('SELECT categoria FROM relatorio_itens WHERE codigo = ? ORDER BY data_referencia DESC LIMIT 1');
@@ -23,9 +34,9 @@ function criarCalculadoraCaixa() {
     if (!codigo) return null;
     if (cache.has(codigo)) return cache.get(codigo);
     let caixa = null;
-    const sub = qSub.get(codigo)?.subcategoria || null;
-    if (sub === 'Manipulado') {
-      caixa = 'Medicamentos';
+    const sub = norm(qSub.get(codigo)?.subcategoria);
+    if (sub === 'MANIPULADO' || sub === 'HOMEOPATICO') {
+      caixa = 'Manipulado';
     } else {
       const cat = qCat.get(codigo)?.categoria || null;
       if (CAIXAS.includes(cat)) caixa = cat;
@@ -53,4 +64,4 @@ function caixaPredominante(codigos, calc) {
   return melhor;
 }
 
-module.exports = { CAIXAS, criarCalculadoraCaixa, caixaPredominante };
+module.exports = { CAIXAS, REGRA_VERSAO, criarCalculadoraCaixa, caixaPredominante };

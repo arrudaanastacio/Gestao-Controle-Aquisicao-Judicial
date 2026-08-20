@@ -4,7 +4,7 @@ const multer = require('multer');
 const db = require('./db');
 const { autenticar, exigirPerfil } = require('./auth');
 const { criarCalculadoraAta } = require('./ataSituacao');
-const { CAIXAS, criarCalculadoraCaixa, caixaPredominante } = require('./caixaAtendimento');
+const { CAIXAS, REGRA_VERSAO, criarCalculadoraCaixa, caixaPredominante } = require('./caixaAtendimento');
 
 const router = express.Router();
 router.use(autenticar);
@@ -25,25 +25,33 @@ function caixasDoUsuario(usuario) {
   }
 }
 
-// Backfill único: preenche requisicoes.caixa onde ainda está NULL (guarda '' se
-// não cair em nenhuma das 3, para não recalcular a cada reinício).
-(function backfillCaixaRequisicoes() {
+// Classificação de caixa das solicitações já gravadas. Recalcula TODAS quando a
+// versão da regra muda (REGRA_VERSAO); caso contrário, só preenche as que ainda
+// estão NULL. Guarda '' quando não cai em nenhuma caixa (para não recalcular à
+// toa). A versão aplicada fica em configuracoes.caixa_regra_versao.
+(function classificarCaixaRequisicoes() {
   try {
-    const pend = db.prepare('SELECT id FROM requisicoes WHERE caixa IS NULL').all();
-    if (!pend.length) return;
-    const calc = criarCalculadoraCaixa();
-    const qItens = db.prepare('SELECT codigo_item FROM requisicao_itens WHERE requisicao_id = ?');
-    const upd = db.prepare('UPDATE requisicoes SET caixa = ? WHERE id = ?');
-    db.exec('BEGIN');
-    for (const r of pend) {
-      const cods = qItens.all(r.id).map((x) => x.codigo_item);
-      upd.run(caixaPredominante(cods, calc) || '', r.id);
+    const versaoAplicada = db.prepare("SELECT valor FROM configuracoes WHERE chave = 'caixa_regra_versao'").get()?.valor;
+    const reclassificarTudo = versaoAplicada !== REGRA_VERSAO;
+    const pend = db.prepare(reclassificarTudo ? 'SELECT id FROM requisicoes' : 'SELECT id FROM requisicoes WHERE caixa IS NULL').all();
+    if (pend.length) {
+      const calc = criarCalculadoraCaixa();
+      const qItens = db.prepare('SELECT codigo_item FROM requisicao_itens WHERE requisicao_id = ?');
+      const upd = db.prepare('UPDATE requisicoes SET caixa = ? WHERE id = ?');
+      db.exec('BEGIN');
+      for (const r of pend) {
+        const cods = qItens.all(r.id).map((x) => x.codigo_item);
+        upd.run(caixaPredominante(cods, calc) || '', r.id);
+      }
+      db.exec('COMMIT');
+      console.log(`[CAIXA] ${reclassificarTudo ? 'Reclassificacao (regra v' + REGRA_VERSAO + ')' : 'Backfill'} em ${pend.length} requisicao(oes).`);
     }
-    db.exec('COMMIT');
-    console.log(`[CAIXA] Backfill de caixa em ${pend.length} requisicao(oes).`);
+    if (reclassificarTudo) {
+      db.prepare("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('caixa_regra_versao', ?)").run(REGRA_VERSAO);
+    }
   } catch (e) {
     try { db.exec('ROLLBACK'); } catch (_) { /* ignore */ }
-    console.error('[CAIXA] Falha no backfill de caixa:', e.message);
+    console.error('[CAIXA] Falha ao classificar caixas:', e.message);
   }
 })();
 
