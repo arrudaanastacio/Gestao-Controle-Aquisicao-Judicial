@@ -50,6 +50,7 @@ const MODULOS = [
   { chave: 'aquisicaoODAndamento', rotulo: 'Aquisição em Andamento OD', acoes: ['visualizar'] },
   { chave: 'estoqueGeral', rotulo: 'Itens em Estoque Geral', acoes: ['visualizar', 'exportar'] },
   { chave: 'autoresGeral', rotulo: 'Listagem de Autores Demais Unidades', acoes: ['visualizar', 'exportar'] },
+  { chave: 'autoresImportados', rotulo: 'Listagem de Autores Importados', acoes: ['visualizar', 'exportar'] },
   { chave: 'estoqueOD', rotulo: 'Estoque GSNET/IBL', acoes: ['visualizar', 'exportar', 'importar'] },
   { chave: 'distribuicao', rotulo: 'Distribuição', acoes: ['visualizar', 'exportar'] },
 

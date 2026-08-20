@@ -218,6 +218,11 @@ function montarFiltroAutores(query) {
   } else if (query.escopoUnidade === 'udtp') {
     // Listagem principal: SOMENTE a Tenente Pena (ex.: "UD 01 - Tenente Pena")
     cond.push("unidade_dispensadora LIKE '%Tenente Pena%'");
+  } else if (query.escopoUnidade === 'importados') {
+    // Listagem de Autores Importados: TODAS as unidades, só pacientes ATIVOS,
+    // e só itens IMPORTADOS (flag do catálogo: relatorio_itens.importado = 'Sim').
+    cond.push("status_demanda LIKE 'Demanda Ativa%'");
+    cond.push("EXISTS (SELECT 1 FROM relatorio_itens ri WHERE ri.codigo = autores_itens.codigo_item AND ri.importado = 'Sim')");
   }
   if (query.q) {
     cond.push('(autor LIKE ? OR processo LIKE ? OR protocolo LIKE ? OR descricao_item LIKE ? OR codigo_item LIKE ?)');
@@ -280,7 +285,9 @@ router.get('/exportar', (req, res) => {
 router.get('/filtros', (req, res) => {
   const esc = req.query.escopoUnidade;
   const filtroUnidade = esc === 'geral' ? "AND unidade_dispensadora NOT LIKE '%Tenente Pena%'"
-    : esc === 'udtp' ? "AND unidade_dispensadora LIKE '%Tenente Pena%'" : '';
+    : esc === 'udtp' ? "AND unidade_dispensadora LIKE '%Tenente Pena%'"
+      : esc === 'importados' ? "AND status_demanda LIKE 'Demanda Ativa%' AND EXISTS (SELECT 1 FROM relatorio_itens ri WHERE ri.codigo = autores_itens.codigo_item AND ri.importado = 'Sim')"
+        : '';
   const distintos = (col) => db.prepare(
     `SELECT DISTINCT ${col} v FROM autores_itens WHERE data_referencia = (SELECT MAX(data_referencia) FROM autores_itens) ${filtroUnidade} AND ${col} IS NOT NULL AND ${col} <> '' ORDER BY v`
   ).all().map((r) => r.v);

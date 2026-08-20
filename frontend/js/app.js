@@ -245,7 +245,7 @@ function aplicarPermissoesNav() {
     estoqueGeral: 'estoqueGeral', estoqueOD: 'estoqueOD', distribuicao: 'distribuicao',
     relatorioItens: 'relatorioItens',
     planejamento: 'planejamento',
-    autores: 'autoresTP', autoresGeral: 'autoresGeral',
+    autores: 'autoresTP', autoresGeral: 'autoresGeral', autoresImportados: 'autoresImportados',
     comparativoAutores: 'comparativoAutoresTP', relatorioReq: 'relatorioReqTP',
     cartasTroca: 'cartasTroca',
     atas: 'atas',
@@ -359,6 +359,7 @@ const ICONES_NAV = {
   evolucao: '<path d="M4 19h16"/><path d="M4 19V5"/><path d="M7 15l4-5 3 3 5-7"/>',
   autores: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   autoresGeral: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  autoresImportados: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
   comparativoAutores: '<path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/>',
   relatorioReq: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M8 11h8M8 15h8M8 19h5"/>',
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
@@ -640,6 +641,7 @@ const TRILHAS = {
   aquisicaoODAndamento: ['Outras Demandas', 'Compras', 'Aquisição em Andamento'],
   solicitacoesOD: ['Outras Demandas', 'Compras', 'Relatório de Compras OD'],
   autoresGeral: ['Outras Demandas', 'Autores', 'Listagem de Autores Demais Unidades'],
+  autoresImportados: ['Importados', 'Listagem de Autores Importados'],
   relatorioItens: ['Consultas', 'Relatório de Itens'],
   atas: ['Consultas', 'Atas de Registro de Preço'],
   usuarios: ['Administração', 'Usuários'],
@@ -679,6 +681,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaEvolucao').hidden = pagina !== 'evolucao';
   document.getElementById('paginaAutores').hidden = pagina !== 'autores';
   document.getElementById('paginaAutoresGeral').hidden = pagina !== 'autoresGeral';
+  document.getElementById('paginaAutoresImportados').hidden = pagina !== 'autoresImportados';
   document.getElementById('paginaComparativoAutores').hidden = pagina !== 'comparativoAutores';
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
   document.getElementById('paginaCartasTroca').hidden = pagina !== 'cartasTroca';
@@ -714,6 +717,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'evolucao') iniciarEvolucao();
     if (pagina === 'autores') await carregarAutores();
     if (pagina === 'autoresGeral') await carregarAutoresGeral();
+    if (pagina === 'autoresImportados') await carregarAutoresImportados();
     if (pagina === 'comparativoAutores') await carregarComparativo();
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
     if (pagina === 'cartasTroca') await carregarCartasTroca();
@@ -4617,6 +4621,112 @@ async function carregarTabelaAutoresGeral() {
     `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} linha(s)`;
   document.getElementById('botaoAnteriorAutoresGeral').disabled = dados.page <= 1;
   document.getElementById('botaoProximoAutoresGeral').disabled = dados.page >= totalPaginas;
+}
+
+// ==================== Listagem de Autores Importados ====================
+// Pacientes ATIVOS, de TODAS as unidades, com itens IMPORTADOS. Mesmo layout e
+// modal ("Ver") das outras listagens de autores (escopoUnidade='importados').
+const estadoAutoresImportados = { pagina: 1, pageSize: 150, total: 0, filtrosCarregados: false };
+
+let debounceBuscaAutoresImportados;
+document.getElementById('filtroBuscaAutoresImportados').addEventListener('input', () => {
+  clearTimeout(debounceBuscaAutoresImportados);
+  debounceBuscaAutoresImportados = setTimeout(() => { estadoAutoresImportados.pagina = 1; carregarTabelaAutoresImportados(); }, 350);
+});
+['filtroUnidadeAutoresImportados', 'filtroStatusDemandaAutoresImportados', 'filtroStatusItemAutoresImportados', 'filtroCategoriaAutoresImportados'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => { estadoAutoresImportados.pagina = 1; carregarTabelaAutoresImportados(); });
+});
+document.getElementById('botaoLimparFiltrosAutoresImportados').addEventListener('click', () => {
+  document.getElementById('filtroBuscaAutoresImportados').value = '';
+  ['filtroUnidadeAutoresImportados', 'filtroStatusDemandaAutoresImportados', 'filtroStatusItemAutoresImportados', 'filtroCategoriaAutoresImportados']
+    .forEach((id) => { document.getElementById(id).value = ''; });
+  estadoAutoresImportados.pagina = 1; carregarTabelaAutoresImportados();
+});
+document.getElementById('botaoAnteriorAutoresImportados').addEventListener('click', () => {
+  if (estadoAutoresImportados.pagina > 1) { estadoAutoresImportados.pagina--; carregarTabelaAutoresImportados(); }
+});
+document.getElementById('botaoProximoAutoresImportados').addEventListener('click', () => {
+  estadoAutoresImportados.pagina++; carregarTabelaAutoresImportados();
+});
+document.getElementById('botaoExportarAutoresImportados').addEventListener('click', () => {
+  const params = new URLSearchParams();
+  params.set('escopoUnidade', 'importados');
+  const q = document.getElementById('filtroBuscaAutoresImportados').value.trim();
+  if (q) params.set('q', q);
+  const mapa = { unidade: 'filtroUnidadeAutoresImportados', status_demanda: 'filtroStatusDemandaAutoresImportados', status_item: 'filtroStatusItemAutoresImportados', categoria: 'filtroCategoriaAutoresImportados' };
+  for (const [param, id] of Object.entries(mapa)) { const el = document.getElementById(id); if (el && el.value) params.set(param, el.value); }
+  window.location.href = '/api/autores/exportar?' + params.toString();
+});
+
+async function carregarAutoresImportados() {
+  if (!estadoAutoresImportados.filtrosCarregados) {
+    try {
+      const f = await api('/autores/filtros?escopoUnidade=importados');
+      const preencher = (id, valores, rotulo) => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = `<option value="">${rotulo}</option>` +
+          valores.map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+      };
+      preencher('filtroUnidadeAutoresImportados', f.unidade, 'Unidade: todas');
+      preencher('filtroStatusDemandaAutoresImportados', f.status_demanda, 'Status da demanda: todos');
+      preencher('filtroStatusItemAutoresImportados', f.status_item, 'Status do item: todos');
+      preencher('filtroCategoriaAutoresImportados', f.categoria, 'Categoria: todas');
+      estadoAutoresImportados.filtrosCarregados = true;
+    } catch (e) { /* segue sem filtros */ }
+  }
+  carregarTabelaAutoresImportados();
+}
+
+async function carregarTabelaAutoresImportados() {
+  const params = new URLSearchParams({ page: estadoAutoresImportados.pagina, pageSize: estadoAutoresImportados.pageSize });
+  params.set('escopoUnidade', 'importados');
+  const q = document.getElementById('filtroBuscaAutoresImportados').value.trim();
+  if (q) params.set('q', q);
+  const mapa = {
+    unidade: 'filtroUnidadeAutoresImportados', status_demanda: 'filtroStatusDemandaAutoresImportados',
+    status_item: 'filtroStatusItemAutoresImportados', categoria: 'filtroCategoriaAutoresImportados',
+  };
+  for (const [param, id] of Object.entries(mapa)) { const v = document.getElementById(id).value; if (v) params.set(param, v); }
+
+  const dados = await api(`/autores?${params.toString()}`);
+  estadoAutoresImportados.total = dados.total;
+
+  document.getElementById('grideResumoAutoresImportados').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAutores)}</div><div class="rotulo">Autores (distintos)</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${q || params.has('unidade') ? ' filtradas' : ''}</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo</div></div>
+  `;
+
+  const corpo = document.getElementById('corpoTabelaAutoresImportados');
+  const vazio = document.getElementById('estadoVazioAutoresImportados');
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((a) => `
+      <tr>
+        <td class="col-autor">${a.autor || '—'}</td>
+        <td class="col-unidade">${a.unidade_dispensadora || celVazia()}</td>
+        <td class="col-codigo">${a.id_demanda || '—'}</td>
+        <td class="col-codigo">${a.protocolo || '—'}</td>
+        <td class="col-codigo">${a.processo || '—'}</td>
+        <td>${etStatusDemanda(a.status_demanda)}</td>
+        <td>${tagTipoDemanda(a.tipo_demanda)}</td>
+        <td class="col-codigo">${a.codigo_item || '—'}</td>
+        <td class="col-codigo">${a.cod_siafisico || '—'}</td>
+        <td class="col-desc" title="${(a.descricao_item || '').replace(/"/g, '')}">${a.descricao_item || celVazia()}</td>
+        <td class="col-num">${a.qtde_consumo || '—'}</td>
+        <td>${tagCategoria(a.categoria)}</td>
+        <td><button type="button" class="botao-secundario btn-ver-demanda" data-demanda='${btDadosDemanda(a)}' style="padding:4px 10px; font-size:12px;">👁 Ver</button></td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoAutoresImportados').textContent =
+    `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} linha(s)`;
+  document.getElementById('botaoAnteriorAutoresImportados').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoAutoresImportados').disabled = dados.page >= totalPaginas;
 }
 
 // Modal "Ver" das listagens de autores: guarda os campos na própria célula.

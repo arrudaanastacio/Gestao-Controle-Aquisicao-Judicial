@@ -86,6 +86,11 @@
         </div>
 
         <div class="nav-grupo">
+          <p class="nav-grupo-titulo nav-unidade-titulo">🌐 Importados</p>
+          <a href="#" data-pagina="autoresImportados">Listagem de Autores Importados</a>
+        </div>
+
+        <div class="nav-grupo">
           <p class="nav-grupo-titulo nav-unidade-titulo">📑 Consultas</p>
           <a href="#" data-pagina="relatorioItens">Relatório de Itens</a>
           <a href="#" data-pagina="atas">Atas de Registro de Preço</a>
@@ -1706,6 +1711,60 @@
             <div class="botoes">
               <button id="botaoAnteriorAutoresGeral">← Anterior</button>
               <button id="botaoProximoAutoresGeral">Próximo →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaAutoresImportados" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Listagem de Autores Importados</h2>
+            <p id="subtituloAutoresImportados">Pacientes ativos, de todas as unidades, com itens importados</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoAutoresImportados"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaAutoresImportados" placeholder="Buscar por autor, processo, protocolo, medicamento ou código…" style="min-width:320px;">
+          <select id="filtroUnidadeAutoresImportados" style="max-width:220px; text-overflow:ellipsis;"><option value="">Unidade: todas</option></select>
+          <select id="filtroStatusDemandaAutoresImportados"><option value="">Status da demanda: todos</option></select>
+          <select id="filtroStatusItemAutoresImportados"><option value="">Status do item: todos</option></select>
+          <select id="filtroCategoriaAutoresImportados"><option value="">Categoria: todas</option></select>
+          <button id="botaoLimparFiltrosAutoresImportados" class="botao-secundario" type="button">Limpar</button>
+          <button id="botaoExportarAutoresImportados" class="botao-secundario" type="button">📊 Exportar Excel</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Autor</th>
+                  <th>Unidade dispensadora</th>
+                  <th>ID Demanda</th>
+                  <th>Protocolo</th>
+                  <th>Processo</th>
+                  <th>Status da Demanda</th>
+                  <th>Tipo da Demanda</th>
+                  <th>Cód. Item</th>
+                  <th>Cód. SIAFÍSICO</th>
+                  <th>Descrição do Item</th>
+                  <th>Qtde de Consumo</th>
+                  <th>Categoria</th>
+                  <th>Detalhes</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaAutoresImportados"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioAutoresImportados" hidden>Nenhum registro encontrado com estes filtros.</div>
+          <div class="paginacao">
+            <span id="textoPaginacaoAutoresImportados">—</span>
+            <div class="botoes">
+              <button id="botaoAnteriorAutoresImportados">← Anterior</button>
+              <button id="botaoProximoAutoresImportados">Próximo →</button>
             </div>
           </div>
         </div>

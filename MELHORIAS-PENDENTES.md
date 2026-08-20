@@ -17,6 +17,26 @@
 | 9 | Modal de Permissões — aproveita a largura da tela, tabela 100%, rolagem vertical com cabeçalho fixo | c444a68 | 20/08/2026 | 🚀 PUBLICADO (prod 39c2f76) |
 | 10 | Comparativo de Autores — filtros de subcategoria e tipo de demanda (valem para as 3 abas: Novos, Inativos, Alterações) | 4866755 | 20/08/2026 | ✅ pronto em homolog |
 | 11 | Relatório de Primeiro Atendimento — caixas por categoria (Materiais/Medicamentos/Nutrição/Manipulado) com permissão por usuário | 455ddf5 | 20/08/2026 | ✅ pronto em homolog |
+| 12 | Nova tela "Listagem de Autores Importados" (grupo Importados): pacientes ativos, todas as unidades, itens importados | b6adc4e | 20/08/2026 | ✅ pronto em homolog |
+
+### Detalhe do item 12 — Listagem de Autores Importados
+
+Nova tela **Listagem de Autores Importados**, em um novo grupo de menu
+**🌐 Importados**. Mostra os **pacientes ativos** (status "Demanda Ativa"), de
+**todas as unidades**, cujos itens são **importados** (flag do catálogo:
+`relatorio_itens.importado = 'Sim'`). Mesmo layout, filtros e modal 👁 "Ver"
+da "Listagem de Autores Demais Unidades".
+
+- **Backend:** novo escopo `escopoUnidade=importados` em `montarFiltroAutores`
+  e na rota `/autores/filtros` (todas as unidades + demanda ativa + item
+  importado). Reaproveita `/autores`, `/autores/exportar` e `/autores/filtros`.
+- **Permissão:** novo módulo `autoresImportados` (Visualizar/Exportar) — aparece
+  no modal de Permissões automaticamente.
+- **Frontend:** clone da tela Demais Unidades (`paginaAutoresImportados` +
+  `carregarTabelaAutoresImportados`), link no menu, ícone e trilha.
+
+**Observação:** como mexe em `routes.autores.js` (compartilhado), **anda junto
+da Onda B** na publicação. **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
 
 ### Detalhe do item 11 — Caixas do Relatório de Primeiro Atendimento
 
