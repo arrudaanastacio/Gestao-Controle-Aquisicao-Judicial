@@ -2378,3 +2378,14 @@ th.ordenavel .seta { opacity: 0.45; font-size: 10px; margin-left: 3px; }
 .tabela-permissoes td:not(:first-child) { white-space: nowrap; }
 /* Linhas mais respiráveis, aproveitando o espaço extra */
 .tabela-permissoes th, .tabela-permissoes td { padding: 9px 12px; }
+
+/* Campos do modal de Compra do Importado (rótulo em cima do input) */
+.campo-modal { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--cinza-texto); }
+.campo-modal input, .campo-modal select, .campo-modal textarea {
+  font-family: var(--fonte-corpo); font-size: 13px; color: var(--tinta);
+  background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio);
+  padding: 7px 9px; width: 100%;
+}
+.campo-modal input:focus, .campo-modal select:focus, .campo-modal textarea:focus {
+  outline: none; border-color: var(--selo); box-shadow: 0 0 0 3px rgba(31,92,82,0.15);
+}

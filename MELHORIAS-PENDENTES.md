@@ -18,7 +18,7 @@
 | 10 | Comparativo de Autores — filtros de subcategoria e tipo de demanda (valem para as 3 abas: Novos, Inativos, Alterações) | 4866755 | 20/08/2026 | ✅ pronto em homolog |
 | 11 | Relatório de Primeiro Atendimento — caixas por categoria (Materiais/Medicamentos/Nutrição/Manipulado) com permissão por usuário | 455ddf5 | 20/08/2026 | ✅ pronto em homolog |
 | 12 | Nova tela "Listagem de Autores Importados" (grupo Importados): pacientes ativos, todas as unidades, itens importados | b6adc4e | 20/08/2026 | ✅ pronto em homolog |
-| 13 | Relatório de Compras Importados (Parte 1): botão ➕ na Listagem de Autores Importados adiciona o paciente; tela lista com Qtde Solicitada/SEI/Status editáveis + remover | ec7ee75 | 20/08/2026 | 🚧 em construção (por partes) |
+| 13 | Relatório de Compras Importados: botão ➕ adiciona paciente; tela com colunas completas (CATMAT, Valor Médio/Total, Empenho, Recibo, datas...) + modal de edição com Status condicional | (ver commits) | 20/08/2026 | 🚧 em construção (por partes) |
 
 ### Detalhe do item 12 — Listagem de Autores Importados
 

@@ -1799,8 +1799,17 @@
                   <th>Cód. SIAFÍSICO</th>
                   <th>Descrição do Item</th>
                   <th>Qtde de Consumo</th>
+                  <th>CATMAT</th>
                   <th>Qtde Solicitada</th>
                   <th>SEI</th>
+                  <th>Req. GSNET</th>
+                  <th>Valor Médio Unit.</th>
+                  <th>Valor Total Aquisição</th>
+                  <th>Solicitação DRS SEI</th>
+                  <th>Data Solicitação</th>
+                  <th>Nº Empenho</th>
+                  <th>Nº Recibo</th>
+                  <th>Data Entrega</th>
                   <th>Status</th>
                   <th>Ações</th>
                 </tr>
@@ -2801,6 +2810,50 @@
       <div id="corpoDetalheDemanda" style="margin-top:8px;"></div>
       <div class="acoes-modal">
         <button type="button" class="botao-primario" id="botaoFecharDetalheDemanda">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="fundo-modal" id="modalCompraImp" hidden>
+    <div class="modal" style="max-width:min(920px, 95vw); width:100%;">
+      <h3>Compra do Importado</h3>
+      <p id="subCompraImp" class="texto-secundario" style="margin-top:-6px;"></p>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px 16px; margin-top:10px;">
+        <label class="campo-modal">Qtde Solicitada<input type="text" id="ciQtdeSolic"></label>
+        <label class="campo-modal">Valor Médio Unitário<input type="text" id="ciValorMedio" placeholder="informe se vazio"></label>
+        <label class="campo-modal">Valor Total Aquisição<input type="text" id="ciValorTotal" readonly style="background:var(--realce-tabela);"></label>
+        <label class="campo-modal">SEI<input type="text" id="ciSei"></label>
+        <label class="campo-modal">Req. GSNET<input type="text" id="ciReqGsnet"></label>
+        <label class="campo-modal">Solicitação DRS SEI<input type="text" id="ciSolicDrsSei"></label>
+        <label class="campo-modal">Data de Solicitação<input type="date" id="ciDataSolic"></label>
+        <label class="campo-modal">Nº Empenho<input type="text" id="ciNumEmpenho"></label>
+        <label class="campo-modal">Nº Recibo<input type="text" id="ciNumRecibo"></label>
+        <label class="campo-modal">Data de Entrega<input type="date" id="ciDataEntrega"></label>
+        <label class="campo-modal">Status
+          <select id="ciStatus">
+            <option>Solicitado</option>
+            <option>Instrução Processual</option>
+            <option>Deserto</option>
+            <option>Fracassado</option>
+            <option>Embarque</option>
+            <option>Finalizado</option>
+            <option>Devolvido</option>
+            <option>Cancelado</option>
+            <option>Demanda Inativa</option>
+          </select>
+        </label>
+      </div>
+      <!-- Campos condicionais conforme o Status -->
+      <div id="ciCondicionais" style="margin-top:6px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px 16px;">
+        <label class="campo-modal" id="ciWrapJustificativa" hidden style="grid-column:1 / -1;">Justificativa<textarea id="ciJustificativa" rows="2"></textarea></label>
+        <label class="campo-modal" id="ciWrapDataInativacao" hidden>Data de Inativação<input type="date" id="ciDataInativacao"></label>
+        <label class="campo-modal" id="ciWrapDataEmbarque" hidden>Data de Embarque<input type="date" id="ciDataEmbarque"></label>
+        <label class="campo-modal" id="ciWrapNumFatura" hidden>Nº Fatura GSNET<input type="text" id="ciNumFaturaGsnet"></label>
+        <label class="campo-modal" id="ciWrapDataFatura" hidden>Data da Fatura<input type="date" id="ciDataFatura"></label>
+      </div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="botaoCancelarCompraImp">Cancelar</button>
+        <button type="button" class="botao-primario" id="botaoSalvarCompraImp">Salvar</button>
       </div>
     </div>
   </div>

@@ -796,6 +796,23 @@ CREATE TABLE IF NOT EXISTS compras_importados (
 );
 `);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_comp_imp_autor ON compras_importados(autor);`);
+// Colunas do Relatório de Compras Importados (adicionadas por partes).
+const colsCompImp = db.prepare('PRAGMA table_info(compras_importados)').all().map((c) => c.name);
+const addCompImp = (col, tipo) => { if (!colsCompImp.includes(col)) db.exec(`ALTER TABLE compras_importados ADD COLUMN ${col} ${tipo}`); };
+addCompImp('catmat', 'TEXT');                 // do Relatório de Itens
+addCompImp('req_gsnet', 'TEXT');              // Req. GSNET
+addCompImp('valor_medio_unitario', 'TEXT');   // do Relatório de Itens (editável se vazio)
+addCompImp('solicitacao_drs_sei', 'TEXT');
+addCompImp('data_solicitacao', 'TEXT');
+addCompImp('numero_empenho', 'TEXT');
+addCompImp('numero_recibo', 'TEXT');
+addCompImp('data_entrega', 'TEXT');
+// Campos condicionais conforme o Status:
+addCompImp('justificativa', 'TEXT');          // Cancelado / Devolvido
+addCompImp('data_inativacao', 'TEXT');        // Demanda Inativa
+addCompImp('data_embarque', 'TEXT');          // Embarque
+addCompImp('numero_fatura_gsnet', 'TEXT');    // Finalizado
+addCompImp('data_fatura', 'TEXT');            // Finalizado
 
 // Status/cancelamento da requisição (cancelar mantém o histórico)
 const colunasReq = db.prepare("PRAGMA table_info(requisicoes)").all().map((c) => c.name);

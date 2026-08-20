@@ -445,9 +445,14 @@ router.post('/compras-importados', (req, res) => {
   ).get(b.autor, b.codigo_item, b.protocolo || null);
   if (existe) return res.status(409).json({ erro: 'Este paciente/item já está no Relatório de Compras Importados.' });
 
-  const cols = [...CAMPOS_COMPRA_IMP, 'criado_por'];
+  // CATMAT e Valor Médio Unitário vêm do Relatório de Itens (foto mais recente).
+  const cat = db.prepare('SELECT catmat, valor_medio_unitario FROM relatorio_itens WHERE codigo = ? ORDER BY data_referencia DESC LIMIT 1').get(b.codigo_item) || {};
+  const catmat = (cat.catmat != null && String(cat.catmat).trim() !== '') ? String(cat.catmat).trim() : null;
+  const valorMedio = (cat.valor_medio_unitario != null && String(cat.valor_medio_unitario).trim() !== '') ? String(cat.valor_medio_unitario) : null;
+
+  const cols = [...CAMPOS_COMPRA_IMP, 'catmat', 'valor_medio_unitario', 'criado_por'];
   const stmt = db.prepare(`INSERT INTO compras_importados (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`);
-  const info = stmt.run(...CAMPOS_COMPRA_IMP.map((c) => (b[c] != null && b[c] !== '' ? String(b[c]) : null)), req.usuario.email);
+  const info = stmt.run(...CAMPOS_COMPRA_IMP.map((c) => (b[c] != null && b[c] !== '' ? String(b[c]) : null)), catmat, valorMedio, req.usuario.email);
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
     .run(req.usuario.id, req.usuario.email, 'add_compra_importado', 'compras_importados', info.lastInsertRowid, JSON.stringify({ autor: b.autor, codigo_item: b.codigo_item }));
   res.status(201).json({ id: info.lastInsertRowid });
@@ -457,7 +462,12 @@ router.put('/compras-importados/:id', (req, res) => {
   const item = db.prepare('SELECT id FROM compras_importados WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ erro: 'Registro não encontrado.' });
   const b = req.body || {};
-  const editaveis = ['quantidade_solicitada', 'sei', 'status'];
+  const editaveis = [
+    'quantidade_solicitada', 'sei', 'req_gsnet', 'valor_medio_unitario',
+    'solicitacao_drs_sei', 'data_solicitacao', 'numero_empenho', 'numero_recibo',
+    'data_entrega', 'status', 'justificativa', 'data_inativacao', 'data_embarque',
+    'numero_fatura_gsnet', 'data_fatura',
+  ];
   const sets = [];
   const vals = [];
   for (const c of editaveis) {

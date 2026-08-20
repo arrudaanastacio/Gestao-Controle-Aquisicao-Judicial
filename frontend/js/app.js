@@ -4744,6 +4744,27 @@ document.getElementById('botaoLimparFiltrosRelImp').addEventListener('click', ()
   document.getElementById('filtroBuscaRelImp').value = ''; renderRelImp();
 });
 
+// Número no padrão pt-BR ou com ponto decimal.
+function parseValorImp(v) {
+  if (v == null || v === '') return null;
+  let s = String(v).trim();
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+function valorTotalImp(r) {
+  const q = parseValorImp(r.quantidade_solicitada);
+  const v = parseValorImp(r.valor_medio_unitario);
+  return (q != null && v != null) ? q * v : null;
+}
+function badgeStatusImp(s) {
+  const st = s || 'Solicitado';
+  const cls = st === 'Finalizado' ? 'finalizado'
+    : (st === 'Cancelado' || st === 'Devolvido' || st === 'Deserto' || st === 'Fracassado' || st === 'Demanda Inativa') ? 'cancelado'
+      : 'planejamento';
+  return `<span class="etiqueta-status ${cls}">${escHtml(st)}</span>`;
+}
+
 async function carregarRelatorioImportados() {
   const dados = await api('/autores/compras-importados');
   relImpCache = dados.itens || [];
@@ -4753,7 +4774,7 @@ async function carregarRelatorioImportados() {
 function renderRelImp() {
   const q = document.getElementById('filtroBuscaRelImp').value.trim().toLowerCase();
   const lista = !q ? relImpCache : relImpCache.filter((r) =>
-    [r.autor, r.processo, r.protocolo, r.sei, r.descricao_item, r.codigo_item]
+    [r.autor, r.processo, r.protocolo, r.sei, r.req_gsnet, r.descricao_item, r.codigo_item, r.catmat]
       .some((v) => String(v || '').toLowerCase().includes(q)));
 
   document.getElementById('grideResumoRelImp').innerHTML = `
@@ -4765,50 +4786,123 @@ function renderRelImp() {
   const vazio = document.getElementById('estadoVazioRelImp');
   if (!lista.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
   vazio.hidden = true;
-  const opcStatus = (v) => ['Solicitado', 'Em análise', 'Empenhado', 'Entregue', 'Cancelado']
-    .map((o) => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('');
-  corpo.innerHTML = lista.map((r) => `
+  const cel = (v) => escHtml(v == null || v === '' ? '—' : v);
+  corpo.innerHTML = lista.map((r) => {
+    const vt = valorTotalImp(r);
+    return `
     <tr data-imp="${r.id}">
-      <td class="col-autor">${escHtml(r.autor || '—')}</td>
-      <td class="col-unidade">${escHtml(r.unidade_dispensadora || '—')}</td>
-      <td class="col-codigo">${escHtml(r.protocolo || '—')}</td>
-      <td class="col-codigo">${escHtml(r.processo || '—')}</td>
-      <td class="col-codigo">${escHtml(r.codigo_item || '—')}</td>
-      <td class="col-codigo">${escHtml(r.cod_siafisico || '—')}</td>
-      <td class="col-desc" title="${escAttr(r.descricao_item || '')}">${escHtml(r.descricao_item || '—')}</td>
-      <td class="col-num">${escHtml(r.qtde_consumo || '—')}</td>
-      <td><input type="text" class="relimp-qtde" value="${escAttr(r.quantidade_solicitada || '')}" style="width:90px;"></td>
-      <td><input type="text" class="relimp-sei" value="${escAttr(r.sei || '')}" style="width:150px;"></td>
-      <td><select class="relimp-status">${opcStatus(r.status || 'Solicitado')}</select></td>
+      <td class="col-autor">${cel(r.autor)}</td>
+      <td class="col-unidade">${cel(r.unidade_dispensadora)}</td>
+      <td class="col-codigo">${cel(r.protocolo)}</td>
+      <td class="col-codigo">${cel(r.processo)}</td>
+      <td class="col-codigo">${cel(r.codigo_item)}</td>
+      <td class="col-codigo">${cel(r.cod_siafisico)}</td>
+      <td class="col-desc" title="${escAttr(r.descricao_item || '')}">${cel(r.descricao_item)}</td>
+      <td class="col-num">${cel(r.qtde_consumo)}</td>
+      <td class="col-codigo">${cel(r.catmat)}</td>
+      <td class="col-num">${cel(r.quantidade_solicitada)}</td>
+      <td class="col-codigo">${cel(r.sei)}</td>
+      <td class="col-codigo">${cel(r.req_gsnet)}</td>
+      <td class="col-num">${r.valor_medio_unitario ? brlPlan(parseValorImp(r.valor_medio_unitario)) : '—'}</td>
+      <td class="col-num">${vt != null ? brlPlan(vt) : '—'}</td>
+      <td class="col-codigo">${cel(r.solicitacao_drs_sei)}</td>
+      <td class="col-data">${r.data_solicitacao ? formatarData(r.data_solicitacao) : '—'}</td>
+      <td class="col-codigo">${cel(r.numero_empenho)}</td>
+      <td class="col-codigo">${cel(r.numero_recibo)}</td>
+      <td class="col-data">${r.data_entrega ? formatarData(r.data_entrega) : '—'}</td>
+      <td>${badgeStatusImp(r.status)}</td>
       <td style="white-space:nowrap;">
-        <button type="button" class="botao-secundario relimp-salvar" style="padding:4px 8px; font-size:12px;">Salvar</button>
+        <button type="button" class="botao-secundario relimp-editar" style="padding:4px 8px; font-size:12px;">✏️ Editar</button>
         <button type="button" class="botao-secundario relimp-remover" title="Remover" style="padding:4px 8px; font-size:12px; color:#c0392b;">✕</button>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 document.getElementById('corpoTabelaRelImp').addEventListener('click', async (ev) => {
   const tr = ev.target.closest('tr[data-imp]');
   if (!tr) return;
   const id = tr.dataset.imp;
-  if (ev.target.closest('.relimp-salvar')) {
-    const btn = ev.target.closest('.relimp-salvar');
-    const body = {
-      quantidade_solicitada: tr.querySelector('.relimp-qtde').value.trim(),
-      sei: tr.querySelector('.relimp-sei').value.trim(),
-      status: tr.querySelector('.relimp-status').value,
-    };
-    try {
-      await api(`/autores/compras-importados/${id}`, { method: 'PUT', body: JSON.stringify(body) });
-      btn.textContent = '✓ Salvo'; setTimeout(() => { btn.textContent = 'Salvar'; }, 1200);
-      const item = relImpCache.find((r) => String(r.id) === String(id));
-      if (item) Object.assign(item, body);
-    } catch (e) { alert(e.message); }
+  if (ev.target.closest('.relimp-editar')) {
+    abrirModalCompraImp(id);
   } else if (ev.target.closest('.relimp-remover')) {
     if (!confirm('Remover este paciente do Relatório de Compras Importados?')) return;
     try { await api(`/autores/compras-importados/${id}`, { method: 'DELETE' }); await carregarRelatorioImportados(); }
     catch (e) { alert(e.message); }
   }
+});
+
+// -------- Modal de edição da Compra do Importado --------
+let ciEditId = null;
+const modalCompraImp = document.getElementById('modalCompraImp');
+// Quais campos condicionais cada status revela.
+const CI_COND = {
+  Cancelado: ['ciWrapJustificativa'],
+  Devolvido: ['ciWrapJustificativa'],
+  'Demanda Inativa': ['ciWrapDataInativacao'],
+  Embarque: ['ciWrapDataEmbarque'],
+  Finalizado: ['ciWrapNumFatura', 'ciWrapDataFatura'],
+};
+function ciAtualizarCondicionais() {
+  const st = document.getElementById('ciStatus').value;
+  const mostrar = new Set(CI_COND[st] || []);
+  ['ciWrapJustificativa', 'ciWrapDataInativacao', 'ciWrapDataEmbarque', 'ciWrapNumFatura', 'ciWrapDataFatura']
+    .forEach((wid) => { document.getElementById(wid).hidden = !mostrar.has(wid); });
+}
+function ciAtualizarValorTotal() {
+  const q = parseValorImp(document.getElementById('ciQtdeSolic').value);
+  const v = parseValorImp(document.getElementById('ciValorMedio').value);
+  document.getElementById('ciValorTotal').value = (q != null && v != null) ? brlPlan(q * v) : '';
+}
+function abrirModalCompraImp(id) {
+  const r = relImpCache.find((x) => String(x.id) === String(id));
+  if (!r) return;
+  ciEditId = id;
+  document.getElementById('subCompraImp').textContent = `${r.autor || '—'} — ${r.descricao_item || '—'}`;
+  const set = (elId, val) => { document.getElementById(elId).value = val == null ? '' : val; };
+  set('ciQtdeSolic', r.quantidade_solicitada);
+  set('ciValorMedio', r.valor_medio_unitario);
+  set('ciSei', r.sei);
+  set('ciReqGsnet', r.req_gsnet);
+  set('ciSolicDrsSei', r.solicitacao_drs_sei);
+  set('ciDataSolic', r.data_solicitacao);
+  set('ciNumEmpenho', r.numero_empenho);
+  set('ciNumRecibo', r.numero_recibo);
+  set('ciDataEntrega', r.data_entrega);
+  document.getElementById('ciStatus').value = r.status || 'Solicitado';
+  set('ciJustificativa', r.justificativa);
+  set('ciDataInativacao', r.data_inativacao);
+  set('ciDataEmbarque', r.data_embarque);
+  set('ciNumFaturaGsnet', r.numero_fatura_gsnet);
+  set('ciDataFatura', r.data_fatura);
+  ciAtualizarCondicionais();
+  ciAtualizarValorTotal();
+  modalCompraImp.hidden = false;
+}
+document.getElementById('ciStatus').addEventListener('change', ciAtualizarCondicionais);
+document.getElementById('ciQtdeSolic').addEventListener('input', ciAtualizarValorTotal);
+document.getElementById('ciValorMedio').addEventListener('input', ciAtualizarValorTotal);
+document.getElementById('botaoCancelarCompraImp').addEventListener('click', () => { modalCompraImp.hidden = true; });
+document.getElementById('botaoSalvarCompraImp').addEventListener('click', async () => {
+  if (!ciEditId) return;
+  const val = (elId) => document.getElementById(elId).value.trim();
+  const body = {
+    quantidade_solicitada: val('ciQtdeSolic'), valor_medio_unitario: val('ciValorMedio'),
+    sei: val('ciSei'), req_gsnet: val('ciReqGsnet'), solicitacao_drs_sei: val('ciSolicDrsSei'),
+    data_solicitacao: val('ciDataSolic'), numero_empenho: val('ciNumEmpenho'),
+    numero_recibo: val('ciNumRecibo'), data_entrega: val('ciDataEntrega'),
+    status: document.getElementById('ciStatus').value,
+    justificativa: val('ciJustificativa'), data_inativacao: val('ciDataInativacao'),
+    data_embarque: val('ciDataEmbarque'), numero_fatura_gsnet: val('ciNumFaturaGsnet'),
+    data_fatura: val('ciDataFatura'),
+  };
+  try {
+    await api(`/autores/compras-importados/${ciEditId}`, { method: 'PUT', body: JSON.stringify(body) });
+    const item = relImpCache.find((r) => String(r.id) === String(ciEditId));
+    if (item) Object.assign(item, body);
+    modalCompraImp.hidden = true;
+    renderRelImp();
+  } catch (e) { alert(e.message); }
 });
 
 // Dados capturados pelo botão "+" (Adicionar ao Relatório de Compras Importados):
