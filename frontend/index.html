@@ -88,6 +88,7 @@
         <div class="nav-grupo">
           <p class="nav-grupo-titulo nav-unidade-titulo">🌐 Importados</p>
           <a href="#" data-pagina="autoresImportados">Listagem de Autores Importados</a>
+          <a href="#" data-pagina="relatorioImportados">Relatório de Compras Importados</a>
         </div>
 
         <div class="nav-grupo">
@@ -1767,6 +1768,47 @@
               <button id="botaoProximoAutoresImportados">Próximo →</button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="paginaRelatorioImportados" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Relatório de Compras Importados</h2>
+            <p>Pacientes adicionados pela Listagem de Autores Importados (botão ➕). Controle por paciente.</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoRelImp"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaRelImp" placeholder="Buscar por autor, processo, protocolo, SEI, medicamento ou código…" style="min-width:320px;">
+          <button id="botaoLimparFiltrosRelImp" class="botao-secundario" type="button">Limpar</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Autor</th>
+                  <th>Unidade</th>
+                  <th>Protocolo</th>
+                  <th>Processo</th>
+                  <th>Cód. Item</th>
+                  <th>Cód. SIAFÍSICO</th>
+                  <th>Descrição do Item</th>
+                  <th>Qtde de Consumo</th>
+                  <th>Qtde Solicitada</th>
+                  <th>SEI</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaRelImp"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioRelImp" hidden>Nenhum paciente adicionado ainda. Use o botão ➕ na Listagem de Autores Importados.</div>
         </div>
       </section>
 

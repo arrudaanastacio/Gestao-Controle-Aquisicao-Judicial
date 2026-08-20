@@ -764,6 +764,39 @@ CREATE TABLE IF NOT EXISTS requisicao_itens (
 `);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_reqitens_req ON requisicao_itens(requisicao_id);`);
 
+// Relatório de Compras Importados: alimentado manualmente pelo botão "+" da
+// Listagem de Autores Importados (captura a linha do autor + dados do modal).
+// Controle por paciente/item; colunas editáveis (quantidade_solicitada, sei,
+// status) vão sendo preenchidas na tela. Novas colunas entram por migração.
+db.exec(`
+CREATE TABLE IF NOT EXISTS compras_importados (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_item TEXT,
+  cod_siafisico TEXT,
+  descricao_item TEXT,
+  categoria TEXT,
+  autor TEXT,
+  unidade_dispensadora TEXT,
+  id_demanda TEXT,
+  protocolo TEXT,
+  processo TEXT,
+  status_demanda TEXT,
+  tipo_demanda TEXT,
+  qtde_consumo TEXT,
+  prazo TEXT,
+  periodicidade TEXT,
+  data_ultima_dispensacao TEXT,
+  data_ultimo_retorno TEXT,
+  quantidade_solicitada TEXT,
+  sei TEXT,
+  status TEXT DEFAULT 'Solicitado',
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  criado_por TEXT,
+  atualizado_em TEXT
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_comp_imp_autor ON compras_importados(autor);`);
+
 // Status/cancelamento da requisição (cancelar mantém o histórico)
 const colunasReq = db.prepare("PRAGMA table_info(requisicoes)").all().map((c) => c.name);
 if (!colunasReq.includes('status')) db.exec("ALTER TABLE requisicoes ADD COLUMN status TEXT NOT NULL DEFAULT 'Ativa'");
