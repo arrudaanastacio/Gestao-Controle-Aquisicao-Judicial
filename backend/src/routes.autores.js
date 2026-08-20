@@ -851,6 +851,13 @@ function calcularComparacao() {
   const linhasAtual = carregar(atual);
   const linhasAnt = carregar(anterior);
 
+  // Subcategoria por item (item_classificacao), para o filtro de subcategoria.
+  const subcatMap = new Map(
+    db.prepare("SELECT codigo_item, subcategoria FROM item_classificacao WHERE subcategoria IS NOT NULL AND subcategoria <> ''")
+      .all().map((r) => [r.codigo_item, r.subcategoria])
+  );
+  const subcat = (cod) => (cod ? (subcatMap.get(cod) || null) : null);
+
   // Agrupa por autor
   const porAutor = (linhas) => {
     const m = new Map();
@@ -881,6 +888,7 @@ function calcularComparacao() {
           codigo_item: l.codigo_item || '—',
           descricao_item: l.descricao_item || '—',
           qtde_consumo: l.qtde_consumo || '—',
+          subcategoria: subcat(l.codigo_item),
         });
       }
     }
@@ -892,7 +900,7 @@ function calcularComparacao() {
   for (const [autor, g] of mapAnt) {
     if (!mapAtual.has(autor)) {
       const ultimo = g.linhas[g.linhas.length - 1] || {};
-      encerrados.push({ autor, processo: g.processo, ultimo_item: ultimo.descricao_item || '—' });
+      encerrados.push({ autor, processo: g.processo, ultimo_item: ultimo.descricao_item || '—', codigo_item: ultimo.codigo_item || null, subcategoria: subcat(ultimo.codigo_item) });
     }
   }
 
@@ -903,11 +911,11 @@ function calcularComparacao() {
     if (!gP) continue;
     // itens novos
     for (const [cod, it] of gA.itens) {
-      if (!gP.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', qtde_consumo: it.qtde_consumo || '—', alteracao: 'Novo medicamento', detalhe: it.descricao_item || cod });
+      if (!gP.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', subcategoria: subcat(cod), qtde_consumo: it.qtde_consumo || '—', alteracao: 'Novo medicamento', detalhe: it.descricao_item || cod });
     }
     // itens removidos
     for (const [cod, it] of gP.itens) {
-      if (!gA.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', qtde_consumo: it.qtde_consumo || '—', alteracao: 'Item removido', detalhe: it.descricao_item || cod });
+      if (!gA.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', subcategoria: subcat(cod), qtde_consumo: it.qtde_consumo || '—', alteracao: 'Item removido', detalhe: it.descricao_item || cod });
     }
     // status alterado (mesmo item, status diferente)
     for (const [cod, itA] of gA.itens) {
@@ -919,7 +927,7 @@ function calcularComparacao() {
         const partes = [];
         if (mudouDemanda) partes.push(`demanda: "${itP.status_demanda || '—'}" → "${itA.status_demanda || '—'}"`);
         if (mudouItem) partes.push(`item: "${itP.status_item || '—'}" → "${itA.status_item || '—'}"`);
-        alteracoes.push({ autor, protocolo: itA.protocolo || '—', codigo_item: cod, categoria: itA.categoria || '—', qtde_consumo: itA.qtde_consumo || '—', alteracao: 'Status alterado', detalhe: `${it_desc(itA)} — ${partes.join('; ')}` });
+        alteracoes.push({ autor, protocolo: itA.protocolo || '—', codigo_item: cod, categoria: itA.categoria || '—', subcategoria: subcat(cod), qtde_consumo: itA.qtde_consumo || '—', alteracao: 'Status alterado', detalhe: `${it_desc(itA)} — ${partes.join('; ')}` });
       }
     }
   }
@@ -928,6 +936,13 @@ function calcularComparacao() {
   novos.sort((a, b) => a.autor.localeCompare(b.autor));
   encerrados.sort((a, b) => a.autor.localeCompare(b.autor));
   alteracoes.sort((a, b) => a.autor.localeCompare(b.autor));
+
+  // Subcategorias presentes nas 3 listas, para popular o filtro.
+  const subSet = new Set();
+  for (const arr of [novos, encerrados, alteracoes]) {
+    for (const e of arr) if (e.subcategoria) subSet.add(e.subcategoria);
+  }
+  const subcategorias = [...subSet].sort((a, b) => a.localeCompare(b));
 
   return {
     temAnterior: true,
@@ -939,6 +954,7 @@ function calcularComparacao() {
     novos,
     encerrados,
     alteracoes,
+    subcategorias,
   };
 }
 

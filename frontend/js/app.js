@@ -5785,6 +5785,13 @@ async function carregarComparativo() {
   ab[2].textContent = `Alterações (${dados.alteracoes.length})`;
   ab.forEach((b, i) => b.classList.toggle('ativo', i === 0));
 
+  // Popula o filtro de subcategoria (preserva a seleção atual se ainda existir).
+  const selSub = document.getElementById('filtroSubcategoriaComparativo');
+  const subAtual = selSub.value;
+  selSub.innerHTML = '<option value="">Subcategoria: todas</option>' +
+    (dados.subcategorias || []).map((s) => `<option value="${s.replace(/"/g, '&quot;')}">${s}</option>`).join('');
+  selSub.value = [...selSub.options].some((o) => o.value === subAtual) ? subAtual : '';
+
   renderAbaComparativo('novos');
 }
 
@@ -5800,18 +5807,22 @@ function renderAbaComparativo(aba) {
   document.getElementById('filtrosAlteracoes').hidden = !ehAlteracoes;
   document.getElementById('kpiAlteracoes').hidden = !ehAlteracoes;
 
+  // Filtro de subcategoria (vale para as 3 abas).
+  const fSub = document.getElementById('filtroSubcategoriaComparativo').value;
+  const passaSub = (e) => !fSub || e.subcategoria === fSub;
+
   let cols = [];
   let linhas = [];
   if (aba === 'novos') {
     cols = ['ID Demanda', 'Autor', 'Protocolo', 'Processo', 'Tipo da Demanda', 'Cód. Item', 'Descrição do Item', 'Qtde de Consumo'];
-    linhas = dadosComparativo.novos.map((n) => [
+    linhas = dadosComparativo.novos.filter(passaSub).map((n) => [
       `<span class="col-codigo">${n.id_demanda}</span>`, n.autor,
       `<span class="col-codigo">${n.protocolo}</span>`, `<span class="col-codigo">${n.processo}</span>`,
       n.tipo_demanda, `<span class="col-codigo">${n.codigo_item}</span>`, n.descricao_item, n.qtde_consumo,
     ]);
   } else if (aba === 'encerrados') {
     cols = ['Autor', 'Processo', 'Último Item'];
-    linhas = dadosComparativo.encerrados.map((e) => [e.autor, e.processo || '—', e.ultimo_item]);
+    linhas = dadosComparativo.encerrados.filter(passaSub).map((e) => [e.autor, e.processo || '—', e.ultimo_item]);
   } else {
     // popula o filtro de categoria (1ª vez)
     const selCat = document.getElementById('filtroCategoriaAlteracao');
@@ -5822,8 +5833,8 @@ function renderAbaComparativo(aba) {
 
     const fTipo = document.getElementById('filtroTipoAlteracao').value;
     const fCat = selCat.value;
-    // base filtrada só por categoria (para os KPIs por tipo)
-    const baseCat = dadosComparativo.alteracoes.filter((a) => !fCat || a.categoria === fCat);
+    // base filtrada por categoria E subcategoria (para os KPIs por tipo)
+    const baseCat = dadosComparativo.alteracoes.filter((a) => (!fCat || a.categoria === fCat) && passaSub(a));
     const conta = (t) => baseCat.filter((a) => a.alteracao === t).length;
     document.getElementById('kpiAlteracoes').innerHTML = `
       <div class="cartao-resumo"><div class="numero">${fmtNumero(baseCat.length)}</div><div class="rotulo">Total de alterações</div></div>
@@ -5869,6 +5880,10 @@ function renderAbaComparativo(aba) {
 // Filtros da aba Alterações re-renderizam a aba
 ['filtroTipoAlteracao', 'filtroCategoriaAlteracao'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => renderAbaComparativo('alteracoes'));
+});
+// Filtro de subcategoria vale para as 3 abas: re-renderiza a aba ativa.
+document.getElementById('filtroSubcategoriaComparativo').addEventListener('change', () => {
+  renderAbaComparativo(abaComparativoAtiva || 'novos');
 });
 
 // Monta {cols, linhas} em TEXTO PURO da aba (para exportar)

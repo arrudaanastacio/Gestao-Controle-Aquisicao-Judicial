@@ -15,6 +15,7 @@
 | 7 | Modal "Ver" dos Autores (TP e Demais Unidades) — etiquetas de subcategoria e Dose Certa (e demais de programa) no topo | 6447da7 | 19/08/2026 | ✅ pronto em homolog |
 | 8 | Requisição GSNET — remover casa decimal (ex.: "6119.0" → "6119") na exibição e na importação (TP) | e95bddd | 19/08/2026 | 🚀 PUBLICADO (prod 0c24cf2) |
 | 9 | Modal de Permissões — aproveita a largura da tela, tabela 100%, rolagem vertical com cabeçalho fixo | c444a68 | 20/08/2026 | 🚀 PUBLICADO (prod 39c2f76) |
+| 10 | Comparativo de Autores — filtro de subcategoria (vale para as 3 abas: Novos, Inativos, Alterações) | 4866755 | 20/08/2026 | ✅ pronto em homolog |
 
 ### Detalhe do item 1
 
