@@ -20,7 +20,12 @@ async function api(caminho, opcoes = {}) {
     throw new Error('Não autenticado');
   }
   const dados = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(dados.erro || 'Erro na requisição');
+  if (!resp.ok) {
+    const err = new Error(dados.erro || 'Erro na requisição');
+    err.status = resp.status;
+    err.dados = dados;
+    throw err;
+  }
   return dados;
 }
 
@@ -4792,6 +4797,7 @@ function renderRelImp() {
     return `
     <tr data-imp="${r.id}">
       <td class="col-autor">${cel(r.autor)}</td>
+      <td class="col-num">${(r.ciclo || 1)}ª</td>
       <td class="col-unidade">${cel(r.unidade_dispensadora)}</td>
       <td class="col-codigo">${cel(r.protocolo)}</td>
       <td class="col-codigo">${cel(r.processo)}</td>
@@ -4813,6 +4819,7 @@ function renderRelImp() {
       <td>${badgeStatusImp(r.status)}</td>
       <td style="white-space:nowrap;">
         <button type="button" class="botao-secundario relimp-editar" style="padding:4px 8px; font-size:12px;">✏️ Editar</button>
+        <button type="button" class="botao-secundario relimp-nova" title="Criar nova aquisição deste paciente/item" style="padding:4px 8px; font-size:12px;">➕ Nova</button>
         <button type="button" class="botao-secundario relimp-remover" title="Remover" style="padding:4px 8px; font-size:12px; color:#c0392b;">✕</button>
       </td>
     </tr>`;
@@ -4825,6 +4832,21 @@ document.getElementById('corpoTabelaRelImp').addEventListener('click', async (ev
   const id = tr.dataset.imp;
   if (ev.target.closest('.relimp-editar')) {
     abrirModalCompraImp(id);
+  } else if (ev.target.closest('.relimp-nova')) {
+    const r = relImpCache.find((x) => String(x.id) === String(id));
+    if (!r) return;
+    if (!confirm(`Criar uma NOVA aquisição de ${r.autor} para este item? (os campos de compra vêm em branco)`)) return;
+    // Só os campos capturados (a nova aquisição começa sem empenho/datas/valores).
+    const base = {
+      codigo_item: r.codigo_item, cod_siafisico: r.cod_siafisico, descricao_item: r.descricao_item,
+      categoria: r.categoria, autor: r.autor, unidade_dispensadora: r.unidade_dispensadora,
+      id_demanda: r.id_demanda, protocolo: r.protocolo, processo: r.processo,
+      status_demanda: r.status_demanda, tipo_demanda: r.tipo_demanda, qtde_consumo: r.qtde_consumo,
+      prazo: r.prazo, periodicidade: r.periodicidade, data_ultima_dispensacao: r.data_ultima_dispensacao,
+      data_ultimo_retorno: r.data_ultimo_retorno, forcar: true,
+    };
+    try { await api('/autores/compras-importados', { method: 'POST', body: JSON.stringify(base) }); await carregarRelatorioImportados(); }
+    catch (e) { alert(e.message); }
   } else if (ev.target.closest('.relimp-remover')) {
     if (!confirm('Remover este paciente do Relatório de Compras Importados?')) return;
     try { await api(`/autores/compras-importados/${id}`, { method: 'DELETE' }); await carregarRelatorioImportados(); }
@@ -4931,7 +4953,20 @@ document.addEventListener('click', async (ev) => {
     b.textContent = '✓';
     alert(`${dados.autor} adicionado ao Relatório de Compras Importados.`);
   } catch (e) {
-    alert(e.message);
+    // Já existe: importados são recorrentes — oferece criar uma nova aquisição.
+    if (e.dados && e.dados.jaExiste) {
+      const nova = (e.dados.ciclos || 1) + 1;
+      if (confirm(`${dados.autor} já tem ${e.dados.ciclos} solicitação(ões) deste item no Relatório de Compras Importados.\n\nCriar uma NOVA aquisição (${nova}ª)?`)) {
+        try {
+          await api('/autores/compras-importados', { method: 'POST', body: JSON.stringify({ ...dados, forcar: true }) });
+          b.textContent = '✓';
+          alert(`Nova aquisição (${nova}ª) de ${dados.autor} adicionada.`);
+          return;
+        } catch (e2) { alert(e2.message); }
+      }
+    } else {
+      alert(e.message);
+    }
     b.disabled = false;
   }
 });

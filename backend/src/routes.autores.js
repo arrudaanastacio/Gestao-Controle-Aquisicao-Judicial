@@ -439,20 +439,27 @@ router.get('/compras-importados', (req, res) => {
 router.post('/compras-importados', (req, res) => {
   const b = req.body || {};
   if (!b.autor || !b.codigo_item) return res.status(400).json({ erro: 'Informe ao menos o autor e o item.' });
-  // Evita duplicar o mesmo autor + item + protocolo.
-  const existe = db.prepare(
-    "SELECT id FROM compras_importados WHERE autor = ? AND codigo_item = ? AND IFNULL(protocolo,'') = IFNULL(?,'')"
+
+  // Já existe uma solicitação para este paciente/item? Importados são
+  // recorrentes: dá para criar uma NOVA aquisição (novo ciclo), mas só quando o
+  // usuário confirma (forcar=true) — evita duplicar por engano.
+  const anteriores = db.prepare(
+    "SELECT COUNT(*) n, MAX(COALESCE(ciclo,1)) maxc FROM compras_importados WHERE autor = ? AND codigo_item = ? AND IFNULL(protocolo,'') = IFNULL(?,'')"
   ).get(b.autor, b.codigo_item, b.protocolo || null);
-  if (existe) return res.status(409).json({ erro: 'Este paciente/item já está no Relatório de Compras Importados.' });
+  const forcar = b.forcar === true || b.forcar === 'true' || b.forcar === 1;
+  if (anteriores.n > 0 && !forcar) {
+    return res.status(409).json({ erro: 'Este paciente/item já está no Relatório de Compras Importados.', jaExiste: true, ciclos: anteriores.n });
+  }
+  const ciclo = anteriores.n > 0 ? (anteriores.maxc + 1) : 1;
 
   // CATMAT e Valor Médio Unitário vêm do Relatório de Itens (foto mais recente).
   const cat = db.prepare('SELECT catmat, valor_medio_unitario FROM relatorio_itens WHERE codigo = ? ORDER BY data_referencia DESC LIMIT 1').get(b.codigo_item) || {};
   const catmat = (cat.catmat != null && String(cat.catmat).trim() !== '') ? String(cat.catmat).trim() : null;
   const valorMedio = (cat.valor_medio_unitario != null && String(cat.valor_medio_unitario).trim() !== '') ? String(cat.valor_medio_unitario) : null;
 
-  const cols = [...CAMPOS_COMPRA_IMP, 'catmat', 'valor_medio_unitario', 'criado_por'];
+  const cols = [...CAMPOS_COMPRA_IMP, 'catmat', 'valor_medio_unitario', 'ciclo', 'criado_por'];
   const stmt = db.prepare(`INSERT INTO compras_importados (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`);
-  const info = stmt.run(...CAMPOS_COMPRA_IMP.map((c) => (b[c] != null && b[c] !== '' ? String(b[c]) : null)), catmat, valorMedio, req.usuario.email);
+  const info = stmt.run(...CAMPOS_COMPRA_IMP.map((c) => (b[c] != null && b[c] !== '' ? String(b[c]) : null)), catmat, valorMedio, ciclo, req.usuario.email);
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
     .run(req.usuario.id, req.usuario.email, 'add_compra_importado', 'compras_importados', info.lastInsertRowid, JSON.stringify({ autor: b.autor, codigo_item: b.codigo_item }));
   res.status(201).json({ id: info.lastInsertRowid });

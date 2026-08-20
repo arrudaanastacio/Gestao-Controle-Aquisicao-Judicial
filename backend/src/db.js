@@ -813,6 +813,7 @@ addCompImp('data_inativacao', 'TEXT');        // Demanda Inativa
 addCompImp('data_embarque', 'TEXT');          // Embarque
 addCompImp('numero_fatura_gsnet', 'TEXT');    // Finalizado
 addCompImp('data_fatura', 'TEXT');            // Finalizado
+addCompImp('ciclo', 'INTEGER');               // 1ª, 2ª aquisição... do mesmo paciente/item
 
 // Status/cancelamento da requisição (cancelar mantém o histórico)
 const colunasReq = db.prepare("PRAGMA table_info(requisicoes)").all().map((c) => c.name);
