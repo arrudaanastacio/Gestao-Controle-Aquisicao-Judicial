@@ -5035,10 +5035,11 @@ document.addEventListener('click', async (ev) => {
     b.textContent = '✓';
     alert(`${dados.autor} adicionado ao Relatório de Compras Importados.`);
   } catch (e) {
-    // Já existe: importados são recorrentes — oferece criar uma nova aquisição.
-    if (e.dados && e.dados.jaExiste) {
+    // Já existe: só libera nova aquisição quando a última foi FINALIZADA
+    // (recorrência). Deserto/Fracassado -> refazer pelo Relatório; em andamento -> bloqueia.
+    if (e.dados && e.dados.jaExiste && e.dados.podeNova) {
       const nova = (e.dados.ciclos || 1) + 1;
-      if (confirm(`${dados.autor} já tem ${e.dados.ciclos} solicitação(ões) deste item no Relatório de Compras Importados.\n\nCriar uma NOVA aquisição (${nova}ª)?`)) {
+      if (confirm(`${dados.autor} já tem uma aquisição FINALIZADA deste item.\n\nCriar uma NOVA aquisição (${nova}ª)?`)) {
         try {
           await api('/autores/compras-importados', { method: 'POST', body: JSON.stringify({ ...dados, forcar: true }) });
           b.textContent = '✓';

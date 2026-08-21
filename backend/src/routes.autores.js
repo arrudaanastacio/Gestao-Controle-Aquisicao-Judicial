@@ -441,14 +441,27 @@ router.post('/compras-importados', (req, res) => {
   if (!b.autor || !b.codigo_item) return res.status(400).json({ erro: 'Informe ao menos o autor e o item.' });
 
   // Já existe uma solicitação para este paciente/item? Importados são
-  // recorrentes: dá para criar uma NOVA aquisição (novo ciclo), mas só quando o
-  // usuário confirma (forcar=true) — evita duplicar por engano.
+  // recorrentes, mas a nova aquisição depende do STATUS da última:
+  //   - Finalizado         => libera nova aquisição (recorrência), com confirmação.
+  //   - Deserto/Fracassado => refazer é pelo botão "+ Nova" do Relatório (aqui bloqueia).
+  //   - em andamento       => bloqueia (evita duplicar solicitação aberta).
+  // forcar=true (confirmação do usuário) cria o novo ciclo.
   const anteriores = db.prepare(
     "SELECT COUNT(*) n, MAX(COALESCE(ciclo,1)) maxc FROM compras_importados WHERE autor = ? AND codigo_item = ? AND IFNULL(protocolo,'') = IFNULL(?,'')"
   ).get(b.autor, b.codigo_item, b.protocolo || null);
   const forcar = b.forcar === true || b.forcar === 'true' || b.forcar === 1;
   if (anteriores.n > 0 && !forcar) {
-    return res.status(409).json({ erro: 'Este paciente/item já está no Relatório de Compras Importados.', jaExiste: true, ciclos: anteriores.n });
+    const ultimo = db.prepare(
+      "SELECT status FROM compras_importados WHERE autor = ? AND codigo_item = ? AND IFNULL(protocolo,'') = IFNULL(?,'') ORDER BY COALESCE(ciclo,1) DESC, id DESC LIMIT 1"
+    ).get(b.autor, b.codigo_item, b.protocolo || null);
+    const st = (ultimo && ultimo.status) || 'Solicitado';
+    if (st === 'Finalizado') {
+      return res.status(409).json({ erro: 'Última aquisição finalizada.', jaExiste: true, podeNova: true, motivo: 'finalizado', ciclos: anteriores.n });
+    }
+    if (st === 'Deserto' || st === 'Fracassado') {
+      return res.status(409).json({ erro: `Há uma solicitação com status "${st}". Refaça a aquisição pelo botão "➕ Nova" no Relatório de Compras Importados.`, jaExiste: true, podeNova: false, motivo: 'negativo' });
+    }
+    return res.status(409).json({ erro: 'Este paciente/item já tem uma solicitação em andamento no Relatório de Compras Importados.', jaExiste: true, podeNova: false, motivo: 'andamento' });
   }
   const ciclo = anteriores.n > 0 ? (anteriores.maxc + 1) : 1;
 
