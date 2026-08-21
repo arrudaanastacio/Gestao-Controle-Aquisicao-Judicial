@@ -822,6 +822,8 @@ addCompImp('tentativas_datas', 'TEXT');       // Sem cotação: JSON com a data 
 addCompImp('telegrama_enviado', 'TEXT');      // Finalizado + Tenente Pena: Sim/Não
 addCompImp('data_envio_telegrama', 'TEXT');   // Finalizado + Tenente Pena: data do envio
 addCompImp('status_desde', 'TEXT');           // quando o status vigente começou (para os alertas)
+addCompImp('num_doc_entrada_gsnet', 'TEXT');  // Finalizado: Nº Doc. Entrada GSNET
+addCompImp('data_entrada', 'TEXT');           // Finalizado: data de entrada
 
 // Status/cancelamento da requisição (cancelar mantém o histórico)
 const colunasReq = db.prepare("PRAGMA table_info(requisicoes)").all().map((c) => c.name);

@@ -4992,13 +4992,13 @@ const CI_COND = {
   Fracassado: ['ciWrapJustificativa'],
   'Demanda Inativa': ['ciWrapDataInativacao'],
   Embarque: ['ciWrapDataEmbarque', 'ciWrapLote', 'ciWrapValidade'],
-  Finalizado: ['ciWrapNumFatura', 'ciWrapDataFatura'],
+  Finalizado: ['ciWrapNumFatura', 'ciWrapDataFatura', 'ciWrapNumDocEntrada', 'ciWrapDataEntrada'],
   'Pendência': ['ciWrapMotivo', 'ciWrapJustificativa'],
   'Sem cotação': ['ciWrapTentativas', 'ciWrapTentativasDatas', 'ciWrapJustificativa'],
 };
 const CI_TODOS_WRAPS = ['ciWrapMotivo', 'ciWrapDataInativacao', 'ciWrapDataEmbarque', 'ciWrapLote',
-  'ciWrapValidade', 'ciWrapNumFatura', 'ciWrapDataFatura', 'ciWrapTelegrama', 'ciWrapDataTelegrama',
-  'ciWrapTentativas', 'ciWrapTentativasDatas', 'ciWrapJustificativa'];
+  'ciWrapValidade', 'ciWrapNumFatura', 'ciWrapDataFatura', 'ciWrapNumDocEntrada', 'ciWrapDataEntrada',
+  'ciWrapTelegrama', 'ciWrapDataTelegrama', 'ciWrapTentativas', 'ciWrapTentativasDatas', 'ciWrapJustificativa'];
 let ciEhTP = false; // a linha em edição é da Tenente Pena?
 function ciAtualizarCondicionais() {
   const st = document.getElementById('ciStatus').value;
@@ -5044,6 +5044,8 @@ function abrirModalCompraImp(id) {
   set('ciDataEmbarque', r.data_embarque);
   set('ciNumFaturaGsnet', r.numero_fatura_gsnet);
   set('ciDataFatura', r.data_fatura);
+  set('ciNumDocEntradaGsnet', r.num_doc_entrada_gsnet);
+  set('ciDataEntrada', r.data_entrada);
   document.getElementById('ciMotivoPendencia').value = r.motivo_pendencia || '';
   set('ciLote', r.lote);
   set('ciValidade', r.validade);
@@ -5079,6 +5081,7 @@ document.getElementById('botaoSalvarCompraImp').addEventListener('click', async 
     justificativa: val('ciJustificativa'), data_inativacao: val('ciDataInativacao'),
     data_embarque: val('ciDataEmbarque'), numero_fatura_gsnet: val('ciNumFaturaGsnet'),
     data_fatura: val('ciDataFatura'),
+    num_doc_entrada_gsnet: val('ciNumDocEntradaGsnet'), data_entrada: val('ciDataEntrada'),
     motivo_pendencia: document.getElementById('ciMotivoPendencia').value,
     lote: val('ciLote'), validade: val('ciValidade'),
     num_tentativas: val('ciNumTentativas'),
