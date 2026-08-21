@@ -4799,9 +4799,12 @@ function renderRelImp() {
 }
 
 // Linha (<tr>) de uma compra de importado — usada no Relatório e na Tabela Análise.
+// Status "negativos" (licitação deserta/fracassada): liberam nova aquisição.
+const STATUS_NEGATIVOS_IMP = ['Deserto', 'Fracassado'];
 function linhaCompImpHTML(r) {
   const cel = (v) => escHtml(v == null || v === '' ? '—' : v);
   const vt = valorTotalImp(r);
+  const podeNova = STATUS_NEGATIVOS_IMP.includes(r.status || '');
   return `
     <tr data-imp="${r.id}">
       <td class="col-autor">${cel(r.autor)}</td>
@@ -4827,7 +4830,7 @@ function linhaCompImpHTML(r) {
       <td>${badgeStatusImp(r.status)}</td>
       <td style="white-space:nowrap;">
         <button type="button" class="botao-secundario relimp-editar" style="padding:4px 8px; font-size:12px;">✏️ Editar</button>
-        <button type="button" class="botao-secundario relimp-nova" title="Criar nova aquisição deste paciente/item" style="padding:4px 8px; font-size:12px;">➕ Nova</button>
+        <button type="button" class="botao-secundario relimp-nova" ${podeNova ? '' : 'disabled'} title="${podeNova ? 'Refazer aquisição (processo Deserto/Fracassado)' : 'Nova aquisição disponível só quando o status for Deserto ou Fracassado'}" style="padding:4px 8px; font-size:12px;${podeNova ? '' : ' opacity:.4; cursor:not-allowed;'}">➕ Nova</button>
         <button type="button" class="botao-secundario relimp-remover" title="Remover" style="padding:4px 8px; font-size:12px; color:#c0392b;">✕</button>
       </td>
     </tr>`;
