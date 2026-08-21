@@ -444,14 +444,14 @@ function gerarAlertasEstoque(dataReferencia, importacaoId) {
       dupMap.get(s).add(it.codigo_item);
     }
   }
-  // UM alerta por siafísico duplicado. Guarda o siafísico em codigo_item (chave
-  // de referência do alerta) para o relatório do modal filtrar por ele.
-  const dupEntries = [...dupMap.entries()].filter(([, set]) => set.size > 1)
-    .sort((a, b) => a[0].localeCompare(b[0]));
+  // UM alerta-resumo de siafísicos duplicados. O relatório completo (agrupado
+  // por siafísico) sai no modal via /alertas/siafisico-duplicado.
+  const dupEntries = [...dupMap.entries()].filter(([, set]) => set.size > 1);
   const siafisicoDuplicado = dupEntries.length;
-  for (const [s, set] of dupEntries) {
-    stmtAlerta.run('siafisico_duplicado', s,
-      `Siafísico ${s} está em ${set.size} códigos de item (com demanda ativa) no Estoque Tenente Pena. Abra o relatório para revisar.`);
+  if (siafisicoDuplicado > 0) {
+    const nItens = dupEntries.reduce((a, [, set]) => a + set.size, 0);
+    stmtAlerta.run('siafisico_duplicado', null,
+      `${siafisicoDuplicado} siafísico(s) com DEMANDA ATIVA aparecem em mais de um código de item no Estoque Tenente Pena (${nItens} itens envolvidos). Abra o relatório para revisar.`);
   }
 
   return { alertasEstoqueBaixo: estoqueBaixo, alertasRuptura: ruptura, alertasCompraDemandaZero: compraDemandaZero, siafisicoDuplicado, limiarUsado: limiar };
