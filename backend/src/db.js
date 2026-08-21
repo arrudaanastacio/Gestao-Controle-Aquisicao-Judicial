@@ -819,6 +819,8 @@ addCompImp('lote', 'TEXT');                   // Embarque
 addCompImp('validade', 'TEXT');               // Embarque
 addCompImp('num_tentativas', 'INTEGER');      // Sem cotação: quantas tentativas
 addCompImp('tentativas_datas', 'TEXT');       // Sem cotação: JSON com a data de cada tentativa
+addCompImp('telegrama_enviado', 'TEXT');      // Finalizado + Tenente Pena: Sim/Não
+addCompImp('data_envio_telegrama', 'TEXT');   // Finalizado + Tenente Pena: data do envio
 
 // Status/cancelamento da requisição (cancelar mantém o histórico)
 const colunasReq = db.prepare("PRAGMA table_info(requisicoes)").all().map((c) => c.name);

@@ -4920,10 +4920,14 @@ const CI_COND = {
   'Sem cotação': ['ciWrapTentativas', 'ciWrapTentativasDatas', 'ciWrapJustificativa'],
 };
 const CI_TODOS_WRAPS = ['ciWrapMotivo', 'ciWrapDataInativacao', 'ciWrapDataEmbarque', 'ciWrapLote',
-  'ciWrapValidade', 'ciWrapNumFatura', 'ciWrapDataFatura', 'ciWrapTentativas', 'ciWrapTentativasDatas', 'ciWrapJustificativa'];
+  'ciWrapValidade', 'ciWrapNumFatura', 'ciWrapDataFatura', 'ciWrapTelegrama', 'ciWrapDataTelegrama',
+  'ciWrapTentativas', 'ciWrapTentativasDatas', 'ciWrapJustificativa'];
+let ciEhTP = false; // a linha em edição é da Tenente Pena?
 function ciAtualizarCondicionais() {
   const st = document.getElementById('ciStatus').value;
   const mostrar = new Set(CI_COND[st] || []);
+  // Telegrama: só no status Finalizado E para a unidade Tenente Pena.
+  if (st === 'Finalizado' && ciEhTP) { mostrar.add('ciWrapTelegrama'); mostrar.add('ciWrapDataTelegrama'); }
   CI_TODOS_WRAPS.forEach((wid) => { document.getElementById(wid).hidden = !mostrar.has(wid); });
 }
 // Sem cotação: renderiza um campo de data por tentativa (1, 2, 3...).
@@ -4967,6 +4971,9 @@ function abrirModalCompraImp(id) {
   set('ciLote', r.lote);
   set('ciValidade', r.validade);
   set('ciNumTentativas', r.num_tentativas);
+  ciEhTP = /tenente pena/i.test(r.unidade_dispensadora || '');
+  document.getElementById('ciTelegramaEnviado').value = r.telegrama_enviado || 'Não';
+  set('ciDataEnvioTelegrama', r.data_envio_telegrama);
   let datasTent = [];
   try { datasTent = r.tentativas_datas ? JSON.parse(r.tentativas_datas) : []; } catch (e) { datasTent = []; }
   ciRenderTentativasDatas(r.num_tentativas, datasTent);
@@ -4999,6 +5006,8 @@ document.getElementById('botaoSalvarCompraImp').addEventListener('click', async 
     lote: val('ciLote'), validade: val('ciValidade'),
     num_tentativas: val('ciNumTentativas'),
     tentativas_datas: JSON.stringify([...document.querySelectorAll('#ciTentativasDatas .ci-tentativa-data')].map((i) => i.value)),
+    telegrama_enviado: (ciEhTP && document.getElementById('ciStatus').value === 'Finalizado') ? document.getElementById('ciTelegramaEnviado').value : '',
+    data_envio_telegrama: (ciEhTP && document.getElementById('ciStatus').value === 'Finalizado') ? val('ciDataEnvioTelegrama') : '',
   };
   try {
     await api(`/autores/compras-importados/${ciEditId}`, { method: 'PUT', body: JSON.stringify(body) });
