@@ -2319,6 +2319,7 @@
             <option value="estoque_baixo">Estoque baixo</option>
             <option value="compra_aberta_demanda_zero">Compra em aberto + demanda zero</option>
             <option value="item_removido_com_historico">Item removido do elenco com histórico</option>
+            <option value="siafisico_duplicado">Siafísico duplicado</option>
           </select>
           <select id="filtroCategoriaAlerta">
             <option value="">Todas as categorias</option>
@@ -2690,6 +2691,33 @@
       <div id="corpoDetalheDemanda" style="margin-top:8px;"></div>
       <div class="acoes-modal">
         <button type="button" class="botao-primario" id="botaoFecharDetalheDemanda">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="fundo-modal" id="modalSiafDup" hidden>
+    <div class="modal" style="max-width:min(1240px, 95vw); width:100%;">
+      <h3>Siafísico duplicado</h3>
+      <p id="subSiafDup" class="texto-secundario" style="margin-top:-6px;"></p>
+      <div class="tabela-rolavel-x" style="margin-top:8px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Siafísico</th>
+              <th>Descrição do Item</th>
+              <th>Unidade Dispensadora</th>
+              <th>Demandas</th>
+              <th>Consumo Mensal Total</th>
+              <th>Estoque</th>
+              <th>Autonomia</th>
+            </tr>
+          </thead>
+          <tbody id="corpoTabelaSiafDup"></tbody>
+        </table>
+      </div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-primario" id="botaoFecharSiafDup">Fechar</button>
       </div>
     </div>
   </div>

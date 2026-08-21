@@ -7405,6 +7405,7 @@ const ROTULO_TIPO_ALERTA = {
   estoque_baixo: 'Estoque baixo',
   compra_aberta_demanda_zero: 'Revisar compra',
   item_removido_com_historico: 'Item removido',
+  siafisico_duplicado: 'Siafísico duplicado',
 };
 
 async function carregarAlertas() {
@@ -7454,7 +7455,10 @@ async function carregarAlertas() {
         <p>${a.mensagem}</p>
         <div class="data-alerta">${formatarData(a.criado_em.slice(0,10))} às ${a.criado_em.slice(11,16)}${a.resolvido ? ` · resolvido por ${a.resolvido_por}` : ''}</div>
       </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      ${a.tipo === 'siafisico_duplicado' ? `<button class="botao-secundario" data-siaf="${escAttr(a.codigo_item || '')}">📋 Ver relatório</button>` : ''}
       ${!a.resolvido ? `<button class="botao-secundario" data-id="${a.id}">Marcar como resolvido</button>` : ''}
+      </div>
     </div>
   `).join('') +
   (filtrados.length > 300 ? `<div class="estado-vazio">Mostrando os primeiros 300 de ${filtrados.length} alertas. Use os filtros para refinar.</div>` : '');
@@ -7470,7 +7474,40 @@ async function carregarAlertas() {
       }
     });
   });
+  container.querySelectorAll('button[data-siaf]').forEach((btn) => {
+    btn.addEventListener('click', () => abrirRelatorioSiafisico(btn.dataset.siaf));
+  });
 }
+
+// Modal do alerta "Siafísico duplicado": itens do Estoque TP (demanda ativa)
+// que compartilham o mesmo siafísico — modelo do print.
+async function abrirRelatorioSiafisico(siaf) {
+  const modal = document.getElementById('modalSiafDup');
+  document.getElementById('subSiafDup').textContent = `Siafísico ${siaf} — itens com demanda ativa no Estoque Tenente Pena`;
+  const corpo = document.getElementById('corpoTabelaSiafDup');
+  corpo.innerHTML = '<tr><td colspan="8">Carregando…</td></tr>';
+  modal.hidden = false;
+  try {
+    const d = await api(`/alertas/siafisico-duplicado?siafisico=${encodeURIComponent(siaf)}`);
+    const cel = (v) => escHtml(v == null || v === '' ? '—' : v);
+    corpo.innerHTML = (d.itens || []).map((r) => `
+      <tr>
+        <td class="col-codigo">${cel(r.codigo_item)}</td>
+        <td class="col-codigo">${cel(r.siafisico)}</td>
+        <td class="col-desc" title="${escAttr(r.descricao || '')}">${cel(r.descricao)}</td>
+        <td class="col-unidade">${cel(r.unidade)}</td>
+        <td class="col-num">${cel(r.demandas)}</td>
+        <td class="col-num">${cel(r.consumo_mensal_total)}</td>
+        <td class="col-num">${cel(r.estoque)}</td>
+        <td class="col-num">${cel(r.autonomia)}</td>
+      </tr>`).join('') || '<tr><td colspan="8" class="texto-secundario">Nenhum item (o alerta pode estar desatualizado — reimporte o estoque).</td></tr>';
+  } catch (e) {
+    corpo.innerHTML = `<tr><td colspan="8" style="color:var(--vermelho);">${escHtml(e.message)}</td></tr>`;
+  }
+}
+document.getElementById('botaoFecharSiafDup').addEventListener('click', () => {
+  document.getElementById('modalSiafDup').hidden = true;
+});
 
 // Gráfico de barras por categoria (HTML/CSS, sem biblioteca externa). Cada barra
 // é clicável: aplica/limpa o filtro de categoria. Cores fixas por categoria.

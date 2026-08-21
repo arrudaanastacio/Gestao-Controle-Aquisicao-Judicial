@@ -382,7 +382,7 @@ function gerarAlertasEstoque(dataReferencia, importacaoId) {
   );
 
   // Remove alertas automáticos de estoque ainda abertos (serão regerados a partir da foto mais recente)
-  db.prepare("DELETE FROM alertas WHERE tipo IN ('estoque_baixo','estoque_ruptura','compra_aberta_demanda_zero') AND resolvido = 0").run();
+  db.prepare("DELETE FROM alertas WHERE tipo IN ('estoque_baixo','estoque_ruptura','compra_aberta_demanda_zero','siafisico_duplicado') AND resolvido = 0").run();
 
   // Alertas cruzam estoque × compras judiciais (que são do Tenente Pena),
   // por isso só geramos alertas para os itens da UD 01 - Tenente Pena.
@@ -432,7 +432,29 @@ function gerarAlertasEstoque(dataReferencia, importacaoId) {
     }
   }
 
-  return { alertasEstoqueBaixo: estoqueBaixo, alertasRuptura: ruptura, alertasCompraDemandaZero: compraDemandaZero, limiarUsado: limiar };
+  // Siafísico duplicado: o MESMO siafísico em mais de um código de item, entre
+  // os itens com DEMANDA ATIVA (demandas > 0). Gera UM alerta-resumo; o
+  // relatório detalhado sai por /alertas/siafisico-duplicado.
+  const dupMap = new Map();
+  for (const it of itens) {
+    const dem = Number(it.demandas) || 0;
+    const s = (it.siafisico || '').trim();
+    if (dem > 0 && s) {
+      if (!dupMap.has(s)) dupMap.set(s, new Set());
+      dupMap.get(s).add(it.codigo_item);
+    }
+  }
+  // UM alerta por siafísico duplicado. Guarda o siafísico em codigo_item (chave
+  // de referência do alerta) para o relatório do modal filtrar por ele.
+  const dupEntries = [...dupMap.entries()].filter(([, set]) => set.size > 1)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  const siafisicoDuplicado = dupEntries.length;
+  for (const [s, set] of dupEntries) {
+    stmtAlerta.run('siafisico_duplicado', s,
+      `Siafísico ${s} está em ${set.size} códigos de item (com demanda ativa) no Estoque Tenente Pena. Abra o relatório para revisar.`);
+  }
+
+  return { alertasEstoqueBaixo: estoqueBaixo, alertasRuptura: ruptura, alertasCompraDemandaZero: compraDemandaZero, siafisicoDuplicado, limiarUsado: limiar };
 }
 
 // ---------- Consulta do estoque do dia (mais recente ou data específica) ----------
