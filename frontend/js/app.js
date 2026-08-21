@@ -251,7 +251,7 @@ function aplicarPermissoesNav() {
     relatorioItens: 'relatorioItens',
     planejamento: 'planejamento',
     autores: 'autoresTP', autoresGeral: 'autoresGeral', autoresImportados: 'autoresImportados',
-    relatorioImportados: 'relatorioComprasImportados',
+    relatorioImportados: 'relatorioComprasImportados', analiseImportados: 'analiseImportados',
     comparativoAutores: 'comparativoAutoresTP', relatorioReq: 'relatorioReqTP',
     cartasTroca: 'cartasTroca',
     atas: 'atas',
@@ -367,6 +367,7 @@ const ICONES_NAV = {
   autoresGeral: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   autoresImportados: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
   relatorioImportados: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/>',
+  analiseImportados: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/>',
   comparativoAutores: '<path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/>',
   relatorioReq: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M8 11h8M8 15h8M8 19h5"/>',
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
@@ -650,6 +651,7 @@ const TRILHAS = {
   autoresGeral: ['Outras Demandas', 'Autores', 'Listagem de Autores Demais Unidades'],
   autoresImportados: ['Importados', 'Listagem de Autores Importados'],
   relatorioImportados: ['Importados', 'Relatório de Compras Importados'],
+  analiseImportados: ['Importados', 'Tabela Análise Importados'],
   relatorioItens: ['Consultas', 'Relatório de Itens'],
   atas: ['Consultas', 'Atas de Registro de Preço'],
   usuarios: ['Administração', 'Usuários'],
@@ -691,6 +693,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaAutoresGeral').hidden = pagina !== 'autoresGeral';
   document.getElementById('paginaAutoresImportados').hidden = pagina !== 'autoresImportados';
   document.getElementById('paginaRelatorioImportados').hidden = pagina !== 'relatorioImportados';
+  document.getElementById('paginaAnaliseImportados').hidden = pagina !== 'analiseImportados';
   document.getElementById('paginaComparativoAutores').hidden = pagina !== 'comparativoAutores';
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
   document.getElementById('paginaCartasTroca').hidden = pagina !== 'cartasTroca';
@@ -728,6 +731,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'autoresGeral') await carregarAutoresGeral();
     if (pagina === 'autoresImportados') await carregarAutoresImportados();
     if (pagina === 'relatorioImportados') await carregarRelatorioImportados();
+    if (pagina === 'analiseImportados') await carregarAnaliseImportados();
     if (pagina === 'comparativoAutores') await carregarComparativo();
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
     if (pagina === 'cartasTroca') await carregarCartasTroca();
@@ -4791,10 +4795,14 @@ function renderRelImp() {
   const vazio = document.getElementById('estadoVazioRelImp');
   if (!lista.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
   vazio.hidden = true;
+  corpo.innerHTML = lista.map(linhaCompImpHTML).join('');
+}
+
+// Linha (<tr>) de uma compra de importado — usada no Relatório e na Tabela Análise.
+function linhaCompImpHTML(r) {
   const cel = (v) => escHtml(v == null || v === '' ? '—' : v);
-  corpo.innerHTML = lista.map((r) => {
-    const vt = valorTotalImp(r);
-    return `
+  const vt = valorTotalImp(r);
+  return `
     <tr data-imp="${r.id}">
       <td class="col-autor">${cel(r.autor)}</td>
       <td class="col-num">${(r.ciclo || 1)}ª</td>
@@ -4823,10 +4831,44 @@ function renderRelImp() {
         <button type="button" class="botao-secundario relimp-remover" title="Remover" style="padding:4px 8px; font-size:12px; color:#c0392b;">✕</button>
       </td>
     </tr>`;
-  }).join('');
 }
 
-document.getElementById('corpoTabelaRelImp').addEventListener('click', async (ev) => {
+// Status que aparecem na Tabela Análise dos Importados.
+const STATUS_ANALISE_IMP = ['Embarque', 'Instrução Processual', 'Solicitado'];
+
+async function carregarAnaliseImportados() {
+  const dados = await api('/autores/compras-importados');
+  relImpCache = dados.itens || [];
+  renderAnaliseImp();
+}
+
+function renderAnaliseImp() {
+  const q = document.getElementById('filtroBuscaAnaliseImp').value.trim().toLowerCase();
+  const base = relImpCache.filter((r) => STATUS_ANALISE_IMP.includes(r.status || 'Solicitado'));
+  const lista = !q ? base : base.filter((r) =>
+    [r.autor, r.processo, r.protocolo, r.sei, r.req_gsnet, r.descricao_item, r.codigo_item, r.catmat]
+      .some((v) => String(v || '').toLowerCase().includes(q)));
+
+  document.getElementById('grideResumoAnaliseImp').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(new Set(base.map((r) => r.autor)).size)}</div><div class="rotulo">Pacientes (em análise)</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(base.length)}</div><div class="rotulo">Solicitações (Embarque · Instrução Processual · Solicitado)</div></div>
+  `;
+
+  const corpo = document.getElementById('corpoTabelaAnaliseImp');
+  const vazio = document.getElementById('estadoVazioAnaliseImp');
+  if (!lista.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
+  vazio.hidden = true;
+  corpo.innerHTML = lista.map(linhaCompImpHTML).join('');
+}
+
+// Recarrega os dados e re-renderiza a tela de importados ativa (Relatório ou Análise).
+async function recarregarCompImpAtual() {
+  const dados = await api('/autores/compras-importados');
+  relImpCache = dados.itens || [];
+  if (estado.paginaAtual === 'analiseImportados') renderAnaliseImp(); else renderRelImp();
+}
+
+async function manipularCliqueCompImp(ev) {
   const tr = ev.target.closest('tr[data-imp]');
   if (!tr) return;
   const id = tr.dataset.imp;
@@ -4845,13 +4887,19 @@ document.getElementById('corpoTabelaRelImp').addEventListener('click', async (ev
       prazo: r.prazo, periodicidade: r.periodicidade, data_ultima_dispensacao: r.data_ultima_dispensacao,
       data_ultimo_retorno: r.data_ultimo_retorno, forcar: true,
     };
-    try { await api('/autores/compras-importados', { method: 'POST', body: JSON.stringify(base) }); await carregarRelatorioImportados(); }
+    try { await api('/autores/compras-importados', { method: 'POST', body: JSON.stringify(base) }); await recarregarCompImpAtual(); }
     catch (e) { alert(e.message); }
   } else if (ev.target.closest('.relimp-remover')) {
     if (!confirm('Remover este paciente do Relatório de Compras Importados?')) return;
-    try { await api(`/autores/compras-importados/${id}`, { method: 'DELETE' }); await carregarRelatorioImportados(); }
+    try { await api(`/autores/compras-importados/${id}`, { method: 'DELETE' }); await recarregarCompImpAtual(); }
     catch (e) { alert(e.message); }
   }
+}
+document.getElementById('corpoTabelaRelImp').addEventListener('click', manipularCliqueCompImp);
+document.getElementById('corpoTabelaAnaliseImp').addEventListener('click', manipularCliqueCompImp);
+document.getElementById('filtroBuscaAnaliseImp').addEventListener('input', () => renderAnaliseImp());
+document.getElementById('botaoLimparFiltrosAnaliseImp').addEventListener('click', () => {
+  document.getElementById('filtroBuscaAnaliseImp').value = ''; renderAnaliseImp();
 });
 
 // -------- Modal de edição da Compra do Importado --------
@@ -4954,7 +5002,7 @@ document.getElementById('botaoSalvarCompraImp').addEventListener('click', async 
     const item = relImpCache.find((r) => String(r.id) === String(ciEditId));
     if (item) Object.assign(item, body);
     modalCompraImp.hidden = true;
-    renderRelImp();
+    if (estado.paginaAtual === 'analiseImportados') renderAnaliseImp(); else renderRelImp();
   } catch (e) { alert(e.message); }
 });
 

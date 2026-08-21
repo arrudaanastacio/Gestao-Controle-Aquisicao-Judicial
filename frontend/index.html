@@ -89,6 +89,7 @@
           <p class="nav-grupo-titulo nav-unidade-titulo">🌐 Importados</p>
           <a href="#" data-pagina="autoresImportados">Listagem de Autores Importados</a>
           <a href="#" data-pagina="relatorioImportados">Relatório de Compras Importados</a>
+          <a href="#" data-pagina="analiseImportados">Tabela Análise Importados</a>
         </div>
 
         <div class="nav-grupo">
@@ -1819,6 +1820,57 @@
             </table>
           </div>
           <div class="estado-vazio" id="estadoVazioRelImp" hidden>Nenhum paciente adicionado ainda. Use o botão ➕ na Listagem de Autores Importados.</div>
+        </div>
+      </section>
+
+      <section id="paginaAnaliseImportados" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Tabela Análise Importados</h2>
+            <p>Solicitações de importados nos status <strong>Embarque</strong>, <strong>Instrução Processual</strong> e <strong>Solicitado</strong>.</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoAnaliseImp"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaAnaliseImp" placeholder="Buscar por autor, processo, protocolo, SEI, medicamento ou código…" style="min-width:320px;">
+          <button id="botaoLimparFiltrosAnaliseImp" class="botao-secundario" type="button">Limpar</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Autor</th>
+                  <th>Aquisição</th>
+                  <th>Unidade</th>
+                  <th>Protocolo</th>
+                  <th>Processo</th>
+                  <th>Cód. Item</th>
+                  <th>Cód. SIAFÍSICO</th>
+                  <th>Descrição do Item</th>
+                  <th>Qtde de Consumo</th>
+                  <th>CATMAT</th>
+                  <th>Qtde Solicitada</th>
+                  <th>SEI</th>
+                  <th>Req. GSNET</th>
+                  <th>Valor Médio Unit.</th>
+                  <th>Valor Total Aquisição</th>
+                  <th>Solicitação DRS SEI</th>
+                  <th>Data Solicitação</th>
+                  <th>Nº Empenho</th>
+                  <th>Nº Recibo</th>
+                  <th>Data Entrega</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaAnaliseImp"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioAnaliseImp" hidden>Nenhuma solicitação nos status Embarque / Instrução Processual / Solicitado.</div>
         </div>
       </section>
 
