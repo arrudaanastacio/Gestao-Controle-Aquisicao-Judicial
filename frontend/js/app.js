@@ -4750,7 +4750,10 @@ async function carregarTabelaAutoresImportados() {
 let relImpCache = [];
 document.getElementById('filtroBuscaRelImp').addEventListener('input', () => renderRelImp());
 document.getElementById('botaoLimparFiltrosRelImp').addEventListener('click', () => {
-  document.getElementById('filtroBuscaRelImp').value = ''; renderRelImp();
+  document.getElementById('filtroBuscaRelImp').value = '';
+  document.getElementById('filtroStatusRelImp').value = '';
+  document.getElementById('filtroUnidadeRelImp').value = '';
+  renderRelImp();
 });
 
 // Número no padrão pt-BR ou com ponto decimal.
@@ -4780,16 +4783,83 @@ async function carregarRelatorioImportados() {
   renderRelImp();
 }
 
+// Data de referência do status atual (para os alertas): status_desde, ou o
+// último update/criação como aproximação para linhas antigas.
+function refStatusDesde(r) { return r.status_desde || r.atualizado_em || r.criado_em || null; }
+function diasDecorridos(iso) {
+  if (!iso) return null;
+  const d = new Date(String(iso).replace(' ', 'T'));
+  if (isNaN(d)) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+function textoTempoImp(dias) {
+  if (dias == null) return '';
+  if (dias <= 0) return 'hoje';
+  if (dias < 60) return `há ${dias} dia${dias > 1 ? 's' : ''}`;
+  const meses = Math.floor(dias / 30);
+  return `há ${meses} ${meses > 1 ? 'meses' : 'mês'}`;
+}
+function corAlertaImp(dias) {
+  if (dias == null) return 'var(--cinza-texto)';
+  if (dias > 30) return '#b00020';
+  if (dias >= 15) return '#8a6d00';
+  return '#5a7d2a';
+}
+
+// Preenche os selects de Status e Unidade (preservando a seleção atual).
+function preencherFiltrosRelImp() {
+  const selS = document.getElementById('filtroStatusRelImp');
+  const selU = document.getElementById('filtroUnidadeRelImp');
+  const statuses = [...new Set(relImpCache.map((r) => r.status || 'Solicitado'))].sort((a, b) => a.localeCompare(b));
+  const unidades = [...new Set(relImpCache.map((r) => r.unidade_dispensadora).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const manter = (sel, valores, rot) => {
+    const atual = sel.value;
+    sel.innerHTML = `<option value="">${rot}</option>` + valores.map((v) => `<option value="${escAttr(v)}">${escHtml(v)}</option>`).join('');
+    if (valores.includes(atual)) sel.value = atual;
+  };
+  manter(selS, statuses, 'Status: todos');
+  manter(selU, unidades, 'Unidade: todas');
+}
+
+// Painel de alertas: Pendência e Devolvido, com há quanto tempo.
+function renderAlertasRelImp() {
+  const box = document.getElementById('alertasRelImp');
+  const alvos = relImpCache
+    .filter((r) => ['Pendência', 'Devolvido'].includes(r.status))
+    .map((r) => ({ r, dias: diasDecorridos(refStatusDesde(r)) }))
+    .sort((a, b) => (b.dias || 0) - (a.dias || 0));
+  if (!alvos.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  const itens = alvos.map(({ r, dias }) => {
+    const cor = corAlertaImp(dias);
+    return `<button type="button" class="alerta-imp-item" data-imp="${r.id}" style="border-left:4px solid ${cor};">
+      <span><strong>${escHtml(r.autor || '—')}</strong> está com status <strong>${escHtml(r.status)}</strong> <span style="color:${cor}; font-weight:600;">${textoTempoImp(dias)}</span></span>
+      <span class="texto-secundario" style="font-size:12px;">${escHtml(r.descricao_item || '')}${r.unidade_dispensadora ? ' · ' + escHtml(r.unidade_dispensadora) : ''}</span>
+    </button>`;
+  }).join('');
+  box.innerHTML = `<div class="painel-alertas-imp">
+      <div class="painel-alertas-imp-titulo">⚠️ Alertas — Pendência e Devolvido (${alvos.length})</div>
+      <div class="painel-alertas-imp-lista">${itens}</div>
+    </div>`;
+}
+
 function renderRelImp() {
+  preencherFiltrosRelImp();
   const q = document.getElementById('filtroBuscaRelImp').value.trim().toLowerCase();
-  const lista = !q ? relImpCache : relImpCache.filter((r) =>
-    [r.autor, r.processo, r.protocolo, r.sei, r.req_gsnet, r.descricao_item, r.codigo_item, r.catmat]
-      .some((v) => String(v || '').toLowerCase().includes(q)));
+  const fStatus = document.getElementById('filtroStatusRelImp').value;
+  const fUnidade = document.getElementById('filtroUnidadeRelImp').value;
+  const lista = relImpCache.filter((r) =>
+    (!fStatus || (r.status || 'Solicitado') === fStatus)
+    && (!fUnidade || r.unidade_dispensadora === fUnidade)
+    && (!q || [r.autor, r.processo, r.protocolo, r.sei, r.req_gsnet, r.descricao_item, r.codigo_item, r.catmat]
+      .some((v) => String(v || '').toLowerCase().includes(q))));
 
   document.getElementById('grideResumoRelImp').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(new Set(relImpCache.map((r) => r.autor)).size)}</div><div class="rotulo">Pacientes</div></div>
     <div class="cartao-resumo"><div class="numero">${fmtNumero(relImpCache.length)}</div><div class="rotulo">Linhas (paciente × item)</div></div>
   `;
+
+  renderAlertasRelImp();
 
   const corpo = document.getElementById('corpoTabelaRelImp');
   const vazio = document.getElementById('estadoVazioRelImp');
@@ -4797,6 +4867,13 @@ function renderRelImp() {
   vazio.hidden = true;
   corpo.innerHTML = lista.map(linhaCompImpHTML).join('');
 }
+document.getElementById('filtroStatusRelImp').addEventListener('change', renderRelImp);
+document.getElementById('filtroUnidadeRelImp').addEventListener('change', renderRelImp);
+// Clique num alerta abre a edição da linha correspondente.
+document.getElementById('alertasRelImp').addEventListener('click', (ev) => {
+  const b = ev.target.closest('.alerta-imp-item');
+  if (b) abrirModalCompraImp(b.dataset.imp);
+});
 
 // Linha (<tr>) de uma compra de importado — usada no Relatório e na Tabela Análise.
 // Status "negativos" (licitação deserta/fracassada): liberam nova aquisição.

@@ -2390,3 +2390,18 @@ th.ordenavel .seta { opacity: 0.45; font-size: 10px; margin-left: 3px; }
 .campo-modal input:focus, .campo-modal select:focus, .campo-modal textarea:focus {
   outline: none; border-color: var(--selo); box-shadow: 0 0 0 3px rgba(31,92,82,0.15);
 }
+
+/* Painel de alertas do Relatório de Compras Importados */
+.painel-alertas-imp {
+  background: var(--papel-elevado); border: 1px solid var(--linha);
+  border-radius: var(--raio-cartao); padding: 12px 14px;
+}
+.painel-alertas-imp-titulo { font-weight: 600; margin-bottom: 8px; }
+.painel-alertas-imp-lista { display: flex; flex-direction: column; gap: 6px; }
+.alerta-imp-item {
+  display: flex; flex-direction: column; gap: 2px; text-align: left;
+  background: var(--papel); border: 1px solid var(--linha); border-radius: 7px;
+  padding: 8px 11px; cursor: pointer; font-family: var(--fonte-corpo);
+  color: var(--tinta); font-size: 13px; width: 100%;
+}
+.alerta-imp-item:hover { border-color: var(--selo); background: var(--realce-tabela); }

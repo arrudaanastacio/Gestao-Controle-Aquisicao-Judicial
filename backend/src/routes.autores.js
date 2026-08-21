@@ -475,13 +475,14 @@ router.post('/compras-importados', (req, res) => {
   const cols = [...CAMPOS_COMPRA_IMP, 'catmat', 'valor_medio_unitario', 'ciclo', 'criado_por'];
   const stmt = db.prepare(`INSERT INTO compras_importados (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`);
   const info = stmt.run(...CAMPOS_COMPRA_IMP.map((c) => (b[c] != null && b[c] !== '' ? String(b[c]) : null)), catmat, valorMedio, ciclo, req.usuario.email);
+  db.prepare("UPDATE compras_importados SET status_desde = datetime('now','localtime') WHERE id = ?").run(info.lastInsertRowid);
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
     .run(req.usuario.id, req.usuario.email, 'add_compra_importado', 'compras_importados', info.lastInsertRowid, JSON.stringify({ autor: b.autor, codigo_item: b.codigo_item }));
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
 router.put('/compras-importados/:id', (req, res) => {
-  const item = db.prepare('SELECT id FROM compras_importados WHERE id = ?').get(req.params.id);
+  const item = db.prepare('SELECT id, status FROM compras_importados WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ erro: 'Registro não encontrado.' });
   const b = req.body || {};
   const editaveis = [
@@ -499,6 +500,10 @@ router.put('/compras-importados/:id', (req, res) => {
   }
   if (!sets.length) return res.json({ ok: true });
   sets.push("atualizado_em = datetime('now','localtime')");
+  // Se o status mudou, registra "status_desde = agora" (base dos alertas).
+  if ('status' in b && String(b.status || '') !== String(item.status || '')) {
+    sets.push("status_desde = datetime('now','localtime')");
+  }
   db.prepare(`UPDATE compras_importados SET ${sets.join(', ')} WHERE id = ?`).run(...vals, req.params.id);
   res.json({ ok: true });
 });
