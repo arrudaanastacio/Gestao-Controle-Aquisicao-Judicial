@@ -4977,6 +4977,7 @@ function btDadosDemanda(a) {
     autor: a.autor || '',
     descricao_item: a.descricao_item || '',
     codigo_item: a.codigo_item || '',
+    id_demanda: a.id_demanda || '',
     unidade: a.unidade_dispensadora || '',
     prazo: a.prazo || '',
     periodicidade: a.periodicidade || '',
@@ -4996,6 +4997,7 @@ async function abrirDetalheDemanda(d) {
   const corpo = document.getElementById('corpoDetalheDemanda');
   const base =
     '<div id="etiquetasDetalheDemanda" style="margin:0 0 10px;"></div>' +
+    linha('ID Demanda', d.id_demanda) +
     linha('Prazo', d.prazo) +
     linha('Periodicidade', d.periodicidade) +
     linha('Data Última Dispensação', d.data_ultima_dispensacao) +
