@@ -19,6 +19,7 @@
 | 11 | Relatório de Primeiro Atendimento — caixas por categoria (Materiais/Medicamentos/Nutrição/Manipulado) com permissão por usuário | 455ddf5 | 20/08/2026 | ✅ pronto em homolog |
 | 12 | Nova tela "Listagem de Autores Importados" (grupo Importados): pacientes ativos, todas as unidades, itens importados | b6adc4e | 20/08/2026 | ✅ pronto em homolog |
 | 13 | Importados — Relatório de Compras (todas as solicitações, colunas completas, ciclos, status condicionais) + Tabela Análise (só Embarque/Instrução Processual/Solicitado) | (ver commits) | 20/08/2026 | 🚧 em construção (por partes) |
+| 14 | Estoque (TP e Demais Unidades) — botão Exportar Excel (CSV) com colunas SCODES/Siafísico/Medicamento/Categoria/Subcategoria/Demanda·Consumo (total, Judicial, Adm, Jefaz)/Estoque/Autonomia/CATMAT/Valor Médio | 74030f4 | 21/08/2026 | 🚀 PUBLICADO (prod 7e2cce1) |
 
 ### Detalhe do item 12 — Listagem de Autores Importados
 
