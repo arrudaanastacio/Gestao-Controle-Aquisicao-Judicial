@@ -8764,15 +8764,25 @@ async function carregarAlertas() {
 // que compartilham o mesmo siafísico — modelo do print.
 async function abrirRelatorioSiafisico(siaf) {
   const modal = document.getElementById('modalSiafDup');
-  document.getElementById('subSiafDup').textContent = `Siafísico ${siaf} — itens com demanda ativa no Estoque Tenente Pena`;
   const corpo = document.getElementById('corpoTabelaSiafDup');
   corpo.innerHTML = '<tr><td colspan="8">Carregando…</td></tr>';
   modal.hidden = false;
   try {
-    const d = await api(`/alertas/siafisico-duplicado?siafisico=${encodeURIComponent(siaf)}`);
+    const url = siaf
+      ? `/alertas/siafisico-duplicado?siafisico=${encodeURIComponent(siaf)}`
+      : '/alertas/siafisico-duplicado';
+    const d = await api(url);
+    document.getElementById('subSiafDup').textContent = siaf
+      ? `Siafísico ${siaf} — itens com demanda ativa no Estoque Tenente Pena`
+      : `${d.siafisicos} siafísico(s) duplicado(s) · ${d.total} itens (demanda ativa) — Estoque Tenente Pena`;
     const cel = (v) => escHtml(v == null || v === '' ? '—' : v);
-    corpo.innerHTML = (d.itens || []).map((r) => `
-      <tr>
+    let siafAnterior = null;
+    corpo.innerHTML = (d.itens || []).map((r) => {
+      // Linha divisória quando começa um novo siafísico (só no relatório completo).
+      const novoGrupo = !siaf && r.siafisico !== siafAnterior;
+      siafAnterior = r.siafisico;
+      return `
+      <tr${novoGrupo ? ' style="border-top:2px solid var(--linha-forte);"' : ''}>
         <td class="col-codigo">${cel(r.codigo_item)}</td>
         <td class="col-codigo">${cel(r.siafisico)}</td>
         <td class="col-desc" title="${escAttr(r.descricao || '')}">${cel(r.descricao)}</td>
@@ -8781,7 +8791,8 @@ async function abrirRelatorioSiafisico(siaf) {
         <td class="col-num">${cel(r.consumo_mensal_total)}</td>
         <td class="col-num">${cel(r.estoque)}</td>
         <td class="col-num">${cel(r.autonomia)}</td>
-      </tr>`).join('') || '<tr><td colspan="8" class="texto-secundario">Nenhum item (o alerta pode estar desatualizado — reimporte o estoque).</td></tr>';
+      </tr>`;
+    }).join('') || '<tr><td colspan="8" class="texto-secundario">Nenhum item (o alerta pode estar desatualizado — reimporte o estoque).</td></tr>';
   } catch (e) {
     corpo.innerHTML = `<tr><td colspan="8" style="color:var(--vermelho);">${escHtml(e.message)}</td></tr>`;
   }
