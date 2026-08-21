@@ -4861,15 +4861,30 @@ const modalCompraImp = document.getElementById('modalCompraImp');
 const CI_COND = {
   Cancelado: ['ciWrapJustificativa'],
   Devolvido: ['ciWrapJustificativa'],
+  Fracassado: ['ciWrapJustificativa'],
   'Demanda Inativa': ['ciWrapDataInativacao'],
-  Embarque: ['ciWrapDataEmbarque'],
+  Embarque: ['ciWrapDataEmbarque', 'ciWrapLote', 'ciWrapValidade'],
   Finalizado: ['ciWrapNumFatura', 'ciWrapDataFatura'],
+  'Pendência': ['ciWrapMotivo', 'ciWrapJustificativa'],
+  'Sem cotação': ['ciWrapTentativas', 'ciWrapTentativasDatas', 'ciWrapJustificativa'],
 };
+const CI_TODOS_WRAPS = ['ciWrapMotivo', 'ciWrapDataInativacao', 'ciWrapDataEmbarque', 'ciWrapLote',
+  'ciWrapValidade', 'ciWrapNumFatura', 'ciWrapDataFatura', 'ciWrapTentativas', 'ciWrapTentativasDatas', 'ciWrapJustificativa'];
 function ciAtualizarCondicionais() {
   const st = document.getElementById('ciStatus').value;
   const mostrar = new Set(CI_COND[st] || []);
-  ['ciWrapJustificativa', 'ciWrapDataInativacao', 'ciWrapDataEmbarque', 'ciWrapNumFatura', 'ciWrapDataFatura']
-    .forEach((wid) => { document.getElementById(wid).hidden = !mostrar.has(wid); });
+  CI_TODOS_WRAPS.forEach((wid) => { document.getElementById(wid).hidden = !mostrar.has(wid); });
+}
+// Sem cotação: renderiza um campo de data por tentativa (1, 2, 3...).
+function ciRenderTentativasDatas(n, valores) {
+  const cont = document.getElementById('ciTentativasDatas');
+  const qtd = Math.max(0, Math.min(20, parseInt(n, 10) || 0));
+  const vals = Array.isArray(valores) ? valores : [];
+  let html = '';
+  for (let i = 0; i < qtd; i++) {
+    html += `<label class="campo-modal">Tentativa ${i + 1}<input type="date" class="ci-tentativa-data" data-idx="${i}" value="${escAttr(vals[i] || '')}"></label>`;
+  }
+  cont.innerHTML = html || '<span class="texto-secundario" style="font-size:12px;">Informe o nº de tentativas acima.</span>';
 }
 function ciAtualizarValorTotal() {
   const q = parseValorImp(document.getElementById('ciQtdeSolic').value);
@@ -4897,11 +4912,23 @@ function abrirModalCompraImp(id) {
   set('ciDataEmbarque', r.data_embarque);
   set('ciNumFaturaGsnet', r.numero_fatura_gsnet);
   set('ciDataFatura', r.data_fatura);
+  document.getElementById('ciMotivoPendencia').value = r.motivo_pendencia || '';
+  set('ciLote', r.lote);
+  set('ciValidade', r.validade);
+  set('ciNumTentativas', r.num_tentativas);
+  let datasTent = [];
+  try { datasTent = r.tentativas_datas ? JSON.parse(r.tentativas_datas) : []; } catch (e) { datasTent = []; }
+  ciRenderTentativasDatas(r.num_tentativas, datasTent);
   ciAtualizarCondicionais();
   ciAtualizarValorTotal();
   modalCompraImp.hidden = false;
 }
 document.getElementById('ciStatus').addEventListener('change', ciAtualizarCondicionais);
+document.getElementById('ciNumTentativas').addEventListener('input', () => {
+  // Preserva as datas já digitadas ao mudar a quantidade.
+  const atuais = [...document.querySelectorAll('#ciTentativasDatas .ci-tentativa-data')].map((i) => i.value);
+  ciRenderTentativasDatas(document.getElementById('ciNumTentativas').value, atuais);
+});
 document.getElementById('ciQtdeSolic').addEventListener('input', ciAtualizarValorTotal);
 document.getElementById('ciValorMedio').addEventListener('input', ciAtualizarValorTotal);
 document.getElementById('botaoCancelarCompraImp').addEventListener('click', () => { modalCompraImp.hidden = true; });
@@ -4917,6 +4944,10 @@ document.getElementById('botaoSalvarCompraImp').addEventListener('click', async 
     justificativa: val('ciJustificativa'), data_inativacao: val('ciDataInativacao'),
     data_embarque: val('ciDataEmbarque'), numero_fatura_gsnet: val('ciNumFaturaGsnet'),
     data_fatura: val('ciDataFatura'),
+    motivo_pendencia: document.getElementById('ciMotivoPendencia').value,
+    lote: val('ciLote'), validade: val('ciValidade'),
+    num_tentativas: val('ciNumTentativas'),
+    tentativas_datas: JSON.stringify([...document.querySelectorAll('#ciTentativasDatas .ci-tentativa-data')].map((i) => i.value)),
   };
   try {
     await api(`/autores/compras-importados/${ciEditId}`, { method: 'PUT', body: JSON.stringify(body) });

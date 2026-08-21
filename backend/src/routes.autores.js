@@ -474,6 +474,7 @@ router.put('/compras-importados/:id', (req, res) => {
     'solicitacao_drs_sei', 'data_solicitacao', 'numero_empenho', 'numero_recibo',
     'data_entrega', 'status', 'justificativa', 'data_inativacao', 'data_embarque',
     'numero_fatura_gsnet', 'data_fatura',
+    'motivo_pendencia', 'lote', 'validade', 'num_tentativas', 'tentativas_datas',
   ];
   const sets = [];
   const vals = [];

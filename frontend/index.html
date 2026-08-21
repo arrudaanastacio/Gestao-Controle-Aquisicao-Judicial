@@ -2832,25 +2832,44 @@
         <label class="campo-modal">Data de Entrega<input type="date" id="ciDataEntrega"></label>
         <label class="campo-modal">Status
           <select id="ciStatus">
-            <option>Solicitado</option>
-            <option>Instrução Processual</option>
-            <option>Deserto</option>
-            <option>Fracassado</option>
-            <option>Embarque</option>
-            <option>Finalizado</option>
-            <option>Devolvido</option>
             <option>Cancelado</option>
             <option>Demanda Inativa</option>
+            <option>Deserto</option>
+            <option>Devolvido</option>
+            <option>Embarque</option>
+            <option>Finalizado</option>
+            <option>Fracassado</option>
+            <option>Instrução Processual</option>
+            <option>Pendência</option>
+            <option>Sem cotação</option>
+            <option>Solicitado</option>
           </select>
         </label>
       </div>
       <!-- Campos condicionais conforme o Status -->
       <div id="ciCondicionais" style="margin-top:6px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px 16px;">
-        <label class="campo-modal" id="ciWrapJustificativa" hidden style="grid-column:1 / -1;">Justificativa<textarea id="ciJustificativa" rows="2"></textarea></label>
+        <label class="campo-modal" id="ciWrapMotivo" hidden>Motivo (Pendência)
+          <select id="ciMotivoPendencia">
+            <option value="">—</option>
+            <option>Processo em Andamento</option>
+            <option>Aguardando Documentação</option>
+            <option>Item Descontinuado</option>
+            <option>Notificações</option>
+            <option>Remanejamento</option>
+          </select>
+        </label>
         <label class="campo-modal" id="ciWrapDataInativacao" hidden>Data de Inativação<input type="date" id="ciDataInativacao"></label>
         <label class="campo-modal" id="ciWrapDataEmbarque" hidden>Data de Embarque<input type="date" id="ciDataEmbarque"></label>
+        <label class="campo-modal" id="ciWrapLote" hidden>Lote<input type="text" id="ciLote"></label>
+        <label class="campo-modal" id="ciWrapValidade" hidden>Validade<input type="date" id="ciValidade"></label>
         <label class="campo-modal" id="ciWrapNumFatura" hidden>Nº Fatura GSNET<input type="text" id="ciNumFaturaGsnet"></label>
         <label class="campo-modal" id="ciWrapDataFatura" hidden>Data da Fatura<input type="date" id="ciDataFatura"></label>
+        <label class="campo-modal" id="ciWrapTentativas" hidden>Nº de Tentativas (Sem cotação)<input type="number" id="ciNumTentativas" min="0" max="20" step="1"></label>
+        <div id="ciWrapTentativasDatas" hidden style="grid-column:1 / -1;">
+          <div class="texto-secundario" style="font-size:12.5px; margin-bottom:4px;">Datas das tentativas</div>
+          <div id="ciTentativasDatas" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px 16px;"></div>
+        </div>
+        <label class="campo-modal" id="ciWrapJustificativa" hidden style="grid-column:1 / -1;">Justificativa<textarea id="ciJustificativa" rows="2"></textarea></label>
       </div>
       <div class="acoes-modal">
         <button type="button" class="botao-secundario" id="botaoCancelarCompraImp">Cancelar</button>

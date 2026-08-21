@@ -814,6 +814,11 @@ addCompImp('data_embarque', 'TEXT');          // Embarque
 addCompImp('numero_fatura_gsnet', 'TEXT');    // Finalizado
 addCompImp('data_fatura', 'TEXT');            // Finalizado
 addCompImp('ciclo', 'INTEGER');               // 1ª, 2ª aquisição... do mesmo paciente/item
+addCompImp('motivo_pendencia', 'TEXT');       // Pendência: Processo em Andamento / Aguardando Documentação / ...
+addCompImp('lote', 'TEXT');                   // Embarque
+addCompImp('validade', 'TEXT');               // Embarque
+addCompImp('num_tentativas', 'INTEGER');      // Sem cotação: quantas tentativas
+addCompImp('tentativas_datas', 'TEXT');       // Sem cotação: JSON com a data de cada tentativa
 
 // Status/cancelamento da requisição (cancelar mantém o histórico)
 const colunasReq = db.prepare("PRAGMA table_info(requisicoes)").all().map((c) => c.name);
