@@ -5039,7 +5039,8 @@ document.addEventListener('click', async (ev) => {
     // (recorrência). Deserto/Fracassado -> refazer pelo Relatório; em andamento -> bloqueia.
     if (e.dados && e.dados.jaExiste && e.dados.podeNova) {
       const nova = (e.dados.ciclos || 1) + 1;
-      if (confirm(`${dados.autor} já tem uma aquisição FINALIZADA deste item.\n\nCriar uma NOVA aquisição (${nova}ª)?`)) {
+      const stAnt = e.dados.statusAnterior || 'encerrada';
+      if (confirm(`${dados.autor} já tem uma aquisição encerrada (${stAnt}) deste item.\n\nCriar uma NOVA aquisição (${nova}ª)?`)) {
         try {
           await api('/autores/compras-importados', { method: 'POST', body: JSON.stringify({ ...dados, forcar: true }) });
           b.textContent = '✓';
