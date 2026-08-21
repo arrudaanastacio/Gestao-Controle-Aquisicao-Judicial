@@ -2227,6 +2227,21 @@ const FILTROS_COLUNA_ESTOQUE = [
   { id: 'filtroOutrasDemandas', coluna: 'outras_demandas' },
 ];
 
+// Exporta o Relatório de Itens em Estoque (CSV), respeitando os filtros atuais.
+function exportarEstoqueTP() {
+  const params = new URLSearchParams();
+  params.set('escopoUnidade', 'udtp');
+  if (estado.estoque.data) params.set('data', estado.estoque.data);
+  const q = document.getElementById('filtroBuscaEstoque').value.trim(); if (q) params.set('q', q);
+  const situacao = document.getElementById('filtroSituacaoEstoque').value; if (situacao) params.set('situacao', situacao);
+  const autonomia = document.getElementById('filtroAutonomiaEstoque').value; if (autonomia) params.set('autonomia', autonomia);
+  const demanda = document.getElementById('filtroDemandaEstoque').value; if (demanda) params.set('demanda', demanda);
+  FILTROS_COLUNA_ESTOQUE.forEach(({ id, coluna }) => { const v = document.getElementById(id).value; if (v) params.set(coluna, v); });
+  if (unidadesSelecionadas.length) params.set('unidade', unidadesSelecionadas.join(','));
+  window.location.href = '/api/estoque/exportar?' + params.toString();
+}
+document.getElementById('botaoExportarEstoque').addEventListener('click', exportarEstoqueTP);
+
 async function carregarTabelaEstoque() {
   const q = document.getElementById('filtroBuscaEstoque').value.trim();
   const situacao = document.getElementById('filtroSituacaoEstoque').value;
@@ -2454,6 +2469,20 @@ async function atualizarCardsEstoqueGeral() {
     card('JEFAZ', 'jef', r.jefaz || {}) +
     card('Total (Jud + Adm + JEFAZ)', 'tot', r.total || {});
 }
+
+function exportarEstoqueGeral() {
+  const params = new URLSearchParams();
+  params.set('escopoUnidade', 'geral');
+  if (estadoEstoqueGeral.data) params.set('data', estadoEstoqueGeral.data);
+  const q = document.getElementById('filtroBuscaEstoqueGeral').value.trim(); if (q) params.set('q', q);
+  const situacao = document.getElementById('filtroSituacaoEstoqueGeral').value; if (situacao) params.set('situacao', situacao);
+  const autonomia = document.getElementById('filtroAutonomiaEstoqueGeral').value; if (autonomia) params.set('autonomia', autonomia);
+  const demanda = document.getElementById('filtroDemandaEstoqueGeral').value; if (demanda) params.set('demanda', demanda);
+  COLS_FILTRO_GERAL.forEach(({ id, coluna }) => { const v = document.getElementById(id).value; if (v) params.set(coluna, v); });
+  if (unidadesSelecionadasGeral.length) params.set('unidade', unidadesSelecionadasGeral.join(','));
+  window.location.href = '/api/estoque/exportar?' + params.toString();
+}
+document.getElementById('botaoExportarEstoqueGeral').addEventListener('click', exportarEstoqueGeral);
 
 async function carregarTabelaEstoqueGeral() {
   const q = document.getElementById('filtroBuscaEstoqueGeral').value.trim();

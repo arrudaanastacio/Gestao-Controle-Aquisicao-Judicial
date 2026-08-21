@@ -555,6 +555,68 @@ router.get('/', (req, res) => {
   res.json({ dataReferencia: dataRef, limiarAutonomia: limiar, total, itens, page: Number(page), pageSize: limit, datasDisponiveis });
 });
 
+// ---------- Exportar (CSV) o Relatório de Itens em Estoque ----------
+// Mesmos filtros da listagem (escopoUnidade TP/geral, busca, unidade, etc.).
+// Colunas fixas pedidas: SCODES, Siafísico, Medicamento, Demanda/Consumo (total,
+// Judicial=AJ, Adm=CF, Jefaz), Estoque, Autonomia, CATMAT, Valor Médio.
+router.get('/exportar', (req, res) => {
+  const { data, q, situacao, autonomia, demanda, escopoUnidade,
+    unidade, categoria, controlado, tipo_item, marca, importado, outras_demandas } = req.query;
+
+  let dataRef = data;
+  if (!dataRef) {
+    const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+    dataRef = ultima ? ultima.data_referencia : null;
+  }
+  const limiar = parseFloat(db.prepare("SELECT valor FROM configuracoes WHERE chave = 'autonomia_minima_meses'").get()?.valor || '2');
+
+  const condicoes = ['e.data_referencia = ?'];
+  const params = [dataRef];
+  const escCond = condEscopoUnidade(escopoUnidade, 'e.');
+  if (escCond) condicoes.push(escCond);
+  if (q) { condicoes.push('(e.descricao LIKE ? OR e.codigo_item LIKE ? OR e.siafisico LIKE ?)'); const like = `%${q}%`; params.push(like, like, like); }
+  if (situacao === 'ruptura') condicoes.push('(e.estoque <= 0 AND e.demandas > 0)');
+  if (situacao === 'baixo') condicoes.push('(e.estoque > 0 AND e.autonomia > 0 AND e.autonomia <= ' + limiar + ')');
+  if (situacao === 'zerado') condicoes.push('e.estoque <= 0');
+  const FX = { '0': 'e.autonomia = 0', '0-1': 'e.autonomia >= 0 AND e.autonomia <= 1', '1-2': 'e.autonomia > 1 AND e.autonomia <= 2', '2-6': 'e.autonomia > 2 AND e.autonomia <= 6', '6mais': 'e.autonomia > 6' };
+  if (autonomia && FX[autonomia]) condicoes.push('e.autonomia IS NOT NULL AND (' + FX[autonomia] + ')');
+  if (demanda === 'com') condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
+  if (demanda === 'sem') condicoes.push('(e.demandas IS NULL OR e.demandas = 0)');
+  const filtrosColuna = { categoria, controlado, tipo_item, marca, importado, outras_demandas };
+  for (const [coluna, valor] of Object.entries(filtrosColuna)) { if (valor) { condicoes.push(`e.${coluna} = ?`); params.push(valor); } }
+  if (unidade) { const u = String(unidade).split(',').map((s) => s.trim()).filter(Boolean); if (u.length) { condicoes.push(`e.unidade IN (${u.map(() => '?').join(',')})`); params.push(...u); } }
+  const where = dataRef ? `WHERE ${condicoes.join(' AND ')}` : 'WHERE 1 = 0';
+
+  const linhas = db.prepare(`
+    SELECT e.unidade, e.codigo_item, e.siafisico, e.descricao, e.categoria,
+           (SELECT ic.subcategoria FROM item_classificacao ic WHERE ic.codigo_item = e.codigo_item) AS subcategoria,
+           e.demandas, e.consumo_mensal_total, e.estoque, e.autonomia,
+           e.demandas_aj, e.consumo_mensal_aj, e.demandas_cf, e.consumo_mensal_cf,
+           e.demandas_jefaz, e.consumo_mensal_jefaz, e.catmat, e.valor_medio_unitario
+      FROM estoque_itens e ${where}
+     ORDER BY e.descricao COLLATE NOCASE ASC, e.unidade COLLATE NOCASE ASC
+  `).all(...params);
+
+  const cols = [
+    ['unidade', 'Unidade'], ['codigo_item', 'Código SCODES'], ['siafisico', 'Siafísico'], ['descricao', 'Medicamento'],
+    ['categoria', 'Categoria'], ['subcategoria', 'Subcategoria'],
+    ['demandas', 'Demanda'], ['consumo_mensal_total', 'Consumo'], ['estoque', 'Estoque'], ['autonomia', 'Autonomia'],
+    ['demandas_aj', 'Demanda Judicial'], ['consumo_mensal_aj', 'Consumo Judicial'],
+    ['demandas_cf', 'Demanda Adm'], ['consumo_mensal_cf', 'Consumo Adm'],
+    ['demandas_jefaz', 'Demanda Jefaz'], ['consumo_mensal_jefaz', 'Consumo Jefaz'],
+    ['catmat', 'CATMAT'], ['valor_medio_unitario', 'Valor Médio Mensal'],
+  ];
+  const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const header = cols.map((c) => esc(c[1])).join(';');
+  const corpo = linhas.map((l) => cols.map((c) => esc(l[c[0]])).join(';')).join('\r\n');
+  const csv = '﻿' + header + '\r\n' + corpo;
+
+  const sufixo = escopoUnidade === 'geral' ? 'demais_unidades' : 'tenente_pena';
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="estoque_${sufixo}_${dataRef || 'sem_data'}.csv"`);
+  res.send(csv);
+});
+
 // ---------- Resumo (cards) do estoque do dia ----------
 router.get('/resumo', (req, res) => {
   const { data, q, situacao, autonomia, demanda, escopoUnidade,
