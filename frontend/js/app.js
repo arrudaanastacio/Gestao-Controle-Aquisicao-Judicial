@@ -7434,7 +7434,9 @@ async function carregarAlertas() {
   renderGraficoAlertasCategoria(baseGrafico, categoriaFiltro);
 
   let filtrados = tipoFiltro ? alertas.filter((a) => a.tipo === tipoFiltro) : alertas;
-  if (categoriaFiltro) filtrados = filtrados.filter((a) => a.categoria === categoriaFiltro);
+  // O resumo de siafísico duplicado não tem categoria própria (agrega vários);
+  // continua aparecendo mesmo com filtro de categoria — o relatório é que filtra.
+  if (categoriaFiltro) filtrados = filtrados.filter((a) => a.categoria === categoriaFiltro || a.tipo === 'siafisico_duplicado');
 
   if (filtrados.length === 0) {
     container.innerHTML = '<div class="estado-vazio">Nenhum alerta com estes filtros.</div>';
@@ -7475,25 +7477,26 @@ async function carregarAlertas() {
     });
   });
   container.querySelectorAll('button[data-siaf]').forEach((btn) => {
-    btn.addEventListener('click', () => abrirRelatorioSiafisico(btn.dataset.siaf));
+    btn.addEventListener('click', () => abrirRelatorioSiafisico(btn.dataset.siaf, document.getElementById('filtroCategoriaAlerta').value));
   });
 }
 
 // Modal do alerta "Siafísico duplicado": itens do Estoque TP (demanda ativa)
 // que compartilham o mesmo siafísico — modelo do print.
-async function abrirRelatorioSiafisico(siaf) {
+async function abrirRelatorioSiafisico(siaf, categoria) {
   const modal = document.getElementById('modalSiafDup');
   const corpo = document.getElementById('corpoTabelaSiafDup');
   corpo.innerHTML = '<tr><td colspan="8">Carregando…</td></tr>';
   modal.hidden = false;
   try {
-    const url = siaf
-      ? `/alertas/siafisico-duplicado?siafisico=${encodeURIComponent(siaf)}`
-      : '/alertas/siafisico-duplicado';
-    const d = await api(url);
+    const params = new URLSearchParams();
+    if (siaf) params.set('siafisico', siaf);
+    if (categoria) params.set('categoria', categoria);
+    const d = await api(`/alertas/siafisico-duplicado?${params.toString()}`);
+    const sufCat = categoria ? ` · categoria: ${categoria}` : '';
     document.getElementById('subSiafDup').textContent = siaf
-      ? `Siafísico ${siaf} — itens com demanda ativa no Estoque Tenente Pena`
-      : `${d.siafisicos} siafísico(s) duplicado(s) · ${d.total} itens (demanda ativa) — Estoque Tenente Pena`;
+      ? `Siafísico ${siaf} — itens com demanda ativa no Estoque Tenente Pena${sufCat}`
+      : `${d.siafisicos} siafísico(s) duplicado(s) · ${d.total} itens (demanda ativa) — Estoque Tenente Pena${sufCat}`;
     const cel = (v) => escHtml(v == null || v === '' ? '—' : v);
     let siafAnterior = null;
     corpo.innerHTML = (d.itens || []).map((r) => {

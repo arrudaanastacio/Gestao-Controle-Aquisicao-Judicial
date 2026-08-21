@@ -37,20 +37,25 @@ router.get('/siafisico-duplicado', (req, res) => {
   if (!d) return res.json({ dataReferencia: null, total: 0, itens: [] });
   const tp = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
   const sia = (req.query.siafisico || '').trim();
+  const categoria = (req.query.categoria || '').trim();
   const cond = [`e.data_referencia = ?`, tp, 'e.demandas > 0', "e.siafisico IS NOT NULL", "e.siafisico <> ''"];
   const params = [d];
+  if (categoria) { cond.push('e.categoria = ?'); params.push(categoria); }
   if (sia) {
     // Um siafísico específico (modal do alerta): mostra os itens dele.
     cond.push('e.siafisico = ?');
     params.push(sia);
   } else {
-    // Todos os siafísicos duplicados (relatório geral).
+    // Todos os siafísicos duplicados (relatório geral). A "duplicidade" é
+    // avaliada dentro do mesmo recorte (inclui a categoria, quando filtrada).
+    const subCat = categoria ? 'AND categoria = ?' : '';
     cond.push(`e.siafisico IN (
       SELECT siafisico FROM estoque_itens
        WHERE data_referencia = ? AND (unidade IS NULL OR unidade LIKE '%Tenente Pena%')
-         AND demandas > 0 AND siafisico IS NOT NULL AND siafisico <> ''
+         AND demandas > 0 AND siafisico IS NOT NULL AND siafisico <> '' ${subCat}
        GROUP BY siafisico HAVING COUNT(DISTINCT codigo_item) > 1)`);
     params.push(d);
+    if (categoria) params.push(categoria);
   }
   const itens = db.prepare(`
     SELECT e.codigo_item, e.siafisico, e.descricao, e.unidade,
