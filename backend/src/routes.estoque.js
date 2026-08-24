@@ -654,6 +654,10 @@ router.get('/resumo', (req, res) => {
     db.prepare("SELECT valor FROM configuracoes WHERE chave = 'autonomia_minima_meses'").get()?.valor || '2'
   );
 
+  // Horário da importação (criado_em é UTC; converte para hora local do servidor).
+  const imp = db.prepare("SELECT datetime(criado_em, 'localtime') q FROM estoque_importacoes WHERE data_referencia = ? ORDER BY criado_em DESC LIMIT 1").get(dataRef);
+  const dataImportacao = imp ? imp.q : null;
+
   // Mesmos filtros da listagem (/) — assim os cards batem exatamente com a
   // tabela filtrada (busca por medicamento/SCODES, unidade, categoria, etc.).
   const condicoes = ['e.data_referencia = ?'];
@@ -697,7 +701,7 @@ router.get('/resumo', (req, res) => {
     FROM estoque_itens e ${where}`).get(...params);
 
   res.json({
-    dataReferencia: dataRef, limiarAutonomia: limiar, totalItens, ruptura, baixo, zerado, valorTotalEstoque: valorTotal,
+    dataReferencia: dataRef, dataImportacao, limiarAutonomia: limiar, totalItens, ruptura, baixo, zerado, valorTotalEstoque: valorTotal,
     judicial: { demanda: s.dJud, consumo: s.cJud },
     cf: { demanda: s.dCf, consumo: s.cCf },
     jefaz: { demanda: s.dJef, consumo: s.cJef },
