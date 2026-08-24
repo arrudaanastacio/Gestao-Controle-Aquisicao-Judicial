@@ -3233,13 +3233,14 @@ function criarPainelReposicao(cfg) {
     corpo.innerHTML = '';
     info.textContent = 'Calculando…';
     try {
-      const dados = await api(`${cfg.endpoint}?unidades=${paramUnidades}&considerarFatura=${considerarFaturaDist ? '1' : '0'}`);
+      const dados = await api(`${cfg.endpoint}?unidades=${paramUnidades}&considerarFatura=${considerarFaturaDist ? '1' : '0'}&alvo=${encodeURIComponent(alvoDist || '')}&faixaAutonomia=${encodeURIComponent(faixaAutonomiaDist)}`);
       if (req !== reqId) return; // resposta antiga: descarta
       dadosBrutos = dados.itens;
       autonomiaAlvoPadrao = dados.autonomiaAlvoMeses || 3;
       autonomiaPorSku.clear();
       const nUnid = dados.unidades ? dados.unidades.length : sel.length;
-      let txt = `Autonomia-alvo: ${dados.autonomiaAlvoMeses} meses · Mostrando só autonomia ≥ ${dados.autonomiaMinimaExibir} · `
+      const rotFaixa = { min2: 'autonomia ≥ 2', ate2: 'autonomia ≤ 2', ate1: 'autonomia ≤ 1', min3: 'autonomia ≥ 3', todos: 'todas as autonomias' }[dados.faixaAutonomia || 'min2'];
+      let txt = `Autonomia-alvo: ${dados.autonomiaAlvoMeses} meses · Mostrando ${rotFaixa} · `
         + `${nUnid} unidade(s) · Estoque: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) : '—'} · `
         + `Operador: ${dados.dataReferenciaOperador ? formatarData(dados.dataReferenciaOperador) : '—'}`;
       if (dados.ignoradas && dados.ignoradas.length) txt += ` · Ignoradas (sem Local de Entrega): ${dados.ignoradas.length}`;
@@ -3477,18 +3478,44 @@ function carregarTabelaReposicao() { return painelReposicao.carregar(); }
 // das faturas; desligado, ignora (ex.: sem fatura emitida). Vale para os dois
 // painéis (Reposição e Distribuição H.E).
 let considerarFaturaDist = true;
+// Alvo (meses) global forçado pela tela ('' = usar o cadastro/coeficiente).
+let alvoDist = '';
+// Faixa de autonomia exibida (min2 = padrão: só >= 2).
+let faixaAutonomiaDist = 'min2';
+
+function recarregarPaineisDist() {
+  painelReposicao.carregar();
+  if (typeof painelReposicaoHE !== 'undefined') painelReposicaoHE.carregar();
+}
 function aplicarConsiderarFatura(valor) {
   considerarFaturaDist = valor;
   ['toggleConsiderarFatura', 'toggleConsiderarFaturaHE'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.checked = valor;
   });
-  painelReposicao.carregar();
-  if (typeof painelReposicaoHE !== 'undefined') painelReposicaoHE.carregar();
+  recarregarPaineisDist();
 }
 ['toggleConsiderarFatura', 'toggleConsiderarFaturaHE'].forEach((id) => {
   const el = document.getElementById(id);
   if (el) el.addEventListener('change', () => aplicarConsiderarFatura(el.checked));
+});
+// Alvo (meses) — sincronizado entre as duas abas.
+['alvoDistReposicao', 'alvoDistReposicaoHE'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => {
+    alvoDist = el.value.trim();
+    ['alvoDistReposicao', 'alvoDistReposicaoHE'].forEach((x) => { const e = document.getElementById(x); if (e) e.value = alvoDist; });
+    recarregarPaineisDist();
+  });
+});
+// Faixa de autonomia — sincronizada entre as duas abas.
+['faixaDistReposicao', 'faixaDistReposicaoHE'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => {
+    faixaAutonomiaDist = el.value;
+    ['faixaDistReposicao', 'faixaDistReposicaoHE'].forEach((x) => { const e = document.getElementById(x); if (e) e.value = faixaAutonomiaDist; });
+    recarregarPaineisDist();
+  });
 });
 
 // Painel Hospital Escola (Distribuição H.E) — padrão: todas as unidades marcadas.
