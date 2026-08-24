@@ -844,6 +844,19 @@
             <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;" title="Quando marcado, a sugestão desconta a quantidade a chegar das faturas. Desmarque para ignorar (ex.: sem fatura emitida).">
               <input type="checkbox" id="toggleConsiderarFatura" checked> Considerar fatura (a chegar)
             </label>
+            <label style="font-size:12.5px; display:flex; align-items:center; gap:6px;" title="Autonomia-alvo (meses). Vazio = usa o coeficiente cadastrado de cada item.">
+              Alvo (meses):<input type="number" id="alvoDistReposicao" min="0" step="0.5" placeholder="cadastro" style="width:72px;">
+            </label>
+            <label style="font-size:12.5px; display:flex; align-items:center; gap:6px;" title="Faixa de autonomia atual dos itens a exibir.">
+              Autonomia:
+              <select id="faixaDistReposicao">
+                <option value="min2">≥ 2 (rotina)</option>
+                <option value="ate2">≤ 2 (crítico)</option>
+                <option value="ate1">≤ 1 (urgente)</option>
+                <option value="min3">≥ 3</option>
+                <option value="todos">Todas</option>
+              </select>
+            </label>
             <button type="button" id="botaoExportarGrade" class="botao-primario" style="margin-left:auto;">Exportar grade (<span id="contadorGrade">0</span>)</button>
           </div>
           <p class="descricao-item" id="infoReposicao" style="margin:4px 0 12px;"></p>
@@ -900,6 +913,19 @@
             </label>
             <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;" title="Quando marcado, a sugestão desconta a quantidade a chegar das faturas. Desmarque para ignorar (ex.: sem fatura emitida).">
               <input type="checkbox" id="toggleConsiderarFaturaHE" checked> Considerar fatura (a chegar)
+            </label>
+            <label style="font-size:12.5px; display:flex; align-items:center; gap:6px;" title="Autonomia-alvo (meses). Vazio = usa o coeficiente cadastrado de cada item.">
+              Alvo (meses):<input type="number" id="alvoDistReposicaoHE" min="0" step="0.5" placeholder="cadastro" style="width:72px;">
+            </label>
+            <label style="font-size:12.5px; display:flex; align-items:center; gap:6px;" title="Faixa de autonomia atual dos itens a exibir.">
+              Autonomia:
+              <select id="faixaDistReposicaoHE">
+                <option value="min2">≥ 2 (rotina)</option>
+                <option value="ate2">≤ 2 (crítico)</option>
+                <option value="ate1">≤ 1 (urgente)</option>
+                <option value="min3">≥ 3</option>
+                <option value="todos">Todas</option>
+              </select>
             </label>
             <button type="button" id="botaoExportarGradeHE" class="botao-primario" style="margin-left:auto;">Exportar grade (<span id="contadorGradeHE">0</span>)</button>
           </div>

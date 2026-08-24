@@ -655,6 +655,26 @@ const AUTONOMIA_ALVO_MESES = 3;
 // tratados em outro fluxo, fora desta tela.
 const AUTONOMIA_MINIMA_EXIBIR = 2;
 
+// Filtro de faixa de autonomia (selecionável na tela). Padrão 'min2' = só
+// itens com autonomia >= 2 (rotina); 'ate2'/'ate1' mostram os críticos;
+// 'todos' não filtra. Itens sem autonomia (consumo 0) só entram nas faixas "min".
+function filtroFaixaAutonomia(faixa) {
+  switch (faixa) {
+    case 'todos': return () => true;
+    case 'ate1': return (a) => a !== null && a <= 1;
+    case 'ate2': return (a) => a !== null && a <= 2;
+    case 'ate3': return (a) => a !== null && a <= 3;
+    case 'min3': return (a) => a === null || a >= 3;
+    case 'min2':
+    default: return (a) => a === null || a >= AUTONOMIA_MINIMA_EXIBIR;
+  }
+}
+// Alvo (meses) forçado pela tela, quando o usuário escolhe um valor global.
+function alvoForcadoDe(query) {
+  const v = parseFloat(String(query.alvo ?? '').replace(',', '.'));
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
 // Arredonda para cima até o próximo múltiplo de embalagem (o que se pede ao
 // operador). Múltiplo ausente/<=0 equivale a "sem embalagem" (fator 1).
 function arredondarParaCima(qtd, multiplo) {
@@ -836,8 +856,10 @@ function calcularLinhasUnidade(unidade, ctx) {
       : (mapaTransito.get(`${codigoDestino}|${it.codigo_item}`) || 0);
 
     // Coeficiente (alvo em meses) por item/unidade; 0 = não distribuir.
+    // Se a tela forçou um alvo global (ctx.alvoForcado), ele sobrepõe o cadastro.
     const coef = coeficienteDe(ctx.mapaCoef, it.codigo_item, unidade);
-    const sugestao = coef.valor <= 0 ? 0 : Math.max(0, Math.round((coef.valor * it.consumoMensal) - (estoqueConvertido + faturaTransito)));
+    const coefValor = ctx.alvoForcado != null ? ctx.alvoForcado : coef.valor;
+    const sugestao = coefValor <= 0 ? 0 : Math.max(0, Math.round((coefValor * it.consumoMensal) - (estoqueConvertido + faturaTransito)));
     const autonomia = it.consumoMensal > 0 ? (estoqueConvertido + faturaTransito) / it.consumoMensal : null;
 
     const sku = mapaItemSku.get(it.codigo_item) || null;
@@ -859,8 +881,8 @@ function calcularLinhasUnidade(unidade, ctx) {
       estoque_convertido: Math.round(estoqueConvertido * 100) / 100,
       fatura_transito: faturaTransito,
       autonomia: autonomia === null ? null : Math.round(autonomia * 10) / 10,
-      coeficiente: coef.valor,
-      coeficiente_origem: coef.origem,
+      coeficiente: coefValor,
+      coeficiente_origem: ctx.alvoForcado != null ? 'tela' : coef.origem,
       multiplo_embalagem: multiplo,
       estoque_operador: op ? op.estoqueOperador : null,
       validade: op ? op.validade : null,
@@ -920,6 +942,8 @@ router.get('/reposicao', (req, res) => {
     ),
     // "Considerar fatura": desconta a quantidade a chegar (padrão sim). ?considerarFatura=0 ignora.
     considerarFatura: req.query.considerarFatura !== '0',
+    // Alvo (meses) forçado pela tela (sobrepõe o coeficiente cadastrado).
+    alvoForcado: alvoForcadoDe(req.query),
   };
 
   // Calcula por unidade e junta tudo. Unidades fora do Locais de Entrega:
@@ -937,10 +961,11 @@ router.get('/reposicao', (req, res) => {
     itens = itens.concat(r.itens);
   }
 
-  // Filtros: demanda 0 sai (sem consumo); só autonomia >= 2.
+  // Filtros: demanda 0 sai (sem consumo); faixa de autonomia selecionável.
+  const passaFaixa = filtroFaixaAutonomia(req.query.faixaAutonomia);
   itens = itens
     .filter((it) => (it.demanda_total || 0) > 0)
-    .filter((it) => it.autonomia === null || it.autonomia >= AUTONOMIA_MINIMA_EXIBIR);
+    .filter((it) => passaFaixa(it.autonomia));
 
   // Agrupa por SKU e rateia contra o estoque do operador (lógica compartilhada
   // com a reposição do Hospital Escola).
@@ -952,8 +977,9 @@ router.get('/reposicao', (req, res) => {
     ignoradas,
     dataReferenciaEstoque: ultimaData ? ultimaData.data_referencia : null,
     dataReferenciaOperador: dataOperador,
-    autonomiaAlvoMeses: AUTONOMIA_ALVO_MESES,
+    autonomiaAlvoMeses: alvoForcadoDe(req.query) || AUTONOMIA_ALVO_MESES,
     autonomiaMinimaExibir: AUTONOMIA_MINIMA_EXIBIR,
+    faixaAutonomia: req.query.faixaAutonomia || 'min2',
     total: itens.length,
     itens,
   });
@@ -991,6 +1017,7 @@ router.get('/reposicao-he/unidades', (req, res) => {
 
 router.get('/reposicao-he', (req, res) => {
   const considerarFaturaHE = req.query.considerarFatura !== '0';
+  const alvoForcadoHE = alvoForcadoDe(req.query);
   const unidadesHE = db.prepare('SELECT unidade FROM distribuicao_he_unidades ORDER BY unidade').all().map((r) => r.unidade);
   const itensHE = db.prepare('SELECT codigo_item, codigo_gsnet, siafisico, descricao_item, conversao FROM distribuicao_he_itens').all();
   if (unidadesHE.length === 0 || itensHE.length === 0) {
@@ -1053,7 +1080,8 @@ router.get('/reposicao-he', (req, res) => {
       const faturaTransito = considerarFaturaHE ? (mapaTransito.get(`${codigoDestino}|${l.codigo_item}`) || 0) : 0;
 
       const coef = coeficienteDe(mapaCoef, l.codigo_item, unidade);
-      const sugestao = coef.valor <= 0 ? 0 : Math.max(0, Math.round((coef.valor * consumoMensal) - (estoqueConvertido + faturaTransito)));
+      const coefValor = alvoForcadoHE != null ? alvoForcadoHE : coef.valor;
+      const sugestao = coefValor <= 0 ? 0 : Math.max(0, Math.round((coefValor * consumoMensal) - (estoqueConvertido + faturaTransito)));
       const autonomia = consumoMensal > 0 ? (estoqueConvertido + faturaTransito) / consumoMensal : null;
 
       const sku = mapaItemSku.get(l.codigo_item) || null;
@@ -1075,8 +1103,8 @@ router.get('/reposicao-he', (req, res) => {
         estoque_convertido: Math.round(estoqueConvertido * 100) / 100,
         fatura_transito: faturaTransito,
         autonomia: autonomia === null ? null : Math.round(autonomia * 10) / 10,
-        coeficiente: coef.valor,
-        coeficiente_origem: coef.origem,
+        coeficiente: coefValor,
+        coeficiente_origem: alvoForcadoHE != null ? 'tela' : coef.origem,
         multiplo_embalagem: multiplo,
         estoque_operador: op ? op.estoqueOperador : null,
         validade: op ? op.validade : null,
@@ -1086,10 +1114,11 @@ router.get('/reposicao-he', (req, res) => {
     }
   }
 
-  // Mesmos filtros da reposição geral: demanda 0 sai; só autonomia >= 2.
+  // Filtros: demanda 0 sai; faixa de autonomia selecionável na tela.
+  const passaFaixaHE = filtroFaixaAutonomia(req.query.faixaAutonomia);
   itens = itens
     .filter((it) => (it.demanda_total || 0) > 0)
-    .filter((it) => it.autonomia === null || it.autonomia >= AUTONOMIA_MINIMA_EXIBIR);
+    .filter((it) => passaFaixaHE(it.autonomia));
 
   agruparPorSkuERatear(itens);
 
@@ -1099,8 +1128,9 @@ router.get('/reposicao-he', (req, res) => {
     ignoradas,
     dataReferenciaEstoque: ultimaData ? ultimaData.data_referencia : null,
     dataReferenciaOperador: dataOperador,
-    autonomiaAlvoMeses: AUTONOMIA_ALVO_MESES,
+    autonomiaAlvoMeses: alvoForcadoHE || AUTONOMIA_ALVO_MESES,
     autonomiaMinimaExibir: AUTONOMIA_MINIMA_EXIBIR,
+    faixaAutonomia: req.query.faixaAutonomia || 'min2',
     total: itens.length,
     itens,
   });
