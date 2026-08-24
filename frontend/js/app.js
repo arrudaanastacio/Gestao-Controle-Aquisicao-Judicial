@@ -2182,7 +2182,7 @@ async function carregarEstoque() {
   seletor.value = estado.estoque.data;
 
   document.getElementById('subtituloEstoque').textContent =
-    `Situação do estoque em ${formatarData(resumo.dataReferencia)} · autonomia mínima: ${resumo.limiarAutonomia} mês(es)`;
+    `Situação do estoque em ${formatarData(resumo.dataReferencia)}${resumo.dataImportacao ? ' · importado às ' + resumo.dataImportacao.slice(11, 16) : ''} · autonomia mínima: ${resumo.limiarAutonomia} mês(es)`;
 
   const grade = document.getElementById('grideResumoEstoque');
   const valorFmt = resumo.valorTotalEstoque
@@ -2404,7 +2404,7 @@ async function carregarEstoqueGeral() {
   seletor.value = estadoEstoqueGeral.data;
 
   document.getElementById('subtituloEstoqueGeral').textContent =
-    `Itens em estoque das demais unidades em ${formatarData(resumo.dataReferencia)} · autonomia mínima: ${resumo.limiarAutonomia} mês(es)`;
+    `Itens em estoque das demais unidades em ${formatarData(resumo.dataReferencia)}${resumo.dataImportacao ? ' · importado às ' + resumo.dataImportacao.slice(11, 16) : ''} · autonomia mínima: ${resumo.limiarAutonomia} mês(es)`;
 
   // Os cards agora são dinâmicos (Judicial / CF-Adm / JEFAZ / Total) e batem
   // com a busca/filtros — preenchidos por atualizarCardsEstoqueGeral(), que é
