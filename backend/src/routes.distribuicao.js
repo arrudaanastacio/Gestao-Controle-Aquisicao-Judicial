@@ -771,7 +771,10 @@ function carregarEstoqueOperador() {
   }
   const mapaSku = new Map();
   for (const [sku, a] of acc) {
-    const estoqueOperador = a.gsnet != null ? Math.min(a.gsnet, a.ibl) : a.ibl;
+    // Estoque do operador = IBL "Qtde Disponível" CONSOLIDADA (soma dos lotes) —
+    // é o disponível físico para distribuir, igual à visão "Consolidado por SKU".
+    // (Antes usava min(GSNET, IBL); mudado a pedido do Rafael em 24/08/2026.)
+    const estoqueOperador = a.ibl;
     mapaSku.set(sku, { multiplo: a.multiplo, estoqueOperador, validade: a.validade });
   }
   return { mapaItemSku, mapaSku, dataReferencia: ultima.data_referencia };
