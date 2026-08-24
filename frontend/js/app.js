@@ -3251,7 +3251,7 @@ function criarPainelReposicao(cfg) {
     corpo.innerHTML = '';
     info.textContent = 'Calculando…';
     try {
-      const dados = await api(`${cfg.endpoint}?unidades=${paramUnidades}`);
+      const dados = await api(`${cfg.endpoint}?unidades=${paramUnidades}&considerarFatura=${considerarFaturaDist ? '1' : '0'}`);
       if (req !== reqId) return; // resposta antiga: descarta
       dadosBrutos = dados.itens;
       autonomiaAlvoPadrao = dados.autonomiaAlvoMeses || 3;
@@ -3490,6 +3490,19 @@ const painelReposicao = criarPainelReposicao({
   escolherPadrao: (unidades) => [unidades.includes('UD 27 - CEDMAC HCFMUSP') ? 'UD 27 - CEDMAC HCFMUSP' : unidades[0]].filter(Boolean),
 });
 function carregarTabelaReposicao() { return painelReposicao.carregar(); }
+
+// "Considerar fatura": quando ligado, a sugestão desconta a quantidade a chegar
+// das faturas; desligado, ignora (ex.: sem fatura emitida). Vale para os dois
+// painéis (Reposição e Distribuição H.E).
+let considerarFaturaDist = true;
+const _toggleFat = document.getElementById('toggleConsiderarFatura');
+if (_toggleFat) {
+  _toggleFat.addEventListener('change', () => {
+    considerarFaturaDist = _toggleFat.checked;
+    painelReposicao.carregar();
+    if (typeof painelReposicaoHE !== 'undefined') painelReposicaoHE.carregar();
+  });
+}
 
 // Painel Hospital Escola (Distribuição H.E) — padrão: todas as unidades marcadas.
 const painelReposicaoHE = criarPainelReposicao({

@@ -831,7 +831,9 @@ function calcularLinhasUnidade(unidade, ctx) {
     const estoqueBruto = it.estoqueBruto || 0;
     const estoqueConvertido = it.conversaoEstoque !== 1 ? estoqueBruto / it.conversaoEstoque : estoqueBruto;
 
-    const faturaTransito = mapaTransito.get(`${codigoDestino}|${it.codigo_item}`) || 0;
+    const faturaTransito = ctx.considerarFatura === false
+      ? 0
+      : (mapaTransito.get(`${codigoDestino}|${it.codigo_item}`) || 0);
 
     // Coeficiente (alvo em meses) por item/unidade; 0 = não distribuir.
     const coef = coeficienteDe(ctx.mapaCoef, it.codigo_item, unidade);
@@ -916,6 +918,8 @@ router.get('/reposicao', (req, res) => {
     mapaConversaoOD: new Map(
       db.prepare('SELECT codigo_item, conversao FROM distribuicao_conversao_od').all().map((r) => [r.codigo_item, r.conversao])
     ),
+    // "Considerar fatura": desconta a quantidade a chegar (padrão sim). ?considerarFatura=0 ignora.
+    considerarFatura: req.query.considerarFatura !== '0',
   };
 
   // Calcula por unidade e junta tudo. Unidades fora do Locais de Entrega:
@@ -986,6 +990,7 @@ router.get('/reposicao-he/unidades', (req, res) => {
 });
 
 router.get('/reposicao-he', (req, res) => {
+  const considerarFaturaHE = req.query.considerarFatura !== '0';
   const unidadesHE = db.prepare('SELECT unidade FROM distribuicao_he_unidades ORDER BY unidade').all().map((r) => r.unidade);
   const itensHE = db.prepare('SELECT codigo_item, codigo_gsnet, siafisico, descricao_item, conversao FROM distribuicao_he_itens').all();
   if (unidadesHE.length === 0 || itensHE.length === 0) {
@@ -1045,7 +1050,7 @@ router.get('/reposicao-he', (req, res) => {
       const consumoMensal = conv !== 1 ? (l.consumo_mensal_total || 0) / conv : (l.consumo_mensal_total || 0);
       const estoqueBruto = l.estoque || 0;
       const estoqueConvertido = conv !== 1 ? estoqueBruto / conv : estoqueBruto;
-      const faturaTransito = mapaTransito.get(`${codigoDestino}|${l.codigo_item}`) || 0;
+      const faturaTransito = considerarFaturaHE ? (mapaTransito.get(`${codigoDestino}|${l.codigo_item}`) || 0) : 0;
 
       const coef = coeficienteDe(mapaCoef, l.codigo_item, unidade);
       const sugestao = coef.valor <= 0 ? 0 : Math.max(0, Math.round((coef.valor * consumoMensal) - (estoqueConvertido + faturaTransito)));
