@@ -476,8 +476,12 @@ function montarConsultaPlanTP(query) {
   const dataRef = refs[0]?.data_referencia || null;
   const prevRef = refs[1]?.data_referencia || null;
   // prevRef vem do próprio banco (formato YYYY-MM-DD controlado) — inlining seguro.
+  // Só a Tenente Pena (o Planejamento TP é da unidade). Sem esse filtro, o
+  // universo somava a demanda de TODAS as unidades e entravam itens sem
+  // demanda na TP (bug corrigido em 24/08/2026).
+  const TP = "(unidade IS NULL OR unidade LIKE '%Tenente Pena%')";
   const novoExpr = prevRef
-    ? `CASE WHEN e.codigo_item NOT IN (SELECT codigo_item FROM estoque_itens WHERE data_referencia = '${prevRef}') THEN 1 ELSE 0 END`
+    ? `CASE WHEN e.codigo_item NOT IN (SELECT codigo_item FROM estoque_itens WHERE data_referencia = '${prevRef}' AND ${TP}) THEN 1 ELSE 0 END`
     : '0';
 
   // O estoque tem VÁRIAS linhas por item (uma por demanda). Agrego primeiro
@@ -491,6 +495,7 @@ function montarConsultaPlanTP(query) {
              MAX(categoria) AS categoria
       FROM estoque_itens
       WHERE data_referencia = (SELECT MAX(data_referencia) FROM estoque_itens)
+        AND ${TP}
       GROUP BY codigo_item
       HAVING SUM(demandas) IS NOT NULL AND SUM(demandas) <> 0
     ) e
@@ -591,6 +596,7 @@ router.get('/planejamento-tp/categorias', (req, res) => {
   const cats = db.prepare(
     `SELECT DISTINCT categoria v FROM estoque_itens
      WHERE data_referencia = (SELECT MAX(data_referencia) FROM estoque_itens)
+       AND (unidade IS NULL OR unidade LIKE '%Tenente Pena%')
        AND categoria IS NOT NULL AND categoria <> ''
      ORDER BY v`
   ).all().map((r) => r.v);
