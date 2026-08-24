@@ -3477,14 +3477,19 @@ function carregarTabelaReposicao() { return painelReposicao.carregar(); }
 // das faturas; desligado, ignora (ex.: sem fatura emitida). Vale para os dois
 // painéis (Reposição e Distribuição H.E).
 let considerarFaturaDist = true;
-const _toggleFat = document.getElementById('toggleConsiderarFatura');
-if (_toggleFat) {
-  _toggleFat.addEventListener('change', () => {
-    considerarFaturaDist = _toggleFat.checked;
-    painelReposicao.carregar();
-    if (typeof painelReposicaoHE !== 'undefined') painelReposicaoHE.carregar();
+function aplicarConsiderarFatura(valor) {
+  considerarFaturaDist = valor;
+  ['toggleConsiderarFatura', 'toggleConsiderarFaturaHE'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = valor;
   });
+  painelReposicao.carregar();
+  if (typeof painelReposicaoHE !== 'undefined') painelReposicaoHE.carregar();
 }
+['toggleConsiderarFatura', 'toggleConsiderarFaturaHE'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => aplicarConsiderarFatura(el.checked));
+});
 
 // Painel Hospital Escola (Distribuição H.E) — padrão: todas as unidades marcadas.
 const painelReposicaoHE = criarPainelReposicao({
