@@ -95,24 +95,50 @@ function parsearIbl(buffer) {
   const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
   const sheet = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
+
+  // Mapeia as colunas pelo NOME do cabeçalho (não por índice fixo): o relatório
+  // IBL já mudou de posição de coluna e quebrou a leitura (ex.: "Qtde Disponível"
+  // saiu do índice 20 para o 19, fazendo o sistema ler a "Qtde Bloqueada" = 0).
+  const norm = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const H = (rows[0] || []).map(norm);
+  const col = (...nomes) => { for (const n of nomes) { const i = H.indexOf(norm(n)); if (i >= 0) return i; } return -1; };
+  const C = {
+    sku: col('Código Item'),
+    desc: col('Descrição Item'),
+    lote: col('Lote'),
+    validade: col('Data Validade'),
+    embalagem2: col('Embalagem 2ª', 'Embalagem 2'),
+    multiplo: col('Múltiplo Distribuição'),
+    status: col('Status Estoque'),
+    tipoBloq: col('Tipo Bloqueio'),
+    obsBloq: col('Obs. Bloqueio', 'Obs Bloqueio'),
+    disp: col('Qtde Disponível'),
+    bloq: col('Qtde Bloqueada'),
+    reserv: col('Qtde Reservada'),
+    total: col('Qtde Total'),
+  };
+  if (C.sku < 0 || C.disp < 0) {
+    throw new Error('Layout do "5.Estoque IBL.xlsx" não reconhecido (não achei "Código Item" ou "Qtde Disponível" no cabeçalho).');
+  }
+  const g = (r, i) => (i >= 0 ? r[i] : undefined);
   const linhas = [];
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
-    if (!r[1]) continue; // sem código do item, linha inválida
+    if (!g(r, C.sku)) continue; // sem código do item, linha inválida
     linhas.push({
-      codigo_sku: String(r[1]).trim(),
-      descricao: texto(r[2]),
-      lote: texto(r[6]),
-      validade: dataParaBR(r[8]),
-      embalagem2: texto(r[11]),
-      multiplo_distribuicao: numero(r[13]),
-      status_estoque: texto(r[17]),
-      tipo_bloqueio: texto(r[18]),
-      obs_bloqueio: texto(r[19]),
-      qtde_disponivel: numero(r[20]),
-      qtde_bloqueado: numero(r[21]),
-      qtde_reservada: numero(r[22]),
-      qtde_total: numero(r[23]),
+      codigo_sku: String(g(r, C.sku)).trim(),
+      descricao: texto(g(r, C.desc)),
+      lote: texto(g(r, C.lote)),
+      validade: dataParaBR(g(r, C.validade)),
+      embalagem2: texto(g(r, C.embalagem2)),
+      multiplo_distribuicao: numero(g(r, C.multiplo)),
+      status_estoque: texto(g(r, C.status)),
+      tipo_bloqueio: texto(g(r, C.tipoBloq)),
+      obs_bloqueio: texto(g(r, C.obsBloq)),
+      qtde_disponivel: numero(g(r, C.disp)),
+      qtde_bloqueado: numero(g(r, C.bloq)),
+      qtde_reservada: numero(g(r, C.reserv)),
+      qtde_total: numero(g(r, C.total)),
     });
   }
   return linhas;
