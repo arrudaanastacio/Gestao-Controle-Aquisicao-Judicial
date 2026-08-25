@@ -6,35 +6,225 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Monitoramento: escolher uma ou mais unidades específicas | 5432cee | 17/08/2026 | ✅ pronto em homolog |
-| 2 | Modernização das 3 telas antigas (Histórico, 1º Atendimento, Busca) | e0f7108 | 17/08/2026 | ✅ pronto em homolog |
+| 1 | Etiqueta de subcategoria no modal da Requisição de Compra | eb392ff | 17/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 2 | Requisição — modo "Por Item" (ex-"Solicitação Coletiva"): consolidada + filtro de paciente | 699e0ab | 17/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 3 | Requisição — etiqueta de ATA por item (ATA / Avaliação técnica / Sem ATA) | 179eeaa | 18/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 4 | Atas — busca direta do SISCOA (login automático + download), sem depender do arquivo na rede: botão "Buscar do SISCOA agora" + rotina diária | f1de8e4 | 19/08/2026 | 🚀 PUBLICADO (prod d039aed) |
+| 5 | Listagem de Autores (TP e Demais Unidades) — modal "Ver" passa a mostrar Demanda, Consumo, Estoque e Autonomia da respectiva unidade | b3b2a1b | 19/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 6 | Menu lateral — botão 📌 para fixar/desafixar (mantém o menu aberto e desloca o conteúdo); preferência lembrada no navegador | cb7eb5c | 19/08/2026 | 🚀 PUBLICADO (prod d039aed) |
+| 7 | Modal "Ver" dos Autores (TP e Demais Unidades) — etiquetas de subcategoria e Dose Certa (e demais de programa) no topo | 6447da7 | 19/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 8 | Requisição GSNET — remover casa decimal (ex.: "6119.0" → "6119") na exibição e na importação (TP) | e95bddd | 19/08/2026 | 🚀 PUBLICADO (prod 0c24cf2) |
+| 9 | Modal de Permissões — aproveita a largura da tela, tabela 100%, rolagem vertical com cabeçalho fixo | c444a68 | 20/08/2026 | 🚀 PUBLICADO (prod 39c2f76) |
+| 10 | Comparativo de Autores — filtros de subcategoria e tipo de demanda (valem para as 3 abas: Novos, Inativos, Alterações) | 4866755 | 20/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 11 | Relatório de Primeiro Atendimento — caixas por categoria (Materiais/Medicamentos/Nutrição/Manipulado) com permissão por usuário | 455ddf5 | 20/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 12 | Nova tela "Listagem de Autores Importados" (grupo Importados): pacientes ativos, todas as unidades, itens importados | b6adc4e | 20/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 13 | Importados — Relatório de Compras (todas as solicitações, colunas completas, ciclos, status condicionais) + Tabela Análise (só Embarque/Instrução Processual/Solicitado) | (ver commits) | 20/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 14 | Estoque (TP e Demais Unidades) — botão Exportar Excel (CSV) com colunas SCODES/Siafísico/Medicamento/Categoria/Subcategoria/Demanda·Consumo (total, Judicial, Adm, Jefaz)/Estoque/Autonomia/CATMAT/Valor Médio | 74030f4 | 21/08/2026 | 🚀 PUBLICADO (prod 7e2cce1) |
+| 15 | Regra geral: telas que dependem de importação mostram DATA e HORA (helper `horaImportacao`) | 3face2b | 25/08/2026 | 🚀 PUBLICADO (prod 3face2b) |
+| 16 | Correção de permissão: detalhe do item no Relatório de Primeiro Atendimento acessível a quem tem o relatório (sem exigir Comparativo) | 894dcdf | 25/08/2026 | 🚀 PUBLICADO (prod 894dcdf) |
+| 17 | Monitoramento de Estoque — Qtde. Aquisição consolidada (TP+OD, AS+JS), Compra em Andamento (selo + status), filtros (sub-categoria, status estoque, situação final, compra) e busca ampliada | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 18 | Monitoramento — análises de cobertura: Cobertura da Aquisição, Autonomia Total após Recebimento, Previsão de Falta Projetada, Situação da Aquisição, Saldo Necessário, Situação da Cobertura + Autonomia Alvo configurável (`autonomia_alvo_meses`) | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 19 | Nova tela **Estoque IBL (API)** — consulta ao vivo do WMS IBL (locais 2999/3004), abas Por Lote e Consolidado por SKU (botão Ver → lotes/validades), export CSV. Token só no `.env` | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 20 | Saldo IBL de Outras Demandas (consolidado + validade + lotes) no modal "Ver" de Estoque TP, Estoque Geral e Listagem de Autores (cache 5 min) | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 21 | Abas em formato de **pasta** (estilo relevo) em todas as abas de conteúdo do sistema | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+
+### Detalhe do item 12 — Listagem de Autores Importados
+
+Nova tela **Listagem de Autores Importados**, em um novo grupo de menu
+**🌐 Importados**. Mostra os **pacientes ativos** (status "Demanda Ativa"), de
+**todas as unidades**, cujos itens são **importados** (flag do catálogo:
+`relatorio_itens.importado = 'Sim'`). Mesmo layout, filtros e modal 👁 "Ver"
+da "Listagem de Autores Demais Unidades".
+
+- **Backend:** novo escopo `escopoUnidade=importados` em `montarFiltroAutores`
+  e na rota `/autores/filtros` (todas as unidades + demanda ativa + item
+  importado). Reaproveita `/autores`, `/autores/exportar` e `/autores/filtros`.
+- **Permissão:** novo módulo `autoresImportados` (Visualizar/Exportar) — aparece
+  no modal de Permissões automaticamente.
+- **Frontend:** clone da tela Demais Unidades (`paginaAutoresImportados` +
+  `carregarTabelaAutoresImportados`), link no menu, ícone e trilha.
+
+**Observação:** como mexe em `routes.autores.js` (compartilhado), **anda junto
+da Onda B** na publicação. **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
+
+### Detalhe do item 11 — Caixas do Relatório de Primeiro Atendimento
+
+O Relatório de Primeiro Atendimento passa a ter **abas por caixa**: **Materiais,
+Medicamentos, Nutrição** (+ **Todas**, e **Sem caixa** só para o admin). Cada
+solicitação cai na sua caixa **na criação**; o admin vê tudo e cada colaborador
+vê só a(s) caixa(s) que o admin liberou.
+
+- **Regra da caixa (por item):** subcategoria **Manipulado** → Medicamentos;
+  senão pela **categoria do Relatório de Itens** (Materiais/Medicamentos/Nutrição);
+  o resto (Procedimentos/Outros Itens) fica **sem caixa** (só admin, aba "Todas").
+  A solicitação inteira vai para a caixa **predominante** dos seus itens.
+- **Backend:** `caixaAtendimento.js` (regra + cache); coluna `requisicoes.caixa`
+  (gravada na criação + backfill único ao subir); coluna `usuarios.caixas_req`
+  (JSON das caixas liberadas; null = todas). `/requisicoes/itens` filtra por
+  permissão + aba e devolve as contagens por caixa.
+- **Permissões:** no modal de Permissões, seção nova com as 3 caixas por usuário
+  (admin sempre vê todas). `/usuarios/:id/permissoes` GET/PUT tratam `caixasReq`.
+- **Frontend:** barra de abas no relatório (reaproveita `.chip-faixa`).
+
+**Pós-publicação:** reiniciar produção (backend + migração + backfill) + Ctrl+F5.
 
 ### Detalhe do item 1
 
-No **Monitoramento de Estoque**, novo seletor **"Unidades específicas"** (múltipla
-escolha) ao lado do escopo. Permite escolher uma ou mais unidades além da
-Tenente Pena; quando há unidades marcadas, elas têm prioridade sobre o escopo
-udtp/geral. Vale para os painéis, a tabela e o export.
-Backend: `construirItensMonitoramento` aceita `unidade` (lista, filtro `IN`); o
-handler `/monitoramento` foi refatorado para reusar esse construtor (fim da
-duplicação). **Atualização:** os dois filtros de unidade viraram **um só** —
-um seletor de "Unidades" com Tenente Pena por padrão + opção "Todas as
-unidades" (removido o antigo seletor de escopo). **Pós-publicação:** reiniciar
-produção (backend) + Ctrl+F5.
+No modal 🛒 **Requisição de Compra** (lista de itens do paciente), cada item
+ganha a **etiqueta de Sub-categoria** (mesmo estilo `tag-programa sub` do
+Estoque). Backend: `/autores/paciente` passa a trazer `subcategoria` (subquery
+em `item_classificacao`). **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
 
-### Detalhe do item 2 — Modernização das 3 telas antigas (Fase 4)
+### Detalhe do item 7 — Etiquetas de programa no modal "Ver" dos Autores
 
-Aplica o padrão ERP (KPIs/cards/gráfico) nas 3 telas que ainda estavam no
-formato antigo:
-- **Histórico de Estoque:** 4 KPIs (snapshots, valor no último, variação de
-  valor com cor, itens) + **sparkline** da evolução do valor. Frontend.
-- **Relatório de Primeiro Atendimento:** 4 KPIs (requisições, aguardando,
-  finalizadas, telegramas enviados). Backend: `/autores/requisicoes/itens`
-  passa a devolver `resumo` (contagens sobre todo o filtro).
-- **Busca de medicamento:** exemplos clicáveis, estado inicial amigável e uma
-  faixa de mini-KPIs por medicamento (solicitações, em andamento, finalizadas,
-  última compra), calculada do histórico. Frontend.
-**Pós-publicação:** reiniciar produção (backend do Relatório) + Ctrl+F5.
+No topo do modal 👁 **Ver** (abaixo do nome/descrição), nas duas listagens de
+autores, aparecem as **etiquetas de programa** do item: **Subcategoria**,
+**Dose Certa** (só quando "Sim"), e também **Outras Demandas** e **Inex** quando
+o item pertencer — reaproveitando `etiquetasProgramaHTML()` e os estilos do
+Estoque. Fonte: `item_classificacao` (dose_certa, inex, subcategoria) e
+`relatorio_itens.outras_demandas`, por `codigo_item`. Vêm no mesmo endpoint
+`/autores/estoque-unidade`. **Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
+
+### Detalhe do item 5 — Estoque da unidade no modal "Ver" dos Autores
+
+Na **Listagem de Autores** (Tenente Pena **e** Demais Unidades), o modal 👁 **Ver**
+de cada linha passa a mostrar, além de Prazo/Periodicidade/datas, um bloco
+**"Estoque — <unidade>"** com **Demanda, Consumo médio mensal, Estoque e
+Autonomia** daquele item **na unidade dispensadora daquela linha** (não só a TP).
+
+- Backend: novo endpoint `GET /autores/estoque-unidade?codigo_item=&unidade=`
+  que cruza `estoque_itens.unidade` com `autores_itens.unidade_dispensadora`
+  (mesmo texto, ex.: "UD 01 - Tenente Pena") e devolve a foto mais recente.
+  Carrega **sob demanda** (1 linha por clique) para não pesar a listagem.
+- Se a unidade não tiver estoque importado, mostra "Sem dados de estoque para
+  esta unidade" (comum em unidades pequenas que não vêm no relatório).
+- Frontend: `abrirDetalheDemanda` virou async e busca o bloco; `btDadosDemanda`
+  passou a levar `codigo_item` e `unidade`.
+**Pós-publicação:** reiniciar produção (backend) + Ctrl+F5.
+
+### Detalhe do item 4 — Atas: busca direta do SISCOA
+
+Agora o sistema busca o relatório de **Atas de Registro de Preço** direto do
+site do **SISCOA** (`siscoa.saude.sp.gov.br`), por HTTP autenticado, sem
+depender do arquivo `Atas SISCOA.xls` copiado na pasta de rede.
+
+- **Como funciona:** login por sessão (`GET /login` → `POST /login/logar` com
+  `loginEmail`/`loginSenha`) e download do export DisplayTag do relatório
+  (formato Excel). O XLS baixado cai no **mesmo** `importarAtasDeBuffer` que já
+  existia — tabela, regras de vigência e a tela de Atas ficam idênticas.
+- **Botão "🔄 Buscar do SISCOA agora"** na tela de Atas (só admin) — baixa e
+  importa na hora.
+- **Rotina diária automática** às 06:00 (igual à UDTP), com recuperação se o
+  PC subir depois do horário. Aparece na tela **Status dos Serviços** como
+  "Atas do SISCOA (busca direta)".
+- **Credenciais:** `SISCOA_USUARIO` / `SISCOA_SENHA` no `.env` local (o robô de
+  extração já usava as mesmas). **Nunca vão pro GitHub** (repo público).
+- Novos arquivos: `siscoaApi.js` (cliente), `vigiaAtasSiscoa.js` (agendador),
+  `testarSiscoa.js` (diagnóstico). O vigia de arquivo antigo (`vigiaAtas.js`)
+  **continua ativo** — dá pra desligar depois com `AUTO_IMPORTAR_ATAS=false`,
+  já que agora a fonte direta cobre o mesmo.
+- **.env novos:** `AUTO_IMPORTAR_ATAS_SISCOA` (padrão on), `HORA_SYNC_ATAS`
+  (6), `MINUTO_SYNC_ATAS` (0).
+
+**Pós-publicação:** preencher `SISCOA_USUARIO`/`SISCOA_SENHA` no `.env` de
+produção, reiniciar produção (backend) + Ctrl+F5.
+
+### Detalhe do item 3 — Etiqueta de ATA na Requisição de Compra
+
+Nos dois fluxos da Requisição (**Por paciente** e **Por Item**), cada
+medicamento ganha uma **etiqueta de ATA**, cruzando o **siafísico** com o
+módulo de **Atas de Registro de Preço** (foto mais recente, só atas vigentes:
+vencimento ≥ hoje) e com a **marca do estoque** (SCODES) — a **mesma regra do
+Planejamento** (`planejamentoMotor.js`):
+
+- **ATA** (verde, clicável) — siafísico tem ata vigente e a marca é "Sem Marca"
+  (ou bate com a da ata). Ao clicar, abre **nome comercial, nº da ATA, detentor
+  e vencimento**.
+- **Avaliação técnica** (âmbar) — tem ata vigente mas a marca do estoque é
+  **diferente** da ata. Aparecem os botões **ATA / SEM ATA** para o técnico
+  decidir (a decisão fica **só nesta requisição**; qualquer um que abre a
+  requisição pode escolher).
+- **Sem ATA** (cinza) — o siafísico não retornou nenhuma ata vigente.
+
+Backend: novo `ataSituacao.js` (com cache por item — 1 cálculo por medicamento,
+essencial na coletiva de milhares de pacientes); `/autores/paciente` e
+`/autores/itens-pacientes` passam a trazer `ata` por item. Persistência (só
+grava, não aparece no documento impresso): colunas `situacao_ata` e
+`escolha_ata` em `requisicao_itens` (migração idempotente). Frontend:
+`htmlEtiquetaAta()` + estados no `estilo.css`.
+**Pós-publicação:** reiniciar produção (backend + migração) + Ctrl+F5.
+
+**Extras (mesmo commit):**
+- **Quantidade de demanda antes do estoque** no cartão do item (nos dois
+  fluxos): a etiqueta passa a mostrar `demanda X · estoque Y · autonomia Z m`
+  (fonte: `estoque_itens.demandas` da foto TP mais recente).
+- **Valor unitário e Valor total na filipeta impressa** (documento por paciente
+  e documento consolidado da coletiva): duas colunas novas + linha **Total da
+  aquisição**. Total = valor unitário × Qtde de Aquisição. Gravado na requisição
+  (`requisicao_itens.valor_unitario`) para valer também ao reabrir.
+- **Valor unitário conforme a etiqueta:** item **ATA** (ou Avaliação técnica com
+  o técnico escolhendo **ATA**) usa o **último valor publicado da ATA**; as
+  demais etiquetas usam o **valor médio** (`valor_medio_unitario`). Se o valor
+  vier **vazio/zero**, o cartão libera um **campo para o técnico informar** o
+  valor (repinta automaticamente quando a escolha ATA/SEM ATA muda). No Por Item
+  o valor é único por medicamento (nível da aba). Backend: `ataSituacao.js`
+  passa a devolver `valor` (da ata); `/paciente` e `/itens-pacientes` trazem
+  `valor_medio`.
+- **Aviso ao misturar ATA e SEM ATA:** antes de gerar (nos dois fluxos), se a
+  requisição tiver itens **com ATA** e itens **SEM ATA** juntos, um pop-up mostra
+  a contagem de cada modalidade, recomenda separar a aquisição e termina com
+  **"Tem certeza disso?"** — só gera se confirmar. (Correção junto: no fluxo Por
+  paciente o `corpoItens` agora envia `situacao_ata`/`escolha_ata`/`valor_unitario`
+  ao backend — antes eram descartados na montagem do payload.) Etiqueta ajustada
+  para **"SEM ATA"** (maiúsculas).
+
+### Detalhe do item 2 — modo "Por Item" CONSOLIDADO (abas por medicamento)
+
+**Refinamento de UX (nova etapa, só frontend):** o botão do modo foi renomeado
+de "Solicitação coletiva" para **"Por Item"**. Dentro de cada aba de medicamento,
+em vez de listar TODOS os pacientes de uma vez (inviável para itens com milhares,
+ex. dieta enteral), agora há um **campo de filtro de paciente** (nome/processo/
+protocolo, sem acento). Os resultados aparecem como linhas compactas; **ao clicar
+em "+ selecionar"** o paciente vira um **cartão detalhado** (mesmos dados do fluxo
+por paciente: tipo de demanda, consumo, prazo, periodicidade, dispensações,
+estoque/autonomia + autonomia de compra individual e Qtde de Aquisição). Cartões
+selecionados ficam numa seção "Pacientes selecionados" (com ✕ para remover).
+Nenhum paciente vem marcado por padrão; **"Marcar todos os filtrados"** age só
+sobre o subconjunto do filtro (confirma se > 200). Só `frontend/` (index.html +
+app.js) — **Ctrl+F5**, sem reiniciar.
+
+**Consolidação (etapa anterior, tem backend):** a coletiva agora gera **UM único número de
+controle** (não mais N). No **Relatório de Primeiro Atendimento** vira **1 linha**
+("Fulano e mais N pacientes", etiqueta **COLETIVA**, "X medicamento(s) · Y
+paciente(s)"), com **status/telegrama ÚNICO do grupo**. Ao **clicar no controle**,
+abre o **documento consolidado**: SEI, **total por medicamento** (qtde somada +
+nº de pacientes) e a **lista de pacientes** (nome/protocolo/processo).
+Banco (migração idempotente): `requisicoes` ganhou `coletiva`, `total_pacientes`,
+`pacientes_json` e status do grupo; `requisicao_itens` ganhou `detalhe_json`,
+`n_pacientes`. Backend: `/requisicoes/coletiva` consolida; `/requisicoes/itens`
+mescla itens individuais + coletivas (1 linha); `/requisicoes/:id` devolve
+pacientes+detalhe; novo `PUT /requisicoes/:id/status-coletiva`.
+**Pós-publicação:** reiniciar produção (backend + migração) + Ctrl+F5.
+
+---
+_Histórico do item 2 (etapas anteriores):_
+
+### Detalhe do item 2 — Solicitação Coletiva (abas por medicamento)
+
+Novo **modo "Solicitação coletiva"** no modal de Requisição de Compra. Modelo
+com **uma aba por medicamento**: busca um medicamento → vira **aba** com a lista
+de pacientes que o têm, **cada paciente com os mesmos dados do fluxo por
+paciente** (tipo de demanda, consumo, prazo, periodicidade, dispensações,
+estoque/autonomia) + **autonomia de compra INDIVIDUAL** (e Qtde de Aquisição =
+consumo × autonomia). Botão **+ Inserir medicamento** abre a busca e cria nova
+aba; **navegar entre abas preserva** o que já foi selecionado (contagem por aba).
+Cada aba tem ✕ para remover. **Um único SEI**. **Marcar todos** age na aba
+atual. Contador geral = pacientes únicos · itens · aquisição total. **Gerar**
+agrupa por paciente e cria **1 requisição por paciente** com os itens marcados
+(de todas as abas). **Fechar** pede confirmação (perde a solicitação montada).
+Backend (já pronto): `itens-busca`, `itens-pacientes`, `requisicoes/coletiva`.
+Só frontend nesta etapa. **Pós-publicação:** reiniciar produção (backend das
+etapas anteriores) + Ctrl+F5.
 
 ## Publicadas recentemente
 
