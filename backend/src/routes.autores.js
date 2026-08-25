@@ -198,8 +198,11 @@ router.get('/', (req, res) => {
   ).all(...params, limit, offset);
 
   const dataRef = db.prepare('SELECT MAX(data_referencia) v FROM autores_itens').get()?.v || null;
+  // Hora da última importação (mesmo padrão do Estoque): vem do log de importacoes.
+  const imp = db.prepare("SELECT datetime(criado_em,'localtime') q FROM importacoes WHERE tipo='autores' ORDER BY criado_em DESC LIMIT 1").get();
+  const dataImportacao = imp ? imp.q : null;
 
-  res.json({ total, totalAutores, dataReferencia: dataRef, itens, page: Number(page), pageSize: limit });
+  res.json({ total, totalAutores, dataReferencia: dataRef, dataImportacao, itens, page: Number(page), pageSize: limit });
 });
 
 // Exportação CSV (abre no Excel) respeitando escopo + filtros atuais.

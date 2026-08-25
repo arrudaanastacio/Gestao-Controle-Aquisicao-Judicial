@@ -246,8 +246,9 @@ router.get('/', (req, res) => {
   `).all(...params, limit, offset);
 
   const datasDisponiveis = db.prepare('SELECT data_referencia, total_itens FROM estoque_od_importacoes ORDER BY data_referencia DESC').all();
+  const _impOD = dataRef ? db.prepare("SELECT datetime(criado_em,'localtime') q FROM estoque_od_importacoes WHERE data_referencia=? LIMIT 1").get(dataRef) : null;
 
-  res.json({ dataReferencia: dataRef, total, itens, page: Number(page), pageSize: limit, datasDisponiveis });
+  res.json({ dataReferencia: dataRef, dataImportacao: _impOD ? _impOD.q : null, total, itens, page: Number(page), pageSize: limit, datasDisponiveis });
 });
 
 // ---------- Consolidado por Código (SKU) — soma as quantidades dos lotes, ----------
@@ -414,7 +415,8 @@ router.get('/validades', (req, res) => {
 
   linhas.sort((a, b) => a.dias_para_vencer - b.dias_para_vencer);
 
-  res.json({ dataReferencia: dataRef, resumo, lotes: linhas });
+  const _impLot = dataRef ? db.prepare("SELECT datetime(criado_em,'localtime') q FROM estoque_od_importacoes WHERE data_referencia=? LIMIT 1").get(dataRef) : null;
+  res.json({ dataReferencia: dataRef, dataImportacao: _impLot ? _impLot.q : null, resumo, lotes: linhas });
 });
 
 // ---------- Importação manual (admin) — relê os 3 arquivos da pasta de rede ----------

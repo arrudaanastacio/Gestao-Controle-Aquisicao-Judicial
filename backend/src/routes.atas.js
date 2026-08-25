@@ -219,7 +219,8 @@ router.get('/', (req, res) => {
     `SELECT * FROM atas_itens ${whereFinal} ORDER BY vencimento IS NULL, vencimento ASC, descricao COLLATE NOCASE LIMIT ? OFFSET ?`
   ).all(...params, limit, offset);
 
-  res.json({ dataReferencia: dataRef, total, itens, resumo, page: Number(page), pageSize: limit });
+  const _impAtas = db.prepare("SELECT datetime(criado_em,'localtime') q FROM importacoes WHERE tipo='atas' ORDER BY criado_em DESC LIMIT 1").get();
+  res.json({ dataReferencia: dataRef, dataImportacao: _impAtas ? _impAtas.q : null, total, itens, resumo, page: Number(page), pageSize: limit });
 });
 
 module.exports = router;
