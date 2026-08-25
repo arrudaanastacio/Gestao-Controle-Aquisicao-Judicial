@@ -396,12 +396,12 @@ router.get('/validades', (req, res) => {
   }).filter((l) => l.dias_para_vencer !== null);
 
   if (q) {
-    const termo = q.toLowerCase();
+    const termo = db.normalizarBusca(q);
     linhas = linhas.filter((ln) =>
-      (ln.descricao || '').toLowerCase().includes(termo) ||
-      (ln.codigo_item || '').toLowerCase().includes(termo) ||
-      (ln.codigo_sku || '').toLowerCase().includes(termo) ||
-      (ln.lote || '').toLowerCase().includes(termo));
+      db.normalizarBusca(ln.descricao).includes(termo) ||
+      db.normalizarBusca(ln.codigo_item).includes(termo) ||
+      db.normalizarBusca(ln.codigo_sku).includes(termo) ||
+      db.normalizarBusca(ln.lote).includes(termo));
   }
 
   const FAIXAS = ['vencido', 'd30', 'd60', 'd90', 'mais90'];

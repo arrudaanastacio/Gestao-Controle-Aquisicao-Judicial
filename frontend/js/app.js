@@ -43,6 +43,13 @@ function horaImportacao(dh) {
   return dh ? ` · importado às ${String(dh).slice(11, 16)}` : '';
 }
 
+// Normaliza texto para BUSCA (não muda o que é exibido/gravado): tira espaços
+// das pontas, passa para minúsculas e remove acentos. Assim "Lítio" acha
+// "litio" e vice-versa. Usada nos filtros de tela (lado do cliente).
+function normalizarBusca(s) {
+  return s == null ? '' : String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
 // Meses com 2 casas e vírgula (ex.: 3 → "3,00 meses"). null/undefined → "—".
 // vazioTraco='-' permite o padrão do enunciado ("-" quando não há consumo).
 function fmtMeses(v, traco = '—') {
@@ -462,14 +469,14 @@ const ICONES_NAV = {
   let itens = [], marcado = -1;
 
   function listar() {
-    const q = input.value.trim().toLowerCase();
+    const q = normalizarBusca(input.value);
     const res = [];
     for (const [pag, partes] of Object.entries(TRILHAS)) {
       const link = document.querySelector(`.nav-lateral a[data-pagina="${pag}"]`);
       if (link && link.hidden) continue;
       const tela = partes[partes.length - 1];
       const via = partes.slice(0, -1).join(' › ');
-      if (!q || `${tela} ${via}`.toLowerCase().includes(q)) res.push({ pag, tela, via });
+      if (!q || normalizarBusca(`${tela} ${via}`).includes(q)) res.push({ pag, tela, via });
     }
     return res.slice(0, 12);
   }
@@ -2040,12 +2047,12 @@ let monFiltroCompra = null;
 function baseFiltradaMon(exceto) {
   const dados = estadoMon.dados;
   if (!dados) return [];
-  const busca = (document.getElementById('monBusca').value || '').trim().toLowerCase();
+  const busca = normalizarBusca(document.getElementById('monBusca').value);
   let itens = dados.itens;
   if (busca) itens = itens.filter((i) =>
-    (i.descricao || '').toLowerCase().includes(busca) ||
-    (i.codigo_item || '').toLowerCase().includes(busca) ||
-    (i.siafisico || '').toLowerCase().includes(busca));
+    normalizarBusca(i.descricao).includes(busca) ||
+    normalizarBusca(i.codigo_item).includes(busca) ||
+    normalizarBusca(i.siafisico).includes(busca));
   if (monFiltroCompra) itens = itens.filter((i) => i.em_compra === monFiltroCompra);
   for (const dim of Object.keys(DIMENSOES_MON)) {
     if (dim === exceto) continue;
@@ -2808,18 +2815,18 @@ function iblItensFiltrados() {
   if (!d) return [];
   const local = document.getElementById('iblFiltroLocal').value;
   const situacao = document.getElementById('iblFiltroSituacao').value;
-  const busca = (document.getElementById('iblBusca').value || '').trim().toLowerCase();
+  const busca = normalizarBusca(document.getElementById('iblBusca').value);
   let itens = d.itens;
   if (local) itens = itens.filter((i) => String(i.projeto_codigo) === local);
   if (situacao === 'disp') itens = itens.filter((i) => (Number(i.qtde_disponivel) || 0) > 0);
   else if (situacao === 'bloq') itens = itens.filter((i) => (Number(i.qtde_bloqueado) || 0) > 0);
   else if (situacao === 'reserv') itens = itens.filter((i) => (Number(i.qtde_reservada) || 0) > 0);
   if (busca) itens = itens.filter((i) =>
-    (i.descricao || '').toLowerCase().includes(busca) ||
-    (i.codigo_item || '').toLowerCase().includes(busca) ||
-    (i.codigo_sku || '').toLowerCase().includes(busca) ||
-    (i.siafisico || '').toLowerCase().includes(busca) ||
-    (i.lote || '').toLowerCase().includes(busca));
+    normalizarBusca(i.descricao).includes(busca) ||
+    normalizarBusca(i.codigo_item).includes(busca) ||
+    normalizarBusca(i.codigo_sku).includes(busca) ||
+    normalizarBusca(i.siafisico).includes(busca) ||
+    normalizarBusca(i.lote).includes(busca));
   return itens;
 }
 
@@ -3663,14 +3670,14 @@ function criarPainelReposicao(cfg) {
   }
 
   function renderizar() {
-    const q = $('filtroBusca').value.trim().toLowerCase();
+    const q = normalizarBusca($('filtroBusca').value);
     const soSugeridos = $('filtroSoSugeridos').checked;
     const etiquetasSel = [...$('filtroEtiqueta').querySelectorAll('.chk-etiqueta:checked')].map((c) => c.value);
     const corpo = $('corpoTabela');
     const vazio = $('estadoVazio');
 
     let itens = dadosBrutos.slice();
-    if (q) itens = itens.filter((it) => (it.descricao_item || '').toLowerCase().includes(q) || (it.codigo_item || '').toLowerCase().includes(q) || (it.codigo_sku || '').toLowerCase().includes(q));
+    if (q) itens = itens.filter((it) => normalizarBusca(it.descricao_item).includes(q) || normalizarBusca(it.codigo_item).includes(q) || normalizarBusca(it.codigo_sku).includes(q));
     if (etiquetasSel.length) itens = itens.filter((it) => etiquetasSel.includes(it.etiqueta));
     if (soSugeridos) itens = itens.filter((it) => it.reposicao > 0);
 
@@ -3958,16 +3965,16 @@ async function carregarGradeFinal() {
 }
 
 function renderizarGradeFinal() {
-  const q = (document.getElementById('filtroBuscaGradeFinal').value || '').trim().toLowerCase();
+  const q = normalizarBusca(document.getElementById('filtroBuscaGradeFinal').value);
   const corpo = document.getElementById('corpoTabelaGradeFinal');
   const vazio = document.getElementById('estadoVazioGradeFinal');
   const info = document.getElementById('infoGradeFinal');
 
   let itens = gradeFinalItens;
-  if (q) itens = itens.filter((it) => (it.medicamento || '').toLowerCase().includes(q)
-    || (it.codigo_scodes || '').toLowerCase().includes(q)
-    || (it.cod_item || '').toLowerCase().includes(q)
-    || (it.local_entrega || '').toLowerCase().includes(q));
+  if (q) itens = itens.filter((it) => normalizarBusca(it.medicamento).includes(q)
+    || normalizarBusca(it.codigo_scodes).includes(q)
+    || normalizarBusca(it.cod_item).includes(q)
+    || normalizarBusca(it.local_entrega).includes(q));
 
   const totalQtde = gradeFinalItens.reduce((s, it) => s + (Number(it.qtde) || 0), 0);
   info.textContent = `${gradeFinalItens.length} item(ns) na grade · ${fmtNumero(totalQtde)} unidade(s)`;
@@ -5313,14 +5320,14 @@ function renderAlertasRelImp() {
 
 function renderRelImp() {
   preencherFiltrosRelImp();
-  const q = document.getElementById('filtroBuscaRelImp').value.trim().toLowerCase();
+  const q = normalizarBusca(document.getElementById('filtroBuscaRelImp').value);
   const fStatus = document.getElementById('filtroStatusRelImp').value;
   const fUnidade = document.getElementById('filtroUnidadeRelImp').value;
   const lista = relImpCache.filter((r) =>
     (!fStatus || (r.status || 'Solicitado') === fStatus)
     && (!fUnidade || r.unidade_dispensadora === fUnidade)
     && (!q || [r.autor, r.processo, r.protocolo, r.sei, r.req_gsnet, r.descricao_item, r.codigo_item, r.catmat]
-      .some((v) => String(v || '').toLowerCase().includes(q))));
+      .some((v) => normalizarBusca(v).includes(q))));
 
   document.getElementById('grideResumoRelImp').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(new Set(relImpCache.map((r) => r.autor)).size)}</div><div class="rotulo">Pacientes</div></div>
@@ -5391,11 +5398,11 @@ async function carregarAnaliseImportados() {
 }
 
 function renderAnaliseImp() {
-  const q = document.getElementById('filtroBuscaAnaliseImp').value.trim().toLowerCase();
+  const q = normalizarBusca(document.getElementById('filtroBuscaAnaliseImp').value);
   const base = relImpCache.filter((r) => STATUS_ANALISE_IMP.includes(r.status || 'Solicitado'));
   const lista = !q ? base : base.filter((r) =>
     [r.autor, r.processo, r.protocolo, r.sei, r.req_gsnet, r.descricao_item, r.codigo_item, r.catmat]
-      .some((v) => String(v || '').toLowerCase().includes(q)));
+      .some((v) => normalizarBusca(v).includes(q)));
 
   document.getElementById('grideResumoAnaliseImp').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(new Set(base.map((r) => r.autor)).size)}</div><div class="rotulo">Pacientes (em análise)</div></div>
@@ -11316,13 +11323,13 @@ function montarFiltrosServicos() {
 }
 
 function servicosFiltrados() {
-  const busca = (document.getElementById('filtroBuscaServicos').value || '').trim().toLowerCase();
+  const busca = normalizarBusca(document.getElementById('filtroBuscaServicos').value);
   const sit = document.getElementById('filtroSituacaoServicos').value;
   const cat = document.getElementById('filtroCategoriaServicos').value;
   let lista = estadoServicos.linhas.filter((l) => {
     if (sit && l.situacaoRotulo !== sit) return false;
     if (cat && l.categoria !== cat) return false;
-    if (busca && !((l.nome + ' ' + l.descricao).toLowerCase().includes(busca))) return false;
+    if (busca && !normalizarBusca(l.nome + ' ' + l.descricao).includes(busca)) return false;
     return true;
   });
   const { campo, desc } = estadoServicos.ordem;

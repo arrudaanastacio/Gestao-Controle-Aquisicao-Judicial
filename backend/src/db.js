@@ -11,6 +11,69 @@ db.exec('PRAGMA journal_mode = WAL;');
 // esperar a outra terminar. 5s é suficiente para as escritas deste sistema.
 db.exec('PRAGMA busy_timeout = 5000;');
 
+// ---------------------------------------------------------------------------
+// Busca tolerante a ACENTO e a MAIÚSCULAS/minúsculas (sem alterar os dados).
+//
+// O SQLite deixa a aplicação SOBRESCREVER o operador LIKE registrando uma
+// função chamada "like". Ao normalizar os dois lados (padrão e texto) só no
+// momento da comparação, TODAS as buscas com LIKE do sistema (19 arquivos)
+// passam a ignorar acento e caixa — sem mexer em nenhuma query nem nos dados
+// gravados. Preserva a semântica do LIKE: % = qualquer sequência, _ = um
+// caractere, e a cláusula ESCAPE. Ex.: "Lítio" acha "litio" e vice-versa.
+// ---------------------------------------------------------------------------
+const _RE_DIACRITICO = /[̀-ͯ]/g;
+const _RE_NAO_ASCII = /[^\x00-\x7f]/;
+function removerAcentos(s) {
+  s = String(s);
+  // Atalho de performance: a maioria dos textos é ASCII puro (sem acento) — aí
+  // não precisa do normalize('NFD'), que é a parte cara. Só normaliza quando há
+  // algum caractere fora do ASCII (acento, ç, etc.).
+  if (!_RE_NAO_ASCII.test(s)) return s;
+  return s.normalize('NFD').replace(_RE_DIACRITICO, '');
+}
+// Normalização usada na COMPARAÇÃO (não faz trim aqui para não mudar a
+// semântica dos curingas; o trim do termo digitado é responsabilidade de quem
+// monta a busca — as rotas já usam q.trim()).
+function normalizarBuscaSql(s) {
+  return removerAcentos(s).toLowerCase();
+}
+const _cacheLike = new Map();
+const _reEscapeRegex = /[.*+?^${}()|[\]\\]/g;
+function _analisarLike(padrao, escape) {
+  const chave = (escape == null ? "" : escape + " ") + padrao;
+  let info = _cacheLike.get(chave);
+  if (info) return info;
+  const P = normalizarBuscaSql(padrao);
+  const E = escape == null ? null : normalizarBuscaSql(escape);
+  const semEscape = E == null || P.indexOf(E) === -1;
+  if (semEscape && P.length >= 2 && P[0] === "%" && P[P.length - 1] === "%") {
+    const meio = P.slice(1, -1);
+    if (meio.indexOf("%") === -1 && meio.indexOf("_") === -1) {
+      info = { simples: true, agulha: meio };
+      _cacheLike.set(chave, info);
+      return info;
+    }
+  }
+  let out = "";
+  for (let i = 0; i < P.length; i++) {
+    const c = P[i];
+    if (E != null && c === E && i + 1 < P.length) { out += P[++i].replace(_reEscapeRegex, "\$&"); continue; }
+    if (c === "%") out += "[\s\S]*";
+    else if (c === "_") out += "[\s\S]";
+    else out += c.replace(_reEscapeRegex, "\$&");
+  }
+  info = { simples: false, regex: new RegExp("^" + out + "$") };
+  if (_cacheLike.size > 500) _cacheLike.clear();
+  _cacheLike.set(chave, info);
+  return info;
+}
+db.function("like", { deterministic: true, varargs: true }, (padrao, texto, escape) => {
+  if (padrao == null || texto == null) return 0;
+  const info = _analisarLike(padrao, escape === undefined ? null : escape);
+  const t = normalizarBuscaSql(texto);
+  return (info.simples ? t.includes(info.agulha) : info.regex.test(t)) ? 1 : 0;
+});
+
 // Tabela de usuários (criada se não existir)
 db.exec(`
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -1281,3 +1344,6 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_cartas_lotes_carta ON cartas_troca_lotes
 
 module.exports = db;
 module.exports.garantirPermissoesPadrao = garantirPermissoesPadrao;
+// Normalizador de busca (trim + minúsculas + sem acento) para filtros JS que
+// não passam pelo SQL LIKE. Mesma regra do LIKE tolerante registrado acima.
+module.exports.normalizarBusca = (s) => (s == null ? '' : removerAcentos(String(s)).toLowerCase().trim());

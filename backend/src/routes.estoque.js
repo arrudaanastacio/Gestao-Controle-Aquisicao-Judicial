@@ -896,11 +896,11 @@ function construirItensMonitoramento(query) {
   });
 
   // Filtros do cliente (reproduzidos para o export dar o MESMO conjunto da tela).
-  const q = (query.q || '').trim().toLowerCase();
+  const q = db.normalizarBusca(query.q);
   if (q) itens = itens.filter((i) =>
-    (i.descricao || '').toLowerCase().includes(q) ||
-    (i.codigo_item || '').toLowerCase().includes(q) ||
-    (i.siafisico || '').toLowerCase().includes(q));
+    db.normalizarBusca(i.descricao).includes(q) ||
+    db.normalizarBusca(i.codigo_item).includes(q) ||
+    db.normalizarBusca(i.siafisico).includes(q));
   if (query.status) itens = itens.filter((i) => i.status_estoque === query.status);
   if (query.statusFinal) itens = itens.filter((i) => i.status_final === query.statusFinal);
   if (query.subcategoria) itens = itens.filter((i) => i.subcategoria === query.subcategoria);
@@ -1060,10 +1060,10 @@ router.get('/historico/comparar', (req, res) => {
   }));
 
   if (q) {
-    const termo = q.toLowerCase();
+    const termo = db.normalizarBusca(q);
     resultado = resultado.filter((l) =>
-      (l.descricao || '').toLowerCase().includes(termo) ||
-      (l.codigo_item || '').toLowerCase().includes(termo));
+      db.normalizarBusca(l.descricao).includes(termo) ||
+      db.normalizarBusca(l.codigo_item).includes(termo));
   }
 
   resultado.sort((a, b) => Math.abs(b.variacao_estoque) - Math.abs(a.variacao_estoque));
@@ -1222,11 +1222,11 @@ router.get('/validades', (req, res) => {
   // Filtro de texto/medicamento: afeta TANTO os KPIs quanto a tabela.
   // (assim, ao buscar/clicar num medicamento, os cards recalculam para ele)
   if (q) {
-    const termo = q.toLowerCase();
+    const termo = db.normalizarBusca(q);
     linhas = linhas.filter((ln) =>
-      (ln.descricao || '').toLowerCase().includes(termo) ||
-      (ln.codigo_item || '').toLowerCase().includes(termo) ||
-      (ln.lote || '').toLowerCase().includes(termo));
+      db.normalizarBusca(ln.descricao).includes(termo) ||
+      db.normalizarBusca(ln.codigo_item).includes(termo) ||
+      db.normalizarBusca(ln.lote).includes(termo));
   }
 
   // KPIs por faixa, calculados sobre o conjunto já filtrado por texto,
