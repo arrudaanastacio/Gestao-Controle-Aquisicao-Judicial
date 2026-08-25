@@ -147,7 +147,8 @@ router.get('/empenhos/buscar', (req, res) => {
 
 router.get('/empenhos/info', (req, res) => {
   const row = db.prepare('SELECT MAX(data_referencia) dataReferencia, COUNT(*) total FROM empenhos').get();
-  res.json(row || { dataReferencia: null, total: 0 });
+  const _impE = db.prepare("SELECT datetime(criado_em,'localtime') q FROM importacoes WHERE tipo='empenhos' ORDER BY criado_em DESC LIMIT 1").get();
+  res.json({ ...(row || { dataReferencia: null, total: 0 }), dataImportacao: _impE ? _impE.q : null });
 });
 
 // Lista paginada dos empenhos importados (aba "Empenhos importados").
@@ -171,7 +172,8 @@ router.get('/empenhos', (req, res) => {
     ORDER BY empresa COLLATE NOCASE, nota_empenho, medicamento LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
   const dataRef = db.prepare('SELECT MAX(data_referencia) v FROM empenhos').get()?.v || null;
-  res.json({ total, itens, dataReferencia: dataRef, page: Number(page), pageSize: limit });
+  const _impE = db.prepare("SELECT datetime(criado_em,'localtime') q FROM importacoes WHERE tipo='empenhos' ORDER BY criado_em DESC LIMIT 1").get();
+  res.json({ total, itens, dataReferencia: dataRef, dataImportacao: _impE ? _impE.q : null, page: Number(page), pageSize: limit });
 });
 
 // ---------- Filtros distintos ----------

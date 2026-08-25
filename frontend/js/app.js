@@ -36,6 +36,13 @@ function formatarData(iso) {
   return `${dia}/${mes}/${ano}`;
 }
 
+// Sufixo " · importado às HH:MM" para telas que dependem de importação/atualização.
+// Recebe um datetime "YYYY-MM-DD HH:MM:SS" (já em hora local, vindo do backend).
+// Retorna string vazia quando não há hora, para não poluir o subtítulo.
+function horaImportacao(dh) {
+  return dh ? ` · importado às ${String(dh).slice(11, 16)}` : '';
+}
+
 // Mostra um valor de célula ou "—" quando vazio/nulo (para tabelas largas).
 function valorCelula(v) {
   if (v === null || v === undefined || v === '') return '—';
@@ -1919,7 +1926,7 @@ async function carregarMonitoramento() {
   vazio.hidden = true; conteudo.hidden = false;
 
   document.getElementById('subtituloMonitoramento').textContent =
-    `Situação em ${formatarData(dados.dataReferencia)} — ${fmtNumero(dados.totalItens)} itens · faixas fixas da planilha CPDAE.`;
+    `Situação em ${formatarData(dados.dataReferencia)}${horaImportacao(dados.dataImportacao)} — ${fmtNumero(dados.totalItens)} itens · faixas fixas da planilha CPDAE.`;
 
   // Preenche o filtro de categoria (uma vez, a partir dos painéis).
   const selCat = document.getElementById('monCategoria');
@@ -2623,7 +2630,7 @@ async function carregarEstoqueOD() {
   seletor.value = estadoEstoqueOD.data;
 
   document.getElementById('subtituloEstoqueOD').textContent =
-    `Posição de estoque no operador logístico em ${formatarData(resumo.dataReferencia)}`;
+    `Posição de estoque no operador logístico em ${formatarData(resumo.dataReferencia)}${horaImportacao(resumo.dataImportacao)}`;
 
   document.getElementById('grideResumoEstoqueOD').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(resumo.totalItens)}</div><div class="rotulo">Linhas (lotes)</div></div>
@@ -3259,8 +3266,8 @@ function criarPainelReposicao(cfg) {
       const nUnid = dados.unidades ? dados.unidades.length : sel.length;
       const rotFaixa = { min2: 'autonomia ≥ 2', ate2: 'autonomia ≤ 2', ate1: 'autonomia ≤ 1', min3: 'autonomia ≥ 3', todos: 'todas as autonomias' }[dados.faixaAutonomia || 'min2'];
       let txt = `Autonomia-alvo: ${dados.autonomiaAlvoMeses} meses · Mostrando ${rotFaixa} · `
-        + `${nUnid} unidade(s) · Estoque: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) : '—'} · `
-        + `Operador: ${dados.dataReferenciaOperador ? formatarData(dados.dataReferenciaOperador) : '—'}`;
+        + `${nUnid} unidade(s) · Estoque: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) + horaImportacao(dados.dataImportacaoEstoque) : '—'} · `
+        + `Operador: ${dados.dataReferenciaOperador ? formatarData(dados.dataReferenciaOperador) + horaImportacao(dados.dataImportacaoOperador) : '—'}`;
       if (dados.ignoradas && dados.ignoradas.length) txt += ` · Ignoradas (sem Local de Entrega): ${dados.ignoradas.length}`;
       info.textContent = txt;
       renderizar();
@@ -4108,7 +4115,7 @@ async function carregarValidades() {
   seletor.value = estado.validades.data;
 
   document.getElementById('subtituloValidades').textContent =
-    `Lotes e validades do estoque em ${formatarData(dados.dataReferencia)}`;
+    `Lotes e validades do estoque em ${formatarData(dados.dataReferencia)}${horaImportacao(dados.dataImportacao)}`;
 
   // KPIs (cards clicáveis: clicar filtra a tabela pela faixa)
   const r = dados.resumo;
@@ -4444,7 +4451,7 @@ async function carregarTabelaAutores() {
   document.getElementById('grideResumoAutores').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAutores)}</div><div class="rotulo">Autores (distintos)</div></div>
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${q || params.has('unidade') ? ' filtradas' : ''}</div></div>
-    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${dados.dataImportacao ? ' · importado ' + dados.dataImportacao.slice(11, 16) : ''}</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${horaImportacao(dados.dataImportacao)}</div></div>
   `;
 
   const corpo = document.getElementById('corpoTabelaAutores');
@@ -4676,7 +4683,7 @@ async function carregarTabelaAutoresGeral() {
   document.getElementById('grideResumoAutoresGeral').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAutores)}</div><div class="rotulo">Autores (distintos)</div></div>
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${q || params.has('unidade') ? ' filtradas' : ''}</div></div>
-    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${dados.dataImportacao ? ' · importado ' + dados.dataImportacao.slice(11, 16) : ''}</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${horaImportacao(dados.dataImportacao)}</div></div>
   `;
 
   const corpo = document.getElementById('corpoTabelaAutoresGeral');
@@ -4782,7 +4789,7 @@ async function carregarTabelaAutoresImportados() {
   document.getElementById('grideResumoAutoresImportados').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAutores)}</div><div class="rotulo">Autores (distintos)</div></div>
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${q || params.has('unidade') ? ' filtradas' : ''}</div></div>
-    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${dados.dataImportacao ? ' · importado ' + dados.dataImportacao.slice(11, 16) : ''}</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${horaImportacao(dados.dataImportacao)}</div></div>
   `;
 
   const corpo = document.getElementById('corpoTabelaAutoresImportados');
@@ -5443,7 +5450,7 @@ async function carregarTabelaRelItens() {
 
   document.getElementById('grideResumoRelItens').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Itens${q ? ' filtrados' : ' no catálogo'}</div></div>
-    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${dados.dataImportacao ? ' · importado ' + dados.dataImportacao.slice(11, 16) : ''}</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${horaImportacao(dados.dataImportacao)}</div></div>
   `;
 
   const corpo = document.getElementById('corpoTabelaRelItens');
@@ -7588,7 +7595,7 @@ async function carregarCartasTroca() {
     const el = document.getElementById('ctInfoEmpenhos');
     el.hidden = false;
     el.textContent = info && info.total
-      ? `Empenhos: ${fmtNumero(info.total)} linhas (importado em ${formatarData(info.dataReferencia)})`
+      ? `Empenhos: ${fmtNumero(info.total)} linhas (importado em ${formatarData(info.dataReferencia)}${info.dataImportacao ? ' às ' + String(info.dataImportacao).slice(11, 16) : ''})`
       : 'Nenhum empenho importado ainda';
   } catch (e) { /* segue */ }
 
@@ -7755,7 +7762,7 @@ async function carregarTabelaEmpenhos() {
   const corpo = document.getElementById('corpoTabelaEmpenhos');
   const vazio = document.getElementById('estadoVazioEmpenhos');
   document.getElementById('ctEmpInfo').textContent = dados.dataReferencia
-    ? `${fmtNumero(dados.total)} linha(s) · importado em ${formatarData(dados.dataReferencia)}` : '';
+    ? `${fmtNumero(dados.total)} linha(s) · importado em ${formatarData(dados.dataReferencia)}${dados.dataImportacao ? ' às ' + String(dados.dataImportacao).slice(11, 16) : ''}` : '';
 
   if (!dados.itens.length) { corpo.innerHTML = ''; vazio.hidden = false; }
   else {

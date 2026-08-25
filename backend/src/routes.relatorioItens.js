@@ -334,7 +334,8 @@ router.get('/', (req, res) => {
   ).all(...params, limit, offset);
   const dataRef = db.prepare('SELECT data_referencia FROM relatorio_itens LIMIT 1').get()?.data_referencia || null;
 
-  res.json({ total, dataReferencia: dataRef, itens, page: Number(page), pageSize: limit });
+  const _impRI = db.prepare("SELECT datetime(criado_em,'localtime') q FROM importacoes WHERE tipo='relatorio_itens' ORDER BY criado_em DESC LIMIT 1").get();
+  res.json({ total, dataReferencia: dataRef, dataImportacao: _impRI ? _impRI.q : null, itens, page: Number(page), pageSize: limit });
 });
 
 // ---------- Valores distintos para os filtros ----------
