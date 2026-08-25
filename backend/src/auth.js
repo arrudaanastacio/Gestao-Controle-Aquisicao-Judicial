@@ -101,13 +101,19 @@ function exigirModuloDinamico(resolver) {
     }
     if (req.usuario.perfil === 'admin') return next();
 
-    const modulo = resolver(req);
+    // O resolver pode devolver UM módulo ou uma LISTA de módulos aceitáveis
+    // (para endpoints compartilhados por mais de uma tela). Passa se o usuário
+    // tiver a ação habilitada em QUALQUER um deles.
+    const modulos = [].concat(resolver(req)).filter(Boolean);
     const acao = acaoDaRequisicao(req);
-    const perm = db.prepare(
-      'SELECT * FROM permissoes WHERE usuario_id = ? AND modulo = ?'
-    ).get(req.usuario.id, modulo);
+    const temAlgum = modulos.some((modulo) => {
+      const perm = db.prepare(
+        'SELECT * FROM permissoes WHERE usuario_id = ? AND modulo = ?'
+      ).get(req.usuario.id, modulo);
+      return perm && perm.habilitado === 1 && perm[acao] === 1;
+    });
 
-    if (perm && perm.habilitado === 1 && perm[acao] === 1) return next();
+    if (temAlgum) return next();
 
     return res.status(403).json({
       erro: 'Você não tem permissão para esta ação neste módulo.',

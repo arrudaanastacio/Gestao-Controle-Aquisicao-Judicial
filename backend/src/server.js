@@ -85,6 +85,10 @@ app.use('/api/estoque', autenticar, exigirModuloDinamico((req) => {
 // Atendimento (/requisicoes) e Comparativo de Autores (/comparacao).
 app.use('/api/autores', autenticar, exigirModuloDinamico((req) => {
   if (req.query.escopoUnidade === 'geral') return 'autoresGeral';
+  // Detalhe do item (estoque/consumo/autonomia) é compartilhado: usado tanto no
+  // Comparativo de Autores quanto no modal do Relatório de Primeiro Atendimento.
+  // Libera para quem tiver acesso a QUALQUER uma dessas duas telas.
+  if (req.path.startsWith('/comparacao/item-detalhe')) return ['comparativoAutoresTP', 'relatorioReqTP'];
   if (req.path.startsWith('/requisicoes')) return 'relatorioReqTP';
   if (req.path.startsWith('/comparacao')) return 'comparativoAutoresTP';
   return 'autoresTP';
