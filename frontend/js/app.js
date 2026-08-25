@@ -4444,7 +4444,7 @@ async function carregarTabelaAutores() {
   document.getElementById('grideResumoAutores').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAutores)}</div><div class="rotulo">Autores (distintos)</div></div>
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${q || params.has('unidade') ? ' filtradas' : ''}</div></div>
-    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${dados.dataImportacao ? ' · importado ' + dados.dataImportacao.slice(11, 16) : ''}</div></div>
   `;
 
   const corpo = document.getElementById('corpoTabelaAutores');
@@ -4676,7 +4676,7 @@ async function carregarTabelaAutoresGeral() {
   document.getElementById('grideResumoAutoresGeral').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAutores)}</div><div class="rotulo">Autores (distintos)</div></div>
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${q || params.has('unidade') ? ' filtradas' : ''}</div></div>
-    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${dados.dataImportacao ? ' · importado ' + dados.dataImportacao.slice(11, 16) : ''}</div></div>
   `;
 
   const corpo = document.getElementById('corpoTabelaAutoresGeral');
@@ -4782,7 +4782,7 @@ async function carregarTabelaAutoresImportados() {
   document.getElementById('grideResumoAutoresImportados').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAutores)}</div><div class="rotulo">Autores (distintos)</div></div>
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${q || params.has('unidade') ? ' filtradas' : ''}</div></div>
-    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${dados.dataImportacao ? ' · importado ' + dados.dataImportacao.slice(11, 16) : ''}</div></div>
   `;
 
   const corpo = document.getElementById('corpoTabelaAutoresImportados');
@@ -5443,7 +5443,7 @@ async function carregarTabelaRelItens() {
 
   document.getElementById('grideResumoRelItens').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Itens${q ? ' filtrados' : ' no catálogo'}</div></div>
-    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${dados.dataImportacao ? ' · importado ' + dados.dataImportacao.slice(11, 16) : ''}</div></div>
   `;
 
   const corpo = document.getElementById('corpoTabelaRelItens');
