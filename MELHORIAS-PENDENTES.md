@@ -27,6 +27,7 @@
 | 19 | Nova tela **Estoque IBL (API)** — consulta ao vivo do WMS IBL (locais 2999/3004), abas Por Lote e Consolidado por SKU (botão Ver → lotes/validades), export CSV. Token só no `.env` | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
 | 20 | Saldo IBL de Outras Demandas (consolidado + validade + lotes) no modal "Ver" de Estoque TP, Estoque Geral e Listagem de Autores (cache 5 min) | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
 | 21 | Abas em formato de **pasta** (estilo relevo) em todas as abas de conteúdo do sistema | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 22b | Busca tolerante a acento e maiúsc./minúsc. em todo o sistema (LIKE do SQLite sobrescrito + helper `normalizarBusca`), sem alterar os dados | db02c7b | 25/08/2026 | 🚀 PUBLICADO (prod db02c7b) |
 
 ### Detalhe do item 12 — Listagem de Autores Importados
 
