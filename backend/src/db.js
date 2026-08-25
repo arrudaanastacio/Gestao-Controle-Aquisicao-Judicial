@@ -57,10 +57,10 @@ function _analisarLike(padrao, escape) {
   let out = "";
   for (let i = 0; i < P.length; i++) {
     const c = P[i];
-    if (E != null && c === E && i + 1 < P.length) { out += P[++i].replace(_reEscapeRegex, "\$&"); continue; }
-    if (c === "%") out += "[\s\S]*";
-    else if (c === "_") out += "[\s\S]";
-    else out += c.replace(_reEscapeRegex, "\$&");
+    if (E != null && c === E && i + 1 < P.length) { out += P[++i].replace(_reEscapeRegex, "\\$&"); continue; }
+    if (c === "%") out += "[\\s\\S]*";
+    else if (c === "_") out += "[\\s\\S]";
+    else out += c.replace(_reEscapeRegex, "\\$&");
   }
   info = { simples: false, regex: new RegExp("^" + out + "$") };
   if (_cacheLike.size > 500) _cacheLike.clear();
