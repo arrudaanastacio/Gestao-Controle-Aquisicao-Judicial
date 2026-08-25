@@ -38,6 +38,12 @@ if (!colunasUsuarios.includes('token_convite')) {
 if (!colunasUsuarios.includes('token_expira')) {
   db.exec('ALTER TABLE usuarios ADD COLUMN token_expira TEXT');
 }
+// Caixas do Relatório de Primeiro Atendimento que o usuário pode ver (JSON
+// array, ex.: ["Materiais","Nutrição"]). NULL = todas (mantém quem já usa);
+// admin sempre vê todas. Definido pelo admin no modal de Permissões.
+if (!colunasUsuarios.includes('caixas_req')) {
+  db.exec('ALTER TABLE usuarios ADD COLUMN caixas_req TEXT');
+}
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS itens (
@@ -758,6 +764,67 @@ CREATE TABLE IF NOT EXISTS requisicao_itens (
 `);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_reqitens_req ON requisicao_itens(requisicao_id);`);
 
+// Relatório de Compras Importados: alimentado manualmente pelo botão "+" da
+// Listagem de Autores Importados (captura a linha do autor + dados do modal).
+// Controle por paciente/item; colunas editáveis (quantidade_solicitada, sei,
+// status) vão sendo preenchidas na tela. Novas colunas entram por migração.
+db.exec(`
+CREATE TABLE IF NOT EXISTS compras_importados (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_item TEXT,
+  cod_siafisico TEXT,
+  descricao_item TEXT,
+  categoria TEXT,
+  autor TEXT,
+  unidade_dispensadora TEXT,
+  id_demanda TEXT,
+  protocolo TEXT,
+  processo TEXT,
+  status_demanda TEXT,
+  tipo_demanda TEXT,
+  qtde_consumo TEXT,
+  prazo TEXT,
+  periodicidade TEXT,
+  data_ultima_dispensacao TEXT,
+  data_ultimo_retorno TEXT,
+  quantidade_solicitada TEXT,
+  sei TEXT,
+  status TEXT DEFAULT 'Solicitado',
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  criado_por TEXT,
+  atualizado_em TEXT
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_comp_imp_autor ON compras_importados(autor);`);
+// Colunas do Relatório de Compras Importados (adicionadas por partes).
+const colsCompImp = db.prepare('PRAGMA table_info(compras_importados)').all().map((c) => c.name);
+const addCompImp = (col, tipo) => { if (!colsCompImp.includes(col)) db.exec(`ALTER TABLE compras_importados ADD COLUMN ${col} ${tipo}`); };
+addCompImp('catmat', 'TEXT');                 // do Relatório de Itens
+addCompImp('req_gsnet', 'TEXT');              // Req. GSNET
+addCompImp('valor_medio_unitario', 'TEXT');   // do Relatório de Itens (editável se vazio)
+addCompImp('solicitacao_drs_sei', 'TEXT');
+addCompImp('data_solicitacao', 'TEXT');
+addCompImp('numero_empenho', 'TEXT');
+addCompImp('numero_recibo', 'TEXT');
+addCompImp('data_entrega', 'TEXT');
+// Campos condicionais conforme o Status:
+addCompImp('justificativa', 'TEXT');          // Cancelado / Devolvido
+addCompImp('data_inativacao', 'TEXT');        // Demanda Inativa
+addCompImp('data_embarque', 'TEXT');          // Embarque
+addCompImp('numero_fatura_gsnet', 'TEXT');    // Finalizado
+addCompImp('data_fatura', 'TEXT');            // Finalizado
+addCompImp('ciclo', 'INTEGER');               // 1ª, 2ª aquisição... do mesmo paciente/item
+addCompImp('motivo_pendencia', 'TEXT');       // Pendência: Processo em Andamento / Aguardando Documentação / ...
+addCompImp('lote', 'TEXT');                   // Embarque
+addCompImp('validade', 'TEXT');               // Embarque
+addCompImp('num_tentativas', 'INTEGER');      // Sem cotação: quantas tentativas
+addCompImp('tentativas_datas', 'TEXT');       // Sem cotação: JSON com a data de cada tentativa
+addCompImp('telegrama_enviado', 'TEXT');      // Finalizado + Tenente Pena: Sim/Não
+addCompImp('data_envio_telegrama', 'TEXT');   // Finalizado + Tenente Pena: data do envio
+addCompImp('status_desde', 'TEXT');           // quando o status vigente começou (para os alertas)
+addCompImp('num_doc_entrada_gsnet', 'TEXT');  // Finalizado: Nº Doc. Entrada GSNET
+addCompImp('data_entrada', 'TEXT');           // Finalizado: data de entrada
+
 // Status/cancelamento da requisição (cancelar mantém o histórico)
 const colunasReq = db.prepare("PRAGMA table_info(requisicoes)").all().map((c) => c.name);
 if (!colunasReq.includes('status')) db.exec("ALTER TABLE requisicoes ADD COLUMN status TEXT NOT NULL DEFAULT 'Ativa'");
@@ -767,6 +834,21 @@ if (!colunasReq.includes('cancelado_por')) db.exec("ALTER TABLE requisicoes ADD 
 if (!colunasReq.includes('protocolo')) db.exec("ALTER TABLE requisicoes ADD COLUMN protocolo TEXT");
 if (!colunasReq.includes('processo')) db.exec("ALTER TABLE requisicoes ADD COLUMN processo TEXT");
 if (!colunasReq.includes('tipo_demanda')) db.exec("ALTER TABLE requisicoes ADD COLUMN tipo_demanda TEXT");
+// Solicitação Coletiva: uma requisição consolida vários pacientes + itens somados.
+if (!colunasReq.includes('coletiva')) db.exec("ALTER TABLE requisicoes ADD COLUMN coletiva INTEGER NOT NULL DEFAULT 0");
+if (!colunasReq.includes('total_pacientes')) db.exec("ALTER TABLE requisicoes ADD COLUMN total_pacientes INTEGER");
+if (!colunasReq.includes('pacientes_json')) db.exec("ALTER TABLE requisicoes ADD COLUMN pacientes_json TEXT");
+// Status ÚNICO do grupo (só para coletiva; a individual usa o status por item).
+if (!colunasReq.includes('status_atendimento')) db.exec("ALTER TABLE requisicoes ADD COLUMN status_atendimento TEXT DEFAULT 'Solicitado'");
+if (!colunasReq.includes('telegrama_enviado')) db.exec("ALTER TABLE requisicoes ADD COLUMN telegrama_enviado TEXT DEFAULT 'Não'");
+if (!colunasReq.includes('data_envio')) db.exec("ALTER TABLE requisicoes ADD COLUMN data_envio TEXT");
+if (!colunasReq.includes('requisicao_gsnet')) db.exec("ALTER TABLE requisicoes ADD COLUMN requisicao_gsnet TEXT");
+if (!colunasReq.includes('telegrama_enviado_por')) db.exec("ALTER TABLE requisicoes ADD COLUMN telegrama_enviado_por TEXT");
+if (!colunasReq.includes('telegrama_enviado_em')) db.exec("ALTER TABLE requisicoes ADD COLUMN telegrama_enviado_em TEXT");
+// Caixa do Relatório de Primeiro Atendimento (Materiais/Medicamentos/Nutrição;
+// null = sem caixa, só admin/aba "Todas"). Preenchida na criação; backfill em
+// routes.autores.js.
+if (!colunasReq.includes('caixa')) db.exec("ALTER TABLE requisicoes ADD COLUMN caixa TEXT");
 
 // Fluxo de atendimento por item da requisição (editável pelos usuários)
 const colunasReqItens = db.prepare("PRAGMA table_info(requisicao_itens)").all().map((c) => c.name);
@@ -783,6 +865,12 @@ if (!colunasReqItens.includes('periodicidade')) db.exec("ALTER TABLE requisicao_
 if (!colunasReqItens.includes('dispensacoes_autorizadas')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN dispensacoes_autorizadas TEXT");
 if (!colunasReqItens.includes('autonomia_compra')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN autonomia_compra TEXT");
 if (!colunasReqItens.includes('catmat')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN catmat TEXT");
+// Coletiva: detalhe por paciente do item consolidado (JSON) + nº de pacientes.
+if (!colunasReqItens.includes('detalhe_json')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN detalhe_json TEXT");
+if (!colunasReqItens.includes('n_pacientes')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN n_pacientes INTEGER");
+if (!colunasReqItens.includes('situacao_ata')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN situacao_ata TEXT");
+if (!colunasReqItens.includes('escolha_ata')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN escolha_ata TEXT");
+if (!colunasReqItens.includes('valor_unitario')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN valor_unitario TEXT");
 
 // Relatório de Itens (catálogo completo) — substitui Consulta/Catálogo.
 // Substituído por completo a cada importação.

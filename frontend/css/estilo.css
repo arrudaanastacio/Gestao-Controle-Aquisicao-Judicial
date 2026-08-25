@@ -771,6 +771,9 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaHistorico:not([hidden])),
 .conteudo:has(> #paginaAutores:not([hidden])),
 .conteudo:has(> #paginaAutoresGeral:not([hidden])),
+.conteudo:has(> #paginaAutoresImportados:not([hidden])),
+.conteudo:has(> #paginaRelatorioImportados:not([hidden])),
+.conteudo:has(> #paginaAnaliseImportados:not([hidden])),
 .conteudo:has(> #paginaComparativoAutores:not([hidden])),
 .conteudo:has(> #paginaRelatorioReq:not([hidden])),
 .conteudo:has(> #paginaCartasTroca:not([hidden])),
@@ -778,6 +781,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaValidades:not([hidden])),
 .conteudo:has(> #paginaAtas:not([hidden])),
 .conteudo:has(> #paginaEstoqueOD:not([hidden])),
+.conteudo:has(> #paginaEstoqueIblApi:not([hidden])),
 .conteudo:has(> #paginaSolicitacoesOD:not([hidden])),
 .conteudo:has(> #paginaAquisicaoODAndamento:not([hidden])),
 .conteudo:has(> #paginaEntradaLotes:not([hidden])),
@@ -790,6 +794,42 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaPlanejamento:not([hidden])) {
   max-width: none;
 }
+
+/* ============================================================
+   Abas de conteúdo em formato PASTA (estilo "Opção C": relevo no
+   topo da aba ativa). Aplica-se a TODOS os grupos de abas de conteúdo
+   (botões .chip-faixa[data-aba]) e à tela Estoque IBL (.aba-pasta).
+   NÃO afeta os chips de FILTRO (data-janela / data-situacao / data-mod),
+   que continuam em formato pílula.
+   ============================================================ */
+.filtros-faixa:has(> .chip-faixa[data-aba]),
+.abas-tela:has(> .chip-faixa[data-aba]),
+.abas-pasta {
+  display: flex; gap: 4px; align-items: flex-end; flex-wrap: wrap;
+  border-bottom: 1px solid var(--linha); padding-left: 4px; margin-bottom: 14px;
+}
+.chip-faixa[data-aba], .aba-pasta {
+  background: var(--papel);
+  color: var(--cinza-texto);
+  border: 1px solid var(--linha);
+  border-radius: 9px 9px 0 0;
+  padding: 8px 16px; font-size: 13px; cursor: pointer;
+  margin-bottom: -1px; line-height: 1.2;
+}
+.aba-pasta i, .aba-pasta svg { vertical-align: -2px; margin-right: 6px; }
+.chip-faixa[data-aba]:hover, .aba-pasta:hover {
+  border-color: var(--linha-forte); color: var(--tinta); background: var(--papel-elevado);
+}
+.chip-faixa[data-aba].ativo, .aba-pasta.ativo {
+  background: var(--papel-elevado);
+  color: var(--selo); font-weight: 600;
+  border-color: var(--linha);
+  border-top: 3px solid var(--selo);
+  border-bottom-color: var(--papel-elevado);
+  padding-top: 6px;
+}
+/* IBL: o conteúdo fica logo abaixo das abas, sem caixa em volta. */
+.painel-pasta { background: transparent; border: none; border-radius: 0; padding: 12px 2px 0; }
 
 /* Cards de demanda/consumo por programa no modal de estoque (Judicial/Adm/JEFAZ). */
 .grade-programas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
@@ -1329,6 +1369,31 @@ tbody tr.linha-revisar:hover td { background: #fbdcd4; }
 .etiqueta-status.deserto,
 .etiqueta-status.revogado { background: var(--vermelho-fundo); color: var(--vermelho); }
 .etiqueta-status.atrasado { background: var(--ambar-fundo); color: var(--ambar); }
+
+/* Etiqueta de ATA na Requisição de Compra (siafísico × ata vigente × marca) */
+.ata-box { margin-top: 5px; }
+.ata-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 600; padding: 4px 10px;
+  border-radius: 6px; border: 1px solid transparent; white-space: nowrap;
+}
+.ata-pill.ata { background: var(--verde-ok-fundo); color: var(--verde-ok); border-color: var(--verde-ok); cursor: pointer; }
+.ata-pill.av  { background: var(--ambar-fundo); color: var(--ambar); border-color: var(--ambar); }
+.ata-pill.sem { background: var(--realce-tabela); color: var(--cinza-texto); border-color: var(--linha); }
+.ata-detalhe {
+  margin-top: 6px; background: var(--realce-tabela); border: 1px solid var(--linha);
+  border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--tinta-suave); line-height: 1.5;
+}
+.ata-detalhe .rot { color: var(--cinza-texto); }
+.ata-esc {
+  display: inline-block; margin: 6px 6px 0 0; padding: 4px 13px; font-size: 12px;
+  border: 1px solid var(--linha); border-radius: 6px; cursor: pointer; color: var(--tinta-suave);
+}
+.ata-esc:hover { border-color: var(--selo); }
+.ata-esc.on { background: var(--selo); color: #fff; border-color: var(--selo); font-weight: 600; }
+.ata-valor { margin-top: 5px; font-size: 12.5px; color: var(--tinta-suave); }
+.ata-valor-rot { color: var(--cinza-texto); }
+.ata-valor-fonte { color: var(--cinza-texto); font-size: 11px; }
 
 .botao-editar {
   background: none;
@@ -2279,6 +2344,49 @@ th.ordenavel .seta { opacity: 0.45; font-size: 10px; margin-left: 3px; }
 .busca-kpi-faixa { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
 .busca-kpi { font-size: 12px; color: var(--cinza-texto); display: flex; align-items: baseline; gap: 5px; }
 .busca-kpi-num { font-family: var(--fonte-titulo); font-size: 17px; font-weight: 600; line-height: 1; }
+
+/* ==================== Requisição: abas de modo (paciente / coletiva) ==================== */
+.req-modo-abas {
+  display: inline-flex; gap: 4px; background: var(--realce-tabela);
+  border: 1px solid var(--linha); border-radius: 8px; padding: 3px; margin: 4px 0 14px;
+}
+.req-modo-aba {
+  font-family: var(--fonte-corpo); font-size: 12.5px; cursor: pointer;
+  background: none; border: none; color: var(--cinza-texto);
+  padding: 6px 14px; border-radius: 6px; transition: background .12s, color .12s;
+}
+.req-modo-aba.ativo { background: var(--selo); color: #fff; font-weight: 600; }
+.col-item-op:hover { border-color: var(--selo) !important; background: #eef4f0 !important; }
+
+/* Chips de medicamentos na Solicitação Coletiva */
+.col-chip-item {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0 6px 6px 0;
+  background: #eef4f0; border: 1px solid var(--linha); border-radius: 16px;
+  padding: 3px 10px; font-size: 12px; color: var(--selo-escuro); max-width: 100%;
+}
+.col-chip-x {
+  background: none; border: none; cursor: pointer; color: var(--cinza-texto);
+  font-size: 12px; line-height: 1; padding: 0;
+}
+.col-chip-x:hover { color: #c0392b; }
+
+/* Abas por medicamento (Solicitação Coletiva) */
+.col-abas-bar { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--linha); padding-bottom: 8px; }
+.col-aba {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  background: var(--realce-tabela); border: 1px solid var(--linha); border-radius: 8px 8px 0 0;
+  padding: 6px 12px; font-size: 12.5px; font-family: var(--fonte-corpo); color: var(--tinta-suave);
+}
+.col-aba.ativo { background: var(--selo); color: #fff; border-color: var(--selo); font-weight: 600; }
+.col-aba-cont {
+  background: rgba(0,0,0,0.12); border-radius: 10px; padding: 0 7px; font-size: 11px; font-weight: 600;
+}
+.col-aba.ativo .col-aba-cont { background: rgba(255,255,255,0.28); }
+.col-aba-x { font-size: 11px; opacity: .7; }
+.col-aba-x:hover { opacity: 1; color: #ffd7d0; }
+.col-aba-add { background: none; border: 1px dashed var(--linha); color: var(--selo-escuro); border-radius: 8px; }
+.col-aba-add:hover { border-color: var(--selo); background: #eef4f0; }
+
 /* ----- Modal de Permissões: aproveita a largura e rola verticalmente ----- */
 .tabela-permissoes-wrap {
   max-height: 66vh;
@@ -2308,3 +2416,29 @@ th.ordenavel .seta { opacity: 0.45; font-size: 10px; margin-left: 3px; }
 .tabela-permissoes td:not(:first-child) { white-space: nowrap; }
 /* Linhas mais respiráveis, aproveitando o espaço extra */
 .tabela-permissoes th, .tabela-permissoes td { padding: 9px 12px; }
+
+/* Campos do modal de Compra do Importado (rótulo em cima do input) */
+.campo-modal { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--cinza-texto); }
+.campo-modal input, .campo-modal select, .campo-modal textarea {
+  font-family: var(--fonte-corpo); font-size: 13px; color: var(--tinta);
+  background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio);
+  padding: 7px 9px; width: 100%;
+}
+.campo-modal input:focus, .campo-modal select:focus, .campo-modal textarea:focus {
+  outline: none; border-color: var(--selo); box-shadow: 0 0 0 3px rgba(31,92,82,0.15);
+}
+
+/* Painel de alertas do Relatório de Compras Importados */
+.painel-alertas-imp {
+  background: var(--papel-elevado); border: 1px solid var(--linha);
+  border-radius: var(--raio-cartao); padding: 12px 14px;
+}
+.painel-alertas-imp-titulo { font-weight: 600; margin-bottom: 8px; }
+.painel-alertas-imp-lista { display: flex; flex-direction: column; gap: 6px; }
+.alerta-imp-item {
+  display: flex; flex-direction: column; gap: 2px; text-align: left;
+  background: var(--papel); border: 1px solid var(--linha); border-radius: 7px;
+  padding: 8px 11px; cursor: pointer; font-family: var(--fonte-corpo);
+  color: var(--tinta); font-size: 13px; width: 100%;
+}
+.alerta-imp-item:hover { border-color: var(--selo); background: var(--realce-tabela); }

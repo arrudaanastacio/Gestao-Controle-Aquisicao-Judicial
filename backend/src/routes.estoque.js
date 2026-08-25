@@ -745,9 +745,18 @@ function construirItensMonitoramento(query) {
   let dataRef = data;
   if (!dataRef) {
     const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
-    if (!ultima) return { dataRef: null, itens: [] };
+    if (!ultima) return { dataRef: null, itens: [], autonomiaAlvo: null };
     dataRef = ultima.data_referencia;
   }
+
+  // Autonomia Alvo (meses desejados como objetivo de abastecimento). Prioriza o
+  // override enviado pela tela (?autonomiaAlvo=N); senão usa o valor persistido
+  // em configuracoes (chave 'autonomia_alvo_meses'); default 6. Mesmo padrão do
+  // 'autonomia_minima_meses'. NÃO fica fixo no código.
+  const alvoOverride = Number(query.autonomiaAlvo);
+  const autonomiaAlvo = Number.isFinite(alvoOverride) && alvoOverride > 0
+    ? alvoOverride
+    : parseFloat(db.prepare("SELECT valor FROM configuracoes WHERE chave = 'autonomia_alvo_meses'").get()?.valor || '6');
 
   const condicoes = ['e.data_referencia = ?'];
   const params = [dataRef];
@@ -765,6 +774,32 @@ function construirItensMonitoramento(query) {
   if (soComDemanda) condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
   const where = `WHERE ${condicoes.join(' AND ')}`;
 
+  // Compras EM ANDAMENTO (em aberto) consolidadas por item: soma qtde_pendente
+  // dos dois fluxos (TP = solicitacoes + OD = solicitacoes_od) e de todos os
+  // tipos (JS + AS), e reúne os status ativos para o selo/lista do Monitoramento.
+  const mapaAquisicao = new Map();
+  const _ph = STATUS_EM_ABERTO.map(() => '?').join(',');
+  const linhasAberto = db.prepare(`
+    SELECT codigo_item, 'TP' AS fluxo, status, COALESCE(qtde_pendente, 0) AS q
+      FROM solicitacoes WHERE status IN (${_ph})
+    UNION ALL
+    SELECT codigo_item, 'OD' AS fluxo, status, COALESCE(qtde_pendente, 0) AS q
+      FROM solicitacoes_od WHERE status IN (${_ph})
+  `).all(...STATUS_EM_ABERTO, ...STATUS_EM_ABERTO);
+  const ORDEM_ABERTO = STATUS_EM_ABERTO; // Planejamento < Adjucado < Empenhado < Entrega Parcial
+  for (const r of linhasAberto) {
+    let a = mapaAquisicao.get(r.codigo_item);
+    if (!a) { a = { qtde: 0, chaves: new Set() }; mapaAquisicao.set(r.codigo_item, a); }
+    a.qtde += Number(r.q) || 0;
+    a.chaves.add(`${r.status} (${r.fluxo})`);
+  }
+  // Texto ordenado dos status ativos, ex.: "Empenhado (TP) · Planejamento (OD)".
+  const textoStatus = (a) => [...a.chaves].sort((x, y) => {
+    const sx = ORDEM_ABERTO.findIndex((s) => x.startsWith(s));
+    const sy = ORDEM_ABERTO.findIndex((s) => y.startsWith(s));
+    return sx !== sy ? sx - sy : x.localeCompare(y);
+  }).join(' · ');
+
   const linhas = db.prepare(`
     SELECT e.codigo_item, e.siafisico, e.descricao, e.unidade,
            e.categoria, e.tipo_item, e.marca, e.importado, e.controlado, e.outras_demandas,
@@ -776,17 +811,68 @@ function construirItensMonitoramento(query) {
   `).all(...params);
 
   const hoje = new Date();
+  // Soma "meses" (fração) a uma data-base, sem arredondar antes: dias = meses*30.
+  const dataMaisMeses = (base, meses) => {
+    const d = new Date(base.getTime());
+    d.setDate(d.getDate() + Math.round(Number(meses) * 30));
+    return d.toISOString().slice(0, 10);
+  };
   let itens = linhas.map((r) => {
+    const aq = mapaAquisicao.get(r.codigo_item) || null;
     const statusEstoque = classificarStatusEstoque(r.demandas, r.autonomia);
     const statusFinal = statusFinalDe(statusEstoque);
     let previsaoFalta = null, coberturaMes = null;
     if (r.autonomia != null && (Number(r.consumo_mensal_total) || 0) > 0) {
-      const d = new Date(hoje.getTime());
-      d.setDate(d.getDate() + Math.round(Number(r.autonomia) * 30));
-      previsaoFalta = d.toISOString().slice(0, 10);
+      previsaoFalta = dataMaisMeses(hoje, r.autonomia);
       const m = new Date(hoje.getFullYear(), hoje.getMonth() + Math.round(Number(r.autonomia)), 1);
       coberturaMes = m.toISOString().slice(0, 7);
     }
+
+    // ---- Novas análises de cobertura / aquisição (usam valores REAIS; a
+    // apresentação com 2 casas é feita no frontend). ----
+    const consumo = Number(r.consumo_mensal_total) || 0;   // 0 se vazio/nulo
+    const estoque = Number(r.estoque) || 0;                // 0 se vazio/nulo
+    const qtdeAquisicao = aq ? Number(aq.qtde) || 0 : 0;    // vazia = 0
+    const autoAtual = r.autonomia;                          // importada (pode ser null)
+    const temConsumo = consumo > 0;
+
+    // Cobertura da Aquisição = Qtde. Aquisição / Consumo. Sem consumo → null ("-").
+    const coberturaAquisicao = !temConsumo ? null : (qtdeAquisicao > 0 ? qtdeAquisicao / consumo : 0);
+
+    // Autonomia Total após Recebimento: se não há aquisição, é a própria autonomia
+    // atual (regra do enunciado). Com aquisição, soma a cobertura à autonomia atual
+    // (base = autonomia importada; se ausente, cai para estoque/consumo).
+    let autonomiaTotal;
+    if (qtdeAquisicao <= 0) {
+      autonomiaTotal = autoAtual;                 // pode ser null → "—"
+    } else if (!temConsumo) {
+      autonomiaTotal = null;                      // aquisição sem consumo → indefinido
+    } else {
+      const base = (autoAtual != null) ? Number(autoAtual) : (estoque / consumo);
+      autonomiaTotal = base + coberturaAquisicao;
+    }
+
+    // Previsão de Falta Projetada = hoje + Autonomia Total (mesma referência/lógica
+    // da Previsão de Falta atual). Sem aquisição, coincide com a Previsão de Falta.
+    let previsaoFaltaProjetada = null;
+    if (autonomiaTotal != null && temConsumo) previsaoFaltaProjetada = dataMaisMeses(hoje, autonomiaTotal);
+    else if (qtdeAquisicao <= 0) previsaoFaltaProjetada = previsaoFalta;
+
+    // Situação da Aquisição (fase 1: só reflete se há ou não aquisição).
+    const situacaoAquisicao = qtdeAquisicao > 0 ? 'Aquisição em andamento' : 'Sem aquisição';
+
+    // Saldo Necessário de Aquisição = MAX(0, Consumo*Alvo - (Estoque + Aquisição)).
+    // Sem consumo não há meta de meses → null ("-").
+    const saldoNecessario = !temConsumo
+      ? null
+      : Math.max(0, consumo * autonomiaAlvo - (estoque + qtdeAquisicao));
+
+    // Situação da Cobertura frente à Autonomia Alvo.
+    let situacaoCobertura;
+    if (!temConsumo) situacaoCobertura = 'Sem consumo';
+    else if (saldoNecessario > 0) situacaoCobertura = 'Necessita Aquisição';
+    else situacaoCobertura = 'Autonomia Alvo Atendida';
+
     return {
       codigo_item: r.codigo_item, siafisico: r.siafisico, descricao: r.descricao, unidade: r.unidade,
       categoria: r.categoria || 'Sem categoria', subcategoria: r.subcategoria || (r.categoria || 'Sem categoria'),
@@ -796,6 +882,16 @@ function construirItensMonitoramento(query) {
       status_estoque: statusEstoque, status_final: statusFinal,
       previsao_falta: previsaoFalta, cobertura_mes: coberturaMes,
       faixa_demanda: (Number(r.demandas) || 0) > 30 ? 'Acima 30' : 'Baixo 30',
+      qtde_aquisicao: qtdeAquisicao,
+      em_compra: aq ? 'Em compra' : 'Sem compra',
+      compra_status_txt: aq ? textoStatus(aq) : '',
+      // Novas análises:
+      cobertura_aquisicao: coberturaAquisicao,
+      autonomia_total: autonomiaTotal,
+      previsao_falta_projetada: previsaoFaltaProjetada,
+      situacao_aquisicao: situacaoAquisicao,
+      saldo_necessario: saldoNecessario,
+      situacao_cobertura: situacaoCobertura,
     };
   });
 
@@ -808,17 +904,18 @@ function construirItensMonitoramento(query) {
   if (query.status) itens = itens.filter((i) => i.status_estoque === query.status);
   if (query.statusFinal) itens = itens.filter((i) => i.status_final === query.statusFinal);
   if (query.subcategoria) itens = itens.filter((i) => i.subcategoria === query.subcategoria);
-  return { dataRef, itens };
+  return { dataRef, itens, autonomiaAlvo };
 }
 
 router.get('/monitoramento', (req, res) => {
   // Reaproveita o mesmo construtor do export (escopo/unidade/categoria/comDemanda).
   // Aqui NÃO aplicamos q/status/etc — esses recortes são feitos no navegador.
-  const { dataRef, itens } = construirItensMonitoramento({
+  const { dataRef, itens, autonomiaAlvo } = construirItensMonitoramento({
     data: req.query.data, escopoUnidade: req.query.escopoUnidade,
     categoria: req.query.categoria, comDemanda: req.query.comDemanda, unidade: req.query.unidade,
+    autonomiaAlvo: req.query.autonomiaAlvo,
   });
-  if (!dataRef) return res.json({ dataReferencia: null, itens: [] });
+  if (!dataRef) return res.json({ dataReferencia: null, itens: [], autonomiaAlvo: null });
 
   // Agregações para os painéis.
   const contar = (chave) => {
@@ -849,6 +946,7 @@ router.get('/monitoramento', (req, res) => {
 
   res.json({
     dataReferencia: dataRef,
+    autonomiaAlvo,
     totalItens: itens.length,
     truncado,
     itens: truncado ? itens.slice(0, LIMITE_TABELA) : itens,
@@ -865,14 +963,21 @@ router.get('/monitoramento', (req, res) => {
 // Exporta para Excel EXATAMENTE os itens filtrados na tela (mesmos filtros:
 // escopo, categoria, comDemanda, busca q, status, situação final, subcategoria).
 router.get('/monitoramento/exportar', (req, res) => {
-  const { dataRef, itens } = construirItensMonitoramento(req.query);
+  const { dataRef, itens, autonomiaAlvo } = construirItensMonitoramento(req.query);
   if (!dataRef) return res.status(404).json({ erro: 'Nenhum estoque importado.' });
+
+  // Arredonda meses para 2 casas só na saída (cálculo usou valor real); '' se null.
+  const meses2 = (v) => (v == null ? '' : Math.round(Number(v) * 100) / 100);
+  const dataBR = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
 
   const cabecalho = [
     'Código SCODES', 'Siafísico', 'Descrição', 'Unidade', 'Categoria', 'Sub-categoria',
     'Marca', 'Demandas', 'Demanda AJ', 'Demanda CF', 'Demanda JEFAZ', 'Consumo Mensal',
-    'Estoque', 'Autonomia (meses)', 'Status Estoque', 'Situação Final',
-    'Previsão de Falta', 'Cobertura (mês)',
+    'Estoque', 'Autonomia (meses)', 'Qtde. Aquisição', 'Cobertura da Aquisição (meses)',
+    'Autonomia Total após Recebimento (meses)', 'Compra em Andamento', 'Status da Compra',
+    'Situação da Aquisição', `Saldo Necessário de Aquisição (alvo ${autonomiaAlvo}m)`,
+    'Situação da Cobertura', 'Status Estoque', 'Situação Final',
+    'Previsão de Falta', 'Previsão de Falta Projetada', 'Cobertura (mês)',
   ];
   const aoa = [cabecalho];
   for (const i of itens) {
@@ -881,9 +986,12 @@ router.get('/monitoramento/exportar', (req, res) => {
       i.categoria || '', i.subcategoria || '', i.marca || '',
       i.demandas, i.demandas_aj, i.demandas_cf, i.demandas_jefaz, i.consumo_mensal_total,
       i.estoque, i.autonomia == null ? '' : Number(i.autonomia),
+      i.qtde_aquisicao || 0, meses2(i.cobertura_aquisicao), meses2(i.autonomia_total),
+      i.em_compra, i.compra_status_txt || '',
+      i.situacao_aquisicao, i.saldo_necessario == null ? '' : Math.round(i.saldo_necessario),
+      i.situacao_cobertura,
       i.status_estoque, i.status_final,
-      i.previsao_falta ? i.previsao_falta.split('-').reverse().join('/') : '',
-      i.cobertura_mes || '',
+      dataBR(i.previsao_falta), dataBR(i.previsao_falta_projetada), i.cobertura_mes || '',
     ]);
   }
 
@@ -891,7 +999,9 @@ router.get('/monitoramento/exportar', (req, res) => {
   ws['!cols'] = [
     { wch: 24 }, { wch: 12 }, { wch: 45 }, { wch: 22 }, { wch: 14 }, { wch: 14 },
     { wch: 16 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 13 },
-    { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 14 }, { wch: 15 }, { wch: 13 },
+    { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 22 },
+    { wch: 18 }, { wch: 30 }, { wch: 20 }, { wch: 22 }, { wch: 20 },
+    { wch: 15 }, { wch: 14 }, { wch: 15 }, { wch: 18 }, { wch: 13 },
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Monitoramento');

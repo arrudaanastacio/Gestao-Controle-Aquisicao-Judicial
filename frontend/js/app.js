@@ -20,7 +20,12 @@ async function api(caminho, opcoes = {}) {
     throw new Error('Não autenticado');
   }
   const dados = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(dados.erro || 'Erro na requisição');
+  if (!resp.ok) {
+    const err = new Error(dados.erro || 'Erro na requisição');
+    err.status = resp.status;
+    err.dados = dados;
+    throw err;
+  }
   return dados;
 }
 
@@ -36,6 +41,13 @@ function formatarData(iso) {
 // Retorna string vazia quando não há hora, para não poluir o subtítulo.
 function horaImportacao(dh) {
   return dh ? ` · importado às ${String(dh).slice(11, 16)}` : '';
+}
+
+// Meses com 2 casas e vírgula (ex.: 3 → "3,00 meses"). null/undefined → "—".
+// vazioTraco='-' permite o padrão do enunciado ("-" quando não há consumo).
+function fmtMeses(v, traco = '—') {
+  if (v == null || Number.isNaN(Number(v))) return traco;
+  return `${Number(v).toFixed(2).replace('.', ',')}`;
 }
 
 // Mostra um valor de célula ou "—" quando vazio/nulo (para tabelas largas).
@@ -249,10 +261,11 @@ function aplicarPermissoesNav() {
     relatorio: 'relatorioComprasTP', solicitacoes: 'tabelaAnaliseTP',
     solicitacoesOD: 'relatorioComprasOD', aquisicaoODAndamento: 'aquisicaoODAndamento',
     estoque: 'estoqueTP', monitoramento: 'monitoramentoEstoque', validades: 'validadesTP', historico: 'historicoEstoqueTP', evolucao: 'evolucaoEstoqueTP',
-    estoqueGeral: 'estoqueGeral', estoqueOD: 'estoqueOD', distribuicao: 'distribuicao',
+    estoqueGeral: 'estoqueGeral', estoqueOD: 'estoqueOD', estoqueIblApi: 'estoqueIblApi', distribuicao: 'distribuicao',
     relatorioItens: 'relatorioItens',
     planejamento: 'planejamento',
-    autores: 'autoresTP', autoresGeral: 'autoresGeral',
+    autores: 'autoresTP', autoresGeral: 'autoresGeral', autoresImportados: 'autoresImportados',
+    relatorioImportados: 'relatorioComprasImportados', analiseImportados: 'analiseImportados',
     comparativoAutores: 'comparativoAutoresTP', relatorioReq: 'relatorioReqTP',
     cartasTroca: 'cartasTroca',
     atas: 'atas',
@@ -358,6 +371,7 @@ const ICONES_NAV = {
   monitoramento: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M7 11l2-2 2 3 3-5 3 4"/><path d="M8 20h8M12 16v4"/>',
   estoqueGeral: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 13h18"/>',
   estoqueOD: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 13h18"/><path d="M16 3l4 2v4l-4-2z"/>',
+  estoqueIblApi: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 13h18"/><circle cx="18" cy="6" r="2.5"/>',
   solicitacoesOD: '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/><path d="M16 3l4 2v4l-4-2z"/>',
   aquisicaoODAndamento: '<path d="M4 19h16"/><path d="M4 19V5"/><path d="M7 15l4-5 3 3 5-7"/><path d="M16 3l4 2v4l-4-2z"/>',
   validades: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M9 3v4M15 3v4M12 12v3l2 1"/>',
@@ -366,6 +380,9 @@ const ICONES_NAV = {
   evolucao: '<path d="M4 19h16"/><path d="M4 19V5"/><path d="M7 15l4-5 3 3 5-7"/>',
   autores: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   autoresGeral: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  autoresImportados: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
+  relatorioImportados: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/>',
+  analiseImportados: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/>',
   comparativoAutores: '<path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/>',
   relatorioReq: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M8 11h8M8 15h8M8 19h5"/>',
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
@@ -643,10 +660,14 @@ const TRILHAS = {
   validades: ['Tenente Pena', 'Autores', 'Consultar Validades TP'],
   estoqueGeral: ['Outras Demandas', 'Estoque', 'Itens em Estoque Geral'],
   estoqueOD: ['Outras Demandas', 'Estoque', 'Estoque GSNET/IBL'],
+  estoqueIblApi: ['Outras Demandas', 'Estoque', 'Estoque IBL (API)'],
   distribuicao: ['Outras Demandas', 'Estoque', 'Distribuição'],
   aquisicaoODAndamento: ['Outras Demandas', 'Compras', 'Aquisição em Andamento'],
   solicitacoesOD: ['Outras Demandas', 'Compras', 'Relatório de Compras OD'],
   autoresGeral: ['Outras Demandas', 'Autores', 'Listagem de Autores Demais Unidades'],
+  autoresImportados: ['Importados', 'Listagem de Autores Importados'],
+  relatorioImportados: ['Importados', 'Relatório de Compras Importados'],
+  analiseImportados: ['Importados', 'Tabela Análise Importados'],
   relatorioItens: ['Consultas', 'Relatório de Itens'],
   atas: ['Consultas', 'Atas de Registro de Preço'],
   usuarios: ['Administração', 'Usuários'],
@@ -678,6 +699,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaMonitoramento').hidden = pagina !== 'monitoramento';
   document.getElementById('paginaEstoqueGeral').hidden = pagina !== 'estoqueGeral';
   document.getElementById('paginaEstoqueOD').hidden = pagina !== 'estoqueOD';
+  document.getElementById('paginaEstoqueIblApi').hidden = pagina !== 'estoqueIblApi';
   document.getElementById('paginaDistribuicao').hidden = pagina !== 'distribuicao';
   document.getElementById('paginaSolicitacoesOD').hidden = pagina !== 'solicitacoesOD';
   document.getElementById('paginaAquisicaoODAndamento').hidden = pagina !== 'aquisicaoODAndamento';
@@ -686,6 +708,9 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaEvolucao').hidden = pagina !== 'evolucao';
   document.getElementById('paginaAutores').hidden = pagina !== 'autores';
   document.getElementById('paginaAutoresGeral').hidden = pagina !== 'autoresGeral';
+  document.getElementById('paginaAutoresImportados').hidden = pagina !== 'autoresImportados';
+  document.getElementById('paginaRelatorioImportados').hidden = pagina !== 'relatorioImportados';
+  document.getElementById('paginaAnaliseImportados').hidden = pagina !== 'analiseImportados';
   document.getElementById('paginaComparativoAutores').hidden = pagina !== 'comparativoAutores';
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
   document.getElementById('paginaCartasTroca').hidden = pagina !== 'cartasTroca';
@@ -713,6 +738,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'monitoramento') await carregarMonitoramento();
     if (pagina === 'estoqueGeral') await carregarEstoqueGeral();
     if (pagina === 'estoqueOD') await carregarEstoqueOD();
+    if (pagina === 'estoqueIblApi') await carregarEstoqueIblApi();
     if (pagina === 'distribuicao') await carregarDistribuicao();
     if (pagina === 'solicitacoesOD') await carregarSolicitacoesOD();
     if (pagina === 'aquisicaoODAndamento') await carregarAquisicaoODAndamento();
@@ -721,6 +747,9 @@ async function mudarPagina(pagina) {
     if (pagina === 'evolucao') iniciarEvolucao();
     if (pagina === 'autores') await carregarAutores();
     if (pagina === 'autoresGeral') await carregarAutoresGeral();
+    if (pagina === 'autoresImportados') await carregarAutoresImportados();
+    if (pagina === 'relatorioImportados') await carregarRelatorioImportados();
+    if (pagina === 'analiseImportados') await carregarAnaliseImportados();
     if (pagina === 'comparativoAutores') await carregarComparativo();
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
     if (pagina === 'cartasTroca') await carregarCartasTroca();
@@ -1626,19 +1655,19 @@ document.getElementById('botaoConfirmarSolicitacoes').addEventListener('click', 
 });
 
 // -------------------- Estoque --------------------
+function fmtNumero(v) {
+  if (v === null || v === undefined) return '—';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '—';
+  return n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+}
+
 // Número da Requisição GSNET sem casa decimal: a importação às vezes traz o
 // valor como "4508.0" (célula numérica do Excel). Remove só o ".0"/".00" de
 // finais inteiros; não mexe em GSNET alfanumérico nem em decimais reais.
 function fmtGsnet(v) {
   if (v === null || v === undefined) return '';
   return String(v).replace(/^(\d+)\.0+$/, '$1');
-}
-
-function fmtNumero(v) {
-  if (v === null || v === undefined) return '—';
-  const n = Number(v);
-  if (!Number.isFinite(n)) return '—';
-  return n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 }
 
 function classeAutonomia(item, limiar) {
@@ -1675,6 +1704,31 @@ document.getElementById('seletorDataEstoque').addEventListener('change', async (
 // Filtros da tela de Monitoramento de Estoque.
 document.getElementById('monCategoria').addEventListener('change', () => {
   Object.keys(DIMENSOES_MON).forEach((d) => { estadoMonFiltro[d] = null; });
+  carregarMonitoramento();
+});
+// Sub-categoria filtra do lado do cliente (é a mesma dimensão dos cliques nos
+// gráficos), sem ir ao servidor — recorta o conjunto já carregado.
+document.getElementById('monSubcategoria').addEventListener('change', (ev) => {
+  estadoMonFiltro.subcategoria = ev.target.value || null;
+  renderMonDinamico();
+});
+// Status de Estoque e Situação Final — mesmas dimensões dos gráficos.
+document.getElementById('monStatusEstoque').addEventListener('change', (ev) => {
+  estadoMonFiltro.status_estoque = ev.target.value || null;
+  renderMonDinamico();
+});
+document.getElementById('monStatusFinal').addEventListener('change', (ev) => {
+  estadoMonFiltro.status_final = ev.target.value || null;
+  renderMonDinamico();
+});
+// Compra em andamento (Em compra / Sem compra) — recorte do lado do cliente.
+document.getElementById('monCompra').addEventListener('change', (ev) => {
+  monFiltroCompra = ev.target.value || null;
+  renderMonDinamico();
+});
+// Autonomia Alvo: muda o saldo necessário e a situação da cobertura — recalcula
+// no servidor (recarrega mantendo os demais filtros de topo).
+document.getElementById('monAlvo').addEventListener('change', () => {
   carregarMonitoramento();
 });
 document.getElementById('monComDemanda').addEventListener('change', () => {
@@ -1897,6 +1951,9 @@ async function carregarMonitoramento() {
   else qs.set('unidade', monUnidadesSelecionadas.join(','));
   if (categoria) qs.set('categoria', categoria);
   if (!comDemanda) qs.set('comDemanda', '0');
+  // Autonomia Alvo escolhida na tela (override do valor padrão de configuracoes).
+  const alvoSel = document.getElementById('monAlvo').value;
+  if (alvoSel) qs.set('autonomiaAlvo', alvoSel);
   const dados = await api('/estoque/monitoramento?' + qs.toString());
   estadoMon.dados = dados;
 
@@ -1907,8 +1964,11 @@ async function carregarMonitoramento() {
   }
   vazio.hidden = true; conteudo.hidden = false;
 
+  // Reflete no seletor o alvo efetivamente usado (padrão de configuracoes na 1ª carga).
+  if (dados.autonomiaAlvo != null) document.getElementById('monAlvo').value = String(dados.autonomiaAlvo);
+
   document.getElementById('subtituloMonitoramento').textContent =
-    `Situação em ${formatarData(dados.dataReferencia)}${horaImportacao(dados.dataImportacao)} — ${fmtNumero(dados.totalItens)} itens · faixas fixas da planilha CPDAE.`;
+    `Situação em ${formatarData(dados.dataReferencia)}${horaImportacao(dados.dataImportacao)} — ${fmtNumero(dados.totalItens)} itens · autonomia alvo: ${dados.autonomiaAlvo} mês(es) · faixas fixas da planilha CPDAE.`;
 
   // Preenche o filtro de categoria (uma vez, a partir dos painéis).
   const selCat = document.getElementById('monCategoria');
@@ -1917,6 +1977,17 @@ async function carregarMonitoramento() {
       const o = document.createElement('option'); o.value = c.nome; o.textContent = c.nome; selCat.appendChild(o);
     });
   }
+
+  // Filtro de sub-categoria: repovoa a cada carga (depende da categoria/escopo).
+  const selSub = document.getElementById('monSubcategoria');
+  const subAtual = selSub.value;
+  selSub.innerHTML = '<option value="">Todas as sub-categorias</option>';
+  (dados.paineis.porSubcategoria || []).forEach((s) => {
+    const o = document.createElement('option'); o.value = s.nome; o.textContent = `${s.nome} (${fmtNumero(s.valor)})`; selSub.appendChild(o);
+  });
+  // Mantém a seleção se a sub-categoria ainda existe no novo conjunto.
+  if (subAtual && [...selSub.options].some((o) => o.value === subAtual)) selSub.value = subAtual;
+  else selSub.value = '';
 
   const aviso = document.getElementById('monTruncadoAviso');
   if (dados.truncado) { aviso.hidden = false; aviso.textContent = `Base grande: painéis e tabela consideram os primeiros ${fmtNumero(dados.itens.length)} de ${fmtNumero(dados.totalItens)} itens. Use o filtro de categoria para refinar.`; }
@@ -1960,6 +2031,10 @@ const DIMENSOES_MON = {
   categoria: 'Categoria', subcategoria: 'Sub-categoria',
 };
 
+// Recorte "Compra em andamento" (Em compra / Sem compra) — filtro simples do
+// dropdown, aplicado junto com a busca em baseFiltradaMon.
+let monFiltroCompra = null;
+
 // Aplica a busca + os recortes de clique (opcionalmente ignorando UMA dimensão,
 // para que um gráfico não filtre a si mesmo). É o que faz tudo filtrar junto.
 function baseFiltradaMon(exceto) {
@@ -1971,6 +2046,7 @@ function baseFiltradaMon(exceto) {
     (i.descricao || '').toLowerCase().includes(busca) ||
     (i.codigo_item || '').toLowerCase().includes(busca) ||
     (i.siafisico || '').toLowerCase().includes(busca));
+  if (monFiltroCompra) itens = itens.filter((i) => i.em_compra === monFiltroCompra);
   for (const dim of Object.keys(DIMENSOES_MON)) {
     if (dim === exceto) continue;
     if (estadoMonFiltro[dim]) itens = itens.filter((i) => (i[dim] || '—') === estadoMonFiltro[dim]);
@@ -1998,6 +2074,8 @@ async function exportarMonitoramento() {
   if (estadoMonFiltro.status_estoque) qs.set('status', estadoMonFiltro.status_estoque);
   if (estadoMonFiltro.status_final) qs.set('statusFinal', estadoMonFiltro.status_final);
   if (estadoMonFiltro.subcategoria) qs.set('subcategoria', estadoMonFiltro.subcategoria);
+  const alvoSel = document.getElementById('monAlvo').value;
+  if (alvoSel) qs.set('autonomiaAlvo', alvoSel);
 
   const btn = document.getElementById('monExportar');
   const textoOrig = btn.textContent;
@@ -2022,6 +2100,7 @@ async function exportarMonitoramento() {
 function limparFiltroMon() {
   document.getElementById('monBusca').value = '';
   for (const dim of Object.keys(DIMENSOES_MON)) estadoMonFiltro[dim] = null;
+  monFiltroCompra = null; document.getElementById('monCompra').value = '';
   const selCat = document.getElementById('monCategoria');
   if (selCat.value) { selCat.value = ''; carregarMonitoramento(); return; } // recarrega do servidor
   renderMonDinamico();
@@ -2035,6 +2114,7 @@ function atualizarIndicadorFiltroMon() {
   for (const [dim, rot] of Object.entries(DIMENSOES_MON)) {
     if (estadoMonFiltro[dim]) ativos.push(`${rot}: ${estadoMonFiltro[dim]}`);
   }
+  if (monFiltroCompra) ativos.push(`Compra: ${monFiltroCompra}`);
   const btn = document.getElementById('monLimparFiltro');
   const chip = document.getElementById('monFiltroAtivo');
   btn.hidden = ativos.length === 0;
@@ -2063,6 +2143,20 @@ function renderMonDinamico() {
 
   renderTabelaMon(baseFiltradaMon());
   atualizarIndicadorFiltroMon();
+
+  // Mantém o dropdown de sub-categoria refletindo a dimensão (cliques nos gráficos
+  // e "Limpar filtro" também mexem nela).
+  const selSub = document.getElementById('monSubcategoria');
+  if (selSub) {
+    const alvo = estadoMonFiltro.subcategoria || '';
+    if (selSub.value !== alvo && [...selSub.options].some((o) => o.value === alvo)) selSub.value = alvo;
+    else if (!alvo) selSub.value = '';
+  }
+  // Status de Estoque e Situação Final acompanham a dimensão (opções fixas).
+  const selSE = document.getElementById('monStatusEstoque');
+  if (selSE) selSE.value = estadoMonFiltro.status_estoque || '';
+  const selSF = document.getElementById('monStatusFinal');
+  if (selSF) selSF.value = estadoMonFiltro.status_final || '';
 }
 
 // Cards de resumo por status (clicáveis — mesmo recorte da barra de status).
@@ -2149,6 +2243,11 @@ function renderTabelaMon(base) {
   corpo.innerHTML = mostra.map((i) => {
     const corE = CORES_STATUS[i.status_estoque] || '#8a94a6';
     const corF = CORES_STATUS[i.status_final] || '#8a94a6';
+    // Cores dos selos das novas situações.
+    const corCob = i.situacao_cobertura === 'Autonomia Alvo Atendida' ? '#1f7a3a'
+      : i.situacao_cobertura === 'Necessita Aquisição' ? '#b45309' : '#8a94a6';
+    const corAq = i.situacao_aquisicao === 'Aquisição em andamento' ? '#1c6cad' : '#8a94a6';
+    const selo = (txt, cor) => `<span class="tag-status" style="background:${cor}22; color:${cor}; border:1px solid ${cor}55;">${escHtml(txt)}</span>`;
     return `<tr>
       <td>${escHtml(i.codigo_item || '—')}${i.siafisico ? '<br><span class="col-codigo">Siafísico: ' + escHtml(i.siafisico) + '</span>' : ''}</td>
       <td>${escHtml(i.descricao || '—')}</td>
@@ -2157,11 +2256,22 @@ function renderTabelaMon(base) {
       <td class="num">${fmtNumero(i.consumo_mensal_total)}</td>
       <td class="num">${fmtNumero(i.estoque)}</td>
       <td class="num">${i.autonomia == null ? '—' : Number(i.autonomia).toFixed(1)}</td>
+      <td class="num">${(Number(i.qtde_aquisicao) || 0) > 0 ? fmtNumero(i.qtde_aquisicao) : '—'}</td>
+      <td class="num">${fmtMeses(i.cobertura_aquisicao, '-')}</td>
+      <td class="num">${fmtMeses(i.autonomia_total, '—')}</td>
+      <td>${i.em_compra === 'Em compra'
+        ? '<span class="tag-status" style="background:#1f7a3a22; color:#1f7a3a; border:1px solid #1f7a3a55;">Em compra</span>'
+          + (i.compra_status_txt ? '<br><span class="col-codigo">' + escHtml(i.compra_status_txt) + '</span>' : '')
+        : '<span class="tag-status" style="background:#8a94a622; color:#8a94a6; border:1px solid #8a94a655;">Sem compra</span>'}</td>
+      <td>${selo(i.situacao_aquisicao, corAq)}</td>
+      <td class="num">${i.saldo_necessario == null ? '-' : fmtNumero(Math.round(i.saldo_necessario))}</td>
+      <td>${selo(i.situacao_cobertura, corCob)}</td>
       <td><span class="tag-status" style="background:${corE}22; color:${corE}; border:1px solid ${corE}55;">${escHtml(i.status_estoque)}</span></td>
       <td><span class="tag-status" style="background:${corF}22; color:${corF}; border:1px solid ${corF}55;">${escHtml(i.status_final)}</span></td>
       <td>${i.previsao_falta ? formatarData(i.previsao_falta) : '—'}</td>
+      <td>${i.previsao_falta_projetada ? formatarData(i.previsao_falta_projetada) : '—'}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="10" class="dica" style="text-align:center;">Nenhum item para o filtro atual.</td></tr>';
+  }).join('') || '<tr><td colspan="18" class="dica" style="text-align:center;">Nenhum item para o filtro atual.</td></tr>';
 
   const h3 = document.querySelector('#monConteudo .cartao h3');
   if (h3) h3.textContent = `Itens classificados (${fmtNumero(itens.length)}${itens.length > LIM ? ', mostrando ' + LIM : ''})`;
@@ -2593,6 +2703,297 @@ async function carregarFiltrosEstoqueOD() {
   sel.innerHTML = '<option value="">Status estoque: todos</option>' +
     (dados.status_estoque || []).map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
   sel.value = valorAtual;
+}
+
+// -------------------- Estoque IBL (API ao vivo) --------------------
+// Consulta a API somente-leitura do WMS IBL e mostra o estoque por lote dos
+// locais configurados (2999 e 3004). Não grava no banco — cada "Atualizar"
+// reflete o saldo do momento.
+const estadoIbl = { dados: null };
+
+// "(2999) IBL IMPORTADOS" -> "IBL IMPORTADOS" (tira o código repetido do início).
+function nomeLocalIbl(nome) {
+  return String(nome || '').replace(/^\(\d+\)\s*/, '').trim();
+}
+// Mapa código -> nome curto do local, a partir dos itens carregados.
+function mapaNomesLocaisIbl() {
+  const m = new Map();
+  for (const i of (estadoIbl.dados?.itens || [])) {
+    if (i.projeto_codigo && !m.has(i.projeto_codigo)) m.set(i.projeto_codigo, nomeLocalIbl(i.projeto_nome));
+  }
+  return m;
+}
+
+async function carregarEstoqueIblApi(forcar) {
+  const aviso = document.getElementById('iblAviso');
+  const conteudo = document.getElementById('iblConteudo');
+  // Só busca da API quando ainda não tem dados nesta sessão ou ao clicar Atualizar.
+  if (!estadoIbl.dados || forcar) {
+    aviso.hidden = false; aviso.textContent = 'Consultando a API do IBL…'; conteudo.hidden = true;
+    try {
+      estadoIbl.dados = await api('/ibl/estoque');
+    } catch (e) {
+      aviso.hidden = false; conteudo.hidden = true;
+      aviso.textContent = 'Não foi possível consultar a API do IBL: ' + e.message;
+      return;
+    }
+  }
+  const d = estadoIbl.dados;
+  aviso.hidden = true; conteudo.hidden = false;
+
+  document.getElementById('subtituloEstoqueIblApi').textContent =
+    `Consulta ao vivo do WMS IBL (CEAF/SES-SP)${d.geradoEm ? ' · gerado em ' + formatarData(d.geradoEm.slice(0, 10)) + ' às ' + d.geradoEm.slice(11, 16) : ''} · ${fmtNumero(d.total)} linhas (por lote)${d.semScodes ? ' · ' + fmtNumero(d.semScodes) + ' sem SCODES' : ''}.`;
+
+  // Preenche o filtro de local (uma vez).
+  const selLocal = document.getElementById('iblFiltroLocal');
+  if (selLocal.options.length <= 1) {
+    const nomes = mapaNomesLocaisIbl();
+    (d.porProjeto || []).forEach((p) => {
+      const o = document.createElement('option'); o.value = p.projeto;
+      const nm = nomes.get(p.projeto);
+      o.textContent = nm ? `${p.projeto} — ${nm}` : 'Local ' + p.projeto;
+      selLocal.appendChild(o);
+    });
+  }
+
+  // Cards de resumo por local: itens (SKUs distintos), lotes e total disponível.
+  const cards = document.getElementById('iblCards');
+  const porLocal = new Map();
+  for (const i of d.itens) {
+    const k = i.projeto_codigo || '—';
+    let a = porLocal.get(k);
+    if (!a) { a = { skus: new Set(), lotes: 0, disp: 0 }; porLocal.set(k, a); }
+    a.skus.add(i.codigo_sku); a.lotes += 1; a.disp += Number(i.qtde_disponivel) || 0;
+  }
+  const nomesLoc = mapaNomesLocaisIbl();
+  cards.innerHTML = [...porLocal.entries()].map(([loc, a]) => {
+    const nm = nomesLoc.get(loc);
+    return `<div class="cartao-resumo"><div class="numero">${fmtNumero(a.skus.size)}</div><div class="rotulo">Local ${escHtml(loc)}${nm ? ' — ' + escHtml(nm) : ''} · itens (${fmtNumero(a.lotes)} lotes · ${fmtNumero(a.disp)} disp.)</div></div>`;
+  }).join('');
+
+  renderIblAtual();
+}
+
+function renderIblTabela() {
+  const d = estadoIbl.dados;
+  if (!d) return;
+  const itens = iblItensFiltrados();
+
+  const LIM = 1000;
+  const corpo = document.getElementById('iblTabelaCorpo');
+  corpo.innerHTML = itens.slice(0, LIM).map((i) => `<tr>
+    <td>${escHtml(i.projeto_codigo || '—')}${i.projeto_nome ? '<br><span class="col-codigo">' + escHtml(nomeLocalIbl(i.projeto_nome)) + '</span>' : ''}</td>
+    <td>${i.codigo_item ? escHtml(i.codigo_item) : '<span class="col-codigo">— sem SCODES</span>'}</td>
+    <td>${escHtml(i.codigo_sku || '—')}</td>
+    <td>${escHtml(i.siafisico || '—')}</td>
+    <td>${escHtml(i.descricao || '—')}</td>
+    <td>${escHtml(i.lote || '—')}</td>
+    <td>${escHtml(i.validade || '—')}</td>
+    <td class="num">${fmtNumero(i.qtde_disponivel)}</td>
+    <td class="num">${(Number(i.qtde_bloqueado) || 0) > 0 ? fmtNumero(i.qtde_bloqueado) : '—'}</td>
+    <td class="num">${(Number(i.qtde_reservada) || 0) > 0 ? fmtNumero(i.qtde_reservada) : '—'}</td>
+    <td class="num">${fmtNumero(i.qtde_total)}</td>
+    <td class="num">${i.multiplo_distribuicao == null ? '—' : fmtNumero(i.multiplo_distribuicao)}</td>
+    <td class="num">${i.valor_unitario == null ? '—' : Number(i.valor_unitario).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
+  </tr>`).join('') || '<tr><td colspan="13" class="dica" style="text-align:center;">Nenhuma linha para o filtro atual.</td></tr>';
+
+  document.getElementById('iblTituloTabela').textContent =
+    `Estoque por lote (${fmtNumero(itens.length)}${itens.length > LIM ? ', mostrando ' + LIM : ''})`;
+}
+
+// Aplica os filtros de topo (local/situação/busca) à lista por lote. Fonte única
+// usada pela aba Por Lote, pela aba Consolidado e pelo export.
+function iblItensFiltrados() {
+  const d = estadoIbl.dados;
+  if (!d) return [];
+  const local = document.getElementById('iblFiltroLocal').value;
+  const situacao = document.getElementById('iblFiltroSituacao').value;
+  const busca = (document.getElementById('iblBusca').value || '').trim().toLowerCase();
+  let itens = d.itens;
+  if (local) itens = itens.filter((i) => String(i.projeto_codigo) === local);
+  if (situacao === 'disp') itens = itens.filter((i) => (Number(i.qtde_disponivel) || 0) > 0);
+  else if (situacao === 'bloq') itens = itens.filter((i) => (Number(i.qtde_bloqueado) || 0) > 0);
+  else if (situacao === 'reserv') itens = itens.filter((i) => (Number(i.qtde_reservada) || 0) > 0);
+  if (busca) itens = itens.filter((i) =>
+    (i.descricao || '').toLowerCase().includes(busca) ||
+    (i.codigo_item || '').toLowerCase().includes(busca) ||
+    (i.codigo_sku || '').toLowerCase().includes(busca) ||
+    (i.siafisico || '').toLowerCase().includes(busca) ||
+    (i.lote || '').toLowerCase().includes(busca));
+  return itens;
+}
+
+// "dd/mm/aaaa" -> "aaaa-mm-dd" (para comparar validades).
+function iblValidadeIso(br) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(String(br || ''));
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+}
+
+// Consolida os itens filtrados por SKU (soma lotes, menor validade, conta lotes).
+function iblConsolidarPorSku(itens) {
+  const m = new Map();
+  for (const l of itens) {
+    let a = m.get(l.codigo_sku);
+    if (!a) {
+      a = {
+        codigo_sku: l.codigo_sku, codigo_item: l.codigo_item, siafisico: l.siafisico,
+        descricao: l.descricao, locais: new Set(), lotes: 0,
+        disp: 0, bloq: 0, reserv: 0, total: 0, validadeMinIso: null, validadeMinBr: null,
+      };
+      m.set(l.codigo_sku, a);
+    }
+    if (l.projeto_codigo) a.locais.add(l.projeto_codigo);
+    a.lotes += 1;
+    a.disp += Number(l.qtde_disponivel) || 0;
+    a.bloq += Number(l.qtde_bloqueado) || 0;
+    a.reserv += Number(l.qtde_reservada) || 0;
+    a.total += Number(l.qtde_total) || 0;
+    const iso = iblValidadeIso(l.validade);
+    if (iso && (!a.validadeMinIso || iso < a.validadeMinIso)) { a.validadeMinIso = iso; a.validadeMinBr = l.validade; }
+  }
+  return [...m.values()].sort((x, y) => y.disp - x.disp);
+}
+
+// Selo de validade: vermelho se vencida, âmbar se < 6 meses, senão neutro.
+function iblSeloValidade(iso, br) {
+  if (!iso) return '—';
+  const hoje = new Date();
+  const dv = new Date(iso + 'T00:00:00');
+  const meses = (dv - hoje) / (1000 * 60 * 60 * 24 * 30);
+  let cor = '#5f6b7a';
+  if (meses < 0) cor = '#b3261e';
+  else if (meses < 6) cor = '#b45309';
+  return `<span class="tag-status" style="background:${cor}22; color:${cor}; border:1px solid ${cor}55;">${escHtml(br || '—')}</span>`;
+}
+
+function renderIblConsolidado() {
+  const d = estadoIbl.dados;
+  if (!d) return;
+  const linhas = iblConsolidarPorSku(iblItensFiltrados());
+  const corpo = document.getElementById('iblConsolidadoCorpo');
+  corpo.innerHTML = linhas.map((a) => `<tr>
+    <td>${[...a.locais].map(escHtml).join('+') || '—'}</td>
+    <td>${escHtml(a.codigo_sku || '—')}</td>
+    <td>${a.codigo_item ? escHtml(a.codigo_item) : '<span class="col-codigo">— sem SCODES</span>'}</td>
+    <td>${escHtml(a.siafisico || '—')}</td>
+    <td>${escHtml(a.descricao || '—')}</td>
+    <td class="num">${fmtNumero(a.lotes)}</td>
+    <td class="num">${fmtNumero(a.disp)}</td>
+    <td class="num">${a.bloq > 0 ? fmtNumero(a.bloq) : '—'}</td>
+    <td class="num">${a.reserv > 0 ? fmtNumero(a.reserv) : '—'}</td>
+    <td class="num">${fmtNumero(a.total)}</td>
+    <td>${iblSeloValidade(a.validadeMinIso, a.validadeMinBr)}</td>
+    <td><button type="button" class="botao-secundario ibl-ver-lotes" data-sku="${escAttr(a.codigo_sku)}" style="padding:4px 10px;">Ver</button></td>
+  </tr>`).join('') || '<tr><td colspan="12" class="dica" style="text-align:center;">Nenhum item para o filtro atual.</td></tr>';
+
+  document.getElementById('iblTituloConsolidado').textContent = `Consolidado por SKU (${fmtNumero(linhas.length)})`;
+}
+
+// Desenha a aba ativa (Por Lote ou Consolidado).
+function renderIblAtual() {
+  const aba = document.querySelector('.aba-pasta.ativo')?.dataset.abaIbl || 'lotes';
+  if (aba === 'consolidado') renderIblConsolidado(); else renderIblTabela();
+}
+
+// Troca de abas em pasta.
+document.querySelectorAll('.aba-pasta[data-aba-ibl]').forEach((tab) => {
+  const ativar = () => {
+    document.querySelectorAll('.aba-pasta[data-aba-ibl]').forEach((t) => t.classList.toggle('ativo', t === tab));
+    const aba = tab.dataset.abaIbl;
+    document.getElementById('iblAbaLotes').hidden = aba !== 'lotes';
+    document.getElementById('iblAbaConsolidado').hidden = aba !== 'consolidado';
+    renderIblAtual();
+  };
+  tab.addEventListener('click', ativar);
+  tab.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ativar(); } });
+});
+
+// Modal "Ver" — lotes/validades e quantidades de um SKU.
+const modalLotesIbl = document.getElementById('modalLotesIbl');
+document.getElementById('botaoFecharLotesIbl').addEventListener('click', () => { modalLotesIbl.hidden = true; });
+modalLotesIbl.addEventListener('click', (ev) => { if (ev.target === modalLotesIbl) modalLotesIbl.hidden = true; });
+document.getElementById('iblConsolidadoCorpo').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.ibl-ver-lotes');
+  if (btn) abrirLotesIbl(btn.dataset.sku);
+});
+
+function abrirLotesIbl(sku) {
+  const d = estadoIbl.dados;
+  if (!d) return;
+  const lotes = d.itens.filter((i) => String(i.codigo_sku) === String(sku))
+    .sort((a, b) => (iblValidadeIso(a.validade) || '9').localeCompare(iblValidadeIso(b.validade) || '9'));
+  const ref = lotes[0] || {};
+  document.getElementById('tituloLotesIbl').textContent = ref.descricao || ('SKU ' + sku);
+  document.getElementById('subLotesIbl').textContent =
+    `SKU ${sku}${ref.codigo_item ? ' · SCODES ' + ref.codigo_item : ''} · ${fmtNumero(lotes.length)} lote(s)`;
+  document.getElementById('corpoLotesIbl').innerHTML = `
+    <table class="tabela">
+      <thead><tr><th>Local</th><th>Lote</th><th>Validade</th>
+        <th class="num">Disponível</th><th class="num">Bloqueado</th>
+        <th class="num">Reservada</th><th class="num">Total</th></tr></thead>
+      <tbody>${lotes.map((l) => `<tr>
+        <td>${escHtml(l.projeto_codigo || '—')}</td>
+        <td>${escHtml(l.lote || '—')}</td>
+        <td>${iblSeloValidade(iblValidadeIso(l.validade), l.validade)}</td>
+        <td class="num">${fmtNumero(l.qtde_disponivel)}</td>
+        <td class="num">${(Number(l.qtde_bloqueado) || 0) > 0 ? fmtNumero(l.qtde_bloqueado) : '—'}</td>
+        <td class="num">${(Number(l.qtde_reservada) || 0) > 0 ? fmtNumero(l.qtde_reservada) : '—'}</td>
+        <td class="num">${fmtNumero(l.qtde_total)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  modalLotesIbl.hidden = false;
+}
+
+// Injeta no modal (Estoque TP/Geral e Listagem de Autores) o saldo IBL de
+// Outras Demandas (2999/3004), consolidado por SCODES + validade + lotes.
+// Só aparece quando o item existe no IBL. `codigo` é o SCODES (codigo_item).
+async function injetarSaldoIblOD(codigo, alvoId) {
+  const alvo = document.getElementById(alvoId);
+  if (!alvo || !codigo) { if (alvo) alvo.innerHTML = ''; return; }
+  alvo.innerHTML = '<div class="texto-apoio" style="padding:6px 0;">Consultando estoque IBL (Outras Demandas)…</div>';
+  try {
+    const s = await api('/ibl-item/saldo?codigo=' + encodeURIComponent(codigo));
+    if (s.disponivel == null) { alvo.innerHTML = ''; return; } // item não está no IBL
+    const lotesHtml = (s.lotes || []).map((l) => `<tr>
+      <td>${escHtml(l.local || '—')}</td>
+      <td class="col-codigo">${escHtml(l.lote || '—')}</td>
+      <td class="col-data">${l.validade ? iblSeloValidade(iblValidadeIso(l.validade), l.validade) : '—'}</td>
+      <td>${fmtNumero(l.disponivel)}</td>
+    </tr>`).join('');
+    alvo.innerHTML = `
+      <h4>Estoque IBL — Outras Demandas <span class="texto-apoio">(locais ${escHtml((s.locais || []).join(' + ') || '—')})</span></h4>
+      <div class="grade-resumo" style="grid-template-columns:repeat(3,1fr); margin-bottom:8px;">
+        ${kpiCard('chart', fmtNumero(s.disponivel), 'Disponível IBL', 'saldo consolidado')}
+        ${kpiCard('doc', fmtNumero(s.total), 'Total IBL', 'todas as situações')}
+        ${kpiCard('relogio', s.validadeProxima || '—', 'Validade + próxima', 'menor validade')}
+      </div>
+      ${lotesHtml ? `<div class="rolagem-tabela"><table><thead><tr><th>Local</th><th>Lote</th><th>Validade</th><th>Disponível</th></tr></thead><tbody>${lotesHtml}</tbody></table></div>` : ''}
+      ${s.geradoEm ? `<div class="texto-apoio" style="font-size:12px; margin-top:4px;">IBL ao vivo · gerado em ${formatarData(s.geradoEm.slice(0, 10))} às ${s.geradoEm.slice(11, 16)}</div>` : ''}`;
+  } catch (e) {
+    alvo.innerHTML = '<div class="texto-apoio" style="color:var(--vermelho);">Não consegui carregar o estoque IBL (Outras Demandas).</div>';
+  }
+}
+
+document.getElementById('iblAtualizar').addEventListener('click', () => carregarEstoqueIblApi(true));
+document.getElementById('iblFiltroLocal').addEventListener('change', renderIblAtual);
+document.getElementById('iblFiltroSituacao').addEventListener('change', renderIblAtual);
+document.getElementById('iblBusca').addEventListener('input', renderIblAtual);
+document.getElementById('iblExportar').addEventListener('click', exportarIblCsv);
+
+// Export simples em CSV do que está filtrado na tela (sem ida ao servidor).
+function exportarIblCsv() {
+  const d = estadoIbl.dados;
+  if (!d) return;
+  const itens = iblItensFiltrados();
+  const cab = ['Local', 'Cod SCODES', 'Cod SKU', 'Siafisico', 'Descricao', 'Lote', 'Validade', 'Disponivel', 'Bloqueado', 'Reservada', 'Total', 'Multiplo', 'Valor unit.'];
+  const esc = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const linhas = itens.map((i) => [i.projeto_codigo, i.codigo_item, i.codigo_sku, i.siafisico, i.descricao, i.lote, i.validade,
+    i.qtde_disponivel, i.qtde_bloqueado, i.qtde_reservada, i.qtde_total, i.multiplo_distribuicao, i.valor_unitario].map(esc).join(';'));
+  const csv = '﻿' + [cab.map(esc).join(';'), ...linhas].join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = `Estoque_IBL_API_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 }
 
 async function carregarEstoqueOD() {
@@ -3987,7 +4388,11 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp', unidade = '')
     html += '</tbody></table></div>';
   }
 
+  // Placeholder do bloco de estoque IBL (Outras Demandas) — carregado após render.
+  html += '<div id="blocoIblOD" style="margin-top:6px;"></div>';
+
   conteudo.innerHTML = html;
+  injetarSaldoIblOD(dados.codigo, 'blocoIblOD');
 }
 
 // -------------------- Gestão de validades --------------------
@@ -4700,11 +5105,521 @@ async function carregarTabelaAutoresGeral() {
   document.getElementById('botaoProximoAutoresGeral').disabled = dados.page >= totalPaginas;
 }
 
+// ==================== Listagem de Autores Importados ====================
+// Pacientes ATIVOS, de TODAS as unidades, com itens IMPORTADOS. Mesmo layout e
+// modal ("Ver") das outras listagens de autores (escopoUnidade='importados').
+const estadoAutoresImportados = { pagina: 1, pageSize: 150, total: 0, filtrosCarregados: false };
+
+let debounceBuscaAutoresImportados;
+document.getElementById('filtroBuscaAutoresImportados').addEventListener('input', () => {
+  clearTimeout(debounceBuscaAutoresImportados);
+  debounceBuscaAutoresImportados = setTimeout(() => { estadoAutoresImportados.pagina = 1; carregarTabelaAutoresImportados(); }, 350);
+});
+['filtroUnidadeAutoresImportados', 'filtroStatusDemandaAutoresImportados', 'filtroStatusItemAutoresImportados', 'filtroCategoriaAutoresImportados'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => { estadoAutoresImportados.pagina = 1; carregarTabelaAutoresImportados(); });
+});
+document.getElementById('botaoLimparFiltrosAutoresImportados').addEventListener('click', () => {
+  document.getElementById('filtroBuscaAutoresImportados').value = '';
+  ['filtroUnidadeAutoresImportados', 'filtroStatusDemandaAutoresImportados', 'filtroStatusItemAutoresImportados', 'filtroCategoriaAutoresImportados']
+    .forEach((id) => { document.getElementById(id).value = ''; });
+  estadoAutoresImportados.pagina = 1; carregarTabelaAutoresImportados();
+});
+document.getElementById('botaoAnteriorAutoresImportados').addEventListener('click', () => {
+  if (estadoAutoresImportados.pagina > 1) { estadoAutoresImportados.pagina--; carregarTabelaAutoresImportados(); }
+});
+document.getElementById('botaoProximoAutoresImportados').addEventListener('click', () => {
+  estadoAutoresImportados.pagina++; carregarTabelaAutoresImportados();
+});
+document.getElementById('botaoExportarAutoresImportados').addEventListener('click', () => {
+  const params = new URLSearchParams();
+  params.set('escopoUnidade', 'importados');
+  const q = document.getElementById('filtroBuscaAutoresImportados').value.trim();
+  if (q) params.set('q', q);
+  const mapa = { unidade: 'filtroUnidadeAutoresImportados', status_demanda: 'filtroStatusDemandaAutoresImportados', status_item: 'filtroStatusItemAutoresImportados', categoria: 'filtroCategoriaAutoresImportados' };
+  for (const [param, id] of Object.entries(mapa)) { const el = document.getElementById(id); if (el && el.value) params.set(param, el.value); }
+  window.location.href = '/api/autores/exportar?' + params.toString();
+});
+
+async function carregarAutoresImportados() {
+  if (!estadoAutoresImportados.filtrosCarregados) {
+    try {
+      const f = await api('/autores/filtros?escopoUnidade=importados');
+      const preencher = (id, valores, rotulo) => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = `<option value="">${rotulo}</option>` +
+          valores.map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`).join('');
+      };
+      preencher('filtroUnidadeAutoresImportados', f.unidade, 'Unidade: todas');
+      preencher('filtroStatusDemandaAutoresImportados', f.status_demanda, 'Status da demanda: todos');
+      preencher('filtroStatusItemAutoresImportados', f.status_item, 'Status do item: todos');
+      preencher('filtroCategoriaAutoresImportados', f.categoria, 'Categoria: todas');
+      estadoAutoresImportados.filtrosCarregados = true;
+    } catch (e) { /* segue sem filtros */ }
+  }
+  carregarTabelaAutoresImportados();
+}
+
+async function carregarTabelaAutoresImportados() {
+  const params = new URLSearchParams({ page: estadoAutoresImportados.pagina, pageSize: estadoAutoresImportados.pageSize });
+  params.set('escopoUnidade', 'importados');
+  const q = document.getElementById('filtroBuscaAutoresImportados').value.trim();
+  if (q) params.set('q', q);
+  const mapa = {
+    unidade: 'filtroUnidadeAutoresImportados', status_demanda: 'filtroStatusDemandaAutoresImportados',
+    status_item: 'filtroStatusItemAutoresImportados', categoria: 'filtroCategoriaAutoresImportados',
+  };
+  for (const [param, id] of Object.entries(mapa)) { const v = document.getElementById(id).value; if (v) params.set(param, v); }
+
+  const dados = await api(`/autores?${params.toString()}`);
+  estadoAutoresImportados.total = dados.total;
+
+  document.getElementById('grideResumoAutoresImportados').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAutores)}</div><div class="rotulo">Autores (distintos)</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${q || params.has('unidade') ? ' filtradas' : ''}</div></div>
+    <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${horaImportacao(dados.dataImportacao)}</div></div>
+  `;
+
+  const corpo = document.getElementById('corpoTabelaAutoresImportados');
+  const vazio = document.getElementById('estadoVazioAutoresImportados');
+  if (dados.itens.length === 0) {
+    corpo.innerHTML = ''; vazio.hidden = false;
+  } else {
+    vazio.hidden = true;
+    corpo.innerHTML = dados.itens.map((a) => `
+      <tr>
+        <td class="col-autor">${a.autor || '—'}</td>
+        <td class="col-unidade">${a.unidade_dispensadora || celVazia()}</td>
+        <td class="col-codigo">${a.id_demanda || '—'}</td>
+        <td class="col-codigo">${a.protocolo || '—'}</td>
+        <td class="col-codigo">${a.processo || '—'}</td>
+        <td>${etStatusDemanda(a.status_demanda)}</td>
+        <td>${tagTipoDemanda(a.tipo_demanda)}</td>
+        <td class="col-codigo">${a.codigo_item || '—'}</td>
+        <td class="col-codigo">${a.cod_siafisico || '—'}</td>
+        <td class="col-desc" title="${(a.descricao_item || '').replace(/"/g, '')}">${a.descricao_item || celVazia()}</td>
+        <td class="col-num">${a.qtde_consumo || '—'}</td>
+        <td>${tagCategoria(a.categoria)}</td>
+        <td style="white-space:nowrap;">
+          <button type="button" class="botao-secundario btn-ver-demanda" data-demanda='${btDadosDemanda(a)}' style="padding:4px 10px; font-size:12px;">👁 Ver</button>
+          <button type="button" class="botao-primario btn-add-compra-imp" data-imp='${btDadosCompraImp(a)}' title="Adicionar ao Relatório de Compras Importados" style="padding:4px 10px; font-size:12px;">➕</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
+  document.getElementById('textoPaginacaoAutoresImportados').textContent =
+    `Página ${dados.page} de ${totalPaginas} · ${fmtNumero(dados.total)} linha(s)`;
+  document.getElementById('botaoAnteriorAutoresImportados').disabled = dados.page <= 1;
+  document.getElementById('botaoProximoAutoresImportados').disabled = dados.page >= totalPaginas;
+}
+
+// ==================== Relatório de Compras Importados ====================
+let relImpCache = [];
+document.getElementById('filtroBuscaRelImp').addEventListener('input', () => renderRelImp());
+document.getElementById('botaoLimparFiltrosRelImp').addEventListener('click', () => {
+  document.getElementById('filtroBuscaRelImp').value = '';
+  document.getElementById('filtroStatusRelImp').value = '';
+  document.getElementById('filtroUnidadeRelImp').value = '';
+  renderRelImp();
+});
+
+// Número no padrão pt-BR ou com ponto decimal.
+function parseValorImp(v) {
+  if (v == null || v === '') return null;
+  let s = String(v).trim();
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+function valorTotalImp(r) {
+  const q = parseValorImp(r.quantidade_solicitada);
+  const v = parseValorImp(r.valor_medio_unitario);
+  return (q != null && v != null) ? q * v : null;
+}
+function badgeStatusImp(s) {
+  const st = s || 'Solicitado';
+  const cls = st === 'Finalizado' ? 'finalizado'
+    : (st === 'Cancelado' || st === 'Devolvido' || st === 'Deserto' || st === 'Fracassado' || st === 'Demanda Inativa') ? 'cancelado'
+      : 'planejamento';
+  return `<span class="etiqueta-status ${cls}">${escHtml(st)}</span>`;
+}
+
+async function carregarRelatorioImportados() {
+  const dados = await api('/autores/compras-importados');
+  relImpCache = dados.itens || [];
+  renderRelImp();
+}
+
+// Data de referência do status atual (para os alertas): status_desde, ou o
+// último update/criação como aproximação para linhas antigas.
+function refStatusDesde(r) { return r.status_desde || r.atualizado_em || r.criado_em || null; }
+function diasDecorridos(iso) {
+  if (!iso) return null;
+  const d = new Date(String(iso).replace(' ', 'T'));
+  if (isNaN(d)) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+function textoTempoImp(dias) {
+  if (dias == null) return '';
+  if (dias <= 0) return 'hoje';
+  if (dias < 60) return `há ${dias} dia${dias > 1 ? 's' : ''}`;
+  const meses = Math.floor(dias / 30);
+  return `há ${meses} ${meses > 1 ? 'meses' : 'mês'}`;
+}
+function corAlertaImp(dias) {
+  if (dias == null) return 'var(--cinza-texto)';
+  if (dias > 30) return '#b00020';
+  if (dias >= 15) return '#8a6d00';
+  return '#5a7d2a';
+}
+
+// Preenche os selects de Status e Unidade (preservando a seleção atual).
+function preencherFiltrosRelImp() {
+  const selS = document.getElementById('filtroStatusRelImp');
+  const selU = document.getElementById('filtroUnidadeRelImp');
+  const statuses = [...new Set(relImpCache.map((r) => r.status || 'Solicitado'))].sort((a, b) => a.localeCompare(b));
+  const unidades = [...new Set(relImpCache.map((r) => r.unidade_dispensadora).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const manter = (sel, valores, rot) => {
+    const atual = sel.value;
+    sel.innerHTML = `<option value="">${rot}</option>` + valores.map((v) => `<option value="${escAttr(v)}">${escHtml(v)}</option>`).join('');
+    if (valores.includes(atual)) sel.value = atual;
+  };
+  manter(selS, statuses, 'Status: todos');
+  manter(selU, unidades, 'Unidade: todas');
+}
+
+// Painel de alertas: Pendência e Devolvido, com há quanto tempo.
+function renderAlertasRelImp() {
+  const box = document.getElementById('alertasRelImp');
+  const alvos = relImpCache
+    .filter((r) => ['Pendência', 'Devolvido'].includes(r.status))
+    .map((r) => ({ r, dias: diasDecorridos(refStatusDesde(r)) }))
+    .sort((a, b) => (b.dias || 0) - (a.dias || 0));
+  if (!alvos.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  const itens = alvos.map(({ r, dias }) => {
+    const cor = corAlertaImp(dias);
+    return `<button type="button" class="alerta-imp-item" data-imp="${r.id}" style="border-left:4px solid ${cor};">
+      <span><strong>${escHtml(r.autor || '—')}</strong> está com status <strong>${escHtml(r.status)}</strong> <span style="color:${cor}; font-weight:600;">${textoTempoImp(dias)}</span></span>
+      <span class="texto-secundario" style="font-size:12px;">${escHtml(r.descricao_item || '')}${r.unidade_dispensadora ? ' · ' + escHtml(r.unidade_dispensadora) : ''}</span>
+    </button>`;
+  }).join('');
+  box.innerHTML = `<div class="painel-alertas-imp">
+      <div class="painel-alertas-imp-titulo">⚠️ Alertas — Pendência e Devolvido (${alvos.length})</div>
+      <div class="painel-alertas-imp-lista">${itens}</div>
+    </div>`;
+}
+
+function renderRelImp() {
+  preencherFiltrosRelImp();
+  const q = document.getElementById('filtroBuscaRelImp').value.trim().toLowerCase();
+  const fStatus = document.getElementById('filtroStatusRelImp').value;
+  const fUnidade = document.getElementById('filtroUnidadeRelImp').value;
+  const lista = relImpCache.filter((r) =>
+    (!fStatus || (r.status || 'Solicitado') === fStatus)
+    && (!fUnidade || r.unidade_dispensadora === fUnidade)
+    && (!q || [r.autor, r.processo, r.protocolo, r.sei, r.req_gsnet, r.descricao_item, r.codigo_item, r.catmat]
+      .some((v) => String(v || '').toLowerCase().includes(q))));
+
+  document.getElementById('grideResumoRelImp').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(new Set(relImpCache.map((r) => r.autor)).size)}</div><div class="rotulo">Pacientes</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(relImpCache.length)}</div><div class="rotulo">Linhas (paciente × item)</div></div>
+  `;
+
+  renderAlertasRelImp();
+
+  const corpo = document.getElementById('corpoTabelaRelImp');
+  const vazio = document.getElementById('estadoVazioRelImp');
+  if (!lista.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
+  vazio.hidden = true;
+  corpo.innerHTML = lista.map(linhaCompImpHTML).join('');
+}
+document.getElementById('filtroStatusRelImp').addEventListener('change', renderRelImp);
+document.getElementById('filtroUnidadeRelImp').addEventListener('change', renderRelImp);
+// Clique num alerta abre a edição da linha correspondente.
+document.getElementById('alertasRelImp').addEventListener('click', (ev) => {
+  const b = ev.target.closest('.alerta-imp-item');
+  if (b) abrirModalCompraImp(b.dataset.imp);
+});
+
+// Linha (<tr>) de uma compra de importado — usada no Relatório e na Tabela Análise.
+// Status "negativos" (licitação deserta/fracassada): liberam nova aquisição.
+const STATUS_NEGATIVOS_IMP = ['Deserto', 'Fracassado'];
+function linhaCompImpHTML(r) {
+  const cel = (v) => escHtml(v == null || v === '' ? '—' : v);
+  const vt = valorTotalImp(r);
+  const podeNova = STATUS_NEGATIVOS_IMP.includes(r.status || '');
+  return `
+    <tr data-imp="${r.id}">
+      <td class="col-autor">${cel(r.autor)}</td>
+      <td class="col-num">${(r.ciclo || 1)}ª</td>
+      <td class="col-unidade">${cel(r.unidade_dispensadora)}</td>
+      <td class="col-codigo">${cel(r.protocolo)}</td>
+      <td class="col-codigo">${cel(r.processo)}</td>
+      <td class="col-codigo">${cel(r.codigo_item)}</td>
+      <td class="col-codigo">${cel(r.cod_siafisico)}</td>
+      <td class="col-desc" title="${escAttr(r.descricao_item || '')}">${cel(r.descricao_item)}</td>
+      <td class="col-num">${cel(r.qtde_consumo)}</td>
+      <td class="col-codigo">${cel(r.catmat)}</td>
+      <td class="col-num">${cel(r.quantidade_solicitada)}</td>
+      <td class="col-codigo">${cel(r.sei)}</td>
+      <td class="col-codigo">${cel(r.req_gsnet)}</td>
+      <td class="col-num">${r.valor_medio_unitario ? brlPlan(parseValorImp(r.valor_medio_unitario)) : '—'}</td>
+      <td class="col-num">${vt != null ? brlPlan(vt) : '—'}</td>
+      <td class="col-codigo">${cel(r.solicitacao_drs_sei)}</td>
+      <td class="col-data">${r.data_solicitacao ? formatarData(r.data_solicitacao) : '—'}</td>
+      <td class="col-codigo">${cel(r.numero_empenho)}</td>
+      <td class="col-codigo">${cel(r.numero_recibo)}</td>
+      <td class="col-data">${r.data_entrega ? formatarData(r.data_entrega) : '—'}</td>
+      <td>${badgeStatusImp(r.status)}</td>
+      <td style="white-space:nowrap;">
+        <button type="button" class="botao-secundario relimp-editar" style="padding:4px 8px; font-size:12px;">✏️ Editar</button>
+        <button type="button" class="botao-secundario relimp-nova" ${podeNova ? '' : 'disabled'} title="${podeNova ? 'Refazer aquisição (processo Deserto/Fracassado)' : 'Nova aquisição disponível só quando o status for Deserto ou Fracassado'}" style="padding:4px 8px; font-size:12px;${podeNova ? '' : ' opacity:.4; cursor:not-allowed;'}">➕ Nova</button>
+        <button type="button" class="botao-secundario relimp-remover" title="Remover" style="padding:4px 8px; font-size:12px; color:#c0392b;">✕</button>
+      </td>
+    </tr>`;
+}
+
+// Status que aparecem na Tabela Análise dos Importados.
+const STATUS_ANALISE_IMP = ['Embarque', 'Instrução Processual', 'Solicitado'];
+
+async function carregarAnaliseImportados() {
+  const dados = await api('/autores/compras-importados');
+  relImpCache = dados.itens || [];
+  renderAnaliseImp();
+}
+
+function renderAnaliseImp() {
+  const q = document.getElementById('filtroBuscaAnaliseImp').value.trim().toLowerCase();
+  const base = relImpCache.filter((r) => STATUS_ANALISE_IMP.includes(r.status || 'Solicitado'));
+  const lista = !q ? base : base.filter((r) =>
+    [r.autor, r.processo, r.protocolo, r.sei, r.req_gsnet, r.descricao_item, r.codigo_item, r.catmat]
+      .some((v) => String(v || '').toLowerCase().includes(q)));
+
+  document.getElementById('grideResumoAnaliseImp').innerHTML = `
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(new Set(base.map((r) => r.autor)).size)}</div><div class="rotulo">Pacientes (em análise)</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(base.length)}</div><div class="rotulo">Solicitações (Embarque · Instrução Processual · Solicitado)</div></div>
+  `;
+
+  const corpo = document.getElementById('corpoTabelaAnaliseImp');
+  const vazio = document.getElementById('estadoVazioAnaliseImp');
+  if (!lista.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
+  vazio.hidden = true;
+  corpo.innerHTML = lista.map(linhaCompImpHTML).join('');
+}
+
+// Recarrega os dados e re-renderiza a tela de importados ativa (Relatório ou Análise).
+async function recarregarCompImpAtual() {
+  const dados = await api('/autores/compras-importados');
+  relImpCache = dados.itens || [];
+  if (estado.paginaAtual === 'analiseImportados') renderAnaliseImp(); else renderRelImp();
+}
+
+async function manipularCliqueCompImp(ev) {
+  const tr = ev.target.closest('tr[data-imp]');
+  if (!tr) return;
+  const id = tr.dataset.imp;
+  if (ev.target.closest('.relimp-editar')) {
+    abrirModalCompraImp(id);
+  } else if (ev.target.closest('.relimp-nova')) {
+    const r = relImpCache.find((x) => String(x.id) === String(id));
+    if (!r) return;
+    if (!confirm(`Criar uma NOVA aquisição de ${r.autor} para este item? (os campos de compra vêm em branco)`)) return;
+    // Só os campos capturados (a nova aquisição começa sem empenho/datas/valores).
+    const base = {
+      codigo_item: r.codigo_item, cod_siafisico: r.cod_siafisico, descricao_item: r.descricao_item,
+      categoria: r.categoria, autor: r.autor, unidade_dispensadora: r.unidade_dispensadora,
+      id_demanda: r.id_demanda, protocolo: r.protocolo, processo: r.processo,
+      status_demanda: r.status_demanda, tipo_demanda: r.tipo_demanda, qtde_consumo: r.qtde_consumo,
+      prazo: r.prazo, periodicidade: r.periodicidade, data_ultima_dispensacao: r.data_ultima_dispensacao,
+      data_ultimo_retorno: r.data_ultimo_retorno, forcar: true,
+    };
+    try { await api('/autores/compras-importados', { method: 'POST', body: JSON.stringify(base) }); await recarregarCompImpAtual(); }
+    catch (e) { alert(e.message); }
+  } else if (ev.target.closest('.relimp-remover')) {
+    if (!confirm('Remover este paciente do Relatório de Compras Importados?')) return;
+    try { await api(`/autores/compras-importados/${id}`, { method: 'DELETE' }); await recarregarCompImpAtual(); }
+    catch (e) { alert(e.message); }
+  }
+}
+document.getElementById('corpoTabelaRelImp').addEventListener('click', manipularCliqueCompImp);
+document.getElementById('corpoTabelaAnaliseImp').addEventListener('click', manipularCliqueCompImp);
+document.getElementById('filtroBuscaAnaliseImp').addEventListener('input', () => renderAnaliseImp());
+document.getElementById('botaoLimparFiltrosAnaliseImp').addEventListener('click', () => {
+  document.getElementById('filtroBuscaAnaliseImp').value = ''; renderAnaliseImp();
+});
+
+// -------- Modal de edição da Compra do Importado --------
+let ciEditId = null;
+const modalCompraImp = document.getElementById('modalCompraImp');
+// Quais campos condicionais cada status revela.
+const CI_COND = {
+  Cancelado: ['ciWrapJustificativa'],
+  Devolvido: ['ciWrapJustificativa'],
+  Fracassado: ['ciWrapJustificativa'],
+  'Demanda Inativa': ['ciWrapDataInativacao'],
+  Embarque: ['ciWrapDataEmbarque', 'ciWrapLote', 'ciWrapValidade'],
+  Finalizado: ['ciWrapNumFatura', 'ciWrapDataFatura', 'ciWrapNumDocEntrada', 'ciWrapDataEntrada'],
+  'Pendência': ['ciWrapMotivo', 'ciWrapJustificativa'],
+  'Sem cotação': ['ciWrapTentativas', 'ciWrapTentativasDatas', 'ciWrapJustificativa'],
+};
+const CI_TODOS_WRAPS = ['ciWrapMotivo', 'ciWrapDataInativacao', 'ciWrapDataEmbarque', 'ciWrapLote',
+  'ciWrapValidade', 'ciWrapNumFatura', 'ciWrapDataFatura', 'ciWrapNumDocEntrada', 'ciWrapDataEntrada',
+  'ciWrapTelegrama', 'ciWrapDataTelegrama', 'ciWrapTentativas', 'ciWrapTentativasDatas', 'ciWrapJustificativa'];
+let ciEhTP = false; // a linha em edição é da Tenente Pena?
+function ciAtualizarCondicionais() {
+  const st = document.getElementById('ciStatus').value;
+  const mostrar = new Set(CI_COND[st] || []);
+  // Telegrama: só no status Finalizado E para a unidade Tenente Pena.
+  if (st === 'Finalizado' && ciEhTP) { mostrar.add('ciWrapTelegrama'); mostrar.add('ciWrapDataTelegrama'); }
+  CI_TODOS_WRAPS.forEach((wid) => { document.getElementById(wid).hidden = !mostrar.has(wid); });
+}
+// Sem cotação: renderiza um campo de data por tentativa (1, 2, 3...).
+function ciRenderTentativasDatas(n, valores) {
+  const cont = document.getElementById('ciTentativasDatas');
+  const qtd = Math.max(0, Math.min(20, parseInt(n, 10) || 0));
+  const vals = Array.isArray(valores) ? valores : [];
+  let html = '';
+  for (let i = 0; i < qtd; i++) {
+    html += `<label class="campo-modal">Tentativa ${i + 1}<input type="date" class="ci-tentativa-data" data-idx="${i}" value="${escAttr(vals[i] || '')}"></label>`;
+  }
+  cont.innerHTML = html || '<span class="texto-secundario" style="font-size:12px;">Informe o nº de tentativas acima.</span>';
+}
+function ciAtualizarValorTotal() {
+  const q = parseValorImp(document.getElementById('ciQtdeSolic').value);
+  const v = parseValorImp(document.getElementById('ciValorMedio').value);
+  document.getElementById('ciValorTotal').value = (q != null && v != null) ? brlPlan(q * v) : '';
+}
+function abrirModalCompraImp(id) {
+  const r = relImpCache.find((x) => String(x.id) === String(id));
+  if (!r) return;
+  ciEditId = id;
+  document.getElementById('subCompraImp').textContent = `${r.autor || '—'} — ${r.descricao_item || '—'}`;
+  const set = (elId, val) => { document.getElementById(elId).value = val == null ? '' : val; };
+  set('ciQtdeSolic', r.quantidade_solicitada);
+  set('ciValorMedio', r.valor_medio_unitario);
+  set('ciSei', r.sei);
+  set('ciReqGsnet', r.req_gsnet);
+  set('ciSolicDrsSei', r.solicitacao_drs_sei);
+  set('ciDataSolic', r.data_solicitacao);
+  set('ciNumEmpenho', r.numero_empenho);
+  set('ciNumRecibo', r.numero_recibo);
+  set('ciDataEntrega', r.data_entrega);
+  document.getElementById('ciStatus').value = r.status || 'Solicitado';
+  set('ciJustificativa', r.justificativa);
+  set('ciDataInativacao', r.data_inativacao);
+  set('ciDataEmbarque', r.data_embarque);
+  set('ciNumFaturaGsnet', r.numero_fatura_gsnet);
+  set('ciDataFatura', r.data_fatura);
+  set('ciNumDocEntradaGsnet', r.num_doc_entrada_gsnet);
+  set('ciDataEntrada', r.data_entrada);
+  document.getElementById('ciMotivoPendencia').value = r.motivo_pendencia || '';
+  set('ciLote', r.lote);
+  set('ciValidade', r.validade);
+  set('ciNumTentativas', r.num_tentativas);
+  ciEhTP = /tenente pena/i.test(r.unidade_dispensadora || '');
+  document.getElementById('ciTelegramaEnviado').value = r.telegrama_enviado || 'Não';
+  set('ciDataEnvioTelegrama', r.data_envio_telegrama);
+  let datasTent = [];
+  try { datasTent = r.tentativas_datas ? JSON.parse(r.tentativas_datas) : []; } catch (e) { datasTent = []; }
+  ciRenderTentativasDatas(r.num_tentativas, datasTent);
+  ciAtualizarCondicionais();
+  ciAtualizarValorTotal();
+  modalCompraImp.hidden = false;
+}
+document.getElementById('ciStatus').addEventListener('change', ciAtualizarCondicionais);
+document.getElementById('ciNumTentativas').addEventListener('input', () => {
+  // Preserva as datas já digitadas ao mudar a quantidade.
+  const atuais = [...document.querySelectorAll('#ciTentativasDatas .ci-tentativa-data')].map((i) => i.value);
+  ciRenderTentativasDatas(document.getElementById('ciNumTentativas').value, atuais);
+});
+document.getElementById('ciQtdeSolic').addEventListener('input', ciAtualizarValorTotal);
+document.getElementById('ciValorMedio').addEventListener('input', ciAtualizarValorTotal);
+document.getElementById('botaoCancelarCompraImp').addEventListener('click', () => { modalCompraImp.hidden = true; });
+document.getElementById('botaoSalvarCompraImp').addEventListener('click', async () => {
+  if (!ciEditId) return;
+  const val = (elId) => document.getElementById(elId).value.trim();
+  const body = {
+    quantidade_solicitada: val('ciQtdeSolic'), valor_medio_unitario: val('ciValorMedio'),
+    sei: val('ciSei'), req_gsnet: val('ciReqGsnet'), solicitacao_drs_sei: val('ciSolicDrsSei'),
+    data_solicitacao: val('ciDataSolic'), numero_empenho: val('ciNumEmpenho'),
+    numero_recibo: val('ciNumRecibo'), data_entrega: val('ciDataEntrega'),
+    status: document.getElementById('ciStatus').value,
+    justificativa: val('ciJustificativa'), data_inativacao: val('ciDataInativacao'),
+    data_embarque: val('ciDataEmbarque'), numero_fatura_gsnet: val('ciNumFaturaGsnet'),
+    data_fatura: val('ciDataFatura'),
+    num_doc_entrada_gsnet: val('ciNumDocEntradaGsnet'), data_entrada: val('ciDataEntrada'),
+    motivo_pendencia: document.getElementById('ciMotivoPendencia').value,
+    lote: val('ciLote'), validade: val('ciValidade'),
+    num_tentativas: val('ciNumTentativas'),
+    tentativas_datas: JSON.stringify([...document.querySelectorAll('#ciTentativasDatas .ci-tentativa-data')].map((i) => i.value)),
+    telegrama_enviado: (ciEhTP && document.getElementById('ciStatus').value === 'Finalizado') ? document.getElementById('ciTelegramaEnviado').value : '',
+    data_envio_telegrama: (ciEhTP && document.getElementById('ciStatus').value === 'Finalizado') ? val('ciDataEnvioTelegrama') : '',
+  };
+  try {
+    await api(`/autores/compras-importados/${ciEditId}`, { method: 'PUT', body: JSON.stringify(body) });
+    const item = relImpCache.find((r) => String(r.id) === String(ciEditId));
+    if (item) Object.assign(item, body);
+    modalCompraImp.hidden = true;
+    if (estado.paginaAtual === 'analiseImportados') renderAnaliseImp(); else renderRelImp();
+  } catch (e) { alert(e.message); }
+});
+
+// Dados capturados pelo botão "+" (Adicionar ao Relatório de Compras Importados):
+// a linha do autor + os campos do modal.
+function btDadosCompraImp(a) {
+  const d = {
+    codigo_item: a.codigo_item || '', cod_siafisico: a.cod_siafisico || '',
+    descricao_item: a.descricao_item || '', categoria: a.categoria || '',
+    autor: a.autor || '', unidade_dispensadora: a.unidade_dispensadora || '',
+    id_demanda: a.id_demanda || '', protocolo: a.protocolo || '', processo: a.processo || '',
+    status_demanda: a.status_demanda || '', tipo_demanda: a.tipo_demanda || '',
+    qtde_consumo: a.qtde_consumo || '', prazo: a.prazo || '', periodicidade: a.periodicidade || '',
+    data_ultima_dispensacao: a.data_ultima_dispensacao || '', data_ultimo_retorno: a.data_ultimo_retorno || '',
+  };
+  return JSON.stringify(d).replace(/&/g, '&amp;').replace(/'/g, '&#39;');
+}
+// Clique no "+" → adiciona ao Relatório de Compras Importados.
+document.addEventListener('click', async (ev) => {
+  const b = ev.target.closest('.btn-add-compra-imp');
+  if (!b) return;
+  let dados;
+  try { dados = JSON.parse(b.dataset.imp); } catch (e) { return; }
+  b.disabled = true;
+  try {
+    await api('/autores/compras-importados', { method: 'POST', body: JSON.stringify(dados) });
+    b.textContent = '✓';
+    alert(`${dados.autor} adicionado ao Relatório de Compras Importados.`);
+  } catch (e) {
+    // Já existe: só libera nova aquisição quando a última foi FINALIZADA
+    // (recorrência). Deserto/Fracassado -> refazer pelo Relatório; em andamento -> bloqueia.
+    if (e.dados && e.dados.jaExiste && e.dados.podeNova) {
+      const nova = (e.dados.ciclos || 1) + 1;
+      const stAnt = e.dados.statusAnterior || 'encerrada';
+      if (confirm(`${dados.autor} já tem uma aquisição encerrada (${stAnt}) deste item.\n\nCriar uma NOVA aquisição (${nova}ª)?`)) {
+        try {
+          await api('/autores/compras-importados', { method: 'POST', body: JSON.stringify({ ...dados, forcar: true }) });
+          b.textContent = '✓';
+          alert(`Nova aquisição (${nova}ª) de ${dados.autor} adicionada.`);
+          return;
+        } catch (e2) { alert(e2.message); }
+      }
+    } else {
+      alert(e.message);
+    }
+    b.disabled = false;
+  }
+});
+
 // Modal "Ver" das listagens de autores: guarda os campos na própria célula.
 function btDadosDemanda(a) {
   const d = {
     autor: a.autor || '',
     descricao_item: a.descricao_item || '',
+    codigo_item: a.codigo_item || '',
+    id_demanda: a.id_demanda || '',
+    unidade: a.unidade_dispensadora || '',
     prazo: a.prazo || '',
     periodicidade: a.periodicidade || '',
     data_ultima_dispensacao: a.data_ultima_dispensacao || '',
@@ -4714,18 +5629,57 @@ function btDadosDemanda(a) {
   return JSON.stringify(d).replace(/&/g, '&amp;').replace(/'/g, '&#39;');
 }
 
-function abrirDetalheDemanda(d) {
+async function abrirDetalheDemanda(d) {
   document.getElementById('subDetalheDemanda').textContent =
     `${d.autor || '—'} — ${d.descricao_item || '—'}`;
   const linha = (rot, val) =>
     `<div style="display:flex; justify-content:space-between; gap:16px; padding:9px 0; border-bottom:1px solid var(--borda);">
        <span class="texto-secundario">${rot}</span><strong>${escHtml(val || '—')}</strong></div>`;
-  document.getElementById('corpoDetalheDemanda').innerHTML =
+  const corpo = document.getElementById('corpoDetalheDemanda');
+  const base =
+    '<div id="etiquetasDetalheDemanda" style="margin:0 0 10px;"></div>' +
+    linha('ID Demanda', d.id_demanda) +
     linha('Prazo', d.prazo) +
     linha('Periodicidade', d.periodicidade) +
     linha('Data Última Dispensação', d.data_ultima_dispensacao) +
     linha('Data Último Retorno', d.data_ultimo_retorno);
+  // Bloco de estoque da unidade (carrega enquanto o modal já aparece).
+  const rotuloUnidade = d.unidade ? escHtml(d.unidade) : 'unidade';
+  corpo.innerHTML = base +
+    `<div id="blocoEstoqueUnidade" style="margin-top:12px;">
+       <div class="texto-secundario" style="font-weight:600; margin-bottom:2px;">Estoque — ${rotuloUnidade}</div>
+       <div id="corpoEstoqueUnidade"><div style="padding:9px 0;" class="texto-secundario">Carregando…</div></div>
+     </div>
+     <div id="blocoIblODDemanda" style="margin-top:12px;"></div>`;
   document.getElementById('modalDetalheDemanda').hidden = false;
+  injetarSaldoIblOD(d.codigo_item, 'blocoIblODDemanda');
+
+  try {
+    const params = new URLSearchParams({ codigo_item: d.codigo_item || '' });
+    if (d.unidade) params.set('unidade', d.unidade);
+    const e = await api(`/autores/estoque-unidade?${params.toString()}`);
+    const num = (v) => (v === null || v === undefined || v === '' ? '—' : fmtNumero(v));
+    const meses = (v) => (v === null || v === undefined || v === '' ? '—' : `${fmtNumero(v)} m`);
+    let html =
+      linha('Demanda', num(e.demanda)) +
+      linha('Consumo médio mensal', num(e.consumo)) +
+      linha('Estoque', num(e.estoque)) +
+      linha('Autonomia', meses(e.autonomia));
+    if (e.semDados) {
+      html = `<div style="padding:9px 0;" class="texto-secundario">Sem dados de estoque para esta unidade.</div>` + html;
+    } else if (e.data_referencia) {
+      html += `<div class="texto-secundario" style="font-size:12px; margin-top:6px;">Foto de ${formatarData(e.data_referencia)}</div>`;
+    }
+    // O modal pode ter sido fechado/reaberto enquanto carregava — só escreve se ainda existe.
+    const alvo = document.getElementById('corpoEstoqueUnidade');
+    if (alvo) alvo.innerHTML = html;
+    // Etiquetas de programa/subcategoria (mesmo helper e estilo do Estoque).
+    const et = document.getElementById('etiquetasDetalheDemanda');
+    if (et) et.innerHTML = etiquetasProgramaHTML(e);
+  } catch (err) {
+    const alvo = document.getElementById('corpoEstoqueUnidade');
+    if (alvo) alvo.innerHTML = `<div style="padding:9px 0; color:var(--vermelho);">Não consegui carregar o estoque da unidade.</div>`;
+  }
 }
 
 document.addEventListener('click', (ev) => {
@@ -5828,6 +6782,19 @@ async function carregarComparativo() {
   ab[2].textContent = `Alterações (${dados.alteracoes.length})`;
   ab.forEach((b, i) => b.classList.toggle('ativo', i === 0));
 
+  // Popula o filtro de subcategoria (preserva a seleção atual se ainda existir).
+  const selSub = document.getElementById('filtroSubcategoriaComparativo');
+  const subAtual = selSub.value;
+  selSub.innerHTML = '<option value="">Subcategoria: todas</option>' +
+    (dados.subcategorias || []).map((s) => `<option value="${s.replace(/"/g, '&quot;')}">${s}</option>`).join('');
+  selSub.value = [...selSub.options].some((o) => o.value === subAtual) ? subAtual : '';
+
+  const selTipo = document.getElementById('filtroTipoDemandaComparativo');
+  const tipoAtual = selTipo.value;
+  selTipo.innerHTML = '<option value="">Tipo de demanda: todos</option>' +
+    (dados.tiposDemanda || []).map((t) => `<option value="${t.replace(/"/g, '&quot;')}">${t}</option>`).join('');
+  selTipo.value = [...selTipo.options].some((o) => o.value === tipoAtual) ? tipoAtual : '';
+
   renderAbaComparativo('novos');
 }
 
@@ -5843,18 +6810,23 @@ function renderAbaComparativo(aba) {
   document.getElementById('filtrosAlteracoes').hidden = !ehAlteracoes;
   document.getElementById('kpiAlteracoes').hidden = !ehAlteracoes;
 
+  // Filtros de subcategoria e tipo de demanda (valem para as 3 abas).
+  const fSub = document.getElementById('filtroSubcategoriaComparativo').value;
+  const fTipoDem = document.getElementById('filtroTipoDemandaComparativo').value;
+  const passaSub = (e) => (!fSub || e.subcategoria === fSub) && (!fTipoDem || e.tipo_demanda === fTipoDem);
+
   let cols = [];
   let linhas = [];
   if (aba === 'novos') {
     cols = ['ID Demanda', 'Autor', 'Protocolo', 'Processo', 'Tipo da Demanda', 'Cód. Item', 'Descrição do Item', 'Qtde de Consumo'];
-    linhas = dadosComparativo.novos.map((n) => [
+    linhas = dadosComparativo.novos.filter(passaSub).map((n) => [
       `<span class="col-codigo">${n.id_demanda}</span>`, n.autor,
       `<span class="col-codigo">${n.protocolo}</span>`, `<span class="col-codigo">${n.processo}</span>`,
       n.tipo_demanda, `<span class="col-codigo">${n.codigo_item}</span>`, n.descricao_item, n.qtde_consumo,
     ]);
   } else if (aba === 'encerrados') {
     cols = ['Autor', 'Processo', 'Último Item'];
-    linhas = dadosComparativo.encerrados.map((e) => [e.autor, e.processo || '—', e.ultimo_item]);
+    linhas = dadosComparativo.encerrados.filter(passaSub).map((e) => [e.autor, e.processo || '—', e.ultimo_item]);
   } else {
     // popula o filtro de categoria (1ª vez)
     const selCat = document.getElementById('filtroCategoriaAlteracao');
@@ -5865,8 +6837,8 @@ function renderAbaComparativo(aba) {
 
     const fTipo = document.getElementById('filtroTipoAlteracao').value;
     const fCat = selCat.value;
-    // base filtrada só por categoria (para os KPIs por tipo)
-    const baseCat = dadosComparativo.alteracoes.filter((a) => !fCat || a.categoria === fCat);
+    // base filtrada por categoria E subcategoria (para os KPIs por tipo)
+    const baseCat = dadosComparativo.alteracoes.filter((a) => (!fCat || a.categoria === fCat) && passaSub(a));
     const conta = (t) => baseCat.filter((a) => a.alteracao === t).length;
     document.getElementById('kpiAlteracoes').innerHTML = `
       <div class="cartao-resumo"><div class="numero">${fmtNumero(baseCat.length)}</div><div class="rotulo">Total de alterações</div></div>
@@ -5912,6 +6884,12 @@ function renderAbaComparativo(aba) {
 // Filtros da aba Alterações re-renderizam a aba
 ['filtroTipoAlteracao', 'filtroCategoriaAlteracao'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => renderAbaComparativo('alteracoes'));
+});
+// Filtros de subcategoria e tipo de demanda valem para as 3 abas: re-renderizam a aba ativa.
+['filtroSubcategoriaComparativo', 'filtroTipoDemandaComparativo'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => {
+    renderAbaComparativo(abaComparativoAtiva || 'novos');
+  });
 });
 
 // Monta {cols, linhas} em TEXTO PURO da aba (para exportar)
@@ -5968,7 +6946,7 @@ let reqEditId = null;      // id da requisição em edição
 
 const modalRequisicao = document.getElementById('modalRequisicao');
 document.getElementById('botaoAbrirRequisicao').addEventListener('click', abrirRequisicao);
-document.getElementById('botaoFecharRequisicao').addEventListener('click', () => { modalRequisicao.hidden = true; });
+document.getElementById('botaoFecharRequisicao').addEventListener('click', () => fecharRequisicaoComConfirmacao());
 document.getElementById('reqVoltar').addEventListener('click', voltarParaBuscaPaciente);
 document.getElementById('botaoGerarRequisicao').addEventListener('click', gerarRequisicao);
 
@@ -5978,6 +6956,13 @@ function abrirRequisicao() {
   modalRequisicao.hidden = false;
   document.getElementById('botaoGerarRequisicao').textContent = 'Gerar requisição →';
   document.getElementById('reqApenasRegistro').checked = false;
+  // Abas de modo visíveis; começa em "Por paciente".
+  document.getElementById('reqModoAbas').hidden = false;
+  reqModoAtual = 'paciente';
+  document.querySelectorAll('#reqModoAbas .req-modo-aba').forEach((b) => b.classList.toggle('ativo', b.dataset.modo === 'paciente'));
+  document.getElementById('reqModoColetiva').hidden = true;
+  document.getElementById('botaoGerarColetiva').hidden = true;
+  colTabs = []; // zera a solicitação coletiva anterior
   voltarParaBuscaPaciente();
 }
 
@@ -5988,6 +6973,10 @@ async function editarRequisicao(id) {
   reqModo = 'editar';
   reqEditId = id;
   modalRequisicao.hidden = false;
+  // Edição é sempre por paciente: esconde as abas e o modo coletiva.
+  document.getElementById('reqModoAbas').hidden = true;
+  document.getElementById('reqModoColetiva').hidden = true;
+  document.getElementById('botaoGerarColetiva').hidden = true;
   document.getElementById('reqEtapaPaciente').hidden = true;
 
   await selecionarPaciente(r.autor);
@@ -6058,7 +7047,141 @@ async function buscarPacienteRequisicao() {
   });
 }
 
+// ===== Etiqueta de ATA na Requisição (visual; escolha vale só nesta requisição) =====
+// Guarda a escolha do técnico (ATA/SEM_ATA) para itens de "Avaliação técnica",
+// por id único. Zerado ao trocar de paciente / iniciar nova coletiva.
+const escolhasAta = new Map();
+// Valor unitário informado manualmente pelo técnico (quando não há valor), por id.
+const valoresManual = new Map();
+
+// Valor unitário efetivo do item: ATA usa o valor da ata; demais usam o valor
+// médio; se ambos vazios, usa o que o técnico digitou (valoresManual).
+function valorUnitFinal(item, id) {
+  const ata = item.ata || {};
+  const usaAta = ata.situacao === 'ATA' || (ata.situacao === 'AVALIACAO' && escolhasAta.get(id) === 'ATA');
+  let base = usaAta ? ata.valor : item.valor_medio;
+  base = (base != null && Number(base) > 0) ? Number(base) : null;
+  if (base != null) return base;
+  const man = valoresManual.get(id);
+  return (man != null && man !== '' && isFinite(Number(man))) ? Number(man) : null;
+}
+
+// Container (vazio) do valor unitário do item; preenchido por preencherValorUnit.
+function htmlValorUnit(item, id) {
+  const ata = item.ata || {};
+  return `<div class="ata-valor" data-vid="${id}" data-sit="${ata.situacao || ''}" data-vata="${ata.valor != null ? ata.valor : ''}" data-vmedio="${item.valor_medio != null ? item.valor_medio : ''}"></div>`;
+}
+
+// Preenche o container do valor: mostra o valor (ATA / valor médio) ou, se
+// vazio, um campo para o técnico informar.
+function preencherValorUnit(el) {
+  const id = el.dataset.vid;
+  const sit = el.dataset.sit;
+  const vata = el.dataset.vata !== '' ? Number(el.dataset.vata) : null;
+  const vmedio = el.dataset.vmedio !== '' ? Number(el.dataset.vmedio) : null;
+  const usaAta = sit === 'ATA' || (sit === 'AVALIACAO' && escolhasAta.get(id) === 'ATA');
+  let base = usaAta ? vata : vmedio;
+  base = (base != null && base > 0) ? base : null;
+  if (base != null) {
+    el.innerHTML = `<span class="ata-valor-rot">Valor unitário:</span> <strong>${brlPlan(base)}</strong> <span class="ata-valor-fonte">(${usaAta ? 'ATA' : 'valor médio'})</span>`;
+  } else {
+    const man = valoresManual.get(id);
+    el.innerHTML = `<span class="ata-valor-rot">Valor unitário (informar):</span> <input type="number" class="ata-valor-inp" data-vid="${id}" value="${man != null ? man : ''}" min="0" step="0.01" placeholder="R$" style="width:120px; padding:5px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px;">`;
+  }
+}
+
+// Modalidade efetiva do item para o aviso de mistura: ATA (etiqueta ATA ou
+// Avaliação técnica decidida como ATA), SEM_ATA, ou null (avaliação sem decisão).
+function modalidadeEfetiva(situacao, escolha) {
+  if (situacao === 'ATA') return 'ATA';
+  if (situacao === 'SEM_ATA') return 'SEM_ATA';
+  if (situacao === 'AVALIACAO') return escolha === 'ATA' ? 'ATA' : (escolha === 'SEM_ATA' ? 'SEM_ATA' : null);
+  return null;
+}
+
+// Se a requisição mistura itens COM ATA e SEM ATA, pede confirmação.
+// Recebe uma lista de modalidades efetivas ('ATA' | 'SEM_ATA' | null).
+// Devolve true para prosseguir, false para cancelar.
+function confirmarMisturaAta(modalidades) {
+  const nAta = modalidades.filter((m) => m === 'ATA').length;
+  const nSem = modalidades.filter((m) => m === 'SEM_ATA').length;
+  if (nAta > 0 && nSem > 0) {
+    return confirm(
+      '⚠️ Esta requisição mistura itens COM ATA e itens SEM ATA.\n\n' +
+      `• ${nAta} item(ns) com ATA\n` +
+      `• ${nSem} item(ns) SEM ATA\n\n` +
+      'O recomendado é separar a aquisição por modalidade — uma requisição para os itens de ATA e outra para os itens sem ATA.\n\n' +
+      'Tem certeza disso?'
+    );
+  }
+  return true;
+}
+
+function fmtDataAta(iso) {
+  if (!iso) return '—';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso);
+}
+
+// Monta o HTML da etiqueta de ATA. `id` deve ser único e seguro (a-z0-9_).
+function htmlEtiquetaAta(ata, id) {
+  if (!ata || !ata.situacao) return '';
+  if (ata.situacao === 'SEM_ATA') {
+    return '<div class="ata-box"><span class="ata-pill sem">SEM ATA</span></div>';
+  }
+  const detalhe = `
+    <div class="ata-detalhe" id="atadet-${id}"${ata.situacao === 'ATA' ? ' hidden' : ''}>
+      <div><span class="rot">Nome comercial:</span> ${escHtml(ata.nome_comercial || '—')}</div>
+      <div><span class="rot">Nº da ATA:</span> ${escHtml(ata.ata_numero || '—')} · <span class="rot">Detentor:</span> ${escHtml(ata.detentor || '—')}</div>
+      <div><span class="rot">Vencimento:</span> ${fmtDataAta(ata.vencimento)}</div>
+    </div>`;
+  if (ata.situacao === 'ATA') {
+    return `<div class="ata-box">
+      <span class="ata-pill ata ata-toggle" data-id="${id}" role="button" tabindex="0">ATA ▾</span>
+      ${detalhe}
+    </div>`;
+  }
+  // AVALIACAO — o técnico decide ATA / SEM ATA
+  const esc = escolhasAta.get(id) || '';
+  return `<div class="ata-box">
+    <span class="ata-pill av">⚠ Avaliação técnica</span>
+    ${detalhe}
+    <div>
+      <span class="ata-esc ata-escolha ${esc === 'ATA' ? 'on' : ''}" data-id="${id}" data-esc="ATA">ATA</span>
+      <span class="ata-esc ata-escolha ${esc === 'SEM_ATA' ? 'on' : ''}" data-id="${id}" data-esc="SEM_ATA">SEM ATA</span>
+    </div>
+  </div>`;
+}
+
+// Delegação global: abrir/fechar o detalhe da ATA e registrar a escolha.
+document.addEventListener('click', (ev) => {
+  const tog = ev.target.closest('.ata-toggle');
+  if (tog) {
+    const d = document.getElementById('atadet-' + tog.dataset.id);
+    if (d) d.hidden = !d.hidden;
+    return;
+  }
+  const esc = ev.target.closest('.ata-escolha');
+  if (esc) {
+    const id = esc.dataset.id;
+    const novo = esc.dataset.esc;
+    if (escolhasAta.get(id) === novo) escolhasAta.delete(id); else escolhasAta.set(id, novo);
+    esc.parentElement.querySelectorAll('.ata-escolha').forEach((b) =>
+      b.classList.toggle('on', escolhasAta.get(id) === b.dataset.esc));
+    // A escolha ATA/SEM ATA muda a fonte do valor unitário — repinta o campo.
+    document.querySelectorAll(`.ata-valor[data-vid="${cssEsc(id)}"]`).forEach(preencherValorUnit);
+  }
+});
+
+// Valor unitário informado manualmente pelo técnico.
+document.addEventListener('input', (ev) => {
+  const inp = ev.target.closest('.ata-valor-inp');
+  if (inp) valoresManual.set(inp.dataset.vid, inp.value);
+});
+
 async function selecionarPaciente(autor) {
+  escolhasAta.clear();
+  valoresManual.clear();
   const dados = await api(`/autores/paciente?autor=${encodeURIComponent(autor)}`);
   reqPacienteAtual = dados.info;
   reqItensAtuais = dados.itens;
@@ -6080,7 +7203,8 @@ async function selecionarPaciente(autor) {
     let badge = '<span style="color:var(--cinza-texto); font-size:12px;">sem dado de estoque</span>';
     if (aut !== null && aut !== undefined) {
       const cls = aut <= 0 ? 'cancelado' : (aut <= 2 ? 'atrasado' : 'finalizado');
-      badge = `<span class="etiqueta-status ${cls}">estoque: ${fmtNumero(it.estoque_atual)} · autonomia ${fmtNumero(aut)} m</span>`;
+      const dem = (it.demanda_atual !== null && it.demanda_atual !== undefined) ? `demanda: ${fmtNumero(it.demanda_atual)} · ` : '';
+      badge = `<span class="etiqueta-status ${cls}">${dem}estoque: ${fmtNumero(it.estoque_atual)} · autonomia ${fmtNumero(aut)} m</span>`;
     }
     const chip = (rotulo, valor) => (valor !== null && valor !== undefined && String(valor).trim() !== '')
       ? `<span style="display:inline-block; background:var(--realce-tabela); border:1px solid var(--linha); border-radius:4px; padding:1px 7px; margin:2px 4px 0 0; font-size:11px;"><strong>${rotulo}:</strong> ${valor}</span>`
@@ -6099,8 +7223,11 @@ async function selecionarPaciente(autor) {
         <div>
           <div style="font-size:13px;">${it.descricao_item || '—'}</div>
           <div class="col-codigo">${it.codigo_item || ''}${it.cod_siafisico ? ' · SIAF ' + it.cod_siafisico : ''}</div>
+          ${it.subcategoria && String(it.subcategoria).trim() ? `<div class="tags-programa"><span class="tag-programa sub">${escHtml(String(it.subcategoria).trim())}</span></div>` : ''}
           ${detalhes ? `<div style="margin-top:3px;">${detalhes}</div>` : ''}
           <div style="margin-top:3px;">${badge}</div>
+          ${htmlEtiquetaAta(it.ata, 'pac_' + idx)}
+          ${htmlValorUnit(it, 'pac_' + idx)}
         </div>
         <div>
           <label style="font-size:10px; color:var(--cinza-texto); display:block;">Autonomia de compra</label>
@@ -6119,6 +7246,7 @@ async function selecionarPaciente(autor) {
   document.querySelectorAll('#reqListaItens .req-autonomia').forEach((inp) => {
     inp.addEventListener('input', () => recalcularAquisicao(inp));
   });
+  document.querySelectorAll('#reqListaItens .ata-valor').forEach(preencherValorUnit);
   aplicarModoApenasRegistro();
   atualizarContadorReq();
 }
@@ -6174,14 +7302,26 @@ function coletarItensSelecionados() {
     const idx = Number(c.dataset.idx);
     const qtd = apenasRegistro ? 'Apenas registro' : document.querySelector(`.req-qtd[data-idx="${idx}"]`).value;
     const autonomiaCompra = apenasRegistro ? '' : document.querySelector(`.req-autonomia[data-idx="${idx}"]`).value;
-    selecionados.push({ ...reqItensAtuais[idx], quantidade: qtd, autonomia_compra: autonomiaCompra });
+    const item = reqItensAtuais[idx];
+    const situacaoAta = item.ata ? item.ata.situacao : null;
+    const escolhaAta = situacaoAta === 'AVALIACAO' ? (escolhasAta.get('pac_' + idx) || null) : null;
+    const valorUnit = valorUnitFinal(item, 'pac_' + idx);
+    selecionados.push({ ...item, quantidade: qtd, autonomia_compra: autonomiaCompra, situacao_ata: situacaoAta, escolha_ata: escolhaAta, valor_unitario: valorUnit });
   });
   return selecionados;
 }
 
 // Monta o HTML do documento da requisição (reutilizado ao gerar e ao reabrir)
 function montarDocumentoRequisicao(d) {
-  const linhas = d.itens.map((it, i) => `
+  const preco = (v) => { if (v == null || v === '') return null; const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
+  const brl = (v) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  let totalGeral = 0, temValor = false;
+  const linhas = d.itens.map((it, i) => {
+    const uni = preco(it.valor_unitario);
+    const qtd = parseNumeroReq(it.quantidade);
+    const tot = (uni != null && qtd) ? uni * qtd : null;
+    if (tot != null) { totalGeral += tot; temValor = true; }
+    return `
     <tr>
       <td style="text-align:center;">${i + 1}</td>
       <td>${it.codigo_item || '—'}</td>
@@ -6190,7 +7330,13 @@ function montarDocumentoRequisicao(d) {
       <td>${it.descricao_item || '—'}</td>
       <td style="text-align:center;">${it.qtde_consumo || '—'}</td>
       <td style="text-align:center;"><strong>${it.quantidade || '—'}</strong></td>
-    </tr>`).join('');
+      <td style="text-align:right;">${brl(uni)}</td>
+      <td style="text-align:right;">${brl(tot)}</td>
+    </tr>`;
+  }).join('');
+  const totalRow = temValor
+    ? `<tr><td colspan="8" style="text-align:right;"><strong>Total da aquisição</strong></td><td style="text-align:right;"><strong>${brl(totalGeral)}</strong></td></tr>`
+    : '';
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${d.codigoControle || 'Requisição'} - ${d.autor}</title>
     <style>
@@ -6220,8 +7366,74 @@ function montarDocumentoRequisicao(d) {
       <strong>Operador:</strong> ${d.operadorNome || '—'} &nbsp;|&nbsp; <strong>Login:</strong> ${d.operadorEmail || '—'}
     </div>
     <table>
-      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th>Qtde Consumo</th><th style="width:90px;">Quantidade de Aquisição</th></tr></thead>
-      <tbody>${linhas}</tbody>
+      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th>Qtde Consumo</th><th style="width:90px;">Quantidade de Aquisição</th><th style="width:90px;">Valor Unitário</th><th style="width:100px;">Valor Total</th></tr></thead>
+      <tbody>${linhas}${totalRow}</tbody>
+    </table>
+    </body></html>`;
+}
+
+// Documento consolidado de uma Solicitação Coletiva (pacientes + total por item).
+function montarDocumentoColetiva(r, itens, pacientes) {
+  const op = estado.usuario || {};
+  const preco = (v) => { if (v == null || v === '') return null; const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
+  const brl = (v) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  let totalGeral = 0, temValor = false;
+  const linhasItens = itens.map((it, i) => {
+    const uni = preco(it.valor_unitario);
+    const qtd = parseNumeroReq(it.quantidade);
+    const tot = (uni != null && qtd) ? uni * qtd : null;
+    if (tot != null) { totalGeral += tot; temValor = true; }
+    return `
+    <tr>
+      <td style="text-align:center;">${i + 1}</td>
+      <td>${it.codigo_item || '—'}</td>
+      <td>${it.cod_siafisico || '—'}</td>
+      <td>${it.catmat || '—'}</td>
+      <td>${it.descricao_item || '—'}</td>
+      <td style="text-align:center;">${it.n_pacientes != null ? it.n_pacientes : (it.detalhe ? it.detalhe.length : '—')}</td>
+      <td style="text-align:center;"><strong>${it.quantidade || '—'}</strong></td>
+      <td style="text-align:right;">${brl(uni)}</td>
+      <td style="text-align:right;">${brl(tot)}</td>
+    </tr>`;
+  }).join('');
+  const totalRowItens = temValor
+    ? `<tr><td colspan="8" style="text-align:right;"><strong>Total da aquisição</strong></td><td style="text-align:right;"><strong>${brl(totalGeral)}</strong></td></tr>`
+    : '';
+  const linhasPac = (pacientes || []).map((p, i) => `
+    <tr>
+      <td style="text-align:center;">${i + 1}</td>
+      <td>${escHtml(p.autor || '—')}</td>
+      <td>${escHtml(p.protocolo || '—')}</td>
+      <td>${escHtml(p.processo || '—')}</td>
+    </tr>`).join('');
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${r.codigo_controle || 'Solicitação Coletiva'}</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:32px;}
+      h1{font-size:18px;margin:0 0 2px;} h2{font-size:14px;margin:18px 0 6px;}
+      .id{display:inline-block;background:#1f4c3c;color:#fff;font-size:13px;font-weight:bold;padding:3px 10px;border-radius:5px;margin-bottom:8px;}
+      .sub{color:#666;font-size:12px;margin:0 0 16px;}
+      .box{border:1px solid #ccc;border-radius:6px;padding:10px 14px;margin-bottom:8px;font-size:13px;}
+      table{width:100%;border-collapse:collapse;font-size:12.5px;} th,td{border:1px solid #bbb;padding:6px 8px;text-align:left;vertical-align:top;} th{background:#eee;}
+      @media print{.no-print{display:none;}} button{padding:8px 16px;font-size:14px;cursor:pointer;}
+    </style></head><body>
+    <div class="no-print" style="margin-bottom:18px;"><button onclick="window.print()">🖨 Imprimir / Salvar PDF</button></div>
+    <div class="id">Nº de controle: ${r.codigo_controle || '—'}</div><br>
+    <h1>SOLICITAÇÃO COLETIVA DE COMPRA</h1>
+    <p class="sub">Unidade Tenente Pena (UDTP) · Emitida em ${formatarDataHora(r.criado_em)}${r.sei ? ' · SEI Nº ' + r.sei : ''}</p>
+    <div class="box">
+      ${r.sei ? '<strong>Nº SEI:</strong> ' + r.sei + '<br>' : ''}
+      <strong>Pacientes:</strong> ${r.total_pacientes || (pacientes ? pacientes.length : 0)} &nbsp;|&nbsp; <strong>Medicamentos:</strong> ${itens.length}<br>
+      <strong>Operador:</strong> ${r.operador_nome || '—'} &nbsp;|&nbsp; <strong>Login:</strong> ${r.operador_email || '—'}
+    </div>
+    <h2>Total consolidado por medicamento</h2>
+    <table>
+      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th style="width:70px;">Pacientes</th><th style="width:90px;">Qtde total</th><th style="width:90px;">Valor Unitário</th><th style="width:100px;">Valor Total</th></tr></thead>
+      <tbody>${linhasItens}${totalRowItens}</tbody>
+    </table>
+    <h2>Pacientes da solicitação (${pacientes ? pacientes.length : 0})</h2>
+    <table>
+      <thead><tr><th style="width:28px;">#</th><th>Paciente</th><th>Protocolo</th><th>Processo</th></tr></thead>
+      <tbody>${linhasPac}</tbody>
     </table>
     </body></html>`;
 }
@@ -6245,6 +7457,9 @@ async function gerarRequisicao() {
     campoSei.focus();
     return;
   }
+  // Aviso quando a requisição mistura ATA e SEM ATA.
+  if (!confirmarMisturaAta(itens.map((it) => modalidadeEfetiva(it.situacao_ata, it.escolha_ata)))) return;
+
   const operador = estado.usuario || {};
   const botao = document.getElementById('botaoGerarRequisicao');
   botao.disabled = true;
@@ -6255,6 +7470,7 @@ async function gerarRequisicao() {
     tipo_demanda: it.tipo_demanda, qtde_consumo: it.qtde_consumo, prazo: it.prazo,
     periodicidade: it.periodicidade, dispensacoes_autorizadas: it.dispensacoes_autorizadas,
     autonomia_compra: it.autonomia_compra, catmat: it.catmat,
+    situacao_ata: it.situacao_ata, escolha_ata: it.escolha_ata, valor_unitario: it.valor_unitario,
   }));
 
   try {
@@ -6298,10 +7514,413 @@ async function gerarRequisicao() {
   }
 }
 
+// ==================== Requisição — modo SOLICITAÇÃO COLETIVA (abas por medicamento) ====================
+// Cada medicamento vira uma ABA. Dentro da aba: os pacientes que têm aquele
+// item, cada um com autonomia de compra INDIVIDUAL. As seleções ficam guardadas
+// por aba (não se perdem ao navegar). Ao gerar, agrupa por paciente → uma
+// requisição por paciente com os itens marcados (de todas as abas).
+let reqModoAtual = 'paciente';
+let colTabs = [];        // [{ item, pacientes:[...], sel: { [autor]: {checked, autonomia} } }]
+let colTabAtivo = 0;
+let colInserindo = false; // true quando o painel de busca é para INSERIR mais um item
+
+// Alterna entre "Por paciente" e "Solicitação coletiva".
+function setModoRequisicao(modo) {
+  reqModoAtual = modo;
+  document.querySelectorAll('#reqModoAbas .req-modo-aba').forEach((b) =>
+    b.classList.toggle('ativo', b.dataset.modo === modo));
+  const ehColetiva = modo === 'coletiva';
+  document.getElementById('reqModoColetiva').hidden = !ehColetiva;
+  document.getElementById('reqEtapaPaciente').hidden = ehColetiva;
+  document.getElementById('reqEtapaItens').hidden = true;
+  document.getElementById('reqDescricaoModo').textContent = ehColetiva
+    ? 'Monte a solicitação por medicamento (uma aba para cada) e marque os pacientes.'
+    : 'Selecione o paciente e marque os medicamentos para aquisição.';
+  document.getElementById('reqVoltar').hidden = true;
+  document.getElementById('botaoGerarRequisicao').hidden = true;
+  document.getElementById('botaoGerarColetiva').hidden = true;
+  if (ehColetiva) resetColetiva();
+}
+
+function resetColetiva() {
+  colTabs = [];
+  colTabAtivo = 0;
+  colInserindo = false;
+  escolhasAta.clear();
+  valoresManual.clear();
+  mostrarBuscaColetiva(false);
+}
+
+// Mostra o painel de busca (inicial ou "inserir") ou a área de trabalho.
+function mostrarBuscaColetiva(inserindo) {
+  colInserindo = inserindo;
+  document.getElementById('colBuscaPanel').hidden = false;
+  document.getElementById('colTrabalho').hidden = true; // esconde a área de trabalho enquanto pesquisa
+  document.getElementById('colBuscaLabel').textContent = inserindo
+    ? 'Buscar medicamento para inserir na solicitação' : 'Buscar o primeiro medicamento da solicitação';
+  document.getElementById('colCancelarBusca').hidden = !inserindo;
+  document.getElementById('botaoGerarColetiva').hidden = colTabs.length === 0;
+  document.getElementById('colBuscaItem').value = '';
+  document.getElementById('colResultadosItem').innerHTML = '';
+  document.getElementById('colBuscaItem').focus();
+}
+
+function mostrarTrabalhoColetiva() {
+  document.getElementById('colBuscaPanel').hidden = true;
+  document.getElementById('colTrabalho').hidden = false;
+  document.getElementById('botaoGerarColetiva').hidden = false;
+  renderTabsColetiva();
+  renderPacientesTab();
+}
+
+let colBuscaTimer = null;
+async function buscarItensColetiva() {
+  const q = document.getElementById('colBuscaItem').value.trim();
+  const alvo = document.getElementById('colResultadosItem');
+  if (q.length < 2) { alvo.innerHTML = ''; return; }
+  let dados;
+  try { dados = await api(`/autores/itens-busca?q=${encodeURIComponent(q)}`); }
+  catch (e) { alvo.innerHTML = `<p class="texto-apoio">${e.message}</p>`; return; }
+  if (!dados.itens.length) { alvo.innerHTML = '<p class="texto-apoio" style="font-size:12px;">Nenhum medicamento encontrado na demanda da Tenente Pena.</p>'; return; }
+  alvo.innerHTML = dados.itens.map((it, i) => {
+    const jaTem = colTabs.some((t) => t.item.codigo_item === it.codigo_item);
+    return `
+    <button type="button" class="col-item-op" data-idx="${i}" ${jaTem ? 'disabled' : ''} style="display:block; width:100%; text-align:left; background:var(--papel); border:1px solid var(--linha); border-radius:8px; padding:9px 12px; margin-bottom:6px; cursor:${jaTem ? 'default' : 'pointer'}; opacity:${jaTem ? '0.5' : '1'};">
+      <div style="font-size:13px; font-weight:500;">${escHtml(it.descricao_item || '—')} ${jaTem ? '<span style="color:var(--selo-escuro); font-size:11px;">✓ já na solicitação</span>' : ''}</div>
+      <div class="col-codigo">${escHtml(it.codigo_item || '')}${it.cod_siafisico ? ' · SIAF ' + escHtml(String(it.cod_siafisico)) : ''}</div>
+      <div style="font-size:11px; color:var(--selo-escuro); margin-top:2px;">${it.n_pacientes} paciente${it.n_pacientes > 1 ? 's' : ''} com este item</div>
+    </button>`;
+  }).join('');
+  alvo.querySelectorAll('.col-item-op:not([disabled])').forEach((b) =>
+    b.addEventListener('click', () => adicionarMedicamentoColetiva(dados.itens[Number(b.dataset.idx)])));
+}
+
+async function adicionarMedicamentoColetiva(item) {
+  if (colTabs.some((t) => t.item.codigo_item === item.codigo_item)) return;
+  let dados;
+  try { dados = await api(`/autores/itens-pacientes?codigos=${encodeURIComponent(item.codigo_item)}`); }
+  catch (e) { alert('Erro ao carregar pacientes: ' + e.message); return; }
+  // Cada paciente tem exatamente 1 item (esta busca é de um só código).
+  const pacientes = (dados.pacientes || []).map((p) => ({ ...p, item: p.itens[0] }));
+  const sel = {};
+  pacientes.forEach((p) => { sel[p.autor] = { checked: false, autonomia: 1 }; });
+  const ataItem = pacientes.length ? (pacientes[0].item || {}).ata : null;
+  colTabs.push({ item, pacientes, sel, filtro: '', ata: ataItem || null });
+  colTabAtivo = colTabs.length - 1;
+  mostrarTrabalhoColetiva();
+}
+
+function renderTabsColetiva() {
+  const bar = document.getElementById('colTabsBar');
+  bar.innerHTML = colTabs.map((t, i) => {
+    const nome = (t.item.descricao_item || '').split(' / ')[0];
+    const marc = Object.values(t.sel).filter((s) => s.checked).length;
+    return `<button type="button" class="col-aba ${i === colTabAtivo ? 'ativo' : ''}" data-i="${i}">
+      ${escHtml(nome)} <span class="col-aba-cont">${marc}</span>
+      <span class="col-aba-x" data-rem="${i}" title="Remover medicamento">✕</span>
+    </button>`;
+  }).join('') + `<button type="button" class="col-aba col-aba-add" id="colInserirMed">+ Inserir medicamento</button>`;
+
+  bar.querySelectorAll('.col-aba[data-i]').forEach((b) => b.addEventListener('click', (ev) => {
+    if (ev.target.classList.contains('col-aba-x')) return;
+    colTabAtivo = Number(b.dataset.i); renderTabsColetiva(); renderPacientesTab();
+  }));
+  bar.querySelectorAll('.col-aba-x').forEach((x) => x.addEventListener('click', (ev) => {
+    ev.stopPropagation(); removerTabColetiva(Number(x.dataset.rem));
+  }));
+  document.getElementById('colInserirMed').addEventListener('click', () => mostrarBuscaColetiva(true));
+}
+
+function removerTabColetiva(i) {
+  const nome = (colTabs[i].item.descricao_item || '').split(' / ')[0];
+  if (!confirm(`Remover "${nome}" da solicitação? As seleções deste medicamento serão perdidas.`)) return;
+  colTabs.splice(i, 1);
+  if (!colTabs.length) { resetColetiva(); return; }
+  colTabAtivo = Math.max(0, Math.min(colTabAtivo, colTabs.length - 1));
+  renderTabsColetiva(); renderPacientesTab();
+}
+
+// Normaliza texto para busca (sem acento, minúsculo).
+function normPac(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+// Pacientes da aba que casam com o filtro digitado.
+function pacientesFiltrados(tab) {
+  const q = normPac(tab.filtro).trim();
+  if (!q) return tab.pacientes;
+  const termos = q.split(/\s+/);
+  return tab.pacientes.filter((p) => {
+    const alvo = normPac(`${p.autor} ${p.processo || ''} ${p.protocolo || ''}`);
+    return termos.every((t) => alvo.includes(t));
+  });
+}
+
+// Orquestra a aba ativa: campo de busca + resultados + cartões selecionados.
+function renderPacientesTab() {
+  const tab = colTabs[colTabAtivo];
+  const busca = document.getElementById('colPacBusca');
+  const res = document.getElementById('colPacResultados');
+  const alvo = document.getElementById('colListaPacientes');
+  const titulo = document.getElementById('colPacSelTitulo');
+  const tagAta = document.getElementById('colAtaTag');
+  if (!tab) { res.innerHTML = ''; alvo.innerHTML = ''; titulo.hidden = true; busca.value = ''; if (tagAta) tagAta.innerHTML = ''; return; }
+  if (tagAta) {
+    const itemTab = tab.pacientes.length ? (tab.pacientes[0].item || {}) : null;
+    const idTab = 'coltab_' + colTabAtivo;
+    tagAta.innerHTML = htmlEtiquetaAta(tab.ata, idTab) + (itemTab ? htmlValorUnit(itemTab, idTab) : '');
+    tagAta.querySelectorAll('.ata-valor').forEach(preencherValorUnit);
+  }
+  busca.value = tab.filtro || '';
+  if (!tab.pacientes.length) {
+    res.innerHTML = '<p class="texto-apoio">Nenhum paciente com este medicamento na demanda da Tenente Pena.</p>';
+    alvo.innerHTML = ''; titulo.hidden = true;
+    document.getElementById('colMarcarTodos').checked = false;
+    atualizarContadorColetiva();
+    return;
+  }
+  renderResultadosPac();
+  renderSelecionadosPac();
+  atualizarContadorColetiva();
+}
+
+// Lista compacta de resultados do filtro; clicar seleciona (mostra o cartão).
+function renderResultadosPac() {
+  const tab = colTabs[colTabAtivo];
+  const res = document.getElementById('colPacResultados');
+  const LIMITE = 60;
+  const filtrados = pacientesFiltrados(tab);
+  const naoSel = filtrados.filter((p) => !tab.sel[p.autor].checked);
+  const total = tab.pacientes.length;
+  const selCount = tab.pacientes.filter((p) => tab.sel[p.autor].checked).length;
+
+  const cabecalho = `<div style="font-size:11.5px; color:var(--cinza-texto); margin-bottom:6px;">
+    ${filtrados.length} de ${total} paciente(s)${tab.filtro ? ' no filtro' : ''} · ${selCount} selecionado(s)</div>`;
+
+  if (!naoSel.length) {
+    res.innerHTML = cabecalho + (filtrados.length
+      ? '<p class="texto-apoio" style="font-size:12px; margin:4px 0;">Todos os pacientes deste filtro já foram selecionados.</p>'
+      : '<p class="texto-apoio" style="font-size:12px; margin:4px 0;">Nenhum paciente encontrado com esse filtro.</p>');
+  } else {
+    const mostra = naoSel.slice(0, LIMITE);
+    res.innerHTML = cabecalho + mostra.map((p) => {
+      const it = p.item || {};
+      const aut = it.autonomia_atual;
+      let badge = '';
+      if (aut !== null && aut !== undefined) {
+        const cls = aut <= 0 ? 'cancelado' : (aut <= 2 ? 'atrasado' : 'finalizado');
+        badge = `<span class="etiqueta-status ${cls}" style="font-size:10px;">aut. ${fmtNumero(aut)} m</span>`;
+      }
+      return `<button type="button" class="col-pac-op" data-autor="${escHtml(p.autor)}" style="display:flex; justify-content:space-between; align-items:center; gap:8px; width:100%; text-align:left; background:var(--papel); border:1px solid var(--linha); border-radius:7px; padding:7px 11px; margin-bottom:5px; cursor:pointer;">
+        <span>
+          <span style="font-size:12.5px; font-weight:500;">${escHtml(p.autor || '—')}</span>
+          <span class="col-codigo" style="display:block;">${[p.processo ? 'Proc. ' + p.processo : '', p.protocolo ? 'Prot. ' + p.protocolo : ''].filter(Boolean).join(' · ')}</span>
+        </span>
+        <span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">${badge}<span style="color:var(--selo-escuro); font-size:12px; font-weight:600;">+ selecionar</span></span>
+      </button>`;
+    }).join('') + (naoSel.length > LIMITE
+      ? `<p class="texto-apoio" style="font-size:11px; margin:2px 0;">Mostrando ${LIMITE} de ${naoSel.length}. Refine o filtro para ver os demais.</p>` : '');
+    res.querySelectorAll('.col-pac-op').forEach((b) => b.addEventListener('click', () => {
+      tab.sel[b.dataset.autor].checked = true;
+      renderResultadosPac(); renderSelecionadosPac(); renderTabsColetiva(); atualizarContadorColetiva();
+      sincronizarMarcarTodos();
+    }));
+  }
+  sincronizarMarcarTodos();
+}
+
+// Marca/atualiza o checkbox "Marcar todos os filtrados".
+function sincronizarMarcarTodos() {
+  const tab = colTabs[colTabAtivo];
+  const cb = document.getElementById('colMarcarTodos');
+  if (!tab) { cb.checked = false; return; }
+  const filtrados = pacientesFiltrados(tab);
+  cb.checked = filtrados.length > 0 && filtrados.every((p) => tab.sel[p.autor].checked);
+}
+
+// Cartões detalhados dos pacientes já selecionados (com autonomia individual).
+function renderSelecionadosPac() {
+  const tab = colTabs[colTabAtivo];
+  const alvo = document.getElementById('colListaPacientes');
+  const titulo = document.getElementById('colPacSelTitulo');
+  const selecionados = tab.pacientes.filter((p) => tab.sel[p.autor].checked);
+  titulo.hidden = selecionados.length === 0;
+  if (titulo && !titulo.hidden) titulo.textContent = `Pacientes selecionados (${selecionados.length})`;
+  if (!selecionados.length) { alvo.innerHTML = ''; return; }
+
+  const chip = (rot, val) => (val !== null && val !== undefined && String(val).trim() !== '')
+    ? `<span style="display:inline-block; background:var(--realce-tabela); border:1px solid var(--linha); border-radius:4px; padding:1px 7px; margin:2px 4px 0 0; font-size:11px;"><strong>${rot}:</strong> ${escHtml(String(val))}</span>` : '';
+
+  alvo.innerHTML = selecionados.map((p) => {
+    const it = p.item || {};
+    const s = tab.sel[p.autor];
+    const consumo = parseNumeroReq(it.qtde_consumo);
+    const qtd = +(consumo * (s.autonomia || 0)).toFixed(2);
+    const aut = it.autonomia_atual;
+    let badge = '<span style="color:var(--cinza-texto); font-size:11px;">sem dado de estoque</span>';
+    if (aut !== null && aut !== undefined) {
+      const cls = aut <= 0 ? 'cancelado' : (aut <= 2 ? 'atrasado' : 'finalizado');
+      const dem = (it.demanda_atual !== null && it.demanda_atual !== undefined) ? `demanda ${fmtNumero(it.demanda_atual)} · ` : '';
+      badge = `<span class="etiqueta-status ${cls}">${dem}estoque ${fmtNumero(it.estoque_atual)} · autonomia ${fmtNumero(aut)} m</span>`;
+    }
+    const detalhes = [
+      chip('Tipo de demanda', p.tipo_demanda), chip('Qtde de consumo', it.qtde_consumo),
+      chip('Prazo', it.prazo), chip('Periodicidade', it.periodicidade),
+      chip('Dispensações autorizadas', it.dispensacoes_autorizadas),
+    ].join('');
+    return `
+      <div class="req-item" style="display:grid; grid-template-columns:28px 1fr 95px 110px; gap:10px; align-items:center; padding:9px 6px; border-bottom:1px solid var(--linha-tabela);">
+        <button type="button" class="col-pac-rem" data-autor="${escHtml(p.autor)}" title="Remover paciente" style="background:none; border:none; color:#c0392b; font-size:16px; cursor:pointer; padding:0;">✕</button>
+        <div>
+          <div style="font-size:13px; font-weight:500;">${escHtml(p.autor || '—')}</div>
+          <div class="col-codigo">${[p.processo ? 'Proc. ' + p.processo : '', p.protocolo ? 'Prot. ' + p.protocolo : ''].filter(Boolean).join(' · ')}</div>
+          ${detalhes ? `<div style="margin-top:3px;">${detalhes}</div>` : ''}
+          <div style="margin-top:3px;">${badge}</div>
+        </div>
+        <div>
+          <label style="font-size:10px; color:var(--cinza-texto); display:block;">Autonomia de compra</label>
+          <input type="number" class="col-pac-aut" data-autor="${escHtml(p.autor)}" data-consumo="${consumo}" value="${s.autonomia}" min="0" step="1" style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px;">
+        </div>
+        <div>
+          <label style="font-size:10px; color:var(--cinza-texto); display:block;">Qtde de Aquisição</label>
+          <input type="number" class="col-pac-qtd" data-autor="${escHtml(p.autor)}" value="${qtd}" readonly style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px; background:var(--realce-tabela); font-weight:600;">
+        </div>
+      </div>`;
+  }).join('');
+
+  alvo.querySelectorAll('.col-pac-rem').forEach((b) => b.addEventListener('click', () => {
+    tab.sel[b.dataset.autor].checked = false;
+    renderResultadosPac(); renderSelecionadosPac(); renderTabsColetiva(); atualizarContadorColetiva();
+  }));
+  alvo.querySelectorAll('.col-pac-aut').forEach((inp) => inp.addEventListener('input', () => {
+    const a = parseNumeroReq(inp.value);
+    tab.sel[inp.dataset.autor].autonomia = a;
+    const q = +(parseNumeroReq(inp.dataset.consumo) * a).toFixed(2);
+    const campo = alvo.querySelector(`.col-pac-qtd[data-autor="${cssEsc(inp.dataset.autor)}"]`);
+    if (campo) campo.value = q;
+    atualizarContadorColetiva();
+  }));
+}
+
+// Escapa um valor para uso seguro em seletor de atributo.
+function cssEsc(s) { return String(s).replace(/["\\]/g, '\\$&'); }
+
+// Total geral, considerando TODAS as abas e as seleções guardadas.
+function atualizarContadorColetiva() {
+  const pacientesUnicos = new Set();
+  let totalItens = 0, aquisicaoTotal = 0;
+  colTabs.forEach((t) => t.pacientes.forEach((p) => {
+    const s = t.sel[p.autor];
+    if (!s || !s.checked) return;
+    pacientesUnicos.add(p.autor);
+    totalItens++;
+    aquisicaoTotal += parseNumeroReq(p.item.qtde_consumo) * (s.autonomia || 0);
+  }));
+  document.getElementById('colContador').textContent =
+    `${pacientesUnicos.size} paciente(s) · ${totalItens} item(ns) · aquisição total ${fmtNumero(+aquisicaoTotal.toFixed(2))}`;
+}
+
+async function gerarColetiva() {
+  const sei = document.getElementById('colSEI').value.trim();
+  if (!sei) { alert('Informe o Nº do SEI da solicitação coletiva.'); document.getElementById('colSEI').focus(); return; }
+
+  // Agrupa por paciente os itens marcados em todas as abas.
+  const mapa = new Map();
+  colTabs.forEach((t, ti) => {
+    const situacaoAta = t.ata ? t.ata.situacao : null;
+    const escolhaAta = situacaoAta === 'AVALIACAO' ? (escolhasAta.get('coltab_' + ti) || null) : null;
+    const itemTab = t.pacientes.length ? t.pacientes[0].item : {};
+    const valorUnit = valorUnitFinal(itemTab, 'coltab_' + ti);
+    t.pacientes.forEach((p) => {
+      const s = t.sel[p.autor];
+      if (!s || !s.checked) return;
+      const it = p.item;
+      if (!mapa.has(p.autor)) {
+        mapa.set(p.autor, {
+          autor: p.autor, idade: p.idade, unidade_dispensadora: p.unidade_dispensadora,
+          procurador_estado: p.procurador_estado, protocolo: p.protocolo, processo: p.processo,
+          tipo_demanda: p.tipo_demanda, itens: [],
+        });
+      }
+      mapa.get(p.autor).itens.push({
+        codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
+        categoria: it.categoria, catmat: it.catmat, qtde_consumo: it.qtde_consumo, prazo: it.prazo,
+        periodicidade: it.periodicidade, dispensacoes_autorizadas: it.dispensacoes_autorizadas,
+        autonomia_compra: String(s.autonomia || 0),
+        quantidade: +(parseNumeroReq(it.qtde_consumo) * (s.autonomia || 0)).toFixed(2),
+        situacao_ata: situacaoAta, escolha_ata: escolhaAta,
+        valor_unitario: valorUnit,
+      });
+    });
+  });
+  const pacientes = [...mapa.values()];
+  if (!pacientes.length) { alert('Marque ao menos um paciente.'); return; }
+
+  // Aviso quando a solicitação mistura ATA e SEM ATA (por medicamento distinto).
+  const modMap = new Map();
+  pacientes.forEach((p) => p.itens.forEach((it) => {
+    if (!modMap.has(it.codigo_item)) modMap.set(it.codigo_item, modalidadeEfetiva(it.situacao_ata, it.escolha_ata));
+  }));
+  if (!confirmarMisturaAta([...modMap.values()])) return;
+
+  const botao = document.getElementById('botaoGerarColetiva');
+  botao.disabled = true;
+  try {
+    const r = await api('/autores/requisicoes/coletiva', {
+      method: 'POST',
+      body: JSON.stringify({ sei, pacientes }),
+    });
+    alert(`✓ Solicitação coletiva ${r.codigo_controle} gerada — ${r.totalPacientes} paciente(s) · ${r.totalItens} medicamento(s) · SEI ${sei}.`);
+    colTabs = [];
+    modalRequisicao.hidden = true;
+    if (r.id) reabrirRequisicao(r.id); // abre o documento consolidado
+    if (estado.paginaAtual === 'relatorioReq') carregarTabelaRelReq();
+  } catch (e) {
+    alert('Erro ao gerar as requisições: ' + e.message);
+  } finally {
+    botao.disabled = false;
+  }
+}
+
+// Fecha o modal; na solicitação coletiva com itens, confirma antes de perder.
+function fecharRequisicaoComConfirmacao() {
+  if (reqModoAtual === 'coletiva' && colTabs.length &&
+      !confirm('Tem certeza? Você irá perder toda a solicitação coletiva montada.')) return;
+  colTabs = [];
+  modalRequisicao.hidden = true;
+}
+
+// Listeners do modo coletiva.
+document.querySelectorAll('#reqModoAbas .req-modo-aba').forEach((b) =>
+  b.addEventListener('click', () => setModoRequisicao(b.dataset.modo)));
+document.getElementById('colBuscaItem').addEventListener('input', () => {
+  clearTimeout(colBuscaTimer); colBuscaTimer = setTimeout(buscarItensColetiva, 300);
+});
+document.getElementById('colCancelarBusca').addEventListener('click', () => { if (colTabs.length) mostrarTrabalhoColetiva(); });
+document.getElementById('botaoGerarColetiva').addEventListener('click', gerarColetiva);
+document.getElementById('colPacBusca').addEventListener('input', (ev) => {
+  const tab = colTabs[colTabAtivo];
+  if (!tab) return;
+  tab.filtro = ev.target.value;
+  renderResultadosPac();
+});
+document.getElementById('colMarcarTodos').addEventListener('change', (ev) => {
+  const tab = colTabs[colTabAtivo];
+  if (!tab) return;
+  const filtrados = pacientesFiltrados(tab);
+  if (ev.target.checked && filtrados.length > 200 &&
+      !confirm(`Selecionar ${filtrados.length} pacientes de uma vez?`)) {
+    ev.target.checked = false; return;
+  }
+  filtrados.forEach((p) => { tab.sel[p.autor].checked = ev.target.checked; });
+  renderResultadosPac(); renderSelecionadosPac(); renderTabsColetiva(); atualizarContadorColetiva();
+});
+
 // Reabre/imprime uma requisição salva (a partir do Relatório Primeiro Atendimento)
 async function reabrirRequisicao(id) {
   const dados = await api(`/autores/requisicoes/${id}`);
   const r = dados.requisicao;
+  if (r.coletiva) { abrirDocumento(montarDocumentoColetiva(r, dados.itens, dados.pacientes || [])); return; }
   const html = montarDocumentoRequisicao({
     codigoControle: r.codigo_controle,
     autor: r.autor, unidade: r.unidade, procurador: r.procurador, sei: r.sei,
@@ -6986,7 +8605,7 @@ document.getElementById('ctModalAprovar').addEventListener('click', () => avalia
 document.getElementById('ctModalReprovar').addEventListener('click', () => avaliarCarta('Reprovada'));
 
 // -------------------- Relatório Primeiro Atendimento (requisições salvas) --------------------
-const estadoRelReq = { pagina: 1, pageSize: 50, filtrosCarregados: false };
+const estadoRelReq = { pagina: 1, pageSize: 50, filtrosCarregados: false, caixa: 'todas' };
 
 let debounceRelReq;
 ['reqFiltroPaciente', 'reqFiltroSEI', 'reqFiltroCodigo', 'reqFiltroDescricao'].forEach((id) => {
@@ -7005,6 +8624,33 @@ document.getElementById('reqAnterior').addEventListener('click', () => {
   if (estadoRelReq.pagina > 1) { estadoRelReq.pagina--; carregarTabelaRelReq(); }
 });
 document.getElementById('reqProximo').addEventListener('click', () => { estadoRelReq.pagina++; carregarTabelaRelReq(); });
+
+// Abas por CAIXA (Materiais/Medicamentos/Nutrição). Admin vê "Todas" + as 3
+// (+ "Sem caixa" quando houver); colaborador vê "Todas" (= suas caixas) + as
+// caixas que tem direito.
+function renderAbasCaixaReq(caixas) {
+  const barra = document.getElementById('abasCaixaReq');
+  if (!barra) return;
+  if (!caixas) { barra.hidden = true; barra.innerHTML = ''; return; }
+  const { ehAdmin, visiveis = [], contagens = {}, totalPermitido = 0 } = caixas;
+  const abas = [{ chave: 'todas', rot: 'Todas', n: totalPermitido }];
+  for (const c of visiveis) abas.push({ chave: c, rot: c, n: contagens[c] || 0 });
+  if (ehAdmin && (contagens.sem || 0) > 0) abas.push({ chave: 'sem', rot: 'Sem caixa', n: contagens.sem });
+
+  // Se a aba ativa não existe mais (ex.: mudou de usuário), volta para "Todas".
+  if (!abas.some((a) => a.chave === estadoRelReq.caixa)) estadoRelReq.caixa = 'todas';
+
+  barra.hidden = false;
+  barra.innerHTML = abas.map((a) =>
+    `<button type="button" class="chip-faixa ${estadoRelReq.caixa === a.chave ? 'ativo' : ''}" data-caixa="${a.chave}">${escHtml(a.rot)} (${fmtNumero(a.n)})</button>`).join('');
+}
+document.getElementById('abasCaixaReq').addEventListener('click', (ev) => {
+  const b = ev.target.closest('.chip-faixa');
+  if (!b) return;
+  estadoRelReq.caixa = b.dataset.caixa;
+  estadoRelReq.pagina = 1;
+  carregarTabelaRelReq();
+});
 
 async function carregarRelatorioReq() {
   if (!estadoRelReq.filtrosCarregados) {
@@ -7028,8 +8674,10 @@ async function carregarTabelaRelReq() {
   set('descricao', 'reqFiltroDescricao');
   const cat = document.getElementById('reqFiltroCategoria').value;
   if (cat) params.set('categoria', cat);
+  if (estadoRelReq.caixa && estadoRelReq.caixa !== 'todas') params.set('caixa', estadoRelReq.caixa);
 
   const dados = await api(`/autores/requisicoes/itens?${params.toString()}`);
+  renderAbasCaixaReq(dados.caixas);
   const corpo = document.getElementById('corpoTabelaRelatorioReq');
   const vazio = document.getElementById('estadoVazioRelatorioReq');
 
@@ -7064,6 +8712,25 @@ async function carregarTabelaRelReq() {
   } else {
     vazio.hidden = true;
     corpo.innerHTML = dados.itens.map((it) => {
+      // ----- Linha CONSOLIDADA de uma Solicitação Coletiva -----
+      if (it.tipo === 'coletiva') {
+        const enviadoC = it.telegrama_enviado === 'Sim';
+        const disC = enviadoC && !ehAdmin ? 'disabled' : '';
+        const maisN = (it.total_pacientes || 1) - 1;
+        const nomePac = `${it.autor || '—'}${maisN > 0 ? ` <span style="color:var(--cinza-texto);">e mais ${maisN} paciente${maisN > 1 ? 's' : ''}</span>` : ''}`;
+        return `
+        <tr data-req="${it.requisicao_id}" data-coletiva="1">
+          <td class="col-codigo"><a href="#" class="req-abrir-doc" data-req="${it.requisicao_id}"><strong>${it.codigo_controle || ('#' + it.requisicao_id)}</strong></a> <span class="tag-programa sub" style="font-size:9px;">COLETIVA</span></td>
+          <td>${nomePac}</td>
+          <td class="col-codigo">${it.sei || '—'}</td>
+          <td colspan="4" style="color:var(--cinza-texto);">${fmtNumero(it.total_itens)} medicamento(s) · ${fmtNumero(it.total_pacientes)} paciente(s) <span style="font-size:11px;">— abra o nº de controle para o consolidado</span></td>
+          <td>—</td>
+          <td><select class="req-at-status" ${disC}>${opc(['Solicitado', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select></td>
+          <td><input type="text" class="req-at-gsnet" value="${fmtGsnet(it.requisicao_gsnet).replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;" ${disC}></td>
+          <td><select class="req-at-tel" ${disC}>${opc(['Não', 'Sim'], it.telegrama_enviado)}</select></td>
+          <td><input type="date" class="req-at-data" value="${it.data_envio || ''}" ${disC}></td>
+        </tr>`;
+      }
       const aut = it.autonomia_atual;
       let stEstoque = '<span style="color:var(--cinza-texto); font-size:12px;">—</span>';
       if (aut !== null && aut !== undefined) {
@@ -7126,8 +8793,8 @@ async function carregarTabelaRelReq() {
         a.textContent = mostrar ? 'Ocultar detalhes' : 'Exibir detalhes';
       });
     });
-    // Salvar ao alterar qualquer controle da linha
-    corpo.querySelectorAll('tr[data-id]').forEach((tr) => {
+    // Salvar ao alterar qualquer controle da linha (individual ou coletiva)
+    corpo.querySelectorAll('tr[data-id], tr[data-coletiva]').forEach((tr) => {
       const selTel = tr.querySelector('.req-at-tel');
       const selStatus = tr.querySelector('.req-at-status');
       const inpData = tr.querySelector('.req-at-data');
@@ -7159,7 +8826,6 @@ async function carregarTabelaRelReq() {
 }
 
 async function salvarAtendimentoItem(tr) {
-  const id = tr.dataset.id;
   const qtdeEl = tr.querySelector('.req-at-qtde');
   const corpo = {
     status_atendimento: tr.querySelector('.req-at-status').value,
@@ -7169,8 +8835,12 @@ async function salvarAtendimentoItem(tr) {
     quantidade: qtdeEl ? (qtdeEl.value.trim() || null) : undefined,
   };
   const eraSim = tr.querySelector('.req-det') !== null; // já estava enviado
+  // Coletiva: status é do GRUPO (endpoint próprio); individual: por item.
+  const url = tr.dataset.coletiva === '1'
+    ? `/autores/requisicoes/${tr.dataset.req}/status-coletiva`
+    : `/autores/requisicoes/item/${tr.dataset.id}`;
   try {
-    await api(`/autores/requisicoes/item/${id}`, { method: 'PUT', body: JSON.stringify(corpo) });
+    await api(url, { method: 'PUT', body: JSON.stringify(corpo) });
     tr.style.background = '#eaf5ee';
     // Se virou "Sim" (ou um admin desfez), recarrega para aplicar trava e detalhes
     if (corpo.telegrama_enviado === 'Sim' || eraSim) {
@@ -7708,14 +9378,15 @@ async function abrirModalPermissoes(usuarioId, nome) {
   corpo.innerHTML = '<tr><td colspan="7">Carregando…</td></tr>';
   modalPermissoes.hidden = false;
 
-  let modulos, acoes, acoesRotulo, permissoes, habilitado;
+  let modulos, acoes, acoesRotulo, permissoes, habilitado, caixasReq, todasCaixas, perfilUsuario;
   try {
     const [reg, perm] = await Promise.all([
       api('/usuarios/modulos'),
       api(`/usuarios/${usuarioId}/permissoes`),
     ]);
     ({ modulos, acoes, acoesRotulo } = reg);
-    ({ permissoes, habilitado } = perm);
+    ({ permissoes, habilitado, caixasReq, todasCaixas } = perm);
+    perfilUsuario = perm.usuario && perm.usuario.perfil;
   } catch (e) {
     corpo.innerHTML = `<tr><td colspan="8" style="color:#c0392b;">Não consegui carregar a grade.<br>${e.message}<br><br>Provável causa: o servidor precisa ser <b>reiniciado</b> (feche e abra o "3 - iniciar-sistema.bat").</td></tr>`;
     return;
@@ -7741,6 +9412,19 @@ async function abrirModalPermissoes(usuarioId, nome) {
       ${celulas}
     </tr>`;
   }).join('');
+
+  // Caixas do Relatório de Primeiro Atendimento (só para não-admin; admin vê tudo).
+  const caixaBox = document.getElementById('caixasReqPermissoes');
+  const caixaLista = document.getElementById('caixasReqLista');
+  if (perfilUsuario === 'admin') {
+    caixaBox.hidden = true;
+    caixaLista.innerHTML = '';
+  } else {
+    caixaBox.hidden = false;
+    const marcadas = new Set(caixasReq || []);
+    caixaLista.innerHTML = (todasCaixas || []).map((c) =>
+      `<label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" class="chk-caixa-req" value="${escAttr(c)}" ${marcadas.has(c) ? 'checked' : ''}> ${escHtml(c)}</label>`).join('');
+  }
 
   // Quando o interruptor mestre muda, liga/desliga as caixinhas de ação da linha.
   corpo.querySelectorAll('.chk-habilitado').forEach((chk) => {
@@ -7772,10 +9456,11 @@ document.getElementById('botaoSalvarPermissoes').addEventListener('click', async
   modalPermissoes.querySelectorAll('input[data-hab]').forEach((c) => {
     habilitado[c.dataset.hab] = c.checked;
   });
+  const caixasReq = [...modalPermissoes.querySelectorAll('.chk-caixa-req:checked')].map((c) => c.value);
   try {
     await api(`/usuarios/${idUsuarioPermissoes}/permissoes`, {
       method: 'PUT',
-      body: JSON.stringify({ permissoes, habilitado }),
+      body: JSON.stringify({ permissoes, habilitado, caixasReq }),
     });
     modalPermissoes.hidden = true;
     alert('Permissões salvas! O usuário verá a mudança no próximo login (ou ao recarregar a página dele).');

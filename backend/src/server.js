@@ -99,6 +99,10 @@ app.use('/api/atas', autenticar, exigirModulo('atas'), atasRoutes);
 app.use('/api/planejamento', autenticar, exigirModulo('planejamento'), require('./routes.planejamento'));
 app.use('/api/cartas-troca', autenticar, exigirModulo('cartasTroca'), require('./routes.cartasTroca'));
 app.use('/api/estoque-od', autenticar, exigirModulo('estoqueOD'), estoqueODRoutes);
+app.use('/api/ibl', autenticar, exigirModulo('estoqueIblApi'), require('./routes.ibl'));
+// Saldo IBL (Outras Demandas) por item — enriquecimento leve dos modais "Ver"
+// de Estoque TP, Estoque Geral e Listagem de Autores. Sem trava de módulo.
+app.use('/api/ibl-item', autenticar, require('./routes.iblItem'));
 
 // /api/solicitacoes-od atende 2 telas: Relatório de Compras OD (padrão) e
 // Aquisição em Andamento OD (?emAberto=true).

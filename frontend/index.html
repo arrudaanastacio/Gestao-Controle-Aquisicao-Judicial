@@ -70,6 +70,7 @@
             <p class="nav-grupo-titulo nav-subgrupo-titulo">📊 Estoque</p>
             <a href="#" data-pagina="estoqueGeral">Itens em Estoque Geral</a>
             <a href="#" data-pagina="estoqueOD">Estoque GSNET/IBL</a>
+            <a href="#" data-pagina="estoqueIblApi">Estoque IBL (API)</a>
             <a href="#" data-pagina="distribuicao">Distribuição</a>
           </div>
 
@@ -83,6 +84,13 @@
             <p class="nav-grupo-titulo nav-subgrupo-titulo">👥 Autores</p>
             <a href="#" data-pagina="autoresGeral">Listagem de Autores Demais Unidades</a>
           </div>
+        </div>
+
+        <div class="nav-grupo">
+          <p class="nav-grupo-titulo nav-unidade-titulo">🌐 Importados</p>
+          <a href="#" data-pagina="autoresImportados">Listagem de Autores Importados</a>
+          <a href="#" data-pagina="relatorioImportados">Relatório de Compras Importados</a>
+          <a href="#" data-pagina="analiseImportados">Tabela Análise Importados</a>
         </div>
 
         <div class="nav-grupo">
@@ -329,6 +337,36 @@
               <div class="multi-filtro-painel" id="monUnidadePainel" hidden></div>
             </div>
             <select id="monCategoria" title="Filtrar por categoria"><option value="">Todas as categorias</option></select>
+            <select id="monSubcategoria" title="Filtrar por sub-categoria"><option value="">Todas as sub-categorias</option></select>
+            <select id="monStatusEstoque" title="Filtrar por status de estoque">
+              <option value="">Status Estoque: todos</option>
+              <option value="Estoque Zero">Estoque Zero</option>
+              <option value="Estoque Baixo">Estoque Baixo</option>
+              <option value="Estoque Crítico">Estoque Crítico</option>
+              <option value="Regular">Regular</option>
+              <option value="Abastecido">Abastecido</option>
+              <option value="Sem Demanda">Sem Demanda</option>
+            </select>
+            <select id="monStatusFinal" title="Filtrar por situação final">
+              <option value="">Situação Final: todas</option>
+              <option value="Desabastecido">Desabastecido</option>
+              <option value="Crítico">Crítico</option>
+              <option value="Abastecido">Abastecido</option>
+              <option value="Sem Demanda">Sem Demanda</option>
+            </select>
+            <select id="monCompra" title="Filtrar por compra em andamento">
+              <option value="">Compra: todas</option>
+              <option value="Em compra">Em compra</option>
+              <option value="Sem compra">Sem compra</option>
+            </select>
+            <select id="monAlvo" title="Autonomia Alvo: meses de estoque desejados como objetivo">
+              <option value="3">Alvo: 3 meses</option>
+              <option value="4">Alvo: 4 meses</option>
+              <option value="5">Alvo: 5 meses</option>
+              <option value="6">Alvo: 6 meses</option>
+              <option value="9">Alvo: 9 meses</option>
+              <option value="12">Alvo: 12 meses</option>
+            </select>
             <label style="display:flex; align-items:center; gap:6px; font-size:13px; white-space:nowrap;">
               <input type="checkbox" id="monComDemanda" checked> Somente com demanda
             </label>
@@ -370,7 +408,7 @@
           <div class="cartao" style="margin-top:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
               <h3 style="margin:0;">Itens classificados <span id="monFiltroAtivo" class="mon-chip-filtro" hidden></span></h3>
-              <input type="search" id="monBusca" placeholder="Buscar medicamento, SCODES ou siafísico…" style="min-width:280px;">
+              <input type="search" id="monBusca" placeholder="Buscar medicamento, SCODES ou siafísico…" style="min-width:420px; flex:1 1 420px; max-width:640px; padding:9px 12px; font-size:14px;">
             </div>
             <p id="monTruncadoAviso" class="dica" hidden></p>
             <div class="tabela-rolavel">
@@ -380,7 +418,15 @@
                     <th>Código SCODES</th><th>Descrição</th><th>Categoria</th>
                     <th class="num">Demanda</th><th class="num">Consumo</th>
                     <th class="num">Estoque</th><th class="num">Autonomia</th>
-                    <th>Status Estoque</th><th>Situação Final</th><th>Previsão de Falta</th>
+                    <th class="num">Qtde. Aquisição</th>
+                    <th class="num">Cobertura da Aquisição</th>
+                    <th class="num">Autonomia Total após Recebimento</th>
+                    <th>Compra em Andamento</th>
+                    <th>Situação da Aquisição</th>
+                    <th class="num">Saldo Necessário de Aquisição</th>
+                    <th>Situação da Cobertura</th>
+                    <th>Status Estoque</th><th>Situação Final</th>
+                    <th>Previsão de Falta</th><th>Previsão de Falta Projetada</th>
                   </tr>
                 </thead>
                 <tbody id="monTabelaCorpo"></tbody>
@@ -560,6 +606,93 @@
                 <button id="botaoAnteriorEstoqueGeral">← Anterior</button>
                 <button id="botaoProximoEstoqueGeral">Próximo →</button>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaEstoqueIblApi" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Estoque IBL (API)</h2>
+            <p id="subtituloEstoqueIblApi">Consulta ao vivo do estoque no WMS IBL (CEAF/SES-SP) — locais 2999 e 3004.</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; flex:1 1 520px; min-width:0;">
+            <input type="search" id="iblBusca" placeholder="Buscar medicamento, SCODES, SKU, siafísico ou lote…" style="flex:1 1 260px; min-width:200px; max-width:520px;">
+            <select id="iblFiltroLocal" title="Filtrar por local (projeto)">
+              <option value="">Todos os locais</option>
+            </select>
+            <select id="iblFiltroSituacao" title="Filtrar por situação do saldo">
+              <option value="">Todas as situações</option>
+              <option value="disp">Com disponível</option>
+              <option value="bloq">Com bloqueado</option>
+              <option value="reserv">Com reservado</option>
+            </select>
+            <button id="iblAtualizar" class="botao-secundario" type="button" title="Consulta a API do IBL novamente (saldo do momento).">🔄 Atualizar da API</button>
+            <button id="iblExportar" class="botao-secundario" type="button" title="Exporta o que está na tela para Excel">⬇ Exportar Excel</button>
+          </div>
+        </div>
+
+        <div id="iblAviso" class="estado-vazio" hidden></div>
+
+        <div id="iblConteudo" hidden>
+          <div class="grade-resumo" id="iblCards"></div>
+
+          <div class="abas-pasta" style="margin-top:16px;">
+            <div class="aba-pasta ativo" data-aba-ibl="lotes" role="button" tabindex="0">📦 Por lote</div>
+            <div class="aba-pasta" data-aba-ibl="consolidado" role="button" tabindex="0">🗂️ Consolidado por SKU</div>
+          </div>
+
+          <div class="painel-pasta">
+            <div id="iblAbaLotes">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+                <h3 id="iblTituloTabela" style="margin:0;">Estoque por lote</h3>
+              </div>
+              <div class="tabela-rolavel">
+                <table class="tabela" id="iblTabela">
+                  <thead>
+                    <tr>
+                      <th>Local</th><th>Código SCODES</th><th>Cód. SKU</th><th>Siafísico</th><th>Descrição</th>
+                      <th>Lote</th><th>Validade</th>
+                      <th class="num">Disponível</th><th class="num">Bloqueado</th>
+                      <th class="num">Reservada</th><th class="num">Total</th>
+                      <th class="num">Múltiplo</th><th class="num">Valor unit.</th>
+                    </tr>
+                  </thead>
+                  <tbody id="iblTabelaCorpo"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div id="iblAbaConsolidado" hidden>
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+                <h3 id="iblTituloConsolidado" style="margin:0;">Consolidado por SKU</h3>
+              </div>
+              <div class="tabela-rolavel">
+                <table class="tabela" id="iblTabelaConsolidado">
+                  <thead>
+                    <tr>
+                      <th>Local</th><th>Cód. SKU</th><th>Código SCODES</th><th>Siafísico</th><th>Descrição</th>
+                      <th class="num">Lotes</th>
+                      <th class="num">Disponível</th><th class="num">Bloqueado</th>
+                      <th class="num">Reservada</th><th class="num">Total</th>
+                      <th>Validade + próx.</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="iblConsolidadoCorpo"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fundo-modal" id="modalLotesIbl" hidden>
+          <div class="modal" style="max-width:720px;">
+            <h3 id="tituloLotesIbl">Lotes do item</h3>
+            <p id="subLotesIbl" class="texto-secundario" style="margin-top:-6px;"></p>
+            <div class="tabela-rolavel" id="corpoLotesIbl" style="margin-top:8px; max-height:60vh;"></div>
+            <div class="acoes-modal">
+              <button type="button" class="botao-primario" id="botaoFecharLotesIbl">Fechar</button>
             </div>
           </div>
         </div>
@@ -1745,6 +1878,166 @@
         </div>
       </section>
 
+      <section id="paginaAutoresImportados" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Listagem de Autores Importados</h2>
+            <p id="subtituloAutoresImportados">Pacientes ativos, de todas as unidades, com itens importados</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoAutoresImportados"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaAutoresImportados" placeholder="Buscar por autor, processo, protocolo, medicamento ou código…" style="min-width:320px;">
+          <select id="filtroUnidadeAutoresImportados" style="max-width:220px; text-overflow:ellipsis;"><option value="">Unidade: todas</option></select>
+          <select id="filtroStatusDemandaAutoresImportados"><option value="">Status da demanda: todos</option></select>
+          <select id="filtroStatusItemAutoresImportados"><option value="">Status do item: todos</option></select>
+          <select id="filtroCategoriaAutoresImportados"><option value="">Categoria: todas</option></select>
+          <button id="botaoLimparFiltrosAutoresImportados" class="botao-secundario" type="button">Limpar</button>
+          <button id="botaoExportarAutoresImportados" class="botao-secundario" type="button">📊 Exportar Excel</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Autor</th>
+                  <th>Unidade dispensadora</th>
+                  <th>ID Demanda</th>
+                  <th>Protocolo</th>
+                  <th>Processo</th>
+                  <th>Status da Demanda</th>
+                  <th>Tipo da Demanda</th>
+                  <th>Cód. Item</th>
+                  <th>Cód. SIAFÍSICO</th>
+                  <th>Descrição do Item</th>
+                  <th>Qtde de Consumo</th>
+                  <th>Categoria</th>
+                  <th>Detalhes</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaAutoresImportados"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioAutoresImportados" hidden>Nenhum registro encontrado com estes filtros.</div>
+          <div class="paginacao">
+            <span id="textoPaginacaoAutoresImportados">—</span>
+            <div class="botoes">
+              <button id="botaoAnteriorAutoresImportados">← Anterior</button>
+              <button id="botaoProximoAutoresImportados">Próximo →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaRelatorioImportados" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Relatório de Compras Importados</h2>
+            <p>Pacientes adicionados pela Listagem de Autores Importados (botão ➕). Controle por paciente.</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoRelImp"></div>
+
+        <div id="alertasRelImp" hidden style="margin-bottom:14px;"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaRelImp" placeholder="Buscar por autor, processo, protocolo, SEI, medicamento ou código…" style="min-width:320px;">
+          <select id="filtroStatusRelImp"><option value="">Status: todos</option></select>
+          <select id="filtroUnidadeRelImp" style="max-width:220px;"><option value="">Unidade: todas</option></select>
+          <button id="botaoLimparFiltrosRelImp" class="botao-secundario" type="button">Limpar</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Autor</th>
+                  <th>Aquisição</th>
+                  <th>Unidade</th>
+                  <th>Protocolo</th>
+                  <th>Processo</th>
+                  <th>Cód. Item</th>
+                  <th>Cód. SIAFÍSICO</th>
+                  <th>Descrição do Item</th>
+                  <th>Qtde de Consumo</th>
+                  <th>CATMAT</th>
+                  <th>Qtde Solicitada</th>
+                  <th>SEI</th>
+                  <th>Req. GSNET</th>
+                  <th>Valor Médio Unit.</th>
+                  <th>Valor Total Aquisição</th>
+                  <th>Solicitação DRS SEI</th>
+                  <th>Data Solicitação</th>
+                  <th>Nº Empenho</th>
+                  <th>Nº Recibo</th>
+                  <th>Data Entrega</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaRelImp"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioRelImp" hidden>Nenhum paciente adicionado ainda. Use o botão ➕ na Listagem de Autores Importados.</div>
+        </div>
+      </section>
+
+      <section id="paginaAnaliseImportados" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Tabela Análise Importados</h2>
+            <p>Solicitações de importados nos status <strong>Embarque</strong>, <strong>Instrução Processual</strong> e <strong>Solicitado</strong>.</p>
+          </div>
+        </div>
+
+        <div class="grade-resumo" id="grideResumoAnaliseImp"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaAnaliseImp" placeholder="Buscar por autor, processo, protocolo, SEI, medicamento ou código…" style="min-width:320px;">
+          <button id="botaoLimparFiltrosAnaliseImp" class="botao-secundario" type="button">Limpar</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Autor</th>
+                  <th>Aquisição</th>
+                  <th>Unidade</th>
+                  <th>Protocolo</th>
+                  <th>Processo</th>
+                  <th>Cód. Item</th>
+                  <th>Cód. SIAFÍSICO</th>
+                  <th>Descrição do Item</th>
+                  <th>Qtde de Consumo</th>
+                  <th>CATMAT</th>
+                  <th>Qtde Solicitada</th>
+                  <th>SEI</th>
+                  <th>Req. GSNET</th>
+                  <th>Valor Médio Unit.</th>
+                  <th>Valor Total Aquisição</th>
+                  <th>Solicitação DRS SEI</th>
+                  <th>Data Solicitação</th>
+                  <th>Nº Empenho</th>
+                  <th>Nº Recibo</th>
+                  <th>Data Entrega</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaAnaliseImp"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioAnaliseImp" hidden>Nenhuma solicitação nos status Embarque / Instrução Processual / Solicitado.</div>
+        </div>
+      </section>
+
       <section id="paginaComparativoAutores" hidden>
         <div class="cabecalho-pagina">
           <div>
@@ -1764,6 +2057,11 @@
             <button type="button" class="chip-faixa ativo" data-aba="novos">Pacientes Novos</button>
             <button type="button" class="chip-faixa" data-aba="encerrados">Pacientes Inativos</button>
             <button type="button" class="chip-faixa" data-aba="alteracoes">Alterações</button>
+          </div>
+
+          <div class="barra-filtros" id="filtrosComparativo">
+            <select id="filtroSubcategoriaComparativo"><option value="">Subcategoria: todas</option></select>
+            <select id="filtroTipoDemandaComparativo"><option value="">Tipo de demanda: todos</option></select>
           </div>
 
           <div class="barra-filtros" id="filtrosAlteracoes" hidden>
@@ -1865,6 +2163,8 @@
           <select id="reqFiltroCategoria"><option value="">Categoria: todas</option></select>
           <button id="reqLimparFiltros" class="botao-secundario" type="button">Limpar</button>
         </div>
+
+        <div class="filtros-faixa" id="abasCaixaReq" style="margin:4px 0 14px;" hidden></div>
 
         <div class="tabela-wrap">
           <div class="tabela-rolavel-x">
@@ -2698,6 +2998,11 @@
           <tbody id="corpoPermissoes"></tbody>
         </table>
       </div>
+      <div id="caixasReqPermissoes" style="margin-top:16px;" hidden>
+        <div style="font-weight:600; margin-bottom:6px;">Relatório de Primeiro Atendimento — caixas que este usuário vê</div>
+        <p class="descricao-item" style="margin:0 0 8px;">Marque as caixas (por categoria do item) que aparecem para ele. Nenhuma marcada = não vê nenhuma. O administrador vê todas.</p>
+        <div id="caixasReqLista" style="display:flex; gap:18px; flex-wrap:wrap;"></div>
+      </div>
       <div class="acoes-modal">
         <button type="button" class="botao-secundario" id="botaoCancelarPermissoes">Cancelar</button>
         <button type="button" class="botao-primario" id="botaoSalvarPermissoes">Salvar permissões</button>
@@ -2717,12 +3022,84 @@
   </div>
 
   <div class="fundo-modal" id="modalDetalheDemanda" hidden>
-    <div class="modal" style="max-width:460px;">
+    <div class="modal" style="max-width:min(1240px, 95vw); width:100%;">
       <h3>Detalhes da demanda</h3>
       <p id="subDetalheDemanda" class="texto-secundario" style="margin-top:-6px;"></p>
       <div id="corpoDetalheDemanda" style="margin-top:8px;"></div>
       <div class="acoes-modal">
         <button type="button" class="botao-primario" id="botaoFecharDetalheDemanda">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="fundo-modal" id="modalCompraImp" hidden>
+    <div class="modal" style="max-width:min(920px, 95vw); width:100%;">
+      <h3>Compra do Importado</h3>
+      <p id="subCompraImp" class="texto-secundario" style="margin-top:-6px;"></p>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px 16px; margin-top:10px;">
+        <label class="campo-modal">Qtde Solicitada<input type="text" id="ciQtdeSolic"></label>
+        <label class="campo-modal">Valor Médio Unitário<input type="text" id="ciValorMedio" placeholder="informe se vazio"></label>
+        <label class="campo-modal">Valor Total Aquisição<input type="text" id="ciValorTotal" readonly style="background:var(--realce-tabela);"></label>
+        <label class="campo-modal">SEI<input type="text" id="ciSei"></label>
+        <label class="campo-modal">Req. GSNET<input type="text" id="ciReqGsnet"></label>
+        <label class="campo-modal">Solicitação DRS SEI<input type="text" id="ciSolicDrsSei"></label>
+        <label class="campo-modal">Data de Solicitação<input type="date" id="ciDataSolic"></label>
+        <label class="campo-modal">Nº Empenho<input type="text" id="ciNumEmpenho"></label>
+        <label class="campo-modal">Nº Recibo<input type="text" id="ciNumRecibo"></label>
+        <label class="campo-modal">Data de Entrega<input type="date" id="ciDataEntrega"></label>
+        <label class="campo-modal">Status
+          <select id="ciStatus">
+            <option>Cancelado</option>
+            <option>Demanda Inativa</option>
+            <option>Deserto</option>
+            <option>Devolvido</option>
+            <option>Embarque</option>
+            <option>Finalizado</option>
+            <option>Fracassado</option>
+            <option>Instrução Processual</option>
+            <option>Pendência</option>
+            <option>Sem cotação</option>
+            <option>Solicitado</option>
+          </select>
+        </label>
+      </div>
+      <!-- Campos condicionais conforme o Status -->
+      <div id="ciCondicionais" style="margin-top:6px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px 16px;">
+        <label class="campo-modal" id="ciWrapMotivo" hidden>Motivo (Pendência)
+          <select id="ciMotivoPendencia">
+            <option value="">—</option>
+            <option>Processo em Andamento</option>
+            <option>Aguardando Documentação</option>
+            <option>Item Descontinuado</option>
+            <option>Notificações</option>
+            <option>Remanejamento</option>
+          </select>
+        </label>
+        <label class="campo-modal" id="ciWrapDataInativacao" hidden>Data de Inativação<input type="date" id="ciDataInativacao"></label>
+        <label class="campo-modal" id="ciWrapDataEmbarque" hidden>Data de Embarque<input type="date" id="ciDataEmbarque"></label>
+        <label class="campo-modal" id="ciWrapLote" hidden>Lote<input type="text" id="ciLote"></label>
+        <label class="campo-modal" id="ciWrapValidade" hidden>Validade<input type="date" id="ciValidade"></label>
+        <label class="campo-modal" id="ciWrapNumDocEntrada" hidden>Nº Doc. Entrada GSNET<input type="text" id="ciNumDocEntradaGsnet"></label>
+        <label class="campo-modal" id="ciWrapDataEntrada" hidden>Data de entrada<input type="date" id="ciDataEntrada"></label>
+        <label class="campo-modal" id="ciWrapNumFatura" hidden>Nº Fatura GSNET<input type="text" id="ciNumFaturaGsnet"></label>
+        <label class="campo-modal" id="ciWrapDataFatura" hidden>Data da Fatura<input type="date" id="ciDataFatura"></label>
+        <label class="campo-modal" id="ciWrapTelegrama" hidden>Telegrama enviado
+          <select id="ciTelegramaEnviado">
+            <option>Não</option>
+            <option>Sim</option>
+          </select>
+        </label>
+        <label class="campo-modal" id="ciWrapDataTelegrama" hidden>Data de envio do telegrama<input type="date" id="ciDataEnvioTelegrama"></label>
+        <label class="campo-modal" id="ciWrapTentativas" hidden>Nº de Tentativas (Sem cotação)<input type="number" id="ciNumTentativas" min="0" max="20" step="1"></label>
+        <div id="ciWrapTentativasDatas" hidden style="grid-column:1 / -1;">
+          <div class="texto-secundario" style="font-size:12.5px; margin-bottom:4px;">Datas das tentativas</div>
+          <div id="ciTentativasDatas" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px 16px;"></div>
+        </div>
+        <label class="campo-modal" id="ciWrapJustificativa" hidden style="grid-column:1 / -1;">Justificativa<textarea id="ciJustificativa" rows="2"></textarea></label>
+      </div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-secundario" id="botaoCancelarCompraImp">Cancelar</button>
+        <button type="button" class="botao-primario" id="botaoSalvarCompraImp">Salvar</button>
       </div>
     </div>
   </div>
@@ -2998,8 +3375,49 @@
   <div class="fundo-modal" id="modalRequisicao" hidden>
     <div class="modal" style="max-width:860px;">
       <h3>🛒 Requisição de Compra</h3>
-      <p class="descricao-item">Selecione o paciente e marque os medicamentos para aquisição.</p>
+      <p class="descricao-item" id="reqDescricaoModo">Selecione o paciente e marque os medicamentos para aquisição.</p>
 
+      <div class="req-modo-abas" id="reqModoAbas">
+        <button type="button" class="req-modo-aba ativo" data-modo="paciente">Por paciente</button>
+        <button type="button" class="req-modo-aba" data-modo="coletiva">Por Item</button>
+      </div>
+
+      <!-- ===== Modo SOLICITAÇÃO COLETIVA (abas por medicamento) ===== -->
+      <div id="reqModoColetiva" hidden>
+        <!-- Painel de busca (inicial e ao inserir novo medicamento) -->
+        <div id="colBuscaPanel">
+          <label id="colBuscaLabel" style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Buscar o primeiro medicamento da solicitação</label>
+          <input type="text" id="colBuscaItem" placeholder="Buscar medicamento por nome ou código…" style="width:100%; padding:9px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
+          <div id="colResultadosItem" style="margin-top:8px; max-height:260px; overflow-y:auto;"></div>
+          <div style="margin-top:8px; text-align:right;">
+            <button type="button" class="botao-secundario" id="colCancelarBusca" hidden>Cancelar</button>
+          </div>
+        </div>
+
+        <!-- Área de trabalho: SEI + abas (uma por medicamento) + pacientes -->
+        <div id="colTrabalho" hidden>
+          <div style="margin-bottom:12px;">
+            <label style="font-size:12.5px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Nº do SEI <span style="color:#c0392b;">*</span> <span style="font-weight:400; color:var(--cinza-texto);">(único da solicitação coletiva)</span></label>
+            <input type="text" id="colSEI" placeholder="Ex.: 00103.000123/2026-45" style="width:100%; padding:8px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
+          </div>
+
+          <div class="col-abas-bar" id="colTabsBar"></div>
+          <div id="colAtaTag"></div>
+
+          <input type="text" id="colPacBusca" placeholder="Filtrar paciente por nome, processo ou protocolo…" style="width:100%; padding:8px 11px; border:1px solid var(--linha); border-radius:6px; font-size:13.5px; margin:10px 0 4px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin:4px 0 8px;">
+            <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="colMarcarTodos"> <span id="colMarcarTodosRot">Marcar todos os filtrados</span>
+            </label>
+            <span id="colContador" style="font-size:12px; color:var(--cinza-texto);">—</span>
+          </div>
+          <div id="colPacResultados" style="max-height:220px; overflow-y:auto; margin-bottom:8px;"></div>
+          <div id="colPacSelTitulo" style="font-size:12px; font-weight:600; color:var(--tinta-suave); margin:8px 0 4px; border-top:1px solid var(--linha-tabela); padding-top:8px;" hidden>Pacientes selecionados</div>
+          <div id="colListaPacientes" style="max-height:340px; overflow-y:auto;"></div>
+        </div>
+      </div>
+
+      <!-- ===== Modo POR PACIENTE (fluxo original) ===== -->
       <div id="reqEtapaPaciente">
         <input type="text" id="reqInputPaciente" placeholder="Buscar paciente por nome, processo ou protocolo…" style="width:100%; padding:9px 11px; border:1px solid var(--linha); border-radius:6px; font-size:14px;">
         <div id="reqResultadosPaciente" style="margin-top:10px; max-height:320px; overflow-y:auto;"></div>
@@ -3028,6 +3446,7 @@
         <button type="button" class="botao-secundario" id="reqVoltar" hidden>← Trocar paciente</button>
         <button type="button" class="botao-secundario" id="botaoFecharRequisicao">Fechar</button>
         <button type="button" class="botao-primario" id="botaoGerarRequisicao" hidden>Gerar requisição →</button>
+        <button type="button" class="botao-primario" id="botaoGerarColetiva" hidden>Gerar requisições →</button>
       </div>
     </div>
   </div>

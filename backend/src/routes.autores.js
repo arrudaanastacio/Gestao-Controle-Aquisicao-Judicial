@@ -3,9 +3,57 @@ const XLSX = require('xlsx');
 const multer = require('multer');
 const db = require('./db');
 const { autenticar, exigirPerfil } = require('./auth');
+const { criarCalculadoraAta } = require('./ataSituacao');
+const { CAIXAS, REGRA_VERSAO, criarCalculadoraCaixa, caixaPredominante } = require('./caixaAtendimento');
 
 const router = express.Router();
 router.use(autenticar);
+
+// Caixa (Materiais/Medicamentos/Nutrição) que o usuário pode ver no Relatório
+// de Primeiro Atendimento. Admin => todas. Não-admin: coluna usuarios.caixas_req
+// (JSON). NULL/ausente => todas (mantém quem já usava). '' guardado numa
+// requisição = "sem caixa" (só admin, na aba Todas).
+function caixasDoUsuario(usuario) {
+  if (!usuario || usuario.perfil === 'admin') return null; // null = todas + sem-caixa
+  try {
+    const raw = db.prepare('SELECT caixas_req FROM usuarios WHERE id = ?').get(usuario.id)?.caixas_req;
+    if (raw == null || raw === '') return CAIXAS.slice(); // não definido => todas as 3
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((c) => CAIXAS.includes(c)) : CAIXAS.slice();
+  } catch {
+    return CAIXAS.slice();
+  }
+}
+
+// Classificação de caixa das solicitações já gravadas. Recalcula TODAS quando a
+// versão da regra muda (REGRA_VERSAO); caso contrário, só preenche as que ainda
+// estão NULL. Guarda '' quando não cai em nenhuma caixa (para não recalcular à
+// toa). A versão aplicada fica em configuracoes.caixa_regra_versao.
+(function classificarCaixaRequisicoes() {
+  try {
+    const versaoAplicada = db.prepare("SELECT valor FROM configuracoes WHERE chave = 'caixa_regra_versao'").get()?.valor;
+    const reclassificarTudo = versaoAplicada !== REGRA_VERSAO;
+    const pend = db.prepare(reclassificarTudo ? 'SELECT id FROM requisicoes' : 'SELECT id FROM requisicoes WHERE caixa IS NULL').all();
+    if (pend.length) {
+      const calc = criarCalculadoraCaixa();
+      const qItens = db.prepare('SELECT codigo_item FROM requisicao_itens WHERE requisicao_id = ?');
+      const upd = db.prepare('UPDATE requisicoes SET caixa = ? WHERE id = ?');
+      db.exec('BEGIN');
+      for (const r of pend) {
+        const cods = qItens.all(r.id).map((x) => x.codigo_item);
+        upd.run(caixaPredominante(cods, calc) || '', r.id);
+      }
+      db.exec('COMMIT');
+      console.log(`[CAIXA] ${reclassificarTudo ? 'Reclassificacao (regra v' + REGRA_VERSAO + ')' : 'Backfill'} em ${pend.length} requisicao(oes).`);
+    }
+    if (reclassificarTudo) {
+      db.prepare("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('caixa_regra_versao', ?)").run(REGRA_VERSAO);
+    }
+  } catch (e) {
+    try { db.exec('ROLLBACK'); } catch (_) { /* ignore */ }
+    console.error('[CAIXA] Falha ao classificar caixas:', e.message);
+  }
+})();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024 } });
 
@@ -170,6 +218,11 @@ function montarFiltroAutores(query) {
   } else if (query.escopoUnidade === 'udtp') {
     // Listagem principal: SOMENTE a Tenente Pena (ex.: "UD 01 - Tenente Pena")
     cond.push("unidade_dispensadora LIKE '%Tenente Pena%'");
+  } else if (query.escopoUnidade === 'importados') {
+    // Listagem de Autores Importados: TODAS as unidades, só pacientes ATIVOS,
+    // e só itens IMPORTADOS (flag do catálogo: relatorio_itens.importado = 'Sim').
+    cond.push("status_demanda LIKE 'Demanda Ativa%'");
+    cond.push("EXISTS (SELECT 1 FROM relatorio_itens ri WHERE ri.codigo = autores_itens.codigo_item AND ri.importado = 'Sim')");
   }
   if (query.q) {
     cond.push('(autor LIKE ? OR processo LIKE ? OR protocolo LIKE ? OR descricao_item LIKE ? OR codigo_item LIKE ?)');
@@ -235,7 +288,9 @@ router.get('/exportar', (req, res) => {
 router.get('/filtros', (req, res) => {
   const esc = req.query.escopoUnidade;
   const filtroUnidade = esc === 'geral' ? "AND unidade_dispensadora NOT LIKE '%Tenente Pena%'"
-    : esc === 'udtp' ? "AND unidade_dispensadora LIKE '%Tenente Pena%'" : '';
+    : esc === 'udtp' ? "AND unidade_dispensadora LIKE '%Tenente Pena%'"
+      : esc === 'importados' ? "AND status_demanda LIKE 'Demanda Ativa%' AND EXISTS (SELECT 1 FROM relatorio_itens ri WHERE ri.codigo = autores_itens.codigo_item AND ri.importado = 'Sim')"
+        : '';
   const distintos = (col) => db.prepare(
     `SELECT DISTINCT ${col} v FROM autores_itens WHERE data_referencia = (SELECT MAX(data_referencia) FROM autores_itens) ${filtroUnidade} AND ${col} IS NOT NULL AND ${col} <> '' ORDER BY v`
   ).all().map((r) => r.v);
@@ -329,6 +384,143 @@ router.get('/pacientes', (req, res) => {
   res.json({ pacientes });
 });
 
+// ---------- Estoque da UNIDADE de uma linha da Listagem de Autores ----------
+// Para o modal "Ver": demanda, consumo, estoque e autonomia daquele item NA
+// UNIDADE DISPENSADORA daquela linha (não é só a Tenente Pena — na listagem
+// das demais unidades cada linha tem a sua). Casa estoque_itens.unidade com
+// autores_itens.unidade_dispensadora (mesmo texto, ex.: "UD 01 - Tenente Pena").
+router.get('/estoque-unidade', (req, res) => {
+  const { codigo_item, unidade } = req.query;
+  if (!codigo_item) return res.status(400).json({ erro: 'Informe o codigo_item.' });
+
+  // Se a unidade não veio, cai na Tenente Pena (comportamento da tela principal).
+  const temUnidade = unidade && String(unidade).trim() !== '';
+  const cond = temUnidade
+    ? 'e.codigo_item = ? AND e.unidade = ?'
+    : "e.codigo_item = ? AND (e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
+  const params = temUnidade ? [codigo_item, unidade] : [codigo_item];
+
+  const linha = db.prepare(`
+    SELECT e.demandas AS demanda, e.consumo_mensal_total AS consumo,
+           e.estoque, e.autonomia, e.unidade, e.data_referencia
+      FROM estoque_itens e
+     WHERE ${cond}
+     ORDER BY e.data_referencia DESC
+     LIMIT 1
+  `).get(...params);
+
+  // Etiquetas de programa/subcategoria do item (mesma fonte do Estoque):
+  // subcategoria + Dose Certa/Inex de item_classificacao, Outras Demandas de
+  // relatorio_itens. Independem da unidade — dependem só do código do item.
+  const clas = db.prepare(`
+    SELECT (SELECT ri.outras_demandas FROM relatorio_itens ri WHERE ri.codigo = ? ORDER BY ri.data_referencia DESC LIMIT 1) AS prog_outras_demandas,
+           (SELECT ic.dose_certa   FROM item_classificacao ic WHERE ic.codigo_item = ?) AS prog_dose_certa,
+           (SELECT ic.inex         FROM item_classificacao ic WHERE ic.codigo_item = ?) AS prog_inex,
+           (SELECT ic.subcategoria FROM item_classificacao ic WHERE ic.codigo_item = ?) AS subcategoria
+  `).get(codigo_item, codigo_item, codigo_item, codigo_item) || {};
+
+  const base = linha || { demanda: null, consumo: null, estoque: null, autonomia: null, unidade: temUnidade ? unidade : null, data_referencia: null, semDados: true };
+  res.json({ ...base, ...clas });
+});
+
+// ---------- Relatório de Compras Importados ----------
+// Alimentado pelo botão "+" da Listagem de Autores Importados: captura a linha
+// do autor (autor × item) + os dados do modal. Colunas editáveis
+// (quantidade_solicitada, sei, status) são preenchidas na própria tela.
+const CAMPOS_COMPRA_IMP = [
+  'codigo_item', 'cod_siafisico', 'descricao_item', 'categoria', 'autor',
+  'unidade_dispensadora', 'id_demanda', 'protocolo', 'processo', 'status_demanda',
+  'tipo_demanda', 'qtde_consumo', 'prazo', 'periodicidade',
+  'data_ultima_dispensacao', 'data_ultimo_retorno',
+];
+
+router.get('/compras-importados', (req, res) => {
+  const itens = db.prepare('SELECT * FROM compras_importados ORDER BY id DESC').all();
+  res.json({ total: itens.length, itens });
+});
+
+router.post('/compras-importados', (req, res) => {
+  const b = req.body || {};
+  if (!b.autor || !b.codigo_item) return res.status(400).json({ erro: 'Informe ao menos o autor e o item.' });
+
+  // Já existe uma solicitação para este paciente/item? Importados são
+  // recorrentes, mas a nova aquisição depende do STATUS da última:
+  //   - Finalizado / Cancelado => processo encerrado; libera nova aquisição
+  //     (recorrência) pela Listagem, com confirmação.
+  //   - Deserto/Fracassado     => negativa; refazer pelo botão "+ Nova" do Relatório.
+  //   - EM ABERTO (Solicitado, Embarque, Instrução Processual, Pendência,
+  //     Sem cotação, e demais) => bloqueia até encerrar (evita duplicar solicitação aberta).
+  // forcar=true (confirmação do usuário) cria o novo ciclo.
+  const anteriores = db.prepare(
+    "SELECT COUNT(*) n, MAX(COALESCE(ciclo,1)) maxc FROM compras_importados WHERE autor = ? AND codigo_item = ? AND IFNULL(protocolo,'') = IFNULL(?,'')"
+  ).get(b.autor, b.codigo_item, b.protocolo || null);
+  const forcar = b.forcar === true || b.forcar === 'true' || b.forcar === 1;
+  if (anteriores.n > 0 && !forcar) {
+    const ultimo = db.prepare(
+      "SELECT status FROM compras_importados WHERE autor = ? AND codigo_item = ? AND IFNULL(protocolo,'') = IFNULL(?,'') ORDER BY COALESCE(ciclo,1) DESC, id DESC LIMIT 1"
+    ).get(b.autor, b.codigo_item, b.protocolo || null);
+    const st = (ultimo && ultimo.status) || 'Solicitado';
+    if (st === 'Finalizado' || st === 'Cancelado') {
+      return res.status(409).json({ erro: `Última aquisição encerrada (${st}).`, jaExiste: true, podeNova: true, motivo: 'encerrado', statusAnterior: st, ciclos: anteriores.n });
+    }
+    if (st === 'Deserto' || st === 'Fracassado') {
+      return res.status(409).json({ erro: `Há uma solicitação com status "${st}". Refaça a aquisição pelo botão "➕ Nova" no Relatório de Compras Importados.`, jaExiste: true, podeNova: false, motivo: 'negativo' });
+    }
+    return res.status(409).json({ erro: `Este paciente/item já tem uma solicitação em aberto (${st}) no Relatório de Compras Importados. Só é possível uma nova aquisição após Cancelado ou Finalizado.`, jaExiste: true, podeNova: false, motivo: 'aberto' });
+  }
+  const ciclo = anteriores.n > 0 ? (anteriores.maxc + 1) : 1;
+
+  // CATMAT e Valor Médio Unitário vêm do Relatório de Itens (foto mais recente).
+  const cat = db.prepare('SELECT catmat, valor_medio_unitario FROM relatorio_itens WHERE codigo = ? ORDER BY data_referencia DESC LIMIT 1').get(b.codigo_item) || {};
+  const catmat = (cat.catmat != null && String(cat.catmat).trim() !== '') ? String(cat.catmat).trim() : null;
+  const valorMedio = (cat.valor_medio_unitario != null && String(cat.valor_medio_unitario).trim() !== '') ? String(cat.valor_medio_unitario) : null;
+
+  const cols = [...CAMPOS_COMPRA_IMP, 'catmat', 'valor_medio_unitario', 'ciclo', 'criado_por'];
+  const stmt = db.prepare(`INSERT INTO compras_importados (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`);
+  const info = stmt.run(...CAMPOS_COMPRA_IMP.map((c) => (b[c] != null && b[c] !== '' ? String(b[c]) : null)), catmat, valorMedio, ciclo, req.usuario.email);
+  db.prepare("UPDATE compras_importados SET status_desde = datetime('now','localtime') WHERE id = ?").run(info.lastInsertRowid);
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'add_compra_importado', 'compras_importados', info.lastInsertRowid, JSON.stringify({ autor: b.autor, codigo_item: b.codigo_item }));
+  res.status(201).json({ id: info.lastInsertRowid });
+});
+
+router.put('/compras-importados/:id', (req, res) => {
+  const item = db.prepare('SELECT id, status FROM compras_importados WHERE id = ?').get(req.params.id);
+  if (!item) return res.status(404).json({ erro: 'Registro não encontrado.' });
+  const b = req.body || {};
+  const editaveis = [
+    'quantidade_solicitada', 'sei', 'req_gsnet', 'valor_medio_unitario',
+    'solicitacao_drs_sei', 'data_solicitacao', 'numero_empenho', 'numero_recibo',
+    'data_entrega', 'status', 'justificativa', 'data_inativacao', 'data_embarque',
+    'numero_fatura_gsnet', 'data_fatura',
+    'motivo_pendencia', 'lote', 'validade', 'num_tentativas', 'tentativas_datas',
+    'telegrama_enviado', 'data_envio_telegrama',
+    'num_doc_entrada_gsnet', 'data_entrada',
+  ];
+  const sets = [];
+  const vals = [];
+  for (const c of editaveis) {
+    if (c in b) { sets.push(`${c} = ?`); vals.push(b[c] === '' || b[c] == null ? null : String(b[c])); }
+  }
+  if (!sets.length) return res.json({ ok: true });
+  sets.push("atualizado_em = datetime('now','localtime')");
+  // Se o status mudou, registra "status_desde = agora" (base dos alertas).
+  if ('status' in b && String(b.status || '') !== String(item.status || '')) {
+    sets.push("status_desde = datetime('now','localtime')");
+  }
+  db.prepare(`UPDATE compras_importados SET ${sets.join(', ')} WHERE id = ?`).run(...vals, req.params.id);
+  res.json({ ok: true });
+});
+
+router.delete('/compras-importados/:id', (req, res) => {
+  const item = db.prepare('SELECT id FROM compras_importados WHERE id = ?').get(req.params.id);
+  if (!item) return res.status(404).json({ erro: 'Registro não encontrado.' });
+  db.prepare('DELETE FROM compras_importados WHERE id = ?').run(req.params.id);
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id) VALUES (?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'remover_compra_importado', 'compras_importados', req.params.id);
+  res.json({ ok: true });
+});
+
 // ---------- Requisição de compra: itens de um paciente + situação de estoque ----------
 router.get('/paciente', (req, res) => {
   const { autor } = req.query;
@@ -339,9 +531,12 @@ router.get('/paciente', (req, res) => {
     SELECT a.id_demanda, a.processo, a.protocolo, a.codigo_item, a.cod_siafisico,
            a.descricao_item, a.qtde_consumo, a.periodicidade, a.prazo, a.status_item, a.categoria,
            a.tipo_demanda, a.dispensacoes_autorizadas,
+           (SELECT ic.subcategoria FROM item_classificacao ic WHERE ic.codigo_item = a.codigo_item) AS subcategoria,
            (SELECT ri.catmat FROM relatorio_itens ri WHERE ri.codigo = a.codigo_item AND ri.catmat IS NOT NULL AND ri.catmat <> '' ORDER BY ri.data_referencia DESC LIMIT 1) AS catmat,
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
-           (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual
+           (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual,
+           (SELECT e.demandas  FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS demanda_atual,
+           (SELECT NULLIF(e.valor_medio_unitario,0) FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS valor_medio
     FROM autores_itens a
     WHERE a.autor = ? AND a.data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
     ORDER BY a.descricao_item
@@ -351,7 +546,154 @@ router.get('/paciente', (req, res) => {
     'SELECT autor, idade, dt_nascimento, unidade_dispensadora, procurador_estado, protocolo, processo, tipo_demanda FROM autores_itens WHERE autor = ? AND data_referencia = (SELECT MAX(data_referencia) FROM autores_itens) LIMIT 1'
   ).get(autor) || { autor };
 
+  // Etiqueta de ATA (cruza siafísico × atas vigentes × marca do estoque).
+  const calcAta = criarCalculadoraAta();
+  for (const it of itens) it.ata = calcAta(it.codigo_item, it.cod_siafisico);
+
   res.json({ info, itens });
+});
+
+// ---------- Ação coletiva: buscar itens (medicamentos) da base de autores ----------
+// Lista itens distintos (por código) presentes na demanda da Tenente Pena,
+// para o operador escolher UM medicamento e cadastrar vários pacientes.
+router.get('/itens-busca', (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ itens: [] });
+  const like = `%${q}%`;
+  const itens = db.prepare(`
+    SELECT a.codigo_item, a.descricao_item,
+           MAX(a.cod_siafisico) AS cod_siafisico, MAX(a.categoria) AS categoria,
+           (SELECT ic.subcategoria FROM item_classificacao ic WHERE ic.codigo_item = a.codigo_item) AS subcategoria,
+           COUNT(DISTINCT a.autor) AS n_pacientes
+    FROM autores_itens a
+    WHERE a.data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
+      AND (a.unidade_dispensadora IS NULL OR a.unidade_dispensadora LIKE '%Tenente Pena%')
+      AND (a.descricao_item LIKE ? OR a.codigo_item LIKE ? OR a.cod_siafisico LIKE ?)
+    GROUP BY a.codigo_item, a.descricao_item
+    ORDER BY a.descricao_item
+    LIMIT 30
+  `).all(like, like, like);
+  res.json({ itens });
+});
+
+// ---------- Solicitação coletiva: pacientes que têm QUALQUER um dos itens ----------
+// Recebe uma lista de códigos e devolve os pacientes (Tenente Pena) agrupados,
+// cada um com os itens (dos escolhidos) que ele realmente tem na demanda.
+router.get('/itens-pacientes', (req, res) => {
+  const codigos = String(req.query.codigos || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!codigos.length) return res.status(400).json({ erro: 'Informe ao menos um código de item.' });
+  const escTP = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
+  const ph = codigos.map(() => '?').join(',');
+  const linhas = db.prepare(`
+    SELECT a.autor, a.idade, a.unidade_dispensadora, a.procurador_estado,
+           a.protocolo, a.processo, a.tipo_demanda,
+           a.codigo_item, a.cod_siafisico, a.descricao_item, a.categoria,
+           a.qtde_consumo, a.prazo, a.periodicidade, a.dispensacoes_autorizadas,
+           (SELECT ri.catmat FROM relatorio_itens ri WHERE ri.codigo = a.codigo_item AND ri.catmat IS NOT NULL AND ri.catmat <> '' ORDER BY ri.data_referencia DESC LIMIT 1) AS catmat,
+           (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
+           (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual,
+           (SELECT e.demandas  FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS demanda_atual,
+           (SELECT NULLIF(e.valor_medio_unitario,0) FROM estoque_itens e WHERE e.codigo_item = a.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS valor_medio
+    FROM autores_itens a
+    WHERE a.codigo_item IN (${ph})
+      AND a.data_referencia = (SELECT MAX(data_referencia) FROM autores_itens)
+      AND (a.unidade_dispensadora IS NULL OR a.unidade_dispensadora LIKE '%Tenente Pena%')
+    ORDER BY a.autor, a.descricao_item
+  `).all(...codigos);
+
+  // Agrupa por paciente (autor), acumulando os itens de cada um.
+  const calcAta = criarCalculadoraAta();
+  const mapa = new Map();
+  for (const r of linhas) {
+    if (!mapa.has(r.autor)) {
+      mapa.set(r.autor, {
+        autor: r.autor, idade: r.idade, unidade_dispensadora: r.unidade_dispensadora,
+        procurador_estado: r.procurador_estado, protocolo: r.protocolo, processo: r.processo,
+        tipo_demanda: r.tipo_demanda, itens: [],
+      });
+    }
+    mapa.get(r.autor).itens.push({
+      codigo_item: r.codigo_item, cod_siafisico: r.cod_siafisico, descricao_item: r.descricao_item,
+      categoria: r.categoria, catmat: r.catmat, qtde_consumo: r.qtde_consumo, prazo: r.prazo,
+      periodicidade: r.periodicidade, dispensacoes_autorizadas: r.dispensacoes_autorizadas,
+      estoque_atual: r.estoque_atual, autonomia_atual: r.autonomia_atual,
+      demanda_atual: r.demanda_atual, valor_medio: r.valor_medio,
+      ata: calcAta(r.codigo_item, r.cod_siafisico),
+    });
+  }
+  res.json({ pacientes: [...mapa.values()] });
+});
+
+// ---------- Solicitação coletiva: gera UMA requisição consolidada ----------
+// Um único controle, vários pacientes e itens somados por medicamento.
+// Status/telegrama é ÚNICO (nível da requisição).
+router.post('/requisicoes/coletiva', (req, res) => {
+  const { sei, pacientes } = req.body || {};
+  const lista = (Array.isArray(pacientes) ? pacientes : []).filter((p) => Array.isArray(p.itens) && p.itens.length);
+  if (!lista.length) return res.status(400).json({ erro: 'Informe ao menos um paciente com item marcado.' });
+
+  const num = (v) => { const n = parseFloat(String(v ?? '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; };
+
+  // Consolida os itens por código, somando quantidade e consumo, e guardando o
+  // detalhe por paciente.
+  const mapaItem = new Map();
+  for (const p of lista) {
+    for (const it of p.itens) {
+      const k = it.codigo_item;
+      if (!mapaItem.has(k)) {
+        mapaItem.set(k, {
+          codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
+          categoria: it.categoria, catmat: it.catmat, quantidade: 0, qtde_consumo: 0, detalhe: [],
+          situacao_ata: it.situacao_ata || null, escolha_ata: it.escolha_ata || null,
+          valor_unitario: it.valor_unitario != null ? it.valor_unitario : null,
+        });
+      }
+      const agg = mapaItem.get(k);
+      agg.quantidade += num(it.quantidade);
+      agg.qtde_consumo += num(it.qtde_consumo);
+      agg.detalhe.push({ autor: p.autor, qtde_consumo: it.qtde_consumo, autonomia_compra: it.autonomia_compra, quantidade: it.quantidade });
+    }
+  }
+  const itensConsolidados = [...mapaItem.values()];
+  const pacientesInfo = lista.map((p) => ({ autor: p.autor, protocolo: p.protocolo, processo: p.processo, tipo_demanda: p.tipo_demanda }));
+
+  const caixaReq = caixaPredominante(itensConsolidados.map((i) => i.codigo_item), criarCalculadoraCaixa()) || '';
+
+  db.exec('BEGIN');
+  let id, codigoControle;
+  try {
+    const primeiro = lista[0];
+    const info = db.prepare(`
+      INSERT INTO requisicoes (autor, unidade, sei, operador_nome, operador_email, total_itens,
+                               coletiva, total_pacientes, pacientes_json, status_atendimento, telegrama_enviado, caixa)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, 'Solicitado', 'Não', ?)`).run(
+      primeiro.autor, primeiro.unidade_dispensadora || null, sei || null, req.usuario.nome, req.usuario.email,
+      itensConsolidados.length, lista.length, JSON.stringify(pacientesInfo), caixaReq);
+    id = info.lastInsertRowid;
+    codigoControle = `REQ-${new Date().getFullYear()}-${String(id).padStart(5, '0')}`;
+    db.prepare('UPDATE requisicoes SET codigo_controle = ? WHERE id = ?').run(codigoControle, id);
+
+    const insItem = db.prepare(`
+      INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
+                                    qtde_consumo, catmat, detalhe_json, n_pacientes, situacao_ata, escolha_ata, valor_unitario)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    for (const it of itensConsolidados) {
+      insItem.run(id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null,
+        String(+it.quantidade.toFixed(2)), String(+it.qtde_consumo.toFixed(2)), it.catmat || null,
+        JSON.stringify(it.detalhe), it.detalhe.length, it.situacao_ata || null, it.escolha_ata || null,
+        it.valor_unitario != null ? String(it.valor_unitario) : null);
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    return res.status(500).json({ erro: 'Falha ao gerar a solicitação coletiva: ' + e.message });
+  }
+
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'gerar_solicitacao_coletiva', 'requisicoes', id,
+      JSON.stringify({ codigo_controle: codigoControle, sei, pacientes: lista.length, itens: itensConsolidados.length }));
+
+  res.status(201).json({ id, codigo_controle: codigoControle, totalPacientes: lista.length, totalItens: itensConsolidados.length });
 });
 
 // ---------- Requisições: salvar (gera ID de controle) ----------
@@ -361,11 +703,12 @@ router.post('/requisicoes', (req, res) => {
     return res.status(400).json({ erro: 'Informe o paciente e ao menos um item.' });
   }
 
+  const caixaReq = caixaPredominante(itens.map((i) => i.codigo_item), criarCalculadoraCaixa()) || '';
   const info = db.prepare(`
-    INSERT INTO requisicoes (autor, idade, unidade, procurador, sei, operador_nome, operador_email, total_itens, protocolo, processo, tipo_demanda)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO requisicoes (autor, idade, unidade, procurador, sei, operador_nome, operador_email, total_itens, protocolo, processo, tipo_demanda, caixa)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(autor, idade || null, unidade || null, procurador || null, sei || null,
-    req.usuario.nome, req.usuario.email, itens.length, protocolo || null, processo || null, tipo_demanda || null);
+    req.usuario.nome, req.usuario.email, itens.length, protocolo || null, processo || null, tipo_demanda || null, caixaReq);
 
   const id = info.lastInsertRowid;
   const ano = new Date().getFullYear();
@@ -374,13 +717,15 @@ router.post('/requisicoes', (req, res) => {
 
   const stmt = db.prepare(`
     INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
-                                  tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat,
+                                  situacao_ata, escolha_ata, valor_unitario)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const it of itens) {
     stmt.run(id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''),
       it.tipo_demanda || null, it.qtde_consumo != null ? String(it.qtde_consumo) : null, it.prazo || null, it.periodicidade || null, it.dispensacoes_autorizadas || null,
-      it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null);
+      it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null,
+      it.situacao_ata || null, it.escolha_ata || null, it.valor_unitario != null ? String(it.valor_unitario) : null);
   }
 
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
@@ -391,23 +736,55 @@ router.post('/requisicoes', (req, res) => {
 
 // ---------- Requisições: listar com filtros (Relatório Primeiro Atendimento) ----------
 router.get('/requisicoes', (req, res) => {
-  const { paciente, sei, codigo_item, descricao, categoria, page = 1, pageSize = 50 } = req.query;
+  const { paciente, sei, codigo_item, descricao, categoria, caixa, page = 1, pageSize = 50 } = req.query;
   const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
   const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
 
-  const cond = [];
-  const params = [];
-  if (paciente) { cond.push('r.autor LIKE ?'); params.push(`%${paciente}%`); }
-  if (sei) { cond.push('r.sei LIKE ?'); params.push(`%${sei}%`); }
-  // filtros por item: a requisição precisa conter um item que casa
+  // Filtros "base" (não incluem a aba de caixa) — usados também nas contagens.
+  const condBase = [];
+  const paramsBase = [];
+  if (paciente) { condBase.push('r.autor LIKE ?'); paramsBase.push(`%${paciente}%`); }
+  if (sei) { condBase.push('r.sei LIKE ?'); paramsBase.push(`%${sei}%`); }
   const itemCond = [];
   const itemParams = [];
   if (codigo_item) { itemCond.push('ri.codigo_item LIKE ?'); itemParams.push(`%${codigo_item}%`); }
   if (descricao) { itemCond.push('ri.descricao_item LIKE ?'); itemParams.push(`%${descricao}%`); }
   if (categoria) { itemCond.push('ri.categoria = ?'); itemParams.push(categoria); }
   if (itemCond.length) {
-    cond.push(`EXISTS (SELECT 1 FROM requisicao_itens ri WHERE ri.requisicao_id = r.id AND ${itemCond.join(' AND ')})`);
-    params.push(...itemParams);
+    condBase.push(`EXISTS (SELECT 1 FROM requisicao_itens ri WHERE ri.requisicao_id = r.id AND ${itemCond.join(' AND ')})`);
+    paramsBase.push(...itemParams);
+  }
+
+  // Permissão de caixa
+  const permitidas = caixasDoUsuario(req.usuario); // null = admin (todas + sem-caixa)
+  const ehAdmin = permitidas === null;
+
+  // Contagens por caixa (rótulos das abas), aplicando só os filtros base.
+  const whereBase = condBase.length ? `WHERE ${condBase.join(' AND ')}` : '';
+  const linhasCont = db.prepare(`SELECT COALESCE(NULLIF(r.caixa, ''), '(sem)') AS cx, COUNT(*) c FROM requisicoes r ${whereBase} GROUP BY cx`).all(...paramsBase);
+  const contagens = {};
+  let totalPermitido = 0;
+  for (const l of linhasCont) {
+    const cx = l.cx === '(sem)' ? 'sem' : l.cx;
+    contagens[cx] = l.c;
+    if (ehAdmin || permitidas.includes(cx)) totalPermitido += l.c;
+  }
+  const caixasVisiveis = ehAdmin ? CAIXAS : permitidas;
+
+  // Filtro da listagem: base + restrição de caixa (permissão + aba ativa).
+  const cond = [...condBase];
+  const params = [...paramsBase];
+  if (!ehAdmin) {
+    if (caixa && caixa !== 'todas' && permitidas.includes(caixa)) {
+      cond.push('r.caixa = ?'); params.push(caixa);
+    } else if (permitidas.length) {
+      cond.push(`r.caixa IN (${permitidas.map(() => '?').join(',')})`); params.push(...permitidas);
+    } else {
+      cond.push('1 = 0');
+    }
+  } else if (caixa && caixa !== 'todas') {
+    if (caixa === 'sem') cond.push("(r.caixa IS NULL OR r.caixa = '')");
+    else { cond.push('r.caixa = ?'); params.push(caixa); }
   }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
 
@@ -416,53 +793,107 @@ router.get('/requisicoes', (req, res) => {
     SELECT r.* FROM requisicoes r ${where} ORDER BY r.id DESC LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
 
-  res.json({ total, requisicoes, page: Number(page), pageSize: limit });
+  res.json({
+    total, requisicoes, page: Number(page), pageSize: limit,
+    caixas: { ehAdmin, visiveis: caixasVisiveis, contagens, totalPermitido },
+  });
 });
 
 // ---------- Requisições: itens (visão por item + situação de estoque) ----------
 router.get('/requisicoes/itens', (req, res) => {
-  const { paciente, sei, codigo_item, descricao, categoria, page = 1, pageSize = 50 } = req.query;
+  const { paciente, sei, codigo_item, descricao, categoria, caixa, page = 1, pageSize = 50 } = req.query;
   const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
   const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
-
-  const cond = [];
-  const params = [];
-  if (paciente) { cond.push('r.autor LIKE ?'); params.push(`%${paciente}%`); }
-  if (sei) { cond.push('r.sei LIKE ?'); params.push(`%${sei}%`); }
-  if (codigo_item) { cond.push('ri.codigo_item LIKE ?'); params.push(`%${codigo_item}%`); }
-  if (descricao) { cond.push('ri.descricao_item LIKE ?'); params.push(`%${descricao}%`); }
-  if (categoria) { cond.push('ri.categoria = ?'); params.push(categoria); }
-  const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
-
   const escTP = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
-  const total = db.prepare(`SELECT COUNT(*) c FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id ${where}`).get(...params).c;
-  const itens = db.prepare(`
-    SELECT ri.id, ri.requisicao_id, r.codigo_controle, r.autor, r.sei, r.protocolo,
+
+  // Permissão de caixa (Materiais/Medicamentos/Nutrição). Admin => todas.
+  const permitidas = caixasDoUsuario(req.usuario);
+  const ehAdmin = permitidas === null;
+  const aplicaCaixa = (cond, params) => {
+    if (!ehAdmin) {
+      if (caixa && caixa !== 'todas' && permitidas.includes(caixa)) { cond.push('r.caixa = ?'); params.push(caixa); }
+      else if (permitidas.length) { cond.push(`r.caixa IN (${permitidas.map(() => '?').join(',')})`); params.push(...permitidas); }
+      else cond.push('1 = 0');
+    } else if (caixa && caixa !== 'todas') {
+      if (caixa === 'sem') cond.push("(r.caixa IS NULL OR r.caixa = '')");
+      else { cond.push('r.caixa = ?'); params.push(caixa); }
+    }
+  };
+
+  // --- Requisições INDIVIDUAIS: uma linha por item (coletiva = 0) ---
+  const condI = ['r.coletiva = 0'];
+  const paramsI = [];
+  if (paciente) { condI.push('r.autor LIKE ?'); paramsI.push(`%${paciente}%`); }
+  if (sei) { condI.push('r.sei LIKE ?'); paramsI.push(`%${sei}%`); }
+  if (codigo_item) { condI.push('ri.codigo_item LIKE ?'); paramsI.push(`%${codigo_item}%`); }
+  if (descricao) { condI.push('ri.descricao_item LIKE ?'); paramsI.push(`%${descricao}%`); }
+  if (categoria) { condI.push('ri.categoria = ?'); paramsI.push(categoria); }
+
+  // --- Requisições COLETIVAS (base, sem filtro de caixa ainda) ---
+  const condC = ['r.coletiva = 1'];
+  const paramsC = [];
+  if (paciente) { condC.push('(r.autor LIKE ? OR r.pacientes_json LIKE ?)'); paramsC.push(`%${paciente}%`, `%${paciente}%`); }
+  if (sei) { condC.push('r.sei LIKE ?'); paramsC.push(`%${sei}%`); }
+  const existsC = (campo, op, val) => { condC.push(`EXISTS (SELECT 1 FROM requisicao_itens ri WHERE ri.requisicao_id = r.id AND ri.${campo} ${op} ?)`); paramsC.push(val); };
+  if (codigo_item) existsC('codigo_item', 'LIKE', `%${codigo_item}%`);
+  if (descricao) existsC('descricao_item', 'LIKE', `%${descricao}%`);
+  if (categoria) existsC('categoria', '=', categoria);
+
+  // Contagens por caixa (rótulos das abas), com os filtros base mas SEM a aba.
+  const contagens = {};
+  const somaCont = (rows) => { for (const l of rows) { const cx = (l.caixa == null || l.caixa === '') ? 'sem' : l.caixa; contagens[cx] = (contagens[cx] || 0) + l.c; } };
+  somaCont(db.prepare(`SELECT r.caixa, COUNT(*) c FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id WHERE ${condI.join(' AND ')} GROUP BY r.caixa`).all(...paramsI));
+  somaCont(db.prepare(`SELECT r.caixa, COUNT(*) c FROM requisicoes r WHERE ${condC.join(' AND ')} GROUP BY r.caixa`).all(...paramsC));
+  const caixasVisiveis = ehAdmin ? CAIXAS : permitidas;
+  let totalPermitido = 0;
+  for (const [cx, n] of Object.entries(contagens)) {
+    if (ehAdmin || (cx !== 'sem' && permitidas.includes(cx))) totalPermitido += n;
+  }
+
+  // Aplica a restrição de caixa (permissão + aba) às duas consultas.
+  aplicaCaixa(condI, paramsI);
+  aplicaCaixa(condC, paramsC);
+
+  const individuais = db.prepare(`
+    SELECT 'item' AS tipo, ri.id, ri.requisicao_id, r.codigo_controle, r.autor, r.sei, r.protocolo,
            ri.codigo_item, ri.descricao_item, ri.categoria,
            COALESCE((SELECT e.siafisico FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1), ri.cod_siafisico) AS siafisico,
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
            (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual,
            ri.quantidade, ri.status_atendimento, ri.telegrama_enviado, ri.data_envio, ri.requisicao_gsnet,
            ri.telegrama_enviado_por, ri.telegrama_enviado_em
-    FROM requisicao_itens ri
-    JOIN requisicoes r ON r.id = ri.requisicao_id
-    ${where}
-    ORDER BY r.id DESC, ri.id
-    LIMIT ? OFFSET ?
-  `).all(...params, limit, offset);
+    FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id
+    WHERE ${condI.join(' AND ')}
+  `).all(...paramsI);
 
-  // Resumo (sobre TODO o conjunto filtrado, não só a página) para os KPIs.
-  const resumo = db.prepare(`
-    SELECT
-      COUNT(*) AS total,
-      SUM(CASE WHEN ri.status_atendimento = 'Solicitado' THEN 1 ELSE 0 END) AS solicitado,
-      SUM(CASE WHEN ri.status_atendimento = 'Finalizado' THEN 1 ELSE 0 END) AS finalizado,
-      SUM(CASE WHEN ri.status_atendimento = 'Cancelado'  THEN 1 ELSE 0 END) AS cancelado,
-      SUM(CASE WHEN ri.telegrama_enviado = 'Sim' THEN 1 ELSE 0 END) AS enviados
-    FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id ${where}
-  `).get(...params);
+  // --- Requisições COLETIVAS: uma linha por requisição (coletiva = 1) ---
+  const coletivas = db.prepare(`
+    SELECT 'coletiva' AS tipo, NULL AS id, r.id AS requisicao_id, r.codigo_controle, r.autor, r.sei,
+           r.total_pacientes, r.total_itens,
+           r.status_atendimento, r.telegrama_enviado, r.data_envio, r.requisicao_gsnet,
+           r.telegrama_enviado_por, r.telegrama_enviado_em
+    FROM requisicoes r WHERE ${condC.join(' AND ')}
+  `).all(...paramsC);
 
-  res.json({ total, itens, page: Number(page), pageSize: limit, resumo });
+  // Mescla, ordena (requisição mais nova primeiro) e pagina em memória.
+  const todos = [...individuais, ...coletivas].sort((a, b) =>
+    (b.requisicao_id - a.requisicao_id) || ((a.id || 0) - (b.id || 0)));
+  const total = todos.length;
+  const itens = todos.slice(offset, offset + limit);
+
+  // Resumo p/ KPIs — item individual conta 1; coletiva conta 1 (status do grupo).
+  const resumo = { total, solicitado: 0, finalizado: 0, cancelado: 0, enviados: 0 };
+  for (const r of todos) {
+    if (r.status_atendimento === 'Solicitado') resumo.solicitado++;
+    else if (r.status_atendimento === 'Finalizado') resumo.finalizado++;
+    else if (r.status_atendimento === 'Cancelado') resumo.cancelado++;
+    if (r.telegrama_enviado === 'Sim') resumo.enviados++;
+  }
+
+  res.json({
+    total, itens, page: Number(page), pageSize: limit, resumo,
+    caixas: { ehAdmin, visiveis: caixasVisiveis, contagens, totalPermitido },
+  });
 });
 
 // ---------- Requisições: atualizar o atendimento de um item ----------
@@ -546,13 +977,15 @@ router.put('/requisicoes/:id', (req, res) => {
   db.prepare('DELETE FROM requisicao_itens WHERE requisicao_id = ?').run(r.id);
   const stmt = db.prepare(`
     INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
-                                  tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat,
+                                  situacao_ata, escolha_ata, valor_unitario)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const it of itens) {
     stmt.run(r.id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''),
       it.tipo_demanda || null, it.qtde_consumo != null ? String(it.qtde_consumo) : null, it.prazo || null, it.periodicidade || null, it.dispensacoes_autorizadas || null,
-      it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null);
+      it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null,
+      it.situacao_ata || null, it.escolha_ata || null, it.valor_unitario != null ? String(it.valor_unitario) : null);
   }
 
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
@@ -581,7 +1014,46 @@ router.get('/requisicoes/:id', (req, res) => {
   const r = db.prepare('SELECT * FROM requisicoes WHERE id = ?').get(req.params.id);
   if (!r) return res.status(404).json({ erro: 'Requisição não encontrada.' });
   const itens = db.prepare('SELECT * FROM requisicao_itens WHERE requisicao_id = ? ORDER BY id').all(r.id);
-  res.json({ requisicao: r, itens });
+  // Coletiva: devolve a lista de pacientes e o detalhe por item já parseados.
+  let pacientes = null;
+  if (r.coletiva) {
+    try { pacientes = JSON.parse(r.pacientes_json || '[]'); } catch (_) { pacientes = []; }
+    itens.forEach((it) => { try { it.detalhe = JSON.parse(it.detalhe_json || '[]'); } catch (_) { it.detalhe = []; } });
+  }
+  res.json({ requisicao: r, itens, pacientes });
+});
+
+// ---------- Coletiva: atualizar o status/telegrama do GRUPO ----------
+router.put('/requisicoes/:id/status-coletiva', (req, res) => {
+  const r = db.prepare('SELECT * FROM requisicoes WHERE id = ? AND coletiva = 1').get(req.params.id);
+  if (!r) return res.status(404).json({ erro: 'Solicitação coletiva não encontrada.' });
+  const eAdmin = req.usuario.perfil === 'admin';
+  const jaEnviado = r.telegrama_enviado === 'Sim';
+  if (jaEnviado && !eAdmin) return res.status(403).json({ erro: 'Telegrama já enviado. Apenas um administrador pode alterar.' });
+
+  const { status_atendimento, telegrama_enviado, data_envio, requisicao_gsnet } = req.body || {};
+  let status = status_atendimento ?? r.status_atendimento;
+  const telegrama = telegrama_enviado ?? r.telegrama_enviado;
+  let dataEnvio = data_envio !== undefined ? (data_envio || null) : r.data_envio;
+  const gsnet = requisicao_gsnet !== undefined ? (requisicao_gsnet || null) : r.requisicao_gsnet;
+  let enviadoPor = r.telegrama_enviado_por;
+  let enviadoEm = r.telegrama_enviado_em;
+  const agora = new Date();
+  if (telegrama === 'Sim' && !jaEnviado) {
+    status = 'Finalizado';
+    if (!dataEnvio) dataEnvio = agora.toISOString().slice(0, 10);
+    enviadoPor = req.usuario.nome || req.usuario.email;
+    enviadoEm = agora.toISOString();
+  } else if (telegrama !== 'Sim' && jaEnviado) {
+    dataEnvio = data_envio !== undefined ? (data_envio || null) : null;
+    enviadoPor = null; enviadoEm = null;
+  }
+  db.prepare('UPDATE requisicoes SET status_atendimento = ?, telegrama_enviado = ?, data_envio = ?, requisicao_gsnet = ?, telegrama_enviado_por = ?, telegrama_enviado_em = ? WHERE id = ?')
+    .run(status, telegrama, dataEnvio, gsnet, enviadoPor, enviadoEm, r.id);
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'atualizar_status_coletiva', 'requisicoes', r.id,
+      JSON.stringify({ status_atendimento: status, telegrama_enviado: telegrama, data_envio: dataEnvio, requisicao_gsnet: gsnet }));
+  res.json({ ok: true });
 });
 
 // ---------- Comparação entre a versão anterior e a atual ----------
@@ -606,6 +1078,13 @@ function calcularComparacao() {
 
   const linhasAtual = carregar(atual);
   const linhasAnt = carregar(anterior);
+
+  // Subcategoria por item (item_classificacao), para o filtro de subcategoria.
+  const subcatMap = new Map(
+    db.prepare("SELECT codigo_item, subcategoria FROM item_classificacao WHERE subcategoria IS NOT NULL AND subcategoria <> ''")
+      .all().map((r) => [r.codigo_item, r.subcategoria])
+  );
+  const subcat = (cod) => (cod ? (subcatMap.get(cod) || null) : null);
 
   // Agrupa por autor
   const porAutor = (linhas) => {
@@ -637,6 +1116,7 @@ function calcularComparacao() {
           codigo_item: l.codigo_item || '—',
           descricao_item: l.descricao_item || '—',
           qtde_consumo: l.qtde_consumo || '—',
+          subcategoria: subcat(l.codigo_item),
         });
       }
     }
@@ -648,7 +1128,7 @@ function calcularComparacao() {
   for (const [autor, g] of mapAnt) {
     if (!mapAtual.has(autor)) {
       const ultimo = g.linhas[g.linhas.length - 1] || {};
-      encerrados.push({ autor, processo: g.processo, ultimo_item: ultimo.descricao_item || '—' });
+      encerrados.push({ autor, processo: g.processo, ultimo_item: ultimo.descricao_item || '—', codigo_item: ultimo.codigo_item || null, subcategoria: subcat(ultimo.codigo_item), tipo_demanda: ultimo.tipo_demanda || null });
     }
   }
 
@@ -659,11 +1139,11 @@ function calcularComparacao() {
     if (!gP) continue;
     // itens novos
     for (const [cod, it] of gA.itens) {
-      if (!gP.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', qtde_consumo: it.qtde_consumo || '—', alteracao: 'Novo medicamento', detalhe: it.descricao_item || cod });
+      if (!gP.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', subcategoria: subcat(cod), tipo_demanda: it.tipo_demanda || null, qtde_consumo: it.qtde_consumo || '—', alteracao: 'Novo medicamento', detalhe: it.descricao_item || cod });
     }
     // itens removidos
     for (const [cod, it] of gP.itens) {
-      if (!gA.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', qtde_consumo: it.qtde_consumo || '—', alteracao: 'Item removido', detalhe: it.descricao_item || cod });
+      if (!gA.itens.has(cod)) alteracoes.push({ autor, protocolo: it.protocolo || '—', codigo_item: cod, categoria: it.categoria || '—', subcategoria: subcat(cod), tipo_demanda: it.tipo_demanda || null, qtde_consumo: it.qtde_consumo || '—', alteracao: 'Item removido', detalhe: it.descricao_item || cod });
     }
     // status alterado (mesmo item, status diferente)
     for (const [cod, itA] of gA.itens) {
@@ -675,7 +1155,7 @@ function calcularComparacao() {
         const partes = [];
         if (mudouDemanda) partes.push(`demanda: "${itP.status_demanda || '—'}" → "${itA.status_demanda || '—'}"`);
         if (mudouItem) partes.push(`item: "${itP.status_item || '—'}" → "${itA.status_item || '—'}"`);
-        alteracoes.push({ autor, protocolo: itA.protocolo || '—', codigo_item: cod, categoria: itA.categoria || '—', qtde_consumo: itA.qtde_consumo || '—', alteracao: 'Status alterado', detalhe: `${it_desc(itA)} — ${partes.join('; ')}` });
+        alteracoes.push({ autor, protocolo: itA.protocolo || '—', codigo_item: cod, categoria: itA.categoria || '—', subcategoria: subcat(cod), tipo_demanda: itA.tipo_demanda || null, qtde_consumo: itA.qtde_consumo || '—', alteracao: 'Status alterado', detalhe: `${it_desc(itA)} — ${partes.join('; ')}` });
       }
     }
   }
@@ -684,6 +1164,18 @@ function calcularComparacao() {
   novos.sort((a, b) => a.autor.localeCompare(b.autor));
   encerrados.sort((a, b) => a.autor.localeCompare(b.autor));
   alteracoes.sort((a, b) => a.autor.localeCompare(b.autor));
+
+  // Subcategorias e tipos de demanda presentes nas 3 listas, para os filtros.
+  const subSet = new Set();
+  const tipoSet = new Set();
+  for (const arr of [novos, encerrados, alteracoes]) {
+    for (const e of arr) {
+      if (e.subcategoria) subSet.add(e.subcategoria);
+      if (e.tipo_demanda && e.tipo_demanda !== '—') tipoSet.add(e.tipo_demanda);
+    }
+  }
+  const subcategorias = [...subSet].sort((a, b) => a.localeCompare(b));
+  const tiposDemanda = [...tipoSet].sort((a, b) => a.localeCompare(b));
 
   return {
     temAnterior: true,
@@ -695,6 +1187,8 @@ function calcularComparacao() {
     novos,
     encerrados,
     alteracoes,
+    subcategorias,
+    tiposDemanda,
   };
 }
 
