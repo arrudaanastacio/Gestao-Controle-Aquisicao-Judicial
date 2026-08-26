@@ -7619,13 +7619,31 @@ function montarDocumentoColetiva(r, itens, pacientes) {
   const totalRowItens = temValor
     ? `<tr><td colspan="8" style="text-align:right;"><strong>Total da aquisição</strong></td><td style="text-align:right;"><strong>${brl(totalGeral)}</strong></td></tr>`
     : '';
-  const linhasPac = (pacientes || []).map((p, i) => `
-    <tr>
-      <td style="text-align:center;">${i + 1}</td>
-      <td>${escHtml(p.autor || '—')}</td>
-      <td>${escHtml(p.protocolo || '—')}</td>
-      <td>${escHtml(p.processo || '—')}</td>
-    </tr>`).join('');
+  // Itens solicitados POR PACIENTE, com a quantidade INDIVIDUAL (do detalhe de
+  // cada item). A soma das quantidades por paciente = o total do item na tabela
+  // consolidada acima.
+  const itensPorPaciente = new Map();
+  for (const it of itens) {
+    for (const d of (it.detalhe || [])) {
+      if (!itensPorPaciente.has(d.autor)) itensPorPaciente.set(d.autor, []);
+      itensPorPaciente.get(d.autor).push({ descricao: it.descricao_item, codigo: it.codigo_item, siafisico: it.cod_siafisico, quantidade: d.quantidade });
+    }
+  }
+  const blocosPac = (pacientes || []).map((p, i) => {
+    const lst = itensPorPaciente.get(p.autor) || [];
+    const linhasI = lst.length
+      ? lst.map((x) => {
+        const meta = [x.codigo ? 'SCODES ' + escHtml(x.codigo) : '', x.siafisico ? 'SIAF ' + escHtml(x.siafisico) : ''].filter(Boolean).join(' · ');
+        return `<tr><td style="padding:4px 8px 4px 16px;">${escHtml(x.descricao || x.codigo || '—')}${meta ? '<br><span style="color:#777;font-size:11px;">' + meta + '</span>' : ''}</td><td style="width:70px;text-align:center;"><strong>${x.quantidade != null && x.quantidade !== '' ? x.quantidade : '—'}</strong></td></tr>`;
+      }).join('')
+      : '<tr><td colspan="2" style="padding:4px 8px 4px 16px;color:#777;">Sem itens.</td></tr>';
+    return `<div style="border:1px solid #bbb;border-radius:6px;overflow:hidden;margin-bottom:10px;break-inside:avoid;">
+      <div style="background:#eee;padding:6px 10px;font-size:12.5px;">
+        <strong>${i + 1}. ${escHtml(p.autor || '—')}</strong>${p.protocolo ? ' &nbsp;·&nbsp; Protocolo ' + escHtml(p.protocolo) : ''}${p.processo ? ' &nbsp;·&nbsp; Processo ' + escHtml(p.processo) : ''}
+      </div>
+      <table style="width:100%;border-collapse:collapse;"><thead><tr><th style="text-align:left;">Descrição do Item</th><th style="width:70px;">Qtde</th></tr></thead><tbody>${linhasI}</tbody></table>
+    </div>`;
+  }).join('');
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${r.codigo_controle || 'Solicitação Coletiva'}</title>
     <style>
       body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:32px;}
@@ -7651,10 +7669,7 @@ function montarDocumentoColetiva(r, itens, pacientes) {
       <tbody>${linhasItens}${totalRowItens}</tbody>
     </table>
     <h2>Pacientes da solicitação (${pacientes ? pacientes.length : 0})</h2>
-    <table>
-      <thead><tr><th style="width:28px;">#</th><th>Paciente</th><th>Protocolo</th><th>Processo</th></tr></thead>
-      <tbody>${linhasPac}</tbody>
-    </table>
+    ${blocosPac}
     </body></html>`;
 }
 
