@@ -930,9 +930,22 @@ router.get('/requisicoes/itens', (req, res) => {
     SELECT 'coletiva' AS tipo, NULL AS id, r.id AS requisicao_id, r.codigo_controle, r.autor, r.sei,
            r.total_pacientes, r.total_itens,
            r.status_atendimento, r.telegrama_enviado, r.data_envio, r.requisicao_gsnet,
-           r.telegrama_enviado_por, r.telegrama_enviado_em
+           r.telegrama_enviado_por, r.telegrama_enviado_em,
+           -- Estoque agregado: conta itens que ficariam "Aguardar" (autonomia < 2)
+           -- e "Chamar" (autonomia >= 2), pela mesma regra da linha individual.
+           (SELECT COUNT(*) FROM requisicao_itens ri2 WHERE ri2.requisicao_id = r.id
+             AND (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = ri2.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) < 2) AS n_aguardar,
+           (SELECT COUNT(*) FROM requisicao_itens ri2 WHERE ri2.requisicao_id = r.id
+             AND (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = ri2.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) >= 2) AS n_chamar
     FROM requisicoes r WHERE ${condC.join(' AND ')}
   `).all(...paramsC);
+  // Rótulo do Status Estoque da coletiva: algum item Aguardar => parcial;
+  // senão, se houver item para chamar => Chamar; sem dados => null.
+  for (const c of coletivas) {
+    c.status_estoque_coletiva = (c.n_aguardar > 0)
+      ? 'Aguardar / Atendimento Parcial'
+      : (c.n_chamar > 0 ? 'Chamar' : null);
+  }
 
   // Mescla, ordena (requisição mais nova primeiro) e pagina em memória.
   const todos = [...individuais, ...coletivas].sort((a, b) =>
@@ -1073,6 +1086,16 @@ router.get('/requisicoes/:id', (req, res) => {
   const r = db.prepare('SELECT * FROM requisicoes WHERE id = ?').get(req.params.id);
   if (!r) return res.status(404).json({ erro: 'Requisição não encontrada.' });
   const itens = db.prepare('SELECT * FROM requisicao_itens WHERE requisicao_id = ? ORDER BY id').all(r.id);
+  // Enriquece cada item com estoque e autonomia da foto mais recente (escopo
+  // Tenente Pena), para o modal aplicar a mesma regra de Status Estoque.
+  const escTP = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
+  const stEst = db.prepare(`SELECT e.estoque AS estoque_atual, e.autonomia AS autonomia_atual
+     FROM estoque_itens e WHERE e.codigo_item = ? AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1`);
+  itens.forEach((it) => {
+    const x = stEst.get(it.codigo_item) || {};
+    it.estoque_atual = x.estoque_atual != null ? x.estoque_atual : null;
+    it.autonomia_atual = x.autonomia_atual != null ? x.autonomia_atual : null;
+  });
   // Coletiva: devolve a lista de pacientes e o detalhe por item já parseados.
   let pacientes = null;
   if (r.coletiva) {

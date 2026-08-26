@@ -8153,16 +8153,22 @@ async function abrirItensColetiva(id) {
     const itens = dados.itens || [];
     document.getElementById('subItensColetiva').textContent =
       `${r.codigo_controle || '#' + id} · ${fmtNumero(itens.length)} medicamento(s)${r.sei ? ' · SEI ' + r.sei : ''}`;
+    const badgeEst = (aut) => (aut === null || aut === undefined)
+      ? '<span style="color:var(--cinza-texto); font-size:12px;">—</span>'
+      : (Number(aut) < 2 ? '<span class="etiqueta-status cancelado">Aguardar</span>' : '<span class="etiqueta-status finalizado">Chamar</span>');
     document.getElementById('corpoItensColetiva').innerHTML = `
       <table class="tabela">
-        <thead><tr><th>Código SCODES</th><th>Siafísico</th><th>Descrição do item</th><th class="col-num">Qtde</th><th class="col-num">Pacientes</th></tr></thead>
+        <thead><tr><th>Código SCODES</th><th>Siafísico</th><th>Descrição do item</th><th class="col-num">Qtde</th><th class="col-num">Pacientes</th><th class="col-num">Estoque</th><th class="col-num">Autonomia</th><th>Status Estoque</th></tr></thead>
         <tbody>${itens.map((it) => `<tr>
           <td class="col-codigo">${escHtml(it.codigo_item || '—')}</td>
           <td class="col-codigo">${escHtml(it.cod_siafisico || it.siafisico || '—')}</td>
           <td>${escHtml(it.descricao_item || '—')}</td>
           <td class="col-num">${it.quantidade != null ? fmtNumero(it.quantidade) : '—'}</td>
           <td class="col-num">${it.n_pacientes != null ? fmtNumero(it.n_pacientes) : '—'}</td>
-        </tr>`).join('') || '<tr><td colspan="5" class="dica" style="text-align:center;">Sem itens.</td></tr>'}</tbody>
+          <td class="col-num">${it.estoque_atual != null ? fmtNumero(it.estoque_atual) : '—'}</td>
+          <td class="col-num">${it.autonomia_atual === null || it.autonomia_atual === undefined ? '—' : fmtNumero(it.autonomia_atual) + ' m'}</td>
+          <td>${badgeEst(it.autonomia_atual)}</td>
+        </tr>`).join('') || '<tr><td colspan="8" class="dica" style="text-align:center;">Sem itens.</td></tr>'}</tbody>
       </table>`;
   } catch (e) {
     document.getElementById('subItensColetiva').textContent = '';
@@ -8976,8 +8982,15 @@ async function carregarTabelaRelReq() {
           <td class="col-codigo"><a href="#" class="req-abrir-doc" data-req="${it.requisicao_id}"><strong>${it.codigo_controle || ('#' + it.requisicao_id)}</strong></a> <span class="tag-programa sub" style="font-size:9px;">COLETIVA</span></td>
           <td>${nomePac}</td>
           <td class="col-codigo">${it.sei || '—'}</td>
-          <td colspan="7" style="color:var(--cinza-texto);">${fmtNumero(it.total_itens)} medicamento(s) · ${fmtNumero(it.total_pacientes)} paciente(s)
+          <td colspan="4" style="color:var(--cinza-texto);">${fmtNumero(it.total_itens)} medicamento(s) · ${fmtNumero(it.total_pacientes)} paciente(s)
             <button type="button" class="botao-secundario req-ver-itens" data-req="${it.requisicao_id}" style="padding:2px 9px; font-size:11px; margin-left:8px;">👁 Ver itens</button></td>
+          <td>—</td>
+          <td>—</td>
+          <td>${it.status_estoque_coletiva === 'Chamar'
+            ? '<span class="etiqueta-status finalizado">Chamar</span>'
+            : it.status_estoque_coletiva
+              ? '<span class="etiqueta-status cancelado" title="Ao menos um item com autonomia baixa">Aguardar / Atend. Parcial</span>'
+              : '<span style="color:var(--cinza-texto); font-size:12px;">—</span>'}</td>
           <td><select class="req-at-status" ${disC}>${opc(['Solicitado', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select></td>
           <td><input type="text" class="req-at-gsnet" value="${fmtGsnet(it.requisicao_gsnet).replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;" ${disC}></td>
           <td><select class="req-at-tel" ${disC}>${opc(['Não', 'Sim'], it.telegrama_enviado)}</select></td>
