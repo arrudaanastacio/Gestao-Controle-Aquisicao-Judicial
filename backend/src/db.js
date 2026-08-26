@@ -912,6 +912,8 @@ if (!colunasReq.includes('telegrama_enviado_em')) db.exec("ALTER TABLE requisico
 // null = sem caixa, só admin/aba "Todas"). Preenchida na criação; backfill em
 // routes.autores.js.
 if (!colunasReq.includes('caixa')) db.exec("ALTER TABLE requisicoes ADD COLUMN caixa TEXT");
+// Justificativa (usada quando o Status de Atendimento é Cancelado).
+if (!colunasReq.includes('justificativa')) db.exec("ALTER TABLE requisicoes ADD COLUMN justificativa TEXT");
 
 // Fluxo de atendimento por item da requisição (editável pelos usuários)
 const colunasReqItens = db.prepare("PRAGMA table_info(requisicao_itens)").all().map((c) => c.name);
@@ -928,6 +930,7 @@ if (!colunasReqItens.includes('periodicidade')) db.exec("ALTER TABLE requisicao_
 if (!colunasReqItens.includes('dispensacoes_autorizadas')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN dispensacoes_autorizadas TEXT");
 if (!colunasReqItens.includes('autonomia_compra')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN autonomia_compra TEXT");
 if (!colunasReqItens.includes('catmat')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN catmat TEXT");
+if (!colunasReqItens.includes('justificativa')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN justificativa TEXT");
 // Coletiva: detalhe por paciente do item consolidado (JSON) + nº de pacientes.
 if (!colunasReqItens.includes('detalhe_json')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN detalhe_json TEXT");
 if (!colunasReqItens.includes('n_pacientes')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN n_pacientes INTEGER");

@@ -8910,16 +8910,26 @@ function renderAbasCaixaReq(caixas) {
   if (!barra) return;
   if (!caixas) { barra.hidden = true; barra.innerHTML = ''; return; }
   const { ehAdmin, visiveis = [], contagens = {}, totalPermitido = 0 } = caixas;
+  // "Todas" primeiro; depois as caixas em ordem ALFABÉTICA (Manipulado,
+  // Materiais, Medicamentos, Nutrição); "Sem caixa" (admin) por último.
   const abas = [{ chave: 'todas', rot: 'Todas', n: totalPermitido }];
-  for (const c of visiveis) abas.push({ chave: c, rot: c, n: contagens[c] || 0 });
+  [...visiveis].sort((a, b) => a.localeCompare(b, 'pt')).forEach((c) => abas.push({ chave: c, rot: c, n: contagens[c] || 0 }));
   if (ehAdmin && (contagens.sem || 0) > 0) abas.push({ chave: 'sem', rot: 'Sem caixa', n: contagens.sem });
+  // Abas de STATUS, à direita (Cancelado e Finalizado).
+  const abasStatus = [
+    { chave: 'cancelado', rot: 'Cancelado', n: contagens.cancelado || 0 },
+    { chave: 'finalizado', rot: 'Finalizado', n: contagens.finalizado || 0 },
+  ];
 
   // Se a aba ativa não existe mais (ex.: mudou de usuário), volta para "Todas".
-  if (!abas.some((a) => a.chave === estadoRelReq.caixa)) estadoRelReq.caixa = 'todas';
+  const todasChaves = [...abas, ...abasStatus].map((a) => a.chave);
+  if (!todasChaves.includes(estadoRelReq.caixa)) estadoRelReq.caixa = 'todas';
 
+  const btn = (a) => `<button type="button" class="chip-faixa ${estadoRelReq.caixa === a.chave ? 'ativo' : ''}" data-caixa="${a.chave}">${escHtml(a.rot)} (${fmtNumero(a.n)})</button>`;
   barra.hidden = false;
-  barra.innerHTML = abas.map((a) =>
-    `<button type="button" class="chip-faixa ${estadoRelReq.caixa === a.chave ? 'ativo' : ''}" data-caixa="${a.chave}">${escHtml(a.rot)} (${fmtNumero(a.n)})</button>`).join('');
+  barra.innerHTML = abas.map(btn).join('')
+    + '<div style="flex:1 1 20px; align-self:stretch;"></div>'
+    + abasStatus.map(btn).join('');
 }
 document.getElementById('abasCaixaReq').addEventListener('click', (ev) => {
   const b = ev.target.closest('.chip-faixa');
@@ -8996,7 +9006,7 @@ async function carregarTabelaRelReq() {
         const maisN = (it.total_pacientes || 1) - 1;
         const nomePac = `${it.autor || '—'}${maisN > 0 ? ` <span style="color:var(--cinza-texto);">e mais ${maisN} paciente${maisN > 1 ? 's' : ''}</span>` : ''}`;
         return `
-        <tr data-req="${it.requisicao_id}" data-coletiva="1">
+        <tr data-req="${it.requisicao_id}" data-coletiva="1" data-justificativa="${(it.justificativa || '').replace(/"/g, '&quot;')}">
           <td class="col-codigo"><a href="#" class="req-abrir-doc" data-req="${it.requisicao_id}"><strong>${it.codigo_controle || ('#' + it.requisicao_id)}</strong></a> <span class="tag-programa sub" style="font-size:9px;">COLETIVA</span></td>
           <td>${nomePac}</td>
           <td class="col-codigo">${it.sei || '—'}</td>
@@ -9036,7 +9046,7 @@ async function carregarTabelaRelReq() {
             </div>`;
       }
       return `
-        <tr data-id="${it.id}">
+        <tr data-id="${it.id}" data-justificativa="${(it.justificativa || '').replace(/"/g, '&quot;')}">
           <td class="col-codigo"><a href="#" class="req-abrir-doc" data-req="${it.requisicao_id}"><strong>${it.codigo_controle || ('#' + it.requisicao_id)}</strong></a></td>
           <td>${it.autor || '—'}</td>
           <td class="col-codigo">${it.sei || '—'}</td>
@@ -9115,13 +9125,29 @@ async function carregarTabelaRelReq() {
 
 async function salvarAtendimentoItem(tr) {
   const qtdeEl = tr.querySelector('.req-at-qtde');
+  const status = tr.querySelector('.req-at-status').value;
   const corpo = {
-    status_atendimento: tr.querySelector('.req-at-status').value,
+    status_atendimento: status,
     telegrama_enviado: tr.querySelector('.req-at-tel').value,
     data_envio: tr.querySelector('.req-at-data').value || null,
     requisicao_gsnet: tr.querySelector('.req-at-gsnet').value.trim() || null,
     quantidade: qtdeEl ? (qtdeEl.value.trim() || null) : undefined,
   };
+  // Status "Cancelado" exige justificativa. Pede só quando ainda não há uma
+  // (evita reperguntar ao editar outros campos de uma linha já cancelada).
+  if (status === 'Cancelado') {
+    let just = tr.dataset.justificativa || '';
+    if (!just.trim()) {
+      const nova = prompt('Justificativa do cancelamento:', '');
+      if (nova === null || !nova.trim()) { alert('Cancelamento requer justificativa.'); carregarTabelaRelReq(); return; }
+      just = nova.trim();
+    }
+    tr.dataset.justificativa = just;
+    corpo.justificativa = just;
+  } else {
+    tr.dataset.justificativa = '';
+    corpo.justificativa = null;
+  }
   const eraSim = tr.querySelector('.req-det') !== null; // já estava enviado
   // Coletiva: status é do GRUPO (endpoint próprio); individual: por item.
   const url = tr.dataset.coletiva === '1'

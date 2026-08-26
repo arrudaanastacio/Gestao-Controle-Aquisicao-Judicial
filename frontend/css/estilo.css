@@ -803,12 +803,14 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
    que continuam em formato pílula.
    ============================================================ */
 .filtros-faixa:has(> .chip-faixa[data-aba]),
+.filtros-faixa:has(> .chip-faixa[data-caixa]),
 .abas-tela:has(> .chip-faixa[data-aba]),
+.abas-tela:has(> .chip-faixa[data-caixa]),
 .abas-pasta {
   display: flex; gap: 4px; align-items: flex-end; flex-wrap: wrap;
   border-bottom: 1px solid var(--linha); padding-left: 4px; margin-bottom: 14px;
 }
-.chip-faixa[data-aba], .aba-pasta {
+.chip-faixa[data-aba], .chip-faixa[data-caixa], .aba-pasta {
   background: var(--papel);
   color: var(--cinza-texto);
   border: 1px solid var(--linha);
@@ -817,10 +819,10 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   margin-bottom: -1px; line-height: 1.2;
 }
 .aba-pasta i, .aba-pasta svg { vertical-align: -2px; margin-right: 6px; }
-.chip-faixa[data-aba]:hover, .aba-pasta:hover {
+.chip-faixa[data-aba]:hover, .chip-faixa[data-caixa]:hover, .aba-pasta:hover {
   border-color: var(--linha-forte); color: var(--tinta); background: var(--papel-elevado);
 }
-.chip-faixa[data-aba].ativo, .aba-pasta.ativo {
+.chip-faixa[data-aba].ativo, .chip-faixa[data-caixa].ativo, .aba-pasta.ativo {
   background: var(--papel-elevado);
   color: var(--selo); font-weight: 600;
   border-color: var(--linha);
