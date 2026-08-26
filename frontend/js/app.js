@@ -8163,13 +8163,31 @@ async function abrirItensColetiva(id) {
           <td class="col-codigo">${escHtml(it.codigo_item || '—')}</td>
           <td class="col-codigo">${escHtml(it.cod_siafisico || it.siafisico || '—')}</td>
           <td>${escHtml(it.descricao_item || '—')}</td>
-          <td class="col-num">${it.quantidade != null ? fmtNumero(it.quantidade) : '—'}</td>
+          <td class="col-num"><input type="number" min="0" step="1" class="ic-qtde" data-id="${it.id}" value="${it.quantidade != null ? String(it.quantidade).replace(/"/g, '&quot;') : ''}" placeholder="—" title="Corrigir a quantidade solicitada" style="width:84px;"></td>
           <td class="col-num">${it.n_pacientes != null ? fmtNumero(it.n_pacientes) : '—'}</td>
           <td class="col-num">${it.estoque_atual != null ? fmtNumero(it.estoque_atual) : '—'}</td>
           <td class="col-num">${it.autonomia_atual === null || it.autonomia_atual === undefined ? '—' : fmtNumero(it.autonomia_atual) + ' m'}</td>
           <td>${badgeEst(it.autonomia_atual)}</td>
         </tr>`).join('') || '<tr><td colspan="8" class="dica" style="text-align:center;">Sem itens.</td></tr>'}</tbody>
-      </table>`;
+      </table>
+      <p class="texto-apoio" style="font-size:12px; margin-top:6px;">Dica: você pode corrigir a Qtde direto nesta lista — salva ao sair do campo.</p>`;
+    // Salva a correção da quantidade solicitada ao sair do campo (mesmo endpoint da linha).
+    document.querySelectorAll('#corpoItensColetiva .ic-qtde').forEach((inp) => {
+      const original = inp.value;
+      inp.addEventListener('change', async () => {
+        if (inp.value === inp.dataset.salvo) return;
+        inp.disabled = true;
+        try {
+          await api(`/autores/requisicoes/item/${inp.dataset.id}`, { method: 'PUT', body: JSON.stringify({ quantidade: inp.value }) });
+          inp.dataset.salvo = inp.value;
+          inp.style.outline = '2px solid var(--verde-ok)';
+          setTimeout(() => { inp.style.outline = ''; }, 900);
+        } catch (e) {
+          alert('Não foi possível salvar a quantidade: ' + e.message);
+          inp.value = original;
+        } finally { inp.disabled = false; }
+      });
+    });
   } catch (e) {
     document.getElementById('subItensColetiva').textContent = '';
     document.getElementById('corpoItensColetiva').innerHTML = `<p class="texto-apoio" style="color:var(--vermelho);">Erro: ${e.message}</p>`;
