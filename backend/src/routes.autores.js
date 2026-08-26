@@ -982,8 +982,20 @@ router.get('/requisicoes/itens', (req, res) => {
   }
 
   // Mescla, ordena (requisição mais nova primeiro) e pagina em memória.
-  const todos = [...individuais, ...coletivas].sort((a, b) =>
+  let todos = [...individuais, ...coletivas].sort((a, b) =>
     (b.requisicao_id - a.requisicao_id) || ((a.id || 0) - (b.id || 0)));
+
+  // Filtro por STATUS ESTOQUE (chamar / aguardar / sem dado). Individual: pela
+  // autonomia do item (< 2 = aguardar). Coletiva: pela regra agregada.
+  const statusEstoque = req.query.statusEstoque;
+  if (statusEstoque) {
+    const stDe = (r) => {
+      if (r.tipo === 'coletiva') return r.status_estoque_coletiva === 'Chamar' ? 'chamar' : (r.status_estoque_coletiva ? 'aguardar' : 'sem');
+      if (r.autonomia_atual == null) return 'sem';
+      return Number(r.autonomia_atual) < 2 ? 'aguardar' : 'chamar';
+    };
+    todos = todos.filter((r) => stDe(r) === statusEstoque);
+  }
   const total = todos.length;
   const itens = todos.slice(offset, offset + limit);
 

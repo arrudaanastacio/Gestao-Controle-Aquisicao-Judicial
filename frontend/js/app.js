@@ -8907,9 +8907,11 @@ let debounceRelReq;
   });
 });
 document.getElementById('reqFiltroCategoria').addEventListener('change', () => { estadoRelReq.pagina = 1; carregarTabelaRelReq(); });
+document.getElementById('reqFiltroStatusEstoque').addEventListener('change', () => { estadoRelReq.pagina = 1; carregarTabelaRelReq(); });
 document.getElementById('reqLimparFiltros').addEventListener('click', () => {
   ['reqFiltroPaciente', 'reqFiltroSEI', 'reqFiltroCodigo', 'reqFiltroDescricao'].forEach((id) => { document.getElementById(id).value = ''; });
   document.getElementById('reqFiltroCategoria').value = '';
+  document.getElementById('reqFiltroStatusEstoque').value = '';
   estadoRelReq.pagina = 1; carregarTabelaRelReq();
 });
 document.getElementById('reqAnterior').addEventListener('click', () => {
@@ -8976,6 +8978,8 @@ async function carregarTabelaRelReq() {
   set('descricao', 'reqFiltroDescricao');
   const cat = document.getElementById('reqFiltroCategoria').value;
   if (cat) params.set('categoria', cat);
+  const se = document.getElementById('reqFiltroStatusEstoque').value;
+  if (se) params.set('statusEstoque', se);
   if (estadoRelReq.caixa && estadoRelReq.caixa !== 'todas') params.set('caixa', estadoRelReq.caixa);
 
   const dados = await api(`/autores/requisicoes/itens?${params.toString()}`);
