@@ -35,6 +35,7 @@
 | 27b | Primeiro Atendimento — abas em ordem (Todas · alfabético) + abas Cancelado/Finalizado à direita (migram por status); Status Cancelado exige justificativa; abas em estilo pasta | 4fdf42c | 25/08/2026 | 🚀 PUBLICADO (prod 4fdf42c) |
 | 28b | Filipeta da solicitação coletiva — seção de pacientes vira bloco por paciente com os itens que ele pediu (descrição + SCODES + SIAF) e a qtde individual (soma bate com o consolidado) | 62221b4 | 26/08/2026 | 🚀 PUBLICADO (prod 62221b4) |
 | 29b | Relatório de Primeiro Atendimento — filtro de Status Estoque (Chamar / Aguardar / Sem dado); individual pela autonomia, coletiva pela regra agregada | e23751f | 26/08/2026 | 🚀 PUBLICADO (prod e23751f) |
+| 30b | Modal "Ver" do estoque (TP e Geral) — coluna Qtd. pendente nas compras, destacando o que falta receber nos itens com status Entrega Parcial | cbd35dc | 26/08/2026 | 🚀 PUBLICADO (prod cbd35dc) |
 
 ### Detalhe do item 12 — Listagem de Autores Importados
 
