@@ -4357,14 +4357,20 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp', unidade = '')
     if (dados.temCompraAberta) {
       html += '<p class="aviso-compra-aberta">✓ Este item tem compra em aberto (em andamento).</p>';
     }
-    html += `<div class="rolagem-tabela"><table><thead><tr><th>Período</th><th>Modalidade</th><th>Qtd. solicitada</th><th>Empenho</th><th>Previsão</th><th>Status</th></tr></thead><tbody>`;
+    html += `<div class="rolagem-tabela"><table><thead><tr><th>Período</th><th>Modalidade</th><th>Qtd. solicitada</th><th>Qtd. pendente</th><th>Empenho</th><th>Previsão</th><th>Status</th></tr></thead><tbody>`;
     html += dados.compras.map((c) => {
       const classe = classeStatus(c.status, c.data_previsao_entrega);
       const rotulo = rotuloStatus(c.status, c.data_previsao_entrega);
+      // Qtd. pendente: destaca quando é Entrega Parcial (o que falta receber).
+      const pend = c.qtde_pendente;
+      const celPend = (c.status === 'Entrega Parcial' && pend != null && String(pend).trim() !== '')
+        ? `<strong class="etiqueta-status atrasado" style="padding:1px 7px;">${valorCelula(pend)}</strong>`
+        : (pend != null && Number(pend) > 0 ? valorCelula(pend) : '—');
       return `<tr>
         <td>${c.mes}/${c.ano}</td>
         <td>${c.modalidade_compra || '—'}</td>
         <td>${valorCelula(c.qtde_solicitada)}</td>
+        <td>${celPend}</td>
         <td>${c.n_empenho || '—'}</td>
         <td class="col-data">${formatarData(c.data_previsao_entrega)}</td>
         <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>

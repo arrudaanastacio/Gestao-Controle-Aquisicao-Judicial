@@ -1307,13 +1307,13 @@ router.get('/item/:codigo', (req, res) => {
   const compras = fonteCompras === 'od'
     ? db.prepare(`
         SELECT ano, mes, modalidade_compra, n_oficio, n_empenho, qtde_solicitada,
-               data_previsao_entrega, data_entrega, status
+               qtde_entregue, qtde_pendente, data_previsao_entrega, data_entrega, status
         FROM solicitacoes_od WHERE codigo_item = ?
         ORDER BY ano, ${ordemMes}
       `).all(codigo)
     : db.prepare(`
         SELECT ano, mes, modalidade_compra, n_oficio, n_empenho, qtde_solicitada,
-               quantidade_empenho, data_previsao_entrega, data_entrega, status
+               quantidade_empenho, qtde_entregue, qtde_pendente, data_previsao_entrega, data_entrega, status
         FROM solicitacoes WHERE codigo_item = ?
         ORDER BY ano, ${ordemMes}
       `).all(codigo);
