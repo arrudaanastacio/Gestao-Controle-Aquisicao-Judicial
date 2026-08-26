@@ -5619,6 +5619,219 @@ document.addEventListener('click', async (ev) => {
   }
 });
 
+// ================== Modo "Por Item" (Autores Importados) ==================
+// Escolhe um item, lista os pacientes ativos dele e adiciona vários ao
+// Relatório de Compras Importados de uma vez. Reaproveita POST
+// /autores/compras-importados (com a mesma regra de recorrência).
+const modalPorItemImp = document.getElementById('modalPorItemImp');
+let piItemAtual = null;      // { codigo_item, descricao_item, ... }
+let piPacientes = [];        // pacientes carregados do item
+let piValorMedio = null;     // valor médio unitário do item (Relatório de Itens)
+let piSelecionados = [];     // pacientes escolhidos na etapa de valores
+let piDebounce;
+
+function piMostrarEtapa(etapa) { // 'item' | 'pacientes' | 'valores'
+  document.getElementById('piEtapaItem').hidden = etapa !== 'item';
+  document.getElementById('piEtapaPacientes').hidden = etapa !== 'pacientes';
+  document.getElementById('piEtapaValores').hidden = etapa !== 'valores';
+  document.getElementById('piVoltar').hidden = etapa !== 'pacientes';
+  document.getElementById('piVoltarPac').hidden = etapa !== 'valores';
+  document.getElementById('piAdicionar').hidden = etapa !== 'pacientes';
+  document.getElementById('piConfirmar').hidden = etapa !== 'valores';
+}
+
+function abrirPorItemImp() {
+  piItemAtual = null; piPacientes = []; piValorMedio = null; piSelecionados = [];
+  piMostrarEtapa('item');
+  document.getElementById('piBuscaItem').value = '';
+  document.getElementById('piResultadosItem').innerHTML = '<p class="texto-apoio" style="padding:8px 0;">Digite para buscar um item.</p>';
+  modalPorItemImp.hidden = false;
+  setTimeout(() => document.getElementById('piBuscaItem').focus(), 50);
+}
+document.getElementById('botaoPorItemImp').addEventListener('click', abrirPorItemImp);
+document.getElementById('piCancelar').addEventListener('click', () => { modalPorItemImp.hidden = true; });
+modalPorItemImp.addEventListener('click', (ev) => { if (ev.target === modalPorItemImp) modalPorItemImp.hidden = true; });
+document.getElementById('piVoltar').addEventListener('click', () => piMostrarEtapa('item'));
+document.getElementById('piVoltarPac').addEventListener('click', () => piMostrarEtapa('pacientes'));
+
+document.getElementById('piBuscaItem').addEventListener('input', (ev) => {
+  clearTimeout(piDebounce);
+  const termo = ev.target.value.trim();
+  const alvo = document.getElementById('piResultadosItem');
+  if (!termo) { alvo.innerHTML = '<p class="texto-apoio" style="padding:8px 0;">Digite para buscar um item.</p>'; return; }
+  piDebounce = setTimeout(async () => {
+    alvo.innerHTML = '<p class="texto-apoio" style="padding:8px 0;">Buscando…</p>';
+    try {
+      const d = await api('/autores/importados/itens?q=' + encodeURIComponent(termo));
+      if (!d.itens.length) { alvo.innerHTML = '<p class="texto-apoio" style="padding:8px 0;">Nenhum item encontrado.</p>'; return; }
+      alvo.innerHTML = d.itens.map((it, i) => `
+        <div class="pi-item-op" data-idx="${i}" role="button" tabindex="0" style="display:flex; align-items:center; gap:10px; padding:9px 10px; border:1px solid var(--linha); border-radius:var(--raio); margin-bottom:6px; cursor:pointer;">
+          <div style="flex:1;">
+            <div style="font-weight:500; font-size:13px;">${escHtml(it.descricao_item || it.codigo_item)}</div>
+            <div class="col-codigo" style="font-size:11px;">${escHtml(it.codigo_item)}${it.cod_siafisico ? ' · Siafísico ' + escHtml(it.cod_siafisico) : ''}</div>
+          </div>
+          <span class="tag-status" style="background:#1c6cad22; color:#1c6cad; border:1px solid #1c6cad55; white-space:nowrap;">${fmtNumero(it.n_pacientes)} paciente(s)</span>
+        </div>`).join('');
+      alvo.querySelectorAll('.pi-item-op').forEach((el) => {
+        const it = d.itens[Number(el.dataset.idx)];
+        el.addEventListener('click', () => escolherItemImp(it));
+        el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); escolherItemImp(it); } });
+      });
+    } catch (e) { alvo.innerHTML = `<p class="texto-apoio" style="color:var(--vermelho); padding:8px 0;">Erro: ${e.message}</p>`; }
+  }, 300);
+});
+
+async function escolherItemImp(it) {
+  piItemAtual = it;
+  const corpo = document.getElementById('piCorpoPacientes');
+  piMostrarEtapa('pacientes');
+  document.getElementById('piItemEscolhido').innerHTML =
+    `<div style="flex:1;"><div style="font-weight:500;">${escHtml(it.descricao_item || it.codigo_item)}</div>
+     <div class="col-codigo" style="font-size:11px;">${escHtml(it.codigo_item)}</div></div>`;
+  corpo.innerHTML = '<p class="texto-apoio" style="padding:8px 0;">Carregando pacientes…</p>';
+  try {
+    const d = await api('/autores/importados/por-item?codigo=' + encodeURIComponent(it.codigo_item));
+    piPacientes = d.itens;
+    piValorMedio = d.valor_medio_unitario || null;
+    renderPacientesImp();
+  } catch (e) { corpo.innerHTML = `<p class="texto-apoio" style="color:var(--vermelho);">Erro: ${e.message}</p>`; }
+}
+
+function renderPacientesImp() {
+  const corpo = document.getElementById('piCorpoPacientes');
+  corpo.innerHTML = `<table class="tabela"><thead><tr>
+      <th style="width:34px;"></th><th>Paciente</th><th>Unidade</th><th>Protocolo</th><th>Status da demanda</th><th></th>
+    </tr></thead><tbody>${piPacientes.map((p, i) => {
+      const tip = p.ja_existe ? `já consta aquisição do item para o paciente${p.status_anterior ? ' (última: ' + escHtml(p.status_anterior) + ')' : ''}` : '';
+      const chk = `<input type="checkbox" class="pi-chk" data-idx="${i}" ${p.ja_existe ? 'disabled' : ''}>`;
+      const incluir = p.ja_existe
+        ? `<button type="button" class="botao-secundario pi-incluir" data-idx="${i}" title="${tip}" style="padding:3px 9px; font-size:11px;">Incluir mesmo assim</button>`
+        : '';
+      return `<tr${p.ja_existe ? ' style="opacity:.6;" title="' + tip + '"' : ''}>
+        <td>${chk}</td>
+        <td style="font-weight:500;">${escHtml(p.autor || '—')}${p.ja_existe ? ' <span class="tag-status" style="background:#b4530922; color:#b45309; border:1px solid #b4530955; font-size:10px;">já no relatório</span>' : ''}</td>
+        <td>${escHtml(p.unidade_dispensadora || '—')}</td>
+        <td class="col-codigo">${escHtml(p.protocolo || '—')}</td>
+        <td style="font-size:12px;">${escHtml(p.status_demanda || '—')}</td>
+        <td>${incluir}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+  corpo.querySelectorAll('.pi-chk').forEach((c) => c.addEventListener('change', atualizarContadorPiSel));
+  corpo.querySelectorAll('.pi-incluir').forEach((b) => b.addEventListener('click', () => incluirMesmoAssimImp(Number(b.dataset.idx), b)));
+  document.getElementById('piSelTodos').checked = false;
+  atualizarContadorPiSel();
+}
+
+function atualizarContadorPiSel() {
+  const n = document.querySelectorAll('#piCorpoPacientes .pi-chk:checked').length;
+  document.getElementById('piContadorSel').textContent = `${n} selecionado(s)`;
+  document.getElementById('piAdicionar').textContent = n > 0 ? `Adicionar ${n} selecionado(s)` : 'Adicionar selecionados';
+}
+
+document.getElementById('piSelTodos').addEventListener('change', (ev) => {
+  document.querySelectorAll('#piCorpoPacientes .pi-chk:not(:disabled)').forEach((c) => { c.checked = ev.target.checked; });
+  atualizarContadorPiSel();
+});
+
+async function incluirMesmoAssimImp(idx, btn) {
+  const p = piPacientes[idx];
+  if (!p) return;
+  if (!confirm(`Incluir "${p.autor}" mesmo já constando aquisição deste item?`)) return;
+  btn.disabled = true; btn.textContent = 'Incluindo…';
+  try {
+    await api('/autores/compras-importados', { method: 'POST', body: JSON.stringify({ ...p, forcar: true }) });
+    btn.textContent = '✓ incluído';
+  } catch (e) { btn.disabled = false; btn.textContent = 'Incluir mesmo assim'; alert(e.message); }
+}
+
+// "Adicionar selecionados" → vai para a etapa de VALORES (não grava ainda).
+document.getElementById('piAdicionar').addEventListener('click', () => {
+  piSelecionados = [...document.querySelectorAll('#piCorpoPacientes .pi-chk:checked')].map((c) => piPacientes[Number(c.dataset.idx)]);
+  if (!piSelecionados.length) { alert('Selecione ao menos um paciente.'); return; }
+  piMostrarEtapa('valores');
+  document.getElementById('piValoresItem').innerHTML =
+    `<div style="flex:1;"><div style="font-weight:500;">${escHtml(piItemAtual.descricao_item || piItemAtual.codigo_item)}</div>
+       <div class="col-codigo" style="font-size:11px;">${escHtml(piItemAtual.codigo_item)} · ${fmtNumero(piSelecionados.length)} paciente(s)${piValorMedio ? ' · Valor médio ' + escHtml(piValorMedio) : ''}</div></div>`;
+  renderValoresImp();
+});
+
+// Converte "1.234,56" / "1234.56" → número; vazio → null.
+function piNum(v) {
+  if (v == null || String(v).trim() === '') return null;
+  const n = parseFloat(String(v).replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+const PI_STATUS = ['Solicitado', 'Embarque', 'Instrução Processual', 'Pendência', 'Sem cotação', 'Deserto', 'Fracassado', 'Devolvido', 'Finalizado', 'Cancelado', 'Demanda Inativa'];
+
+function renderValoresImp() {
+  const corpo = document.getElementById('piCorpoValores');
+  const opt = (sel) => PI_STATUS.map((s) => `<option${s === sel ? ' selected' : ''}>${s}</option>`).join('');
+  corpo.innerHTML = `<table class="tabela" style="min-width:1180px;"><thead><tr>
+      <th>Paciente</th><th>Qtde Solicitada</th><th>Valor Médio Unit.</th><th>Valor Total</th>
+      <th>SEI</th><th>Req. GSNET</th><th>Data Solic.</th><th>Nº Empenho</th><th>Nº Recibo</th><th>Data Entrega</th><th>Status</th>
+    </tr></thead><tbody>${piSelecionados.map((p, i) => `<tr data-idx="${i}">
+      <td style="font-weight:500; min-width:160px;">${escHtml(p.autor || '—')}<br><span class="col-codigo" style="font-size:10px;">${escHtml(p.unidade_dispensadora || '')}</span></td>
+      <td><input type="text" class="piv-qtde" data-idx="${i}" style="width:90px;"></td>
+      <td><input type="text" class="piv-valor" data-idx="${i}" value="${piValorMedio ? escAttr(piValorMedio) : ''}" style="width:100px;"></td>
+      <td><input type="text" class="piv-total" data-idx="${i}" readonly style="width:110px; background:var(--realce-tabela);"></td>
+      <td><input type="text" class="piv-sei" data-idx="${i}" style="width:120px;"></td>
+      <td><input type="text" class="piv-req" data-idx="${i}" style="width:110px;"></td>
+      <td><input type="date" class="piv-dsolic" data-idx="${i}"></td>
+      <td><input type="text" class="piv-emp" data-idx="${i}" style="width:110px;"></td>
+      <td><input type="text" class="piv-rec" data-idx="${i}" style="width:110px;"></td>
+      <td><input type="date" class="piv-dentr" data-idx="${i}"></td>
+      <td><select class="piv-status" data-idx="${i}">${opt('Solicitado')}</select></td>
+    </tr>`).join('')}</tbody></table>`;
+  // Recalcula o Valor Total quando muda Qtde ou Valor Médio.
+  const recalc = (i) => {
+    const q = piNum(corpo.querySelector(`.piv-qtde[data-idx="${i}"]`).value);
+    const v = piNum(corpo.querySelector(`.piv-valor[data-idx="${i}"]`).value);
+    const tot = (q != null && v != null) ? (q * v) : null;
+    corpo.querySelector(`.piv-total[data-idx="${i}"]`).value = tot == null ? '' : tot.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+  corpo.querySelectorAll('.piv-qtde, .piv-valor').forEach((el) => el.addEventListener('input', () => recalc(Number(el.dataset.idx))));
+}
+
+// Repete os valores da 1ª linha nas demais.
+document.getElementById('piRepetir').addEventListener('click', () => {
+  const corpo = document.getElementById('piCorpoValores');
+  if (piSelecionados.length < 2) return;
+  // Replica APENAS SEI, Req. GSNET e Data de Solicitação da 1ª linha nas demais.
+  const campos = ['piv-sei', 'piv-req', 'piv-dsolic'];
+  const origem = {}; campos.forEach((c) => origem[c] = corpo.querySelector(`.${c}[data-idx="0"]`).value);
+  for (let i = 1; i < piSelecionados.length; i++) {
+    campos.forEach((c) => { const el = corpo.querySelector(`.${c}[data-idx="${i}"]`); if (el) el.value = origem[c]; });
+  }
+});
+
+// Confirmar: cria cada paciente (POST) e grava os valores (PUT).
+document.getElementById('piConfirmar').addEventListener('click', async () => {
+  const corpo = document.getElementById('piCorpoValores');
+  const btn = document.getElementById('piConfirmar');
+  btn.disabled = true;
+  const g = (cls, i) => { const el = corpo.querySelector(`.${cls}[data-idx="${i}"]`); return el ? el.value : ''; };
+  let ok = 0; const erros = [];
+  for (let i = 0; i < piSelecionados.length; i++) {
+    const p = piSelecionados[i];
+    btn.textContent = `Salvando ${i + 1}/${piSelecionados.length}…`;
+    try {
+      const criado = await api('/autores/compras-importados', { method: 'POST', body: JSON.stringify(p) });
+      const body = {
+        quantidade_solicitada: g('piv-qtde', i), valor_medio_unitario: g('piv-valor', i),
+        sei: g('piv-sei', i), req_gsnet: g('piv-req', i), data_solicitacao: g('piv-dsolic', i),
+        numero_empenho: g('piv-emp', i), numero_recibo: g('piv-rec', i), data_entrega: g('piv-dentr', i),
+        status: g('piv-status', i) || 'Solicitado',
+      };
+      await api(`/autores/compras-importados/${criado.id}`, { method: 'PUT', body: JSON.stringify(body) });
+      ok++;
+    } catch (e) { erros.push(`${p.autor}: ${e.message}`); }
+  }
+  btn.disabled = false; btn.textContent = 'Confirmar e salvar';
+  alert(`${ok} paciente(s) salvos no Relatório de Compras Importados.` + (erros.length ? `\n\nNão salvos (${erros.length}):\n- ` + erros.slice(0, 8).join('\n- ') : ''));
+  modalPorItemImp.hidden = true;
+  if (typeof carregarTabelaAutoresImportados === 'function') carregarTabelaAutoresImportados();
+});
+
 // Modal "Ver" das listagens de autores: guarda os campos na própria célula.
 function btDadosDemanda(a) {
   const d = {
@@ -7924,6 +8137,39 @@ document.getElementById('colMarcarTodos').addEventListener('change', (ev) => {
 });
 
 // Reabre/imprime uma requisição salva (a partir do Relatório Primeiro Atendimento)
+// Modal "Ver itens" de uma solicitação coletiva: itens + código SCODES.
+const modalItensColetiva = document.getElementById('modalItensColetiva');
+document.getElementById('botaoFecharItensColetiva').addEventListener('click', () => { modalItensColetiva.hidden = true; });
+modalItensColetiva.addEventListener('click', (ev) => { if (ev.target === modalItensColetiva) modalItensColetiva.hidden = true; });
+
+async function abrirItensColetiva(id) {
+  document.getElementById('tituloItensColetiva').textContent = 'Itens da solicitação coletiva';
+  document.getElementById('subItensColetiva').textContent = 'Carregando…';
+  document.getElementById('corpoItensColetiva').innerHTML = '';
+  modalItensColetiva.hidden = false;
+  try {
+    const dados = await api(`/autores/requisicoes/${id}`);
+    const r = dados.requisicao || {};
+    const itens = dados.itens || [];
+    document.getElementById('subItensColetiva').textContent =
+      `${r.codigo_controle || '#' + id} · ${fmtNumero(itens.length)} medicamento(s)${r.sei ? ' · SEI ' + r.sei : ''}`;
+    document.getElementById('corpoItensColetiva').innerHTML = `
+      <table class="tabela">
+        <thead><tr><th>Código SCODES</th><th>Siafísico</th><th>Descrição do item</th><th class="col-num">Qtde</th><th class="col-num">Pacientes</th></tr></thead>
+        <tbody>${itens.map((it) => `<tr>
+          <td class="col-codigo">${escHtml(it.codigo_item || '—')}</td>
+          <td class="col-codigo">${escHtml(it.cod_siafisico || it.siafisico || '—')}</td>
+          <td>${escHtml(it.descricao_item || '—')}</td>
+          <td class="col-num">${it.quantidade != null ? fmtNumero(it.quantidade) : '—'}</td>
+          <td class="col-num">${it.n_pacientes != null ? fmtNumero(it.n_pacientes) : '—'}</td>
+        </tr>`).join('') || '<tr><td colspan="5" class="dica" style="text-align:center;">Sem itens.</td></tr>'}</tbody>
+      </table>`;
+  } catch (e) {
+    document.getElementById('subItensColetiva').textContent = '';
+    document.getElementById('corpoItensColetiva').innerHTML = `<p class="texto-apoio" style="color:var(--vermelho);">Erro: ${e.message}</p>`;
+  }
+}
+
 async function reabrirRequisicao(id) {
   const dados = await api(`/autores/requisicoes/${id}`);
   const r = dados.requisicao;
@@ -8730,8 +8976,8 @@ async function carregarTabelaRelReq() {
           <td class="col-codigo"><a href="#" class="req-abrir-doc" data-req="${it.requisicao_id}"><strong>${it.codigo_controle || ('#' + it.requisicao_id)}</strong></a> <span class="tag-programa sub" style="font-size:9px;">COLETIVA</span></td>
           <td>${nomePac}</td>
           <td class="col-codigo">${it.sei || '—'}</td>
-          <td colspan="4" style="color:var(--cinza-texto);">${fmtNumero(it.total_itens)} medicamento(s) · ${fmtNumero(it.total_pacientes)} paciente(s) <span style="font-size:11px;">— abra o nº de controle para o consolidado</span></td>
-          <td>—</td>
+          <td colspan="7" style="color:var(--cinza-texto);">${fmtNumero(it.total_itens)} medicamento(s) · ${fmtNumero(it.total_pacientes)} paciente(s)
+            <button type="button" class="botao-secundario req-ver-itens" data-req="${it.requisicao_id}" style="padding:2px 9px; font-size:11px; margin-left:8px;">👁 Ver itens</button></td>
           <td><select class="req-at-status" ${disC}>${opc(['Solicitado', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select></td>
           <td><input type="text" class="req-at-gsnet" value="${fmtGsnet(it.requisicao_gsnet).replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;" ${disC}></td>
           <td><select class="req-at-tel" ${disC}>${opc(['Não', 'Sim'], it.telegrama_enviado)}</select></td>
@@ -8789,6 +9035,10 @@ async function carregarTabelaRelReq() {
     // Abrir documento ao clicar no nº de controle
     corpo.querySelectorAll('.req-abrir-doc').forEach((a) => {
       a.addEventListener('click', (ev) => { ev.preventDefault(); reabrirRequisicao(a.dataset.req); });
+    });
+    // "Ver itens" das linhas coletivas: lista itens + código SCODES solicitados.
+    corpo.querySelectorAll('.req-ver-itens').forEach((b) => {
+      b.addEventListener('click', () => abrirItensColetiva(b.dataset.req));
     });
     // Exibir/ocultar detalhes de quem enviou o telegrama
     corpo.querySelectorAll('.req-det').forEach((a) => {

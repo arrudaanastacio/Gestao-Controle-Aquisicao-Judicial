@@ -1895,6 +1895,7 @@
           <select id="filtroStatusItemAutoresImportados"><option value="">Status do item: todos</option></select>
           <select id="filtroCategoriaAutoresImportados"><option value="">Categoria: todas</option></select>
           <button id="botaoLimparFiltrosAutoresImportados" class="botao-secundario" type="button">Limpar</button>
+          <button id="botaoPorItemImp" class="botao-primario" type="button" title="Escolher um item e selecionar vários pacientes de uma vez">➕ Por Item</button>
           <button id="botaoExportarAutoresImportados" class="botao-secundario" type="button">📊 Exportar Excel</button>
         </div>
 
@@ -1927,6 +1928,45 @@
             <div class="botoes">
               <button id="botaoAnteriorAutoresImportados">← Anterior</button>
               <button id="botaoProximoAutoresImportados">Próximo →</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="fundo-modal" id="modalPorItemImp" hidden>
+          <div class="modal" style="max-width:820px;">
+            <h3>Adicionar por item</h3>
+            <p class="texto-secundario" style="margin-top:-6px;">Escolha o item, selecione os pacientes e envie todos ao Relatório de Compras Importados.</p>
+
+            <div id="piEtapaItem">
+              <label class="rotulo-campo" for="piBuscaItem">Item</label>
+              <input type="search" id="piBuscaItem" placeholder="Buscar medicamento ou código do item…" autocomplete="off">
+              <div id="piResultadosItem" style="margin-top:8px; max-height:46vh; overflow:auto;"></div>
+            </div>
+
+            <div id="piEtapaPacientes" hidden>
+              <div id="piItemEscolhido" style="display:flex; align-items:center; gap:10px; border:1px solid var(--borda-forte, var(--linha)); border-radius:var(--raio); padding:8px 10px; background:var(--realce-tabela); margin-bottom:12px;"></div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px; flex-wrap:wrap;">
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600;"><input type="checkbox" id="piSelTodos"> Selecionar todos</label>
+                <span id="piContadorSel" class="texto-secundario" style="font-size:12px;">0 selecionados</span>
+              </div>
+              <div class="tabela-rolavel" id="piCorpoPacientes" style="max-height:52vh;"></div>
+            </div>
+
+            <div id="piEtapaValores" hidden>
+              <div id="piValoresItem" style="display:flex; align-items:center; gap:10px; border:1px solid var(--linha); border-radius:var(--raio); padding:8px 10px; background:var(--realce-tabela); margin-bottom:10px;"></div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px; flex-wrap:wrap;">
+                <span class="texto-secundario" style="font-size:12px;">Preencha a 1ª linha e use o botão para repetir os valores nas demais. O Valor Total é calculado (Qtde × Valor Médio).</span>
+                <button type="button" class="botao-secundario" id="piRepetir" title="Copia SEI, Req. GSNET e Data de Solicitação da 1ª linha para as demais">⧉ Repetir SEI / Req. GSNET / Data Solic. nos demais</button>
+              </div>
+              <div class="tabela-rolavel" id="piCorpoValores" style="max-height:52vh;"></div>
+            </div>
+
+            <div class="acoes-modal">
+              <button type="button" class="botao-secundario" id="piVoltar" hidden>← Trocar item</button>
+              <button type="button" class="botao-secundario" id="piVoltarPac" hidden>← Voltar aos pacientes</button>
+              <button type="button" class="botao-secundario" id="piCancelar">Fechar</button>
+              <button type="button" class="botao-primario" id="piAdicionar" hidden>Adicionar selecionados</button>
+              <button type="button" class="botao-primario" id="piConfirmar" hidden>Confirmar e salvar</button>
             </div>
           </div>
         </div>
@@ -3368,6 +3408,17 @@
       <div id="conteudoModalValidade"></div>
       <div class="acoes-modal">
         <button type="button" class="botao-secundario" id="botaoFecharModalValidade">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="fundo-modal" id="modalItensColetiva" hidden>
+    <div class="modal" style="max-width:720px;">
+      <h3 id="tituloItensColetiva">Itens da solicitação coletiva</h3>
+      <p id="subItensColetiva" class="texto-secundario" style="margin-top:-6px;"></p>
+      <div class="tabela-rolavel" id="corpoItensColetiva" style="margin-top:8px; max-height:60vh;"></div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-primario" id="botaoFecharItensColetiva">Fechar</button>
       </div>
     </div>
   </div>

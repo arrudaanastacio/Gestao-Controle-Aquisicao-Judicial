@@ -484,6 +484,65 @@ router.post('/compras-importados', (req, res) => {
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
+// ---- Modo "Por Item" da Listagem de Autores Importados ----
+// Busca de ITENS (distintos) do escopo importados que casam com o termo, com a
+// contagem de pacientes ativos de cada um. Alimenta o seletor de item do modal.
+router.get('/importados/itens', (req, res) => {
+  const { where, params } = montarFiltroAutores({ escopoUnidade: 'importados', q: req.query.q || undefined });
+  const itens = db.prepare(`
+    SELECT codigo_item,
+           MAX(descricao_item) AS descricao_item,
+           MAX(cod_siafisico) AS cod_siafisico,
+           MAX(categoria) AS categoria,
+           COUNT(*) AS n_pacientes
+      FROM autores_itens ${where}
+     GROUP BY codigo_item
+     ORDER BY descricao_item COLLATE NOCASE
+     LIMIT 50
+  `).all(...params);
+  res.json({ itens });
+});
+
+// PACIENTES ativos de UM item (escopo importados), anotados com se já constam
+// no Relatório de Compras Importados e se cabe nova aquisição.
+router.get('/importados/por-item', (req, res) => {
+  const codigo = String(req.query.codigo || '').trim();
+  if (!codigo) return res.status(400).json({ erro: 'Informe o código do item.' });
+  const { where, params } = montarFiltroAutores({ escopoUnidade: 'importados' });
+  const pacientes = db.prepare(
+    `SELECT * FROM autores_itens ${where} AND codigo_item = ? ORDER BY autor COLLATE NOCASE`
+  ).all(...params, codigo);
+
+  // Última situação por (autor, protocolo) no Compras Importados deste item.
+  const compras = db.prepare(
+    'SELECT autor, protocolo, status FROM compras_importados WHERE codigo_item = ? ORDER BY COALESCE(ciclo,1) DESC, id DESC'
+  ).all(codigo);
+  const ultimo = new Map();
+  for (const c of compras) {
+    const k = (c.autor || '') + '|' + (c.protocolo || '');
+    if (!ultimo.has(k)) ultimo.set(k, c.status || 'Solicitado');
+  }
+  const itens = pacientes.map((p) => {
+    const st = ultimo.get((p.autor || '') + '|' + (p.protocolo || ''));
+    const jaExiste = st !== undefined;
+    const podeNova = jaExiste && (st === 'Finalizado' || st === 'Cancelado');
+    return { ...p, ja_existe: jaExiste, status_anterior: st || null, pode_nova: podeNova };
+  });
+  const ref = pacientes[0] || {};
+  // Valor médio unitário do item (foto mais recente do Relatório de Itens) —
+  // igual ao que o POST usa; serve para pré-preencher a etapa de valores.
+  const cat = db.prepare('SELECT valor_medio_unitario FROM relatorio_itens WHERE codigo = ? ORDER BY data_referencia DESC LIMIT 1').get(codigo) || {};
+  const valorMedio = (cat.valor_medio_unitario != null && String(cat.valor_medio_unitario).trim() !== '') ? String(cat.valor_medio_unitario) : null;
+  res.json({
+    codigo_item: codigo,
+    descricao_item: ref.descricao_item || null,
+    cod_siafisico: ref.cod_siafisico || null,
+    valor_medio_unitario: valorMedio,
+    total: itens.length,
+    itens,
+  });
+});
+
 router.put('/compras-importados/:id', (req, res) => {
   const item = db.prepare('SELECT id, status FROM compras_importados WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ erro: 'Registro não encontrado.' });
