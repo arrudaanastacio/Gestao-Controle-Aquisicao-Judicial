@@ -7444,7 +7444,7 @@ async function selecionarPaciente(autor) {
     ].join('');
     const consumoNum = parseNumeroReq(it.qtde_consumo);
     return `
-      <label class="req-item" style="display:grid; grid-template-columns:24px 1fr 95px 110px; gap:10px; align-items:center; padding:9px 6px; border-bottom:1px solid var(--linha-tabela); cursor:pointer;">
+      <label class="req-item" data-busca="${escAttr(normalizarBusca((it.descricao_item || '') + ' ' + (it.codigo_item || '') + ' ' + (it.cod_siafisico || '')))}" style="display:grid; grid-template-columns:24px 1fr 95px 110px; gap:10px; align-items:center; padding:9px 6px; border-bottom:1px solid var(--linha-tabela); cursor:pointer;">
         <input type="checkbox" class="req-check" data-idx="${idx}" style="width:auto;">
         <div>
           <div style="font-size:13px;">${it.descricao_item || '—'}</div>
@@ -7467,6 +7467,7 @@ async function selecionarPaciente(autor) {
   }).join('');
 
   document.getElementById('reqMarcarTodos').checked = false;
+  { const bp = document.getElementById('reqBuscaItemPaciente'); if (bp) bp.value = ''; }
   document.querySelectorAll('#reqListaItens .req-check').forEach((c) => c.addEventListener('change', atualizarContadorReq));
   // Recalcular a quantidade de aquisição quando a autonomia de compra mudar
   document.querySelectorAll('#reqListaItens .req-autonomia').forEach((inp) => {
@@ -7511,6 +7512,14 @@ function recalcularAquisicao(inpAutonomia) {
 document.getElementById('reqMarcarTodos').addEventListener('change', (ev) => {
   document.querySelectorAll('#reqListaItens .req-check').forEach((c) => { c.checked = ev.target.checked; });
   atualizarContadorReq();
+});
+// Filtro de busca dos itens DO PACIENTE (esconde as linhas que não casam;
+// preserva as seleções). Acento/caixa-insensitive.
+document.getElementById('reqBuscaItemPaciente').addEventListener('input', (ev) => {
+  const termo = normalizarBusca(ev.target.value);
+  document.querySelectorAll('#reqListaItens .req-item').forEach((el) => {
+    el.style.display = (!termo || (el.dataset.busca || '').includes(termo)) ? '' : 'none';
+  });
 });
 
 function atualizarContadorReq() {
