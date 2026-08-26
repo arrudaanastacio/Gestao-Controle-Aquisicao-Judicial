@@ -33,6 +33,7 @@
 | 25b | Requisição Coletiva — Status Estoque agregado na linha (Chamar se todos ≥2m; Aguardar/Atend. Parcial se algum <2m) + Estoque/Autonomia/Status Estoque por item no "Ver itens" | ffde2d0 | 25/08/2026 | 🚀 PUBLICADO (prod ffde2d0) |
 | 26b | Requisição Coletiva — editar a Qtde solicitada direto no modal "Ver itens" (salva ao sair do campo) | 02f3869 | 25/08/2026 | 🚀 PUBLICADO (prod 02f3869) |
 | 27b | Primeiro Atendimento — abas em ordem (Todas · alfabético) + abas Cancelado/Finalizado à direita (migram por status); Status Cancelado exige justificativa; abas em estilo pasta | 4fdf42c | 25/08/2026 | 🚀 PUBLICADO (prod 4fdf42c) |
+| 28b | Filipeta da solicitação coletiva — seção de pacientes vira bloco por paciente com os itens que ele pediu (descrição + SCODES + SIAF) e a qtde individual (soma bate com o consolidado) | 62221b4 | 26/08/2026 | 🚀 PUBLICADO (prod 62221b4) |
 
 ### Detalhe do item 12 — Listagem de Autores Importados
 
