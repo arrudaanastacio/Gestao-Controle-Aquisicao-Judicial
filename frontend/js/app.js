@@ -8158,11 +8158,11 @@ async function abrirItensColetiva(id) {
       : (Number(aut) < 2 ? '<span class="etiqueta-status cancelado">Aguardar</span>' : '<span class="etiqueta-status finalizado">Chamar</span>');
     document.getElementById('corpoItensColetiva').innerHTML = `
       <table class="tabela">
-        <thead><tr><th>Código SCODES</th><th>Siafísico</th><th>Descrição do item</th><th class="col-num">Qtde</th><th class="col-num">Pacientes</th><th class="col-num">Estoque</th><th class="col-num">Autonomia</th><th>Status Estoque</th></tr></thead>
+        <thead><tr><th>Código SCODES</th><th>Siafísico</th><th style="min-width:340px;">Descrição do item</th><th class="col-num">Qtde</th><th class="col-num">Pacientes</th><th class="col-num">Estoque</th><th class="col-num">Autonomia</th><th>Status Estoque</th></tr></thead>
         <tbody>${itens.map((it) => `<tr>
-          <td class="col-codigo">${escHtml(it.codigo_item || '—')}</td>
-          <td class="col-codigo">${escHtml(it.cod_siafisico || it.siafisico || '—')}</td>
-          <td>${escHtml(it.descricao_item || '—')}</td>
+          <td class="col-codigo" style="white-space:nowrap;">${escHtml(it.codigo_item || '—')}</td>
+          <td class="col-codigo" style="white-space:nowrap;">${escHtml(it.cod_siafisico || it.siafisico || '—')}</td>
+          <td style="min-width:340px;">${escHtml(it.descricao_item || '—')}</td>
           <td class="col-num"><input type="number" min="0" step="1" class="ic-qtde" data-id="${it.id}" value="${it.quantidade != null ? String(it.quantidade).replace(/"/g, '&quot;') : ''}" placeholder="—" title="Corrigir a quantidade solicitada" style="width:84px;"></td>
           <td class="col-num">${it.n_pacientes != null ? fmtNumero(it.n_pacientes) : '—'}</td>
           <td class="col-num">${it.estoque_atual != null ? fmtNumero(it.estoque_atual) : '—'}</td>
