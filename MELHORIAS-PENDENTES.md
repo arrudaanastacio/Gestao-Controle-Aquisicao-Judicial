@@ -37,6 +37,7 @@
 | 29b | Relatório de Primeiro Atendimento — filtro de Status Estoque (Chamar / Aguardar / Sem dado); individual pela autonomia, coletiva pela regra agregada | e23751f | 26/08/2026 | 🚀 PUBLICADO (prod e23751f) |
 | 30b | Modal "Ver" do estoque (TP e Geral) — coluna Qtd. pendente nas compras, destacando o que falta receber nos itens com status Entrega Parcial | cbd35dc | 26/08/2026 | 🚀 PUBLICADO (prod cbd35dc) |
 | 31b | Requisição de Compra (Por paciente) — campo de busca para localizar o item do paciente (medicamento/SCODES/siafísico), acento-insensitive, preservando seleções | dafa36b | 26/08/2026 | 🚀 PUBLICADO (prod dafa36b) |
+| 32b | Estoque IBL nos modais "Ver" (Estoque TP e Itens em Estoque Demais Unidades) — mostrar só lotes com validade vigente; vencidos saem da lista e dos saldos (v1.16.1) | f5b13b1 | 27/08/2026 | 🚀 PUBLICADO (prod f5b13b1) |
 
 ### Detalhe do item 12 — Listagem de Autores Importados
 
