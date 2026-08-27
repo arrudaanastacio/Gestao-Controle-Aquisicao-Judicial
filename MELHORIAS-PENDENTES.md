@@ -6,20 +6,38 @@
 
 | # | Melhoria | Commit (homologação) | Data | Status |
 |---|----------|----------------------|------|--------|
-| 1 | Etiqueta de subcategoria no modal da Requisição de Compra | eb392ff | 17/08/2026 | ✅ pronto em homolog |
-| 2 | Requisição — modo "Por Item" (ex-"Solicitação Coletiva"): consolidada + filtro de paciente | 699e0ab | 17/08/2026 | ✅ pronto em homolog |
-| 3 | Requisição — etiqueta de ATA por item (ATA / Avaliação técnica / Sem ATA) | 179eeaa | 18/08/2026 | ✅ pronto em homolog |
+| 1 | Etiqueta de subcategoria no modal da Requisição de Compra | eb392ff | 17/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 2 | Requisição — modo "Por Item" (ex-"Solicitação Coletiva"): consolidada + filtro de paciente | 699e0ab | 17/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 3 | Requisição — etiqueta de ATA por item (ATA / Avaliação técnica / Sem ATA) | 179eeaa | 18/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
 | 4 | Atas — busca direta do SISCOA (login automático + download), sem depender do arquivo na rede: botão "Buscar do SISCOA agora" + rotina diária | f1de8e4 | 19/08/2026 | 🚀 PUBLICADO (prod d039aed) |
-| 5 | Listagem de Autores (TP e Demais Unidades) — modal "Ver" passa a mostrar Demanda, Consumo, Estoque e Autonomia da respectiva unidade | b3b2a1b | 19/08/2026 | ✅ pronto em homolog |
+| 5 | Listagem de Autores (TP e Demais Unidades) — modal "Ver" passa a mostrar Demanda, Consumo, Estoque e Autonomia da respectiva unidade | b3b2a1b | 19/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
 | 6 | Menu lateral — botão 📌 para fixar/desafixar (mantém o menu aberto e desloca o conteúdo); preferência lembrada no navegador | cb7eb5c | 19/08/2026 | 🚀 PUBLICADO (prod d039aed) |
-| 7 | Modal "Ver" dos Autores (TP e Demais Unidades) — etiquetas de subcategoria e Dose Certa (e demais de programa) no topo | 6447da7 | 19/08/2026 | ✅ pronto em homolog |
+| 7 | Modal "Ver" dos Autores (TP e Demais Unidades) — etiquetas de subcategoria e Dose Certa (e demais de programa) no topo | 6447da7 | 19/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
 | 8 | Requisição GSNET — remover casa decimal (ex.: "6119.0" → "6119") na exibição e na importação (TP) | e95bddd | 19/08/2026 | 🚀 PUBLICADO (prod 0c24cf2) |
 | 9 | Modal de Permissões — aproveita a largura da tela, tabela 100%, rolagem vertical com cabeçalho fixo | c444a68 | 20/08/2026 | 🚀 PUBLICADO (prod 39c2f76) |
-| 10 | Comparativo de Autores — filtros de subcategoria e tipo de demanda (valem para as 3 abas: Novos, Inativos, Alterações) | 4866755 | 20/08/2026 | ✅ pronto em homolog |
-| 11 | Relatório de Primeiro Atendimento — caixas por categoria (Materiais/Medicamentos/Nutrição/Manipulado) com permissão por usuário | 455ddf5 | 20/08/2026 | ✅ pronto em homolog |
-| 12 | Nova tela "Listagem de Autores Importados" (grupo Importados): pacientes ativos, todas as unidades, itens importados | b6adc4e | 20/08/2026 | ✅ pronto em homolog |
-| 13 | Importados — Relatório de Compras (todas as solicitações, colunas completas, ciclos, status condicionais) + Tabela Análise (só Embarque/Instrução Processual/Solicitado) | (ver commits) | 20/08/2026 | 🚧 em construção (por partes) |
+| 10 | Comparativo de Autores — filtros de subcategoria e tipo de demanda (valem para as 3 abas: Novos, Inativos, Alterações) | 4866755 | 20/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 11 | Relatório de Primeiro Atendimento — caixas por categoria (Materiais/Medicamentos/Nutrição/Manipulado) com permissão por usuário | 455ddf5 | 20/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 12 | Nova tela "Listagem de Autores Importados" (grupo Importados): pacientes ativos, todas as unidades, itens importados | b6adc4e | 20/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 13 | Importados — Relatório de Compras (todas as solicitações, colunas completas, ciclos, status condicionais) + Tabela Análise (só Embarque/Instrução Processual/Solicitado) | (ver commits) | 20/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
 | 14 | Estoque (TP e Demais Unidades) — botão Exportar Excel (CSV) com colunas SCODES/Siafísico/Medicamento/Categoria/Subcategoria/Demanda·Consumo (total, Judicial, Adm, Jefaz)/Estoque/Autonomia/CATMAT/Valor Médio | 74030f4 | 21/08/2026 | 🚀 PUBLICADO (prod 7e2cce1) |
+| 15 | Regra geral: telas que dependem de importação mostram DATA e HORA (helper `horaImportacao`) | 3face2b | 25/08/2026 | 🚀 PUBLICADO (prod 3face2b) |
+| 16 | Correção de permissão: detalhe do item no Relatório de Primeiro Atendimento acessível a quem tem o relatório (sem exigir Comparativo) | 894dcdf | 25/08/2026 | 🚀 PUBLICADO (prod 894dcdf) |
+| 17 | Monitoramento de Estoque — Qtde. Aquisição consolidada (TP+OD, AS+JS), Compra em Andamento (selo + status), filtros (sub-categoria, status estoque, situação final, compra) e busca ampliada | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 18 | Monitoramento — análises de cobertura: Cobertura da Aquisição, Autonomia Total após Recebimento, Previsão de Falta Projetada, Situação da Aquisição, Saldo Necessário, Situação da Cobertura + Autonomia Alvo configurável (`autonomia_alvo_meses`) | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 19 | Nova tela **Estoque IBL (API)** — consulta ao vivo do WMS IBL (locais 2999/3004), abas Por Lote e Consolidado por SKU (botão Ver → lotes/validades), export CSV. Token só no `.env` | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 20 | Saldo IBL de Outras Demandas (consolidado + validade + lotes) no modal "Ver" de Estoque TP, Estoque Geral e Listagem de Autores (cache 5 min) | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 21 | Abas em formato de **pasta** (estilo relevo) em todas as abas de conteúdo do sistema | (sync) | 25/08/2026 | 🚀 PUBLICADO (prod 1d9c727) |
+| 22b | Busca tolerante a acento e maiúsc./minúsc. em todo o sistema (LIKE do SQLite sobrescrito + helper `normalizarBusca`), sem alterar os dados | db02c7b | 25/08/2026 | 🚀 PUBLICADO (prod db02c7b) |
+| 23b | Autores Importados — modo "Por Item": escolhe item → seleciona pacientes (desabilita quem já consta, com "Incluir mesmo assim") → etapa de valores (Qtde/Valor/Total/SEI/GSNET/datas/status) com "Repetir SEI·GSNET·Data Solic. nos demais"; grava via POST+PUT | c9583c2 | 25/08/2026 | 🚀 PUBLICADO (prod c9583c2) |
+| 24b | Requisição Coletiva — corrige alinhamento das colunas (colspan) + botão "👁 Ver itens" listando itens e código SCODES | c9583c2 | 25/08/2026 | 🚀 PUBLICADO (prod c9583c2) |
+| 25b | Requisição Coletiva — Status Estoque agregado na linha (Chamar se todos ≥2m; Aguardar/Atend. Parcial se algum <2m) + Estoque/Autonomia/Status Estoque por item no "Ver itens" | ffde2d0 | 25/08/2026 | 🚀 PUBLICADO (prod ffde2d0) |
+| 26b | Requisição Coletiva — editar a Qtde solicitada direto no modal "Ver itens" (salva ao sair do campo) | 02f3869 | 25/08/2026 | 🚀 PUBLICADO (prod 02f3869) |
+| 27b | Primeiro Atendimento — abas em ordem (Todas · alfabético) + abas Cancelado/Finalizado à direita (migram por status); Status Cancelado exige justificativa; abas em estilo pasta | 4fdf42c | 25/08/2026 | 🚀 PUBLICADO (prod 4fdf42c) |
+| 28b | Filipeta da solicitação coletiva — seção de pacientes vira bloco por paciente com os itens que ele pediu (descrição + SCODES + SIAF) e a qtde individual (soma bate com o consolidado) | 62221b4 | 26/08/2026 | 🚀 PUBLICADO (prod 62221b4) |
+| 29b | Relatório de Primeiro Atendimento — filtro de Status Estoque (Chamar / Aguardar / Sem dado); individual pela autonomia, coletiva pela regra agregada | e23751f | 26/08/2026 | 🚀 PUBLICADO (prod e23751f) |
+| 30b | Modal "Ver" do estoque (TP e Geral) — coluna Qtd. pendente nas compras, destacando o que falta receber nos itens com status Entrega Parcial | cbd35dc | 26/08/2026 | 🚀 PUBLICADO (prod cbd35dc) |
+| 31b | Requisição de Compra (Por paciente) — campo de busca para localizar o item do paciente (medicamento/SCODES/siafísico), acento-insensitive, preservando seleções | dafa36b | 26/08/2026 | 🚀 PUBLICADO (prod dafa36b) |
+| 32b | Estoque IBL nos modais "Ver" (Estoque TP e Itens em Estoque Demais Unidades) — mostrar só lotes com validade vigente; vencidos saem da lista e dos saldos (v1.16.1) | f5b13b1 | 27/08/2026 | 🚀 PUBLICADO (prod f5b13b1) |
 
 ### Detalhe do item 12 — Listagem de Autores Importados
 
