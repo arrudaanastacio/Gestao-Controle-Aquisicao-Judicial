@@ -40,6 +40,7 @@
 | 32b | Estoque IBL nos modais "Ver" (Estoque TP e Itens em Estoque Demais Unidades) — mostrar só lotes com validade vigente; vencidos saem da lista e dos saldos (v1.16.1) | f5b13b1 | 27/08/2026 | 🚀 PUBLICADO (prod f5b13b1) |
 | 33b | Correção de grafia do status **Adjucado → Adjudicado** em todo o sistema (dropdowns, filtros "em aberto", doc) + normalização no importador + dados legados do banco atualizados (v1.16.2) | 80308b6 | 27/08/2026 | 🚀 PUBLICADO (prod 80308b6) |
 | 34b | Alerta de **siafísico duplicado** — considerar apenas itens **Sem Marca** (coluna marca ou descritivo terminando em "sem marca"); recorte vale para definir a duplicidade e para a lista; itens de marca deixam de contar (v1.16.3) | b6d48fb | 27/08/2026 | 🚀 PUBLICADO (prod b6d48fb) |
+| 35b | **Reabrir requisição** no Relatório de Primeiro Atendimento — botão "↺ Reabrir" (individual reabre em Por paciente p/ incluir itens; coletiva reabre em Por Item já com itens/pacientes marcados p/ incluir pacientes/medicamentos); mesmo nº de controle, status volta a Solicitado; ≥2 pac.=coletiva, 1=individual; colaborador só reabre se sem telegrama enviado (senão só admin) (v1.17.0) | 676d0a5 | 27/08/2026 | 🚀 PUBLICADO (prod 676d0a5) |
 
 ### Detalhe do item 12 — Listagem de Autores Importados
 
