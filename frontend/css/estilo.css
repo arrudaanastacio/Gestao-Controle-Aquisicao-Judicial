@@ -81,7 +81,7 @@
   background: rgba(255, 255, 255, 0.06); /* reserva, caso color-mix não exista */
   background: color-mix(in srgb, currentColor 16%, transparent);
 }
-/* Status neutros (Planejamento/Adjucado/Empenhado…) usam texto cinza de baixa
+/* Status neutros (Planejamento/Adjudicado/Empenhado…) usam texto cinza de baixa
    saturação — o fundo de 16% ficaria invisível. Damos um fundo neutro definido
    e um texto mais claro, para lerem como pílula igual às coloridas. */
 :root[data-tema="escuro"] .etiqueta-status.andamento,
@@ -781,6 +781,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaValidades:not([hidden])),
 .conteudo:has(> #paginaAtas:not([hidden])),
 .conteudo:has(> #paginaEstoqueOD:not([hidden])),
+.conteudo:has(> #paginaEstoqueIblApi:not([hidden])),
 .conteudo:has(> #paginaSolicitacoesOD:not([hidden])),
 .conteudo:has(> #paginaAquisicaoODAndamento:not([hidden])),
 .conteudo:has(> #paginaEntradaLotes:not([hidden])),
@@ -793,6 +794,44 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaPlanejamento:not([hidden])) {
   max-width: none;
 }
+
+/* ============================================================
+   Abas de conteúdo em formato PASTA (estilo "Opção C": relevo no
+   topo da aba ativa). Aplica-se a TODOS os grupos de abas de conteúdo
+   (botões .chip-faixa[data-aba]) e à tela Estoque IBL (.aba-pasta).
+   NÃO afeta os chips de FILTRO (data-janela / data-situacao / data-mod),
+   que continuam em formato pílula.
+   ============================================================ */
+.filtros-faixa:has(> .chip-faixa[data-aba]),
+.filtros-faixa:has(> .chip-faixa[data-caixa]),
+.abas-tela:has(> .chip-faixa[data-aba]),
+.abas-tela:has(> .chip-faixa[data-caixa]),
+.abas-pasta {
+  display: flex; gap: 4px; align-items: flex-end; flex-wrap: wrap;
+  border-bottom: 1px solid var(--linha); padding-left: 4px; margin-bottom: 14px;
+}
+.chip-faixa[data-aba], .chip-faixa[data-caixa], .aba-pasta {
+  background: var(--papel);
+  color: var(--cinza-texto);
+  border: 1px solid var(--linha);
+  border-radius: 9px 9px 0 0;
+  padding: 8px 16px; font-size: 13px; cursor: pointer;
+  margin-bottom: -1px; line-height: 1.2;
+}
+.aba-pasta i, .aba-pasta svg { vertical-align: -2px; margin-right: 6px; }
+.chip-faixa[data-aba]:hover, .chip-faixa[data-caixa]:hover, .aba-pasta:hover {
+  border-color: var(--linha-forte); color: var(--tinta); background: var(--papel-elevado);
+}
+.chip-faixa[data-aba].ativo, .chip-faixa[data-caixa].ativo, .aba-pasta.ativo {
+  background: var(--papel-elevado);
+  color: var(--selo); font-weight: 600;
+  border-color: var(--linha);
+  border-top: 3px solid var(--selo);
+  border-bottom-color: var(--papel-elevado);
+  padding-top: 6px;
+}
+/* IBL: o conteúdo fica logo abaixo das abas, sem caixa em volta. */
+.painel-pasta { background: transparent; border: none; border-radius: 0; padding: 12px 2px 0; }
 
 /* Cards de demanda/consumo por programa no modal de estoque (Judicial/Adm/JEFAZ). */
 .grade-programas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }

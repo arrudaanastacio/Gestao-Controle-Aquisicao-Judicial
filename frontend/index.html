@@ -70,6 +70,7 @@
             <p class="nav-grupo-titulo nav-subgrupo-titulo">📊 Estoque</p>
             <a href="#" data-pagina="estoqueGeral">Itens em Estoque Geral</a>
             <a href="#" data-pagina="estoqueOD">Estoque GSNET/IBL</a>
+            <a href="#" data-pagina="estoqueIblApi">Estoque IBL (API)</a>
             <a href="#" data-pagina="distribuicao">Distribuição</a>
           </div>
 
@@ -178,10 +179,10 @@
         <div class="barra-filtros">
           <input type="text" id="filtroBusca" placeholder="Buscar por código, siafísico, descrição, ofício, requisição GSNET ou empenho…">
           <select id="filtroStatus">
-            <option value="__em_aberto__" selected>Em andamento (Planejamento/Adjucado/Empenhado/Entrega Parcial)</option>
+            <option value="__em_aberto__" selected>Em andamento (Planejamento/Adjudicado/Empenhado/Entrega Parcial)</option>
             <option value="">Todos os status</option>
             <option value="Planejamento">Planejamento</option>
-            <option value="Adjucado">Adjucado</option>
+            <option value="Adjudicado">Adjudicado</option>
             <option value="Empenhado">Empenhado</option>
             <option value="Entrega Parcial">Entrega Parcial</option>
             <option value="Finalizado">Finalizado</option>
@@ -282,7 +283,7 @@
           <select id="filtroStatusRelatorio">
             <option value="">Todos os status</option>
             <option value="Planejamento">Planejamento</option>
-            <option value="Adjucado">Adjucado</option>
+            <option value="Adjudicado">Adjudicado</option>
             <option value="Empenhado">Empenhado</option>
             <option value="Entrega Parcial">Entrega Parcial</option>
             <option value="Finalizado">Finalizado</option>
@@ -336,6 +337,36 @@
               <div class="multi-filtro-painel" id="monUnidadePainel" hidden></div>
             </div>
             <select id="monCategoria" title="Filtrar por categoria"><option value="">Todas as categorias</option></select>
+            <select id="monSubcategoria" title="Filtrar por sub-categoria"><option value="">Todas as sub-categorias</option></select>
+            <select id="monStatusEstoque" title="Filtrar por status de estoque">
+              <option value="">Status Estoque: todos</option>
+              <option value="Estoque Zero">Estoque Zero</option>
+              <option value="Estoque Baixo">Estoque Baixo</option>
+              <option value="Estoque Crítico">Estoque Crítico</option>
+              <option value="Regular">Regular</option>
+              <option value="Abastecido">Abastecido</option>
+              <option value="Sem Demanda">Sem Demanda</option>
+            </select>
+            <select id="monStatusFinal" title="Filtrar por situação final">
+              <option value="">Situação Final: todas</option>
+              <option value="Desabastecido">Desabastecido</option>
+              <option value="Crítico">Crítico</option>
+              <option value="Abastecido">Abastecido</option>
+              <option value="Sem Demanda">Sem Demanda</option>
+            </select>
+            <select id="monCompra" title="Filtrar por compra em andamento">
+              <option value="">Compra: todas</option>
+              <option value="Em compra">Em compra</option>
+              <option value="Sem compra">Sem compra</option>
+            </select>
+            <select id="monAlvo" title="Autonomia Alvo: meses de estoque desejados como objetivo">
+              <option value="3">Alvo: 3 meses</option>
+              <option value="4">Alvo: 4 meses</option>
+              <option value="5">Alvo: 5 meses</option>
+              <option value="6">Alvo: 6 meses</option>
+              <option value="9">Alvo: 9 meses</option>
+              <option value="12">Alvo: 12 meses</option>
+            </select>
             <label style="display:flex; align-items:center; gap:6px; font-size:13px; white-space:nowrap;">
               <input type="checkbox" id="monComDemanda" checked> Somente com demanda
             </label>
@@ -377,7 +408,7 @@
           <div class="cartao" style="margin-top:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
               <h3 style="margin:0;">Itens classificados <span id="monFiltroAtivo" class="mon-chip-filtro" hidden></span></h3>
-              <input type="search" id="monBusca" placeholder="Buscar medicamento, SCODES ou siafísico…" style="min-width:280px;">
+              <input type="search" id="monBusca" placeholder="Buscar medicamento, SCODES ou siafísico…" style="min-width:420px; flex:1 1 420px; max-width:640px; padding:9px 12px; font-size:14px;">
             </div>
             <p id="monTruncadoAviso" class="dica" hidden></p>
             <div class="tabela-rolavel">
@@ -387,7 +418,15 @@
                     <th>Código SCODES</th><th>Descrição</th><th>Categoria</th>
                     <th class="num">Demanda</th><th class="num">Consumo</th>
                     <th class="num">Estoque</th><th class="num">Autonomia</th>
-                    <th>Status Estoque</th><th>Situação Final</th><th>Previsão de Falta</th>
+                    <th class="num">Qtde. Aquisição</th>
+                    <th class="num">Cobertura da Aquisição</th>
+                    <th class="num">Autonomia Total após Recebimento</th>
+                    <th>Compra em Andamento</th>
+                    <th>Situação da Aquisição</th>
+                    <th class="num">Saldo Necessário de Aquisição</th>
+                    <th>Situação da Cobertura</th>
+                    <th>Status Estoque</th><th>Situação Final</th>
+                    <th>Previsão de Falta</th><th>Previsão de Falta Projetada</th>
                   </tr>
                 </thead>
                 <tbody id="monTabelaCorpo"></tbody>
@@ -567,6 +606,93 @@
                 <button id="botaoAnteriorEstoqueGeral">← Anterior</button>
                 <button id="botaoProximoEstoqueGeral">Próximo →</button>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="paginaEstoqueIblApi" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Estoque IBL (API)</h2>
+            <p id="subtituloEstoqueIblApi">Consulta ao vivo do estoque no WMS IBL (CEAF/SES-SP) — locais 2999 e 3004.</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; flex:1 1 520px; min-width:0;">
+            <input type="search" id="iblBusca" placeholder="Buscar medicamento, SCODES, SKU, siafísico ou lote…" style="flex:1 1 260px; min-width:200px; max-width:520px;">
+            <select id="iblFiltroLocal" title="Filtrar por local (projeto)">
+              <option value="">Todos os locais</option>
+            </select>
+            <select id="iblFiltroSituacao" title="Filtrar por situação do saldo">
+              <option value="">Todas as situações</option>
+              <option value="disp">Com disponível</option>
+              <option value="bloq">Com bloqueado</option>
+              <option value="reserv">Com reservado</option>
+            </select>
+            <button id="iblAtualizar" class="botao-secundario" type="button" title="Consulta a API do IBL novamente (saldo do momento).">🔄 Atualizar da API</button>
+            <button id="iblExportar" class="botao-secundario" type="button" title="Exporta o que está na tela para Excel">⬇ Exportar Excel</button>
+          </div>
+        </div>
+
+        <div id="iblAviso" class="estado-vazio" hidden></div>
+
+        <div id="iblConteudo" hidden>
+          <div class="grade-resumo" id="iblCards"></div>
+
+          <div class="abas-pasta" style="margin-top:16px;">
+            <div class="aba-pasta ativo" data-aba-ibl="lotes" role="button" tabindex="0">📦 Por lote</div>
+            <div class="aba-pasta" data-aba-ibl="consolidado" role="button" tabindex="0">🗂️ Consolidado por SKU</div>
+          </div>
+
+          <div class="painel-pasta">
+            <div id="iblAbaLotes">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+                <h3 id="iblTituloTabela" style="margin:0;">Estoque por lote</h3>
+              </div>
+              <div class="tabela-rolavel">
+                <table class="tabela" id="iblTabela">
+                  <thead>
+                    <tr>
+                      <th>Local</th><th>Código SCODES</th><th>Cód. SKU</th><th>Siafísico</th><th>Descrição</th>
+                      <th>Lote</th><th>Validade</th>
+                      <th class="num">Disponível</th><th class="num">Bloqueado</th>
+                      <th class="num">Reservada</th><th class="num">Total</th>
+                      <th class="num">Múltiplo</th><th class="num">Valor unit.</th>
+                    </tr>
+                  </thead>
+                  <tbody id="iblTabelaCorpo"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div id="iblAbaConsolidado" hidden>
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+                <h3 id="iblTituloConsolidado" style="margin:0;">Consolidado por SKU</h3>
+              </div>
+              <div class="tabela-rolavel">
+                <table class="tabela" id="iblTabelaConsolidado">
+                  <thead>
+                    <tr>
+                      <th>Local</th><th>Cód. SKU</th><th>Código SCODES</th><th>Siafísico</th><th>Descrição</th>
+                      <th class="num">Lotes</th>
+                      <th class="num">Disponível</th><th class="num">Bloqueado</th>
+                      <th class="num">Reservada</th><th class="num">Total</th>
+                      <th>Validade + próx.</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="iblConsolidadoCorpo"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fundo-modal" id="modalLotesIbl" hidden>
+          <div class="modal" style="max-width:720px;">
+            <h3 id="tituloLotesIbl">Lotes do item</h3>
+            <p id="subLotesIbl" class="texto-secundario" style="margin-top:-6px;"></p>
+            <div class="tabela-rolavel" id="corpoLotesIbl" style="margin-top:8px; max-height:60vh;"></div>
+            <div class="acoes-modal">
+              <button type="button" class="botao-primario" id="botaoFecharLotesIbl">Fechar</button>
             </div>
           </div>
         </div>
@@ -1061,7 +1187,7 @@
         <div class="cabecalho-pagina">
           <div>
             <h2>Aquisição em Andamento OD</h2>
-            <p>Solicitações de Outras Demandas com compra ainda não finalizada (Planejamento, Adjucado, Empenhado, Entrega Parcial)</p>
+            <p>Solicitações de Outras Demandas com compra ainda não finalizada (Planejamento, Adjudicado, Empenhado, Entrega Parcial)</p>
           </div>
           <span class="atualizado-em" id="atualizadoAquisicaoODAndamento"></span>
         </div>
@@ -1769,6 +1895,7 @@
           <select id="filtroStatusItemAutoresImportados"><option value="">Status do item: todos</option></select>
           <select id="filtroCategoriaAutoresImportados"><option value="">Categoria: todas</option></select>
           <button id="botaoLimparFiltrosAutoresImportados" class="botao-secundario" type="button">Limpar</button>
+          <button id="botaoPorItemImp" class="botao-primario" type="button" title="Escolher um item e selecionar vários pacientes de uma vez">➕ Por Item</button>
           <button id="botaoExportarAutoresImportados" class="botao-secundario" type="button">📊 Exportar Excel</button>
         </div>
 
@@ -1801,6 +1928,45 @@
             <div class="botoes">
               <button id="botaoAnteriorAutoresImportados">← Anterior</button>
               <button id="botaoProximoAutoresImportados">Próximo →</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="fundo-modal" id="modalPorItemImp" hidden>
+          <div class="modal" style="max-width:820px;">
+            <h3>Adicionar por item</h3>
+            <p class="texto-secundario" style="margin-top:-6px;">Escolha o item, selecione os pacientes e envie todos ao Relatório de Compras Importados.</p>
+
+            <div id="piEtapaItem">
+              <label class="rotulo-campo" for="piBuscaItem">Item</label>
+              <input type="search" id="piBuscaItem" placeholder="Buscar medicamento ou código do item…" autocomplete="off">
+              <div id="piResultadosItem" style="margin-top:8px; max-height:46vh; overflow:auto;"></div>
+            </div>
+
+            <div id="piEtapaPacientes" hidden>
+              <div id="piItemEscolhido" style="display:flex; align-items:center; gap:10px; border:1px solid var(--borda-forte, var(--linha)); border-radius:var(--raio); padding:8px 10px; background:var(--realce-tabela); margin-bottom:12px;"></div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px; flex-wrap:wrap;">
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600;"><input type="checkbox" id="piSelTodos"> Selecionar todos</label>
+                <span id="piContadorSel" class="texto-secundario" style="font-size:12px;">0 selecionados</span>
+              </div>
+              <div class="tabela-rolavel" id="piCorpoPacientes" style="max-height:52vh;"></div>
+            </div>
+
+            <div id="piEtapaValores" hidden>
+              <div id="piValoresItem" style="display:flex; align-items:center; gap:10px; border:1px solid var(--linha); border-radius:var(--raio); padding:8px 10px; background:var(--realce-tabela); margin-bottom:10px;"></div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px; flex-wrap:wrap;">
+                <span class="texto-secundario" style="font-size:12px;">Preencha a 1ª linha e use o botão para repetir os valores nas demais. O Valor Total é calculado (Qtde × Valor Médio).</span>
+                <button type="button" class="botao-secundario" id="piRepetir" title="Copia SEI, Req. GSNET e Data de Solicitação da 1ª linha para as demais">⧉ Repetir SEI / Req. GSNET / Data Solic. nos demais</button>
+              </div>
+              <div class="tabela-rolavel" id="piCorpoValores" style="max-height:52vh;"></div>
+            </div>
+
+            <div class="acoes-modal">
+              <button type="button" class="botao-secundario" id="piVoltar" hidden>← Trocar item</button>
+              <button type="button" class="botao-secundario" id="piVoltarPac" hidden>← Voltar aos pacientes</button>
+              <button type="button" class="botao-secundario" id="piCancelar">Fechar</button>
+              <button type="button" class="botao-primario" id="piAdicionar" hidden>Adicionar selecionados</button>
+              <button type="button" class="botao-primario" id="piConfirmar" hidden>Confirmar e salvar</button>
             </div>
           </div>
         </div>
@@ -2035,6 +2201,12 @@
           <input type="text" id="reqFiltroCodigo" placeholder="Cód. item…">
           <input type="text" id="reqFiltroDescricao" placeholder="Descrição do item…">
           <select id="reqFiltroCategoria"><option value="">Categoria: todas</option></select>
+          <select id="reqFiltroStatusEstoque" title="Filtrar por status de estoque">
+            <option value="">Status estoque: todos</option>
+            <option value="chamar">Chamar</option>
+            <option value="aguardar">Aguardar</option>
+            <option value="sem">Sem dado</option>
+          </select>
           <button id="reqLimparFiltros" class="botao-secundario" type="button">Limpar</button>
         </div>
 
@@ -2760,7 +2932,7 @@
             <select id="campoStatus">
               <option value="">Em andamento</option>
               <option>Planejamento</option>
-              <option>Adjucado</option>
+              <option>Adjudicado</option>
               <option>Empenhado</option>
               <option>Entrega Parcial</option>
               <option>Finalizado</option>
@@ -3246,8 +3418,19 @@
     </div>
   </div>
 
+  <div class="fundo-modal" id="modalItensColetiva" hidden>
+    <div class="modal" style="max-width:min(1180px, 96vw); width:100%;">
+      <h3 id="tituloItensColetiva">Itens da solicitação coletiva</h3>
+      <p id="subItensColetiva" class="texto-secundario" style="margin-top:-6px;"></p>
+      <div class="tabela-rolavel" id="corpoItensColetiva" style="margin-top:8px; max-height:60vh;"></div>
+      <div class="acoes-modal">
+        <button type="button" class="botao-primario" id="botaoFecharItensColetiva">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="fundo-modal" id="modalRequisicao" hidden>
-    <div class="modal" style="max-width:860px;">
+    <div class="modal" style="max-width:min(1200px, 96vw); width:100%;">
       <h3>🛒 Requisição de Compra</h3>
       <p class="descricao-item" id="reqDescricaoModo">Selecione o paciente e marque os medicamentos para aquisição.</p>
 
@@ -3313,7 +3496,8 @@
           </label>
           <span id="reqContador" style="font-size:12.5px; color:var(--cinza-texto);">0 itens selecionados</span>
         </div>
-        <div id="reqListaItens" style="max-height:380px; overflow-y:auto;"></div>
+        <input type="search" id="reqBuscaItemPaciente" placeholder="Buscar item do paciente (medicamento, SCODES ou siafísico)…" style="width:100%; margin-bottom:8px; padding:8px 11px; border:1px solid var(--linha); border-radius:6px; font-size:13px;">
+        <div id="reqListaItens" style="max-height:48vh; overflow-y:auto;"></div>
       </div>
 
       <div class="acoes-modal">

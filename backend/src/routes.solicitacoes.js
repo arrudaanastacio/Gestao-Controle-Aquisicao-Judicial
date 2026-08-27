@@ -11,7 +11,7 @@ const ORDEM_MES = {
 };
 
 const STATUS_FINALIZADOS = ['Finalizado', 'Cancelado', 'Revogado', 'Fracassado', 'Deserto'];
-const STATUS_EM_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+const STATUS_EM_ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial'];
 
 // Lista/busca solicitações com filtros (todos os perfis podem consultar)
 router.get('/', (req, res) => {

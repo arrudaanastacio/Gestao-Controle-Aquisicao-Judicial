@@ -210,7 +210,7 @@ router.get('/', (req, res) => {
 // A separação que interessa na prática:
 //   - SEM compra em aberto -> ninguém está resolvendo; é fila de trabalho.
 //   - COM compra em aberto -> o processo existe, o que falta é prazo/entrega.
-const STATUS_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+const STATUS_ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial'];
 const EM_ABERTO_SQL = STATUS_ABERTO.map(() => '?').join(',');
 
 // A compra do mesmo item pode estar em QUALQUER um dos dois fluxos: Tenente

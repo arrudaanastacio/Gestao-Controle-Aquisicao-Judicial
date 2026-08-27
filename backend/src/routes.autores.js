@@ -484,6 +484,65 @@ router.post('/compras-importados', (req, res) => {
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
+// ---- Modo "Por Item" da Listagem de Autores Importados ----
+// Busca de ITENS (distintos) do escopo importados que casam com o termo, com a
+// contagem de pacientes ativos de cada um. Alimenta o seletor de item do modal.
+router.get('/importados/itens', (req, res) => {
+  const { where, params } = montarFiltroAutores({ escopoUnidade: 'importados', q: req.query.q || undefined });
+  const itens = db.prepare(`
+    SELECT codigo_item,
+           MAX(descricao_item) AS descricao_item,
+           MAX(cod_siafisico) AS cod_siafisico,
+           MAX(categoria) AS categoria,
+           COUNT(*) AS n_pacientes
+      FROM autores_itens ${where}
+     GROUP BY codigo_item
+     ORDER BY descricao_item COLLATE NOCASE
+     LIMIT 50
+  `).all(...params);
+  res.json({ itens });
+});
+
+// PACIENTES ativos de UM item (escopo importados), anotados com se já constam
+// no Relatório de Compras Importados e se cabe nova aquisição.
+router.get('/importados/por-item', (req, res) => {
+  const codigo = String(req.query.codigo || '').trim();
+  if (!codigo) return res.status(400).json({ erro: 'Informe o código do item.' });
+  const { where, params } = montarFiltroAutores({ escopoUnidade: 'importados' });
+  const pacientes = db.prepare(
+    `SELECT * FROM autores_itens ${where} AND codigo_item = ? ORDER BY autor COLLATE NOCASE`
+  ).all(...params, codigo);
+
+  // Última situação por (autor, protocolo) no Compras Importados deste item.
+  const compras = db.prepare(
+    'SELECT autor, protocolo, status FROM compras_importados WHERE codigo_item = ? ORDER BY COALESCE(ciclo,1) DESC, id DESC'
+  ).all(codigo);
+  const ultimo = new Map();
+  for (const c of compras) {
+    const k = (c.autor || '') + '|' + (c.protocolo || '');
+    if (!ultimo.has(k)) ultimo.set(k, c.status || 'Solicitado');
+  }
+  const itens = pacientes.map((p) => {
+    const st = ultimo.get((p.autor || '') + '|' + (p.protocolo || ''));
+    const jaExiste = st !== undefined;
+    const podeNova = jaExiste && (st === 'Finalizado' || st === 'Cancelado');
+    return { ...p, ja_existe: jaExiste, status_anterior: st || null, pode_nova: podeNova };
+  });
+  const ref = pacientes[0] || {};
+  // Valor médio unitário do item (foto mais recente do Relatório de Itens) —
+  // igual ao que o POST usa; serve para pré-preencher a etapa de valores.
+  const cat = db.prepare('SELECT valor_medio_unitario FROM relatorio_itens WHERE codigo = ? ORDER BY data_referencia DESC LIMIT 1').get(codigo) || {};
+  const valorMedio = (cat.valor_medio_unitario != null && String(cat.valor_medio_unitario).trim() !== '') ? String(cat.valor_medio_unitario) : null;
+  res.json({
+    codigo_item: codigo,
+    descricao_item: ref.descricao_item || null,
+    cod_siafisico: ref.cod_siafisico || null,
+    valor_medio_unitario: valorMedio,
+    total: itens.length,
+    itens,
+  });
+});
+
 router.put('/compras-importados/:id', (req, res) => {
   const item = db.prepare('SELECT id, status FROM compras_importados WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ erro: 'Registro não encontrado.' });
@@ -809,14 +868,18 @@ router.get('/requisicoes/itens', (req, res) => {
   // Permissão de caixa (Materiais/Medicamentos/Nutrição). Admin => todas.
   const permitidas = caixasDoUsuario(req.usuario);
   const ehAdmin = permitidas === null;
+  // Abas virtuais por STATUS de atendimento (à direita): Finalizado e Cancelado
+  // saem das caixas normais. 'finalizado'/'cancelado' NÃO filtram por caixa.
+  const abaStatus = caixa === 'finalizado' ? 'Finalizado' : (caixa === 'cancelado' ? 'Cancelado' : null);
+  const caixaEspecifica = (caixa && !['todas', 'finalizado', 'cancelado'].includes(caixa)) ? caixa : null;
   const aplicaCaixa = (cond, params) => {
     if (!ehAdmin) {
-      if (caixa && caixa !== 'todas' && permitidas.includes(caixa)) { cond.push('r.caixa = ?'); params.push(caixa); }
+      if (caixaEspecifica && permitidas.includes(caixaEspecifica)) { cond.push('r.caixa = ?'); params.push(caixaEspecifica); }
       else if (permitidas.length) { cond.push(`r.caixa IN (${permitidas.map(() => '?').join(',')})`); params.push(...permitidas); }
       else cond.push('1 = 0');
-    } else if (caixa && caixa !== 'todas') {
-      if (caixa === 'sem') cond.push("(r.caixa IS NULL OR r.caixa = '')");
-      else { cond.push('r.caixa = ?'); params.push(caixa); }
+    } else if (caixaEspecifica) {
+      if (caixaEspecifica === 'sem') cond.push("(r.caixa IS NULL OR r.caixa = '')");
+      else { cond.push('r.caixa = ?'); params.push(caixaEspecifica); }
     }
   };
 
@@ -840,13 +903,43 @@ router.get('/requisicoes/itens', (req, res) => {
   if (categoria) existsC('categoria', '=', categoria);
 
   // Contagens por caixa (rótulos das abas), com os filtros base mas SEM a aba.
+  // As caixas normais EXCLUEM os que migraram para Finalizado/Cancelado.
+  const FORA = (col) => `(${col} IS NULL OR ${col} NOT IN ('Finalizado','Cancelado'))`;
   const contagens = {};
   const somaCont = (rows) => { for (const l of rows) { const cx = (l.caixa == null || l.caixa === '') ? 'sem' : l.caixa; contagens[cx] = (contagens[cx] || 0) + l.c; } };
-  somaCont(db.prepare(`SELECT r.caixa, COUNT(*) c FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id WHERE ${condI.join(' AND ')} GROUP BY r.caixa`).all(...paramsI));
-  somaCont(db.prepare(`SELECT r.caixa, COUNT(*) c FROM requisicoes r WHERE ${condC.join(' AND ')} GROUP BY r.caixa`).all(...paramsC));
+  somaCont(db.prepare(`SELECT r.caixa, COUNT(*) c FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id WHERE ${condI.join(' AND ')} AND ${FORA('ri.status_atendimento')} GROUP BY r.caixa`).all(...paramsI));
+  somaCont(db.prepare(`SELECT r.caixa, COUNT(*) c FROM requisicoes r WHERE ${condC.join(' AND ')} AND ${FORA('r.status_atendimento')} GROUP BY r.caixa`).all(...paramsC));
+
+  // Contagens das abas de STATUS (à direita), respeitando a permissão de caixa.
+  const contaStatus = (st) => {
+    const wi = [...condI, 'ri.status_atendimento = ?']; const pi = [...paramsI, st];
+    const wc = [...condC, 'r.status_atendimento = ?']; const pc = [...paramsC, st];
+    if (!ehAdmin) {
+      if (permitidas.length) {
+        const inp = `r.caixa IN (${permitidas.map(() => '?').join(',')})`;
+        wi.push(inp); pi.push(...permitidas); wc.push(inp); pc.push(...permitidas);
+      } else { wi.push('1 = 0'); wc.push('1 = 0'); }
+    }
+    const i = db.prepare(`SELECT COUNT(*) c FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id WHERE ${wi.join(' AND ')}`).get(...pi).c;
+    const c = db.prepare(`SELECT COUNT(*) c FROM requisicoes r WHERE ${wc.join(' AND ')}`).get(...pc).c;
+    return i + c;
+  };
+  contagens.finalizado = contaStatus('Finalizado');
+  contagens.cancelado = contaStatus('Cancelado');
+
+  // Filtro de STATUS na LISTA: aba Finalizado/Cancelado mostra só o seu status;
+  // as demais abas escondem os que migraram.
+  if (abaStatus) {
+    condI.push('ri.status_atendimento = ?'); paramsI.push(abaStatus);
+    condC.push('r.status_atendimento = ?'); paramsC.push(abaStatus);
+  } else {
+    condI.push(FORA('ri.status_atendimento'));
+    condC.push(FORA('r.status_atendimento'));
+  }
   const caixasVisiveis = ehAdmin ? CAIXAS : permitidas;
   let totalPermitido = 0;
   for (const [cx, n] of Object.entries(contagens)) {
+    if (cx === 'finalizado' || cx === 'cancelado') continue; // abas de status contam à parte
     if (ehAdmin || (cx !== 'sem' && permitidas.includes(cx))) totalPermitido += n;
   }
 
@@ -861,7 +954,7 @@ router.get('/requisicoes/itens', (req, res) => {
            (SELECT e.estoque   FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS estoque_atual,
            (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = ri.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) AS autonomia_atual,
            ri.quantidade, ri.status_atendimento, ri.telegrama_enviado, ri.data_envio, ri.requisicao_gsnet,
-           ri.telegrama_enviado_por, ri.telegrama_enviado_em
+           ri.telegrama_enviado_por, ri.telegrama_enviado_em, ri.justificativa
     FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id
     WHERE ${condI.join(' AND ')}
   `).all(...paramsI);
@@ -871,13 +964,38 @@ router.get('/requisicoes/itens', (req, res) => {
     SELECT 'coletiva' AS tipo, NULL AS id, r.id AS requisicao_id, r.codigo_controle, r.autor, r.sei,
            r.total_pacientes, r.total_itens,
            r.status_atendimento, r.telegrama_enviado, r.data_envio, r.requisicao_gsnet,
-           r.telegrama_enviado_por, r.telegrama_enviado_em
+           r.telegrama_enviado_por, r.telegrama_enviado_em, r.justificativa,
+           -- Estoque agregado: conta itens que ficariam "Aguardar" (autonomia < 2)
+           -- e "Chamar" (autonomia >= 2), pela mesma regra da linha individual.
+           (SELECT COUNT(*) FROM requisicao_itens ri2 WHERE ri2.requisicao_id = r.id
+             AND (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = ri2.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) < 2) AS n_aguardar,
+           (SELECT COUNT(*) FROM requisicao_itens ri2 WHERE ri2.requisicao_id = r.id
+             AND (SELECT e.autonomia FROM estoque_itens e WHERE e.codigo_item = ri2.codigo_item AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1) >= 2) AS n_chamar
     FROM requisicoes r WHERE ${condC.join(' AND ')}
   `).all(...paramsC);
+  // Rótulo do Status Estoque da coletiva: algum item Aguardar => parcial;
+  // senão, se houver item para chamar => Chamar; sem dados => null.
+  for (const c of coletivas) {
+    c.status_estoque_coletiva = (c.n_aguardar > 0)
+      ? 'Aguardar / Atendimento Parcial'
+      : (c.n_chamar > 0 ? 'Chamar' : null);
+  }
 
   // Mescla, ordena (requisição mais nova primeiro) e pagina em memória.
-  const todos = [...individuais, ...coletivas].sort((a, b) =>
+  let todos = [...individuais, ...coletivas].sort((a, b) =>
     (b.requisicao_id - a.requisicao_id) || ((a.id || 0) - (b.id || 0)));
+
+  // Filtro por STATUS ESTOQUE (chamar / aguardar / sem dado). Individual: pela
+  // autonomia do item (< 2 = aguardar). Coletiva: pela regra agregada.
+  const statusEstoque = req.query.statusEstoque;
+  if (statusEstoque) {
+    const stDe = (r) => {
+      if (r.tipo === 'coletiva') return r.status_estoque_coletiva === 'Chamar' ? 'chamar' : (r.status_estoque_coletiva ? 'aguardar' : 'sem');
+      if (r.autonomia_atual == null) return 'sem';
+      return Number(r.autonomia_atual) < 2 ? 'aguardar' : 'chamar';
+    };
+    todos = todos.filter((r) => stDe(r) === statusEstoque);
+  }
   const total = todos.length;
   const itens = todos.slice(offset, offset + limit);
 
@@ -910,7 +1028,7 @@ router.put('/requisicoes/item/:id', (req, res) => {
     return res.status(403).json({ erro: 'Telegrama já enviado. Apenas um administrador pode alterar este item.' });
   }
 
-  const { status_atendimento, telegrama_enviado, data_envio, requisicao_gsnet, quantidade } = req.body || {};
+  const { status_atendimento, telegrama_enviado, data_envio, requisicao_gsnet, quantidade, justificativa } = req.body || {};
   let status = status_atendimento ?? item.status_atendimento;
   // Quantidade de Aquisição (editável na linha do relatório). Aceita número ou
   // vazio (= sem quantidade / "apenas registrar"). Guardada como texto.
@@ -939,8 +1057,15 @@ router.put('/requisicoes/item/:id', (req, res) => {
     enviadoEm = null;
   }
 
-  db.prepare('UPDATE requisicao_itens SET status_atendimento = ?, telegrama_enviado = ?, data_envio = ?, requisicao_gsnet = ?, quantidade = ?, telegrama_enviado_por = ?, telegrama_enviado_em = ? WHERE id = ?')
-    .run(status, telegrama, dataEnvio, gsnet, novaQtde, enviadoPor, enviadoEm, item.id);
+  // Justificativa: obrigatória apenas para Cancelado; ao sair de Cancelado, limpa.
+  let novaJustif = justificativa !== undefined ? (justificativa || null) : item.justificativa;
+  if (status === 'Cancelado' && (novaJustif == null || String(novaJustif).trim() === '')) {
+    return res.status(400).json({ erro: 'Informe a justificativa do cancelamento.' });
+  }
+  if (status !== 'Cancelado') novaJustif = null;
+
+  db.prepare('UPDATE requisicao_itens SET status_atendimento = ?, telegrama_enviado = ?, data_envio = ?, requisicao_gsnet = ?, quantidade = ?, telegrama_enviado_por = ?, telegrama_enviado_em = ?, justificativa = ? WHERE id = ?')
+    .run(status, telegrama, dataEnvio, gsnet, novaQtde, enviadoPor, enviadoEm, novaJustif, item.id);
 
   // Registra no log; se a quantidade mudou, guarda o antes/depois explicitamente.
   const mudouQtde = String(item.quantidade ?? '') !== String(novaQtde ?? '');
@@ -1014,6 +1139,16 @@ router.get('/requisicoes/:id', (req, res) => {
   const r = db.prepare('SELECT * FROM requisicoes WHERE id = ?').get(req.params.id);
   if (!r) return res.status(404).json({ erro: 'Requisição não encontrada.' });
   const itens = db.prepare('SELECT * FROM requisicao_itens WHERE requisicao_id = ? ORDER BY id').all(r.id);
+  // Enriquece cada item com estoque e autonomia da foto mais recente (escopo
+  // Tenente Pena), para o modal aplicar a mesma regra de Status Estoque.
+  const escTP = "(e.unidade IS NULL OR e.unidade LIKE '%Tenente Pena%')";
+  const stEst = db.prepare(`SELECT e.estoque AS estoque_atual, e.autonomia AS autonomia_atual
+     FROM estoque_itens e WHERE e.codigo_item = ? AND ${escTP} ORDER BY e.data_referencia DESC LIMIT 1`);
+  itens.forEach((it) => {
+    const x = stEst.get(it.codigo_item) || {};
+    it.estoque_atual = x.estoque_atual != null ? x.estoque_atual : null;
+    it.autonomia_atual = x.autonomia_atual != null ? x.autonomia_atual : null;
+  });
   // Coletiva: devolve a lista de pacientes e o detalhe por item já parseados.
   let pacientes = null;
   if (r.coletiva) {
@@ -1031,7 +1166,7 @@ router.put('/requisicoes/:id/status-coletiva', (req, res) => {
   const jaEnviado = r.telegrama_enviado === 'Sim';
   if (jaEnviado && !eAdmin) return res.status(403).json({ erro: 'Telegrama já enviado. Apenas um administrador pode alterar.' });
 
-  const { status_atendimento, telegrama_enviado, data_envio, requisicao_gsnet } = req.body || {};
+  const { status_atendimento, telegrama_enviado, data_envio, requisicao_gsnet, justificativa } = req.body || {};
   let status = status_atendimento ?? r.status_atendimento;
   const telegrama = telegrama_enviado ?? r.telegrama_enviado;
   let dataEnvio = data_envio !== undefined ? (data_envio || null) : r.data_envio;
@@ -1048,8 +1183,13 @@ router.put('/requisicoes/:id/status-coletiva', (req, res) => {
     dataEnvio = data_envio !== undefined ? (data_envio || null) : null;
     enviadoPor = null; enviadoEm = null;
   }
-  db.prepare('UPDATE requisicoes SET status_atendimento = ?, telegrama_enviado = ?, data_envio = ?, requisicao_gsnet = ?, telegrama_enviado_por = ?, telegrama_enviado_em = ? WHERE id = ?')
-    .run(status, telegrama, dataEnvio, gsnet, enviadoPor, enviadoEm, r.id);
+  let novaJustif = justificativa !== undefined ? (justificativa || null) : r.justificativa;
+  if (status === 'Cancelado' && (novaJustif == null || String(novaJustif).trim() === '')) {
+    return res.status(400).json({ erro: 'Informe a justificativa do cancelamento.' });
+  }
+  if (status !== 'Cancelado') novaJustif = null;
+  db.prepare('UPDATE requisicoes SET status_atendimento = ?, telegrama_enviado = ?, data_envio = ?, requisicao_gsnet = ?, telegrama_enviado_por = ?, telegrama_enviado_em = ?, justificativa = ? WHERE id = ?')
+    .run(status, telegrama, dataEnvio, gsnet, enviadoPor, enviadoEm, novaJustif, r.id);
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
     .run(req.usuario.id, req.usuario.email, 'atualizar_status_coletiva', 'requisicoes', r.id,
       JSON.stringify({ status_atendimento: status, telegrama_enviado: telegrama, data_envio: dataEnvio, requisicao_gsnet: gsnet }));

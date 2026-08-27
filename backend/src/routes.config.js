@@ -19,7 +19,7 @@ router.put('/:chave', exigirPerfil('admin'), (req, res) => {
     return res.status(400).json({ erro: 'Informe um valor.' });
   }
 
-  const permitidas = ['autonomia_minima_meses'];
+  const permitidas = ['autonomia_minima_meses', 'autonomia_alvo_meses'];
   if (!permitidas.includes(chave)) {
     return res.status(400).json({ erro: 'Configuração não reconhecida.' });
   }
