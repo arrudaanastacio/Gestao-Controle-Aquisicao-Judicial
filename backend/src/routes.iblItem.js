@@ -42,7 +42,13 @@ async function construirMapa() {
   const r = await ibl.iblLinhasNoFormatoOD();
   const msk = mapaSkuScodes();
   const m = new Map();
+  // Só considera lotes com validade VIGENTE. Vencido (validade < hoje) é
+  // ignorado no saldo e na lista. Lote sem validade preenchida é mantido
+  // (não dá para provar que venceu). Corte inclui o próprio dia (>= hoje).
+  const hojeIso = new Date().toISOString().slice(0, 10);
   for (const l of r.linhasOD) {
+    const ivFiltro = iso(l.validade);
+    if (ivFiltro && ivFiltro < hojeIso) continue; // lote vencido: descarta
     const scodes = msk.get(String(l.codigo_sku).trim());
     if (!scodes) continue; // só itens com correspondência ao nosso catálogo
     let a = m.get(scodes);
