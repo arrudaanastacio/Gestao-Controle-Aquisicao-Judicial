@@ -31,6 +31,15 @@ function limpar(v) {
   return v;
 }
 
+// Corrige grafias antigas de status vindas da planilha (ex.: "Adjucado" ->
+// "Adjudicado"), para o dado gravado bater com os filtros do sistema.
+function normalizarStatus(v) {
+  const t = limpar(v);
+  if (t === null) return null;
+  if (String(t).trim().toLowerCase() === 'adjucado') return 'Adjudicado';
+  return t;
+}
+
 // Nº da Requisição GSNET sem casa decimal: a planilha traz a célula como número
 // (ex.: 4508 -> vira "4508.0" ao gravar como texto). Guarda inteiro como string
 // limpa; preserva GSNET alfanumérico e eventuais decimais reais.
@@ -97,7 +106,7 @@ function processarPlanilha(buffer) {
         data_entrega: paraDataIso(linha[COL.data_entrega]),
         qtde_entregue: limpar(linha[COL.qtde_entregue]),
         qtde_pendente: limpar(linha[COL.qtde_pendente]),
-        status: limpar(linha[COL.status]),
+        status: normalizarStatus(linha[COL.status]),
         observacao: limpar(linha[COL.observacao]),
         justificativa: limpar(linha[COL.justificativa]),
       };

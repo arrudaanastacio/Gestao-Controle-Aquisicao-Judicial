@@ -11,7 +11,7 @@ router.use(autenticar);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
 
 // Status de compra considerados "em aberto" (compra ainda não concluída)
-const STATUS_EM_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+const STATUS_EM_ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial'];
 
 // Divide o estoque por escopo de unidade dispensadora:
 //   'udtp'  → UD 01 - Tenente Pena (inclui linhas antigas sem unidade preenchida)
@@ -786,7 +786,7 @@ function construirItensMonitoramento(query) {
     SELECT codigo_item, 'OD' AS fluxo, status, COALESCE(qtde_pendente, 0) AS q
       FROM solicitacoes_od WHERE status IN (${_ph})
   `).all(...STATUS_EM_ABERTO, ...STATUS_EM_ABERTO);
-  const ORDEM_ABERTO = STATUS_EM_ABERTO; // Planejamento < Adjucado < Empenhado < Entrega Parcial
+  const ORDEM_ABERTO = STATUS_EM_ABERTO; // Planejamento < Adjudicado < Empenhado < Entrega Parcial
   for (const r of linhasAberto) {
     let a = mapaAquisicao.get(r.codigo_item);
     if (!a) { a = { qtde: 0, chaves: new Set() }; mapaAquisicao.set(r.codigo_item, a); }

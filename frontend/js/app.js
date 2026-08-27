@@ -783,7 +783,7 @@ async function mudarPagina(pagina) {
 const estadoPainel = { status: null };
 
 async function carregarPainel() {
-  const STATUS_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+  const STATUS_ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial'];
 
   // Busca tudo em paralelo; cada chamada é tolerante a falha (ex.: estoque
   // ainda sem importação) para o painel nunca ficar em branco por completo.
@@ -824,7 +824,7 @@ async function carregarPainel() {
     <div class="painel-tile"><div class="numero">${vencendo30}</div><div class="rotulo">Lotes vencendo em 30 dias</div></div>`;
 
   // --- Barras "Compras por status" ---
-  const ORDEM = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial', 'Finalizado', 'Cancelado', 'Deserto', 'Fracassado', 'Revogado'];
+  const ORDEM = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial', 'Finalizado', 'Cancelado', 'Deserto', 'Fracassado', 'Revogado'];
   const ordenado = porStatus.slice().sort((a, b) => ORDEM.indexOf(a.status) - ORDEM.indexOf(b.status));
   const maxQ = Math.max(1, ...ordenado.map((s) => s.qtde));
   const corBarra = (st) => (st === 'Entrega Parcial' ? 'andamento' : (st === 'Finalizado' ? 'final' : ''));
@@ -1003,7 +1003,7 @@ async function renderKpisSolicitacoes() {
   if (!alvo) return;
   let r;
   try { r = await api('/solicitacoes/resumo'); } catch (_) { return; }
-  const ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial', 'Em andamento'];
+  const ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial', 'Em andamento'];
   const porStatus = r.porStatus || [];
   const soma = (fil) => porStatus.filter(fil).reduce((s, l) => s + l.qtde, 0);
   const total = soma(() => true);
@@ -1014,7 +1014,7 @@ async function renderKpisSolicitacoes() {
   const pct = total ? Math.round((finalizadas / total) * 100) : 0;
   alvo.innerHTML =
     kpiCard('doc', n(total), 'Total de solicitações', 'todos os meses') +
-    kpiCard('chart', n(andamento), 'Em andamento', 'Planejamento · Adjucado · Empenhado · Entrega Parcial', 'aviso') +
+    kpiCard('chart', n(andamento), 'Em andamento', 'Planejamento · Adjudicado · Empenhado · Entrega Parcial', 'aviso') +
     kpiCard('check', n(finalizadas), 'Finalizadas', `${pct}% do total`) +
     kpiCard('relogio', n(atrasadas), 'Atrasadas', 'previsão de entrega vencida', atrasadas > 0 ? 'critico' : '');
 }
@@ -1283,7 +1283,7 @@ async function buscarMedicamento() {
     return;
   }
 
-  const ABERTO_BUSCA = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+  const ABERTO_BUSCA = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial'];
   container.innerHTML = dados.resultados.map((r) => {
     const semHistorico = r.historico.length === 0;
     // Mini-KPIs do medicamento, calculados do próprio histórico.
@@ -1373,7 +1373,7 @@ document.getElementById('botaoLimparFiltrosRelatorio').addEventListener('click',
 function renderKpisRelatorio(solicitacoes) {
   const alvo = document.getElementById('kpisRelatorio');
   if (!alvo) return;
-  const ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+  const ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial'];
   const total = solicitacoes.length;
   const emAndamento = solicitacoes.filter((s) => ABERTO.includes(s.status)).length;
   const finalizadas = solicitacoes.filter((s) => s.status === 'Finalizado').length;
@@ -1382,7 +1382,7 @@ function renderKpisRelatorio(solicitacoes) {
   const pct = total ? Math.round((finalizadas / total) * 100) : 0;
   alvo.innerHTML =
     kpiCard('doc', n(total), 'Solicitações (filtro atual)', 'no recorte selecionado') +
-    kpiCard('chart', n(emAndamento), 'Em andamento', 'Planejamento · Adjucado · Empenhado · Entrega Parcial', 'aviso') +
+    kpiCard('chart', n(emAndamento), 'Em andamento', 'Planejamento · Adjudicado · Empenhado · Entrega Parcial', 'aviso') +
     kpiCard('check', n(finalizadas), 'Finalizadas', `${pct}% do total`) +
     kpiCard('list', n(itens), 'Itens distintos', 'medicamentos diferentes');
 }
@@ -4070,7 +4070,7 @@ document.getElementById('botaoLimparGrade').addEventListener('click', async (ev)
 async function carregarSolicitacoesOD() {
   carregarUltimaAtualizacao('atualizadoSolicitacoesOD', 'solicitacoes_od');
   const { porStatus } = await api('/solicitacoes-od/resumo');
-  const ABERTO_OD = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial', 'Em andamento'];
+  const ABERTO_OD = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial', 'Em andamento'];
   const contOD = (nome) => (porStatus.find((l) => l.status === nome) || {}).qtde || 0;
   const totalOD = porStatus.reduce((s, l) => s + l.qtde, 0);
   const andamentoOD = porStatus.filter((l) => ABERTO_OD.includes(l.status)).reduce((s, l) => s + l.qtde, 0);
@@ -4079,7 +4079,7 @@ async function carregarSolicitacoesOD() {
   const nOD = (v) => v.toLocaleString('pt-BR');
   document.getElementById('grideResumoSolicitacoesOD').innerHTML =
     kpiCard('doc', nOD(totalOD), 'Total de solicitações', 'todos os meses') +
-    kpiCard('chart', nOD(andamentoOD), 'Em andamento', 'Planejamento · Adjucado · Empenhado · Entrega Parcial', 'aviso') +
+    kpiCard('chart', nOD(andamentoOD), 'Em andamento', 'Planejamento · Adjudicado · Empenhado · Entrega Parcial', 'aviso') +
     kpiCard('check', nOD(finalOD), 'Finalizadas', `${pctOD}% do total`) +
     kpiCard('relogio', nOD(contOD('Entrega Parcial')), 'Entrega parcial', 'aguardando saldo');
 
@@ -4163,7 +4163,7 @@ async function carregarTabelaSolicitacoesOD() {
 
 // ==================== Aquisição em Andamento OD ====================
 // Visão filtrada do Relatório de Compras OD: só status em aberto
-// (Planejamento, Adjucado, Empenhado, Entrega Parcial). Dados vêm do mesmo
+// (Planejamento, Adjudicado, Empenhado, Entrega Parcial). Dados vêm do mesmo
 // vigia automático de solicitacoes_od — não tem importação própria.
 const estadoAquisicaoODAndamento = { pagina: 1, pageSize: 50, filtrosCarregados: false };
 
@@ -11321,11 +11321,11 @@ function montarDetalheCompraRuptura(d) {
     + kpiCard('doc', est.autonomia == null ? '—' : nf(est.autonomia), 'Autonomia', 'meses de cobertura')
     + '</div>';
 
-  // Andamento de compra. O FOCO é a compra em aberto (Planejamento, Adjucado,
+  // Andamento de compra. O FOCO é a compra em aberto (Planejamento, Adjudicado,
   // Empenhado, Entrega Parcial) — é o que responde "está sendo comprado?". O
   // restante (Finalizado, Cancelado, etc.) vira histórico recolhível, para não
   // roubar a atenção mas continuar acessível.
-  const STATUS_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+  const STATUS_ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial'];
   const abertas = d.compras.filter((c) => STATUS_ABERTO.includes(c.status));
   const encerradas = d.compras.filter((c) => !STATUS_ABERTO.includes(c.status));
 

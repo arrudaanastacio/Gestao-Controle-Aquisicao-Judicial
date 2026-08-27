@@ -185,7 +185,7 @@ const ORDEM_MES = {
 };
 
 // Status considerados "compra em andamento" (ainda não finalizada)
-const STATUS_EM_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+const STATUS_EM_ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial'];
 
 router.get('/resumo', (req, res) => {
   const { emAberto } = req.query;

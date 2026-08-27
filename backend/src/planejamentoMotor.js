@@ -109,7 +109,7 @@ function calcularPlanejamento(opcoes = {}) {
   const qEmp = db.prepare(
     "SELECT COALESCE(SUM(qtde_pendente),0) s FROM solicitacoes WHERE codigo_item = ? AND status = 'Empenhado'");
   const qSol = db.prepare(
-    "SELECT COALESCE(SUM(qtde_pendente),0) s FROM solicitacoes WHERE codigo_item = ? AND status IN ('Planejamento','Adjucado','Entrega Parcial')");
+    "SELECT COALESCE(SUM(qtde_pendente),0) s FROM solicitacoes WHERE codigo_item = ? AND status IN ('Planejamento','Adjudicado','Entrega Parcial')");
   const qCarta = dtCarta ? db.prepare('SELECT quantidade_carta q FROM plan_carta_troca WHERE codigo_item = ? AND data_referencia = ?') : null;
   const qIrreg = dtIrreg ? db.prepare('SELECT irregular i FROM plan_demanda_irregular WHERE codigo_item = ? AND data_referencia = ?') : null;
   const qLois = dtLois ? db.prepare('SELECT consumo_medio c FROM plan_consumo_medio WHERE codigo_item = ? AND data_referencia = ?') : null;

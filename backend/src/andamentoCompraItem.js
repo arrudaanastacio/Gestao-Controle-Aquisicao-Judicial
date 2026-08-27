@@ -10,7 +10,7 @@
 // =====================================================================
 const db = require('./db');
 
-const STATUS_ABERTO = ['Planejamento', 'Adjucado', 'Empenhado', 'Entrega Parcial'];
+const STATUS_ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial'];
 const EM_ABERTO_SQL = STATUS_ABERTO.map(() => '?').join(',');
 
 // Escopo Tenente Pena no estoque (linhas sem unidade ou da própria unidade).

@@ -98,9 +98,9 @@ frontend/
 - **solicitacoes** (3.675 linhas) — movimento de compra. FK `codigo_item`.
   Cada linha tem `ano` + `mes` (controle mês a mês preservado), `tipo` (AS/JS),
   `modalidade_compra`, `n_oficio`, `n_empenho`, quantidades, datas e `status`.
-  Status vistos: Planejamento, Adjucado, Empenhado, Entrega Parcial,
+  Status vistos: Planejamento, Adjudicado, Empenhado, Entrega Parcial,
   Finalizado, Cancelado, Deserto, Fracassado, Revogado.
-  Status "em aberto" (compra em andamento): Planejamento, Adjucado,
+  Status "em aberto" (compra em andamento): Planejamento, Adjudicado,
   Empenhado, Entrega Parcial.
 - **estoque_importacoes** / **estoque_itens** — cada importação diária é um
   snapshot datado (`data_referencia`). `estoque_itens` guarda estoque,
