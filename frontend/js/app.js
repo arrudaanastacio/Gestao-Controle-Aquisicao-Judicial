@@ -8070,6 +8070,34 @@ function atualizarContadorColetiva() {
     `${pacientesUnicos.size} paciente(s) · ${totalItens} item(ns) · aquisição total ${fmtNumero(+aquisicaoTotal.toFixed(2))}`;
 }
 
+// Diálogo do "↺ Reabrir" da linha INDIVIDUAL: pergunta se a reabertura é
+// Individual (tela Por paciente) ou Coletiva (tela Por Item, para incluir
+// outros pacientes/medicamentos).
+function escolherReabertura(id) {
+  const fundo = document.createElement('div');
+  fundo.style.cssText = 'position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.35); z-index:9999;';
+  fundo.innerHTML = `
+    <div class="modal" style="max-width:460px; width:92%; padding:22px;">
+      <h3 style="margin:0 0 6px;">Reabrir requisição</h3>
+      <p class="texto-apoio" style="margin:0 0 16px;">Como você quer reabrir? Em ambos os casos o status volta para “Solicitado” (telegrama/data de envio são zerados).</p>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button type="button" id="reabInd" class="botao-secundario" style="text-align:left; padding:11px 13px; line-height:1.35;">
+          <strong>Individual</strong><br><span class="texto-apoio">Corrigir ou incluir itens do <em>mesmo</em> paciente (tela Por paciente).</span>
+        </button>
+        <button type="button" id="reabCol" class="botao-primario" style="text-align:left; padding:11px 13px; line-height:1.35;">
+          <strong>Coletiva</strong><br><span style="opacity:.85;">Incluir <em>outros</em> pacientes e/ou medicamentos (tela Por Item).</span>
+        </button>
+        <button type="button" id="reabCancel" class="botao-secundario" style="align-self:flex-end; padding:6px 16px; margin-top:4px;">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(fundo);
+  const fechar = () => fundo.remove();
+  fundo.addEventListener('click', (ev) => { if (ev.target === fundo) fechar(); });
+  fundo.querySelector('#reabInd').addEventListener('click', () => { fechar(); editarRequisicao(id); });
+  fundo.querySelector('#reabCol').addEventListener('click', () => { fechar(); reabrirColetiva(id); });
+  fundo.querySelector('#reabCancel').addEventListener('click', fechar);
+}
+
 // Reabre uma requisição existente NA TELA "Por Item" (coletiva), já com os
 // itens como abas e os pacientes atuais marcados. Permite incluir mais
 // pacientes (+ selecionar) e medicamentos (+ Inserir). Ao gerar, salva no
@@ -8094,8 +8122,12 @@ async function reabrirColetiva(id) {
   document.getElementById('colSEI').value = r.sei || '';
 
   // Dados de cada paciente (protocolo/processo) para injetar quem já constava
-  // mas não aparecer mais na busca de candidatos.
+  // mas não aparecer mais na busca de candidatos. Numa requisição individual,
+  // o paciente é o próprio autor do cabeçalho.
   const pacInfo = new Map((dados.pacientes || []).map((p) => [p.autor, p]));
+  if (!r.coletiva && r.autor && !pacInfo.has(r.autor)) {
+    pacInfo.set(r.autor, { autor: r.autor, protocolo: r.protocolo, processo: r.processo, tipo_demanda: r.tipo_demanda });
+  }
 
   for (const it of dados.itens) {
     let d;
@@ -8104,8 +8136,13 @@ async function reabrirColetiva(id) {
     const pacientes = (d.pacientes || []).map((p) => ({ ...p, item: p.itens[0] }));
     const sel = {};
     pacientes.forEach((p) => { sel[p.autor] = { checked: false, autonomia: 1 }; });
+    // Detalhe por paciente: coletiva já tem it.detalhe; individual = só o autor,
+    // usando a autonomia_compra gravada na própria linha do item.
+    const detalhes = r.coletiva
+      ? (it.detalhe || [])
+      : [{ autor: r.autor, autonomia_compra: it.autonomia_compra, qtde_consumo: it.qtde_consumo, quantidade: it.quantidade }];
     // Marca (e injeta, se preciso) os pacientes que já estavam na requisição.
-    (it.detalhe || []).forEach((det) => {
+    detalhes.forEach((det) => {
       const aut = Number(det.autonomia_compra) || 1;
       if (!sel[det.autor]) {
         const info = pacInfo.get(det.autor) || {};
@@ -9193,13 +9230,12 @@ async function carregarTabelaRelReq() {
     corpo.querySelectorAll('.req-ver-itens').forEach((b) => {
       b.addEventListener('click', () => abrirItensColetiva(b.dataset.req));
     });
-    // "↺ Reabrir" (individual): reabre a requisição no construtor para incluir
-    // itens ao mesmo paciente. Ao salvar, o status volta para "Solicitado".
+    // "↺ Reabrir" (individual): pergunta se a reabertura é Individual (tela Por
+    // paciente, só os itens do mesmo paciente) ou Coletiva (tela Por Item, para
+    // incluir outros pacientes/medicamentos). Ao salvar, status volta a
+    // "Solicitado".
     corpo.querySelectorAll('.req-reabrir').forEach((b) => {
-      b.addEventListener('click', () => {
-        if (!confirm('Reabrir esta requisição para inclusão? O status de atendimento voltará para "Solicitado" (o telegrama/data de envio serão zerados).')) return;
-        editarRequisicao(b.dataset.req);
-      });
+      b.addEventListener('click', () => escolherReabertura(b.dataset.req));
     });
     // "↺ Reabrir" (coletiva): reabre na tela "Por Item", já com itens e
     // pacientes atuais marcados — para incluir mais pacientes/medicamentos.
