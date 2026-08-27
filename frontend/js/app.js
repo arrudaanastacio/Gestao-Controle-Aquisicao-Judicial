@@ -8070,6 +8070,68 @@ function atualizarContadorColetiva() {
     `${pacientesUnicos.size} paciente(s) · ${totalItens} item(ns) · aquisição total ${fmtNumero(+aquisicaoTotal.toFixed(2))}`;
 }
 
+// Reabre uma requisição existente NA TELA "Por Item" (coletiva), já com os
+// itens como abas e os pacientes atuais marcados. Permite incluir mais
+// pacientes (+ selecionar) e medicamentos (+ Inserir). Ao gerar, salva no
+// mesmo nº de controle via PUT (reabrir-coletiva) e reabre o status.
+async function reabrirColetiva(id) {
+  let dados;
+  try { dados = await api(`/autores/requisicoes/${id}`); }
+  catch (e) { alert('Erro ao carregar a requisição: ' + e.message); return; }
+  const r = dados.requisicao;
+
+  reqModo = 'editar';
+  reqEditId = id;
+  modalRequisicao.hidden = false;
+  document.getElementById('reqModoAbas').hidden = true; // não troca de modo durante a reabertura
+  reqModoAtual = 'coletiva';
+  document.getElementById('reqModoColetiva').hidden = false;
+  document.getElementById('reqEtapaPaciente').hidden = true;
+  document.getElementById('reqEtapaItens').hidden = true;
+  document.getElementById('reqDescricaoModo').textContent =
+    'Reabertura — inclua pacientes (+ selecionar) ou medicamentos (+ Inserir medicamento) e gere novamente.';
+  resetColetiva();
+  document.getElementById('colSEI').value = r.sei || '';
+
+  // Dados de cada paciente (protocolo/processo) para injetar quem já constava
+  // mas não aparecer mais na busca de candidatos.
+  const pacInfo = new Map((dados.pacientes || []).map((p) => [p.autor, p]));
+
+  for (const it of dados.itens) {
+    let d;
+    try { d = await api(`/autores/itens-pacientes?codigos=${encodeURIComponent(it.codigo_item)}`); }
+    catch (_) { d = { pacientes: [] }; }
+    const pacientes = (d.pacientes || []).map((p) => ({ ...p, item: p.itens[0] }));
+    const sel = {};
+    pacientes.forEach((p) => { sel[p.autor] = { checked: false, autonomia: 1 }; });
+    // Marca (e injeta, se preciso) os pacientes que já estavam na requisição.
+    (it.detalhe || []).forEach((det) => {
+      const aut = Number(det.autonomia_compra) || 1;
+      if (!sel[det.autor]) {
+        const info = pacInfo.get(det.autor) || {};
+        pacientes.push({
+          autor: det.autor, protocolo: info.protocolo, processo: info.processo, tipo_demanda: info.tipo_demanda,
+          item: {
+            codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
+            categoria: it.categoria, catmat: it.catmat, qtde_consumo: det.qtde_consumo,
+          },
+        });
+      }
+      sel[det.autor] = { checked: true, autonomia: aut };
+    });
+    const ataItem = pacientes.length ? (pacientes[0].item || {}).ata : null;
+    colTabs.push({
+      item: {
+        codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
+        categoria: it.categoria, catmat: it.catmat,
+      },
+      pacientes, sel, filtro: '', ata: ataItem || null,
+    });
+  }
+  colTabAtivo = 0;
+  mostrarTrabalhoColetiva();
+}
+
 async function gerarColetiva() {
   const sei = document.getElementById('colSEI').value.trim();
   if (!sei) { alert('Informe o Nº do SEI da solicitação coletiva.'); document.getElementById('colSEI').focus(); return; }
@@ -8113,15 +8175,22 @@ async function gerarColetiva() {
   }));
   if (!confirmarMisturaAta([...modMap.values()])) return;
 
+  const editar = reqModo === 'editar' && reqEditId;
   const botao = document.getElementById('botaoGerarColetiva');
   botao.disabled = true;
   try {
-    const r = await api('/autores/requisicoes/coletiva', {
-      method: 'POST',
-      body: JSON.stringify({ sei, pacientes }),
-    });
-    alert(`✓ Solicitação coletiva ${r.codigo_controle} gerada — ${r.totalPacientes} paciente(s) · ${r.totalItens} medicamento(s) · SEI ${sei}.`);
+    const r = editar
+      ? await api(`/autores/requisicoes/${reqEditId}/reabrir-coletiva`, {
+          method: 'PUT', body: JSON.stringify({ sei, pacientes }),
+        })
+      : await api('/autores/requisicoes/coletiva', {
+          method: 'POST', body: JSON.stringify({ sei, pacientes }),
+        });
+    alert(editar
+      ? `✓ Requisição ${r.codigo_controle} reaberta e atualizada — ${r.totalPacientes} paciente(s) · ${r.totalItens} medicamento(s)${r.coletiva ? '' : ' (individual)'}.`
+      : `✓ Solicitação coletiva ${r.codigo_controle} gerada — ${r.totalPacientes} paciente(s) · ${r.totalItens} medicamento(s) · SEI ${sei}.`);
     colTabs = [];
+    reqModo = 'novo'; reqEditId = null;
     modalRequisicao.hidden = true;
     if (r.id) reabrirRequisicao(r.id); // abre o documento consolidado
     if (estado.paginaAtual === 'relatorioReq') carregarTabelaRelReq();
@@ -9032,6 +9101,11 @@ async function carregarTabelaRelReq() {
     corpo.innerHTML = ''; vazio.hidden = false;
   } else {
     vazio.hidden = true;
+    // Requisições (individuais) que já tiveram algum telegrama enviado: nelas o
+    // "↺ Reabrir" fica restrito ao admin (colaborador não desfaz envio).
+    const reqComTelegrama = new Set(
+      dados.itens.filter((x) => x.tipo !== 'coletiva' && x.telegrama_enviado === 'Sim').map((x) => x.requisicao_id)
+    );
     corpo.innerHTML = dados.itens.map((it) => {
       // ----- Linha CONSOLIDADA de uma Solicitação Coletiva -----
       if (it.tipo === 'coletiva') {
@@ -9041,7 +9115,8 @@ async function carregarTabelaRelReq() {
         const nomePac = `${it.autor || '—'}${maisN > 0 ? ` <span style="color:var(--cinza-texto);">e mais ${maisN} paciente${maisN > 1 ? 's' : ''}</span>` : ''}`;
         return `
         <tr data-req="${it.requisicao_id}" data-coletiva="1" data-justificativa="${(it.justificativa || '').replace(/"/g, '&quot;')}">
-          <td class="col-codigo"><a href="#" class="req-abrir-doc" data-req="${it.requisicao_id}"><strong>${it.codigo_controle || ('#' + it.requisicao_id)}</strong></a> <span class="tag-programa sub" style="font-size:9px;">COLETIVA</span></td>
+          <td class="col-codigo"><a href="#" class="req-abrir-doc" data-req="${it.requisicao_id}"><strong>${it.codigo_controle || ('#' + it.requisicao_id)}</strong></a> <span class="tag-programa sub" style="font-size:9px;">COLETIVA</span>
+            ${(ehAdmin || !enviadoC) ? `<br><button type="button" class="req-reabrir-col" data-req="${it.requisicao_id}" title="Reabrir para incluir pacientes ou medicamentos (status volta para Solicitado)" style="margin-top:4px; padding:2px 8px; font-size:11px;">↺ Reabrir</button>` : ''}</td>
           <td>${nomePac}</td>
           <td class="col-codigo">${it.sei || '—'}</td>
           <td colspan="4" style="color:var(--cinza-texto);">${fmtNumero(it.total_itens)} medicamento(s) · ${fmtNumero(it.total_pacientes)} paciente(s)
@@ -9081,7 +9156,10 @@ async function carregarTabelaRelReq() {
       }
       return `
         <tr data-id="${it.id}" data-justificativa="${(it.justificativa || '').replace(/"/g, '&quot;')}">
-          <td class="col-codigo"><a href="#" class="req-abrir-doc" data-req="${it.requisicao_id}"><strong>${it.codigo_controle || ('#' + it.requisicao_id)}</strong></a></td>
+          <td class="col-codigo">
+            <a href="#" class="req-abrir-doc" data-req="${it.requisicao_id}"><strong>${it.codigo_controle || ('#' + it.requisicao_id)}</strong></a>
+            ${(ehAdmin || !reqComTelegrama.has(it.requisicao_id)) ? `<br><button type="button" class="req-reabrir" data-req="${it.requisicao_id}" title="Reabrir a requisição para incluir itens (status volta para Solicitado)" style="margin-top:4px; padding:2px 8px; font-size:11px;">↺ Reabrir</button>` : ''}
+          </td>
           <td>${it.autor || '—'}</td>
           <td class="col-codigo">${it.sei || '—'}</td>
           <td class="col-codigo"><a href="#" class="req-item-detalhe" data-codigo="${(it.codigo_item || '').replace(/"/g, '&quot;')}" data-protocolo="${(it.protocolo || '').replace(/"/g, '&quot;')}" data-desc="${(it.descricao_item || '').replace(/"/g, '&quot;')}">${it.codigo_item || '—'}</a></td>
@@ -9114,6 +9192,22 @@ async function carregarTabelaRelReq() {
     // "Ver itens" das linhas coletivas: lista itens + código SCODES solicitados.
     corpo.querySelectorAll('.req-ver-itens').forEach((b) => {
       b.addEventListener('click', () => abrirItensColetiva(b.dataset.req));
+    });
+    // "↺ Reabrir" (individual): reabre a requisição no construtor para incluir
+    // itens ao mesmo paciente. Ao salvar, o status volta para "Solicitado".
+    corpo.querySelectorAll('.req-reabrir').forEach((b) => {
+      b.addEventListener('click', () => {
+        if (!confirm('Reabrir esta requisição para inclusão? O status de atendimento voltará para "Solicitado" (o telegrama/data de envio serão zerados).')) return;
+        editarRequisicao(b.dataset.req);
+      });
+    });
+    // "↺ Reabrir" (coletiva): reabre na tela "Por Item", já com itens e
+    // pacientes atuais marcados — para incluir mais pacientes/medicamentos.
+    corpo.querySelectorAll('.req-reabrir-col').forEach((b) => {
+      b.addEventListener('click', () => {
+        if (!confirm('Reabrir esta solicitação coletiva para inclusão? O status voltará para "Solicitado" (o telegrama/data de envio serão zerados).')) return;
+        reabrirColetiva(b.dataset.req);
+      });
     });
     // Exibir/ocultar detalhes de quem enviou o telegrama
     corpo.querySelectorAll('.req-det').forEach((a) => {

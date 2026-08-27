@@ -755,6 +755,112 @@ router.post('/requisicoes/coletiva', (req, res) => {
   res.status(201).json({ id, codigo_controle: codigoControle, totalPacientes: lista.length, totalItens: itensConsolidados.length });
 });
 
+// ---------- Reabrir requisição no formato coletiva (incluir pacientes/itens) ----------
+// Reconstrói itens/pacientes no MESMO nº de controle. >=2 pacientes => coletiva;
+// ==1 paciente => individual. Reabre o status para "Solicitado" e zera telegrama.
+router.put('/requisicoes/:id/reabrir-coletiva', (req, res) => {
+  const r = db.prepare('SELECT * FROM requisicoes WHERE id = ?').get(req.params.id);
+  if (!r) return res.status(404).json({ erro: 'Requisição não encontrada.' });
+  if (r.status === 'Cancelada') return res.status(400).json({ erro: 'Requisição cancelada não pode ser reaberta.' });
+
+  // Trava: se já houve telegrama enviado (na coletiva ou em algum item), só admin
+  // pode reabrir — a reabertura zera status/telegrama de tudo.
+  if ((req.usuario.perfil || '') !== 'admin') {
+    const enviadoItem = db.prepare("SELECT COUNT(*) c FROM requisicao_itens WHERE requisicao_id = ? AND telegrama_enviado = 'Sim'").get(r.id).c > 0;
+    if (r.telegrama_enviado === 'Sim' || enviadoItem) {
+      return res.status(403).json({ erro: 'Esta requisição já teve telegrama enviado; somente um administrador pode reabri-la.' });
+    }
+  }
+
+  const { sei, pacientes } = req.body || {};
+  const lista = (Array.isArray(pacientes) ? pacientes : []).filter((p) => Array.isArray(p.itens) && p.itens.length);
+  if (!lista.length) return res.status(400).json({ erro: 'Informe ao menos um paciente com item marcado.' });
+
+  const num = (v) => { const n = parseFloat(String(v ?? '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; };
+  const mapaItem = new Map();
+  for (const p of lista) {
+    for (const it of p.itens) {
+      const k = it.codigo_item;
+      if (!mapaItem.has(k)) {
+        mapaItem.set(k, {
+          codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
+          categoria: it.categoria, catmat: it.catmat, quantidade: 0, qtde_consumo: 0, detalhe: [],
+          situacao_ata: it.situacao_ata || null, escolha_ata: it.escolha_ata || null,
+          valor_unitario: it.valor_unitario != null ? it.valor_unitario : null,
+          tipo_demanda: it.tipo_demanda || null, prazo: it.prazo || null, periodicidade: it.periodicidade || null,
+          dispensacoes_autorizadas: it.dispensacoes_autorizadas || null, autonomia_compra: it.autonomia_compra || null,
+        });
+      }
+      const agg = mapaItem.get(k);
+      agg.quantidade += num(it.quantidade);
+      agg.qtde_consumo += num(it.qtde_consumo);
+      agg.detalhe.push({ autor: p.autor, qtde_consumo: it.qtde_consumo, autonomia_compra: it.autonomia_compra, quantidade: it.quantidade });
+    }
+  }
+  const itensConsolidados = [...mapaItem.values()];
+  const ehColetiva = lista.length >= 2;
+  const pacientesInfo = lista.map((p) => ({ autor: p.autor, protocolo: p.protocolo, processo: p.processo, tipo_demanda: p.tipo_demanda }));
+  const primeiro = lista[0];
+  const caixaReq = caixaPredominante(itensConsolidados.map((i) => i.codigo_item), criarCalculadoraCaixa()) || '';
+
+  db.exec('BEGIN');
+  try {
+    if (ehColetiva) {
+      db.prepare(`UPDATE requisicoes SET coletiva = 1, autor = ?, unidade = ?, sei = ?, total_itens = ?, total_pacientes = ?,
+        pacientes_json = ?, protocolo = NULL, processo = NULL, tipo_demanda = NULL, caixa = ?,
+        status_atendimento = 'Solicitado', telegrama_enviado = 'Não', data_envio = NULL, requisicao_gsnet = NULL,
+        atualizado_em = datetime('now') WHERE id = ?`)
+        .run(primeiro.autor, primeiro.unidade_dispensadora || null, sei || null, itensConsolidados.length, lista.length,
+          JSON.stringify(pacientesInfo), caixaReq, r.id);
+    } else {
+      db.prepare(`UPDATE requisicoes SET coletiva = 0, autor = ?, unidade = ?, sei = ?, total_itens = ?, total_pacientes = 1,
+        pacientes_json = ?, protocolo = ?, processo = ?, tipo_demanda = ?, caixa = ?,
+        status_atendimento = 'Solicitado', telegrama_enviado = 'Não', data_envio = NULL, requisicao_gsnet = NULL,
+        atualizado_em = datetime('now') WHERE id = ?`)
+        .run(primeiro.autor, primeiro.unidade_dispensadora || null, sei || null, itensConsolidados.length,
+          JSON.stringify(pacientesInfo), primeiro.protocolo || null, primeiro.processo || null, primeiro.tipo_demanda || null,
+          caixaReq, r.id);
+    }
+
+    db.prepare('DELETE FROM requisicao_itens WHERE requisicao_id = ?').run(r.id);
+    if (ehColetiva) {
+      const insItem = db.prepare(`
+        INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
+                                      qtde_consumo, catmat, detalhe_json, n_pacientes, situacao_ata, escolha_ata, valor_unitario)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      for (const it of itensConsolidados) {
+        insItem.run(r.id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null,
+          String(+it.quantidade.toFixed(2)), String(+it.qtde_consumo.toFixed(2)), it.catmat || null,
+          JSON.stringify(it.detalhe), it.detalhe.length, it.situacao_ata || null, it.escolha_ata || null,
+          it.valor_unitario != null ? String(it.valor_unitario) : null);
+      }
+    } else {
+      const insItem = db.prepare(`
+        INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
+                                      tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat,
+                                      situacao_ata, escolha_ata, valor_unitario)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      for (const it of itensConsolidados) {
+        insItem.run(r.id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null,
+          String(+it.quantidade.toFixed(2)), it.tipo_demanda || null, String(+it.qtde_consumo.toFixed(2)),
+          it.prazo || null, it.periodicidade || null, it.dispensacoes_autorizadas || null,
+          it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null,
+          it.situacao_ata || null, it.escolha_ata || null, it.valor_unitario != null ? String(it.valor_unitario) : null);
+      }
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    return res.status(500).json({ erro: 'Falha ao reabrir a requisição: ' + e.message });
+  }
+
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'reabrir_requisicao', 'requisicoes', r.id,
+      JSON.stringify({ codigo_controle: r.codigo_controle, coletiva: ehColetiva ? 1 : 0, pacientes: lista.length, itens: itensConsolidados.length }));
+
+  res.json({ id: r.id, codigo_controle: r.codigo_controle, coletiva: ehColetiva ? 1 : 0, totalPacientes: lista.length, totalItens: itensConsolidados.length });
+});
+
 // ---------- Requisições: salvar (gera ID de controle) ----------
 router.post('/requisicoes', (req, res) => {
   const { autor, idade, unidade, procurador, sei, itens, protocolo, processo, tipo_demanda } = req.body || {};
@@ -1090,6 +1196,13 @@ router.put('/requisicoes/:id', (req, res) => {
   const r = db.prepare('SELECT * FROM requisicoes WHERE id = ?').get(req.params.id);
   if (!r) return res.status(404).json({ erro: 'Requisição não encontrada.' });
   if (r.status === 'Cancelada') return res.status(400).json({ erro: 'Requisição cancelada não pode ser editada.' });
+
+  // Trava do "Reabrir": se algum item já teve telegrama enviado, só admin pode
+  // reabrir/editar (a reabertura zera status/telegrama de todos os itens).
+  if ((req.usuario.perfil || '') !== 'admin') {
+    const algumEnviado = db.prepare("SELECT COUNT(*) c FROM requisicao_itens WHERE requisicao_id = ? AND telegrama_enviado = 'Sim'").get(r.id).c > 0;
+    if (algumEnviado) return res.status(403).json({ erro: 'Esta requisição já teve telegrama enviado; somente um administrador pode reabri-la.' });
+  }
 
   const { sei, itens, protocolo, processo, tipo_demanda } = req.body || {};
   if (!Array.isArray(itens) || itens.length === 0) {
