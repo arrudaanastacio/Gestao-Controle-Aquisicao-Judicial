@@ -11251,7 +11251,14 @@ document.getElementById('botaoAtualizarRupturas').addEventListener('click', asyn
   botao.disabled = true;
   botao.textContent = '⏳ Consultando a API…';
   try {
-    const r = await api('/rupturas/importar-agora', { method: 'POST', body: JSON.stringify({}) });
+    // Reimporta EXATAMENTE o período mostrado no relatório (as datas do filtro
+    // já vêm preenchidas após o 1º carregamento). Assim as pontas antigas —
+    // fora da janela móvel dos últimos 30 dias — também se atualizam e o total
+    // armazenado passa a bater com a consulta ao vivo da API.
+    const inicio = document.getElementById('filtroInicioRupturas').value;
+    const fim = document.getElementById('filtroFimRupturas').value;
+    const corpo = (inicio && fim) ? { inicio, fim } : {};
+    const r = await api('/rupturas/importar-agora', { method: 'POST', body: JSON.stringify(corpo) });
     alert('Rupturas atualizadas: ' + r.totalRegistros + ' ocorrência(s) de '
       + formatarData(r.periodoInicio) + ' a ' + formatarData(r.periodoFim)
       + '.\n\n' + r.pacientes + ' paciente(s) e ' + r.itens + ' item(ns) impactados.');
