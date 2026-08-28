@@ -3,12 +3,17 @@ const crypto = require('crypto');
 const os = require('os');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
-const { autenticar, exigirPerfil } = require('./auth');
+const { autenticar, exigirPerfil, gerarToken, definirCorteSessoes } = require('./auth');
 const { enviarConviteAcesso } = require('./emailAlerta');
 const { MODULOS, ACOES, ACOES_ROTULO, MODULO_CHAVES } = require('./permissoes');
 const { CAIXAS } = require('./caixaAtendimento');
 
 const router = express.Router();
+
+// Opções de caixa na tela de permissão: as 4 caixas + "Todas" (permissão a
+// mais que dá a aba "Todas" completa, incluindo os itens SEM caixa
+// — Procedimentos/Outros/sem cadastro — que por padrão só o admin vê).
+const CAIXAS_PERM = ['Todas', ...CAIXAS];
 
 const VALIDADE_CONVITE_HORAS = 48;
 
@@ -62,6 +67,22 @@ function montarLinkConvite(req, token) {
 }
 
 router.use(autenticar, exigirPerfil('admin'));
+
+// POST /api/usuarios/derrubar-sessoes — desconecta TODOS os usuários (menos
+// quem clicou), invalidando os tokens anteriores a agora. Usado ao subir uma
+// atualização: todos voltam ao login e recarregam a versão nova.
+router.post('/derrubar-sessoes', (req, res) => {
+  const agora = Math.floor(Date.now() / 1000);
+  definirCorteSessoes(agora);
+  // Reemite o cookie de quem clicou (token novo, posterior ao corte) para o
+  // admin não cair junto.
+  const novo = gerarToken(req.usuario);
+  const conexaoHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  res.cookie('token', novo, { httpOnly: true, sameSite: 'lax', secure: conexaoHttps, maxAge: 8 * 60 * 60 * 1000 });
+  db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.usuario.id, req.usuario.email, 'derrubar_sessoes', 'configuracoes', 0, JSON.stringify({ corte: agora }));
+  res.json({ ok: true });
+});
 
 router.get('/', (req, res) => {
   const usuarios = db.prepare(
@@ -208,7 +229,7 @@ router.get('/:id/permissoes', (req, res) => {
   } else {
     try {
       const arr = JSON.parse(usuario.caixas_req);
-      caixasReq = Array.isArray(arr) ? arr.filter((c) => CAIXAS.includes(c)) : CAIXAS.slice();
+      caixasReq = Array.isArray(arr) ? arr.filter((c) => CAIXAS_PERM.includes(c)) : CAIXAS.slice();
     } catch { caixasReq = CAIXAS.slice(); }
   }
   delete usuario.caixas_req;
@@ -231,7 +252,7 @@ router.get('/:id/permissoes', (req, res) => {
       for (const a of ACOES) permissoes[m.chave][a] = l[a] === 1;
     }
   }
-  res.json({ usuario, permissoes, habilitado, caixasReq, todasCaixas: CAIXAS });
+  res.json({ usuario, permissoes, habilitado, caixasReq, todasCaixas: CAIXAS_PERM });
 });
 
 // ---------- Salva a grade de permissões de um usuário ----------
@@ -266,7 +287,7 @@ router.put('/:id/permissoes', (req, res) => {
   // Caixas do Relatório de Primeiro Atendimento (Materiais/Medicamentos/Nutrição).
   // Só grava se o campo vier no corpo; guarda o array filtrado (vazio = nenhuma).
   if (Array.isArray(req.body && req.body.caixasReq)) {
-    const caixas = req.body.caixasReq.filter((c) => CAIXAS.includes(c));
+    const caixas = req.body.caixasReq.filter((c) => CAIXAS_PERM.includes(c));
     db.prepare('UPDATE usuarios SET caixas_req = ? WHERE id = ?').run(JSON.stringify(caixas), usuario.id);
   }
 

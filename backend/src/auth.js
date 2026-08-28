@@ -10,6 +10,31 @@ function gerarToken(usuario) {
   );
 }
 
+// Corte global de sessões: tokens emitidos ANTES deste instante (em segundos
+// unix) são rejeitados. Um admin pode "derrubar" todas as sessões definindo o
+// corte para agora — usado ao subir uma atualização. Persistido em
+// configuracoes (chave 'sessoes_validas_apos') e mantido em memória.
+let corteSessoes = 0;
+let corteCarregado = false;
+
+function carregarCorteSessoes() {
+  try {
+    const db = require('./db');
+    const r = db.prepare("SELECT valor FROM configuracoes WHERE chave = 'sessoes_validas_apos'").get();
+    corteSessoes = r && r.valor ? Number(r.valor) || 0 : 0;
+    corteCarregado = true;
+  } catch (_) { /* banco ainda não pronto; tenta de novo na próxima requisição */ }
+}
+
+function definirCorteSessoes(tsSegundos) {
+  corteSessoes = Number(tsSegundos) || 0;
+  corteCarregado = true;
+  const db = require('./db');
+  const existe = db.prepare("SELECT 1 FROM configuracoes WHERE chave = 'sessoes_validas_apos'").get();
+  if (existe) db.prepare("UPDATE configuracoes SET valor = ? WHERE chave = 'sessoes_validas_apos'").run(String(corteSessoes));
+  else db.prepare("INSERT INTO configuracoes (chave, valor) VALUES ('sessoes_validas_apos', ?)").run(String(corteSessoes));
+}
+
 function autenticar(req, res, next) {
   const token = req.cookies?.token;
   if (!token) {
@@ -17,6 +42,11 @@ function autenticar(req, res, next) {
   }
   try {
     req.usuario = jwt.verify(token, JWT_SECRET);
+    // Sessão derrubada por atualização? (token anterior ao corte global)
+    if (!corteCarregado) carregarCorteSessoes();
+    if (corteSessoes && req.usuario.iat && req.usuario.iat < corteSessoes) {
+      return res.status(401).json({ erro: 'Sessão encerrada por atualização do sistema. Faça login novamente.' });
+    }
     // Registra a última atividade (para o painel mostrar quem está online).
     // Em bloco protegido: se falhar, não pode derrubar a autenticação.
     try {
@@ -121,4 +151,4 @@ function exigirModuloDinamico(resolver) {
   };
 }
 
-module.exports = { gerarToken, autenticar, exigirPerfil, exigirModulo, exigirModuloDinamico, acaoDaRequisicao, JWT_SECRET };
+module.exports = { gerarToken, autenticar, exigirPerfil, exigirModulo, exigirModuloDinamico, acaoDaRequisicao, definirCorteSessoes, carregarCorteSessoes, JWT_SECRET };

@@ -10020,8 +10020,10 @@ async function abrirModalPermissoes(usuarioId, nome) {
   } else {
     caixaBox.hidden = false;
     const marcadas = new Set(caixasReq || []);
-    caixaLista.innerHTML = (todasCaixas || []).map((c) =>
-      `<label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" class="chk-caixa-req" value="${escAttr(c)}" ${marcadas.has(c) ? 'checked' : ''}> ${escHtml(c)}</label>`).join('');
+    caixaLista.innerHTML = (todasCaixas || []).map((c) => {
+      const rot = c === 'Todas' ? 'Todas (inclui itens sem caixa: Procedimentos/Outros)' : c;
+      return `<label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" class="chk-caixa-req" value="${escAttr(c)}" ${marcadas.has(c) ? 'checked' : ''}> ${escHtml(rot)}</label>`;
+    }).join('');
   }
 
   // Quando o interruptor mestre muda, liga/desliga as caixinhas de ação da linha.
@@ -10072,6 +10074,19 @@ const formUsuario = document.getElementById('formUsuario');
 let idUsuarioEditando = null;
 
 document.getElementById('botaoNovoUsuario').addEventListener('click', () => abrirModalUsuario(null));
+document.getElementById('botaoDerrubarSessoes')?.addEventListener('click', async () => {
+  if (!confirm('Derrubar TODAS as sessões ativas, exceto a sua?\n\nTodos os outros usuários (colaboradores e admins) serão desconectados e precisarão fazer login novamente. Use ao subir uma atualização.')) return;
+  const b = document.getElementById('botaoDerrubarSessoes');
+  b.disabled = true;
+  try {
+    await api('/usuarios/derrubar-sessoes', { method: 'POST' });
+    alert('✓ Sessões derrubadas. Os demais usuários serão levados ao login no próximo clique/ação.');
+  } catch (e) {
+    alert('Não foi possível derrubar as sessões: ' + e.message);
+  } finally {
+    b.disabled = false;
+  }
+});
 document.getElementById('botaoCancelarModalUsuario').addEventListener('click', () => { modalUsuario.hidden = true; });
 
 // Mostra/esconde o campo de senha conforme o modo escolhido (novo usuário).
