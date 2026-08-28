@@ -51,6 +51,7 @@
 | 43b | **Rupturas (Indicadores)** — mesmos tooltips (ⓘ) nas quebras Por categoria / Por tipo (Rupturas, Itens e Pacientes, com a nota do Total distinto) (v1.19.5) | d2ab3fa | 28/08/2026 | 🚀 PUBLICADO (prod d2ab3fa) |
 | 44b | **Rupturas (Andamento de compra)** — filtro "Mostrar:" (Todos/Nunca comprado/Sem compra em aberto/Compra em andamento) no **formato de pasta** (CSS escopado ao id) (v1.19.6) | b533d0a | 28/08/2026 | 🚀 PUBLICADO (prod b533d0a) |
 | 45b | Nova tela **Relatório de Itens Importados** (grupo Importados) — importado+demanda ativa, colunas SCODES/CATMAT/Siafísico/Descrição/Categoria/**Código GSNET editável** (tabela `itens_gsnet`, módulo `relatorioItensImportados`); + coluna **Código GSNET** (auto) e "Req. GSNET → Req. GSNET Compras" no Relatório de Compras Importados; backfill de 327 códigos da planilha Controle CódigoGSNET (v1.20.0) | 672b85f | 28/08/2026 | 🚀 PUBLICADO (prod 672b85f) |
+| 46b | Relatório de Itens Importados — usar **largura total** da tela (max-width:none no `.conteudo`, como as demais telas largas) (v1.20.1) | 634299d | 28/08/2026 | 🚀 PUBLICADO (prod 634299d) |
 
 ### Detalhe do item 12 — Listagem de Autores Importados
 
