@@ -127,6 +127,17 @@ if (!colunasItens.includes('ativo')) db.exec("ALTER TABLE itens ADD COLUMN ativo
 if (!colunasItens.includes('inativado_em')) db.exec("ALTER TABLE itens ADD COLUMN inativado_em TEXT");
 if (!colunasItens.includes('atualizado_em')) db.exec("ALTER TABLE itens ADD COLUMN atualizado_em TEXT");
 
+// Código GSNET por item (SCODES), digitado na tela "Relatório de Itens
+// Importados". Guardado à parte (não vem das importações), sobrevive às fotos.
+db.exec(`
+CREATE TABLE IF NOT EXISTS itens_gsnet (
+  codigo_item TEXT PRIMARY KEY,
+  codigo_gsnet TEXT,
+  atualizado_em TEXT,
+  atualizado_por_email TEXT
+);
+`);
+
 // Alertas operacionais (ex: item removido do elenco mas com histórico de compra)
 db.exec(`
 CREATE TABLE IF NOT EXISTS alertas (

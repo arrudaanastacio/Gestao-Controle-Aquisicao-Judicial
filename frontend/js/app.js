@@ -273,6 +273,7 @@ function aplicarPermissoesNav() {
     planejamento: 'planejamento',
     autores: 'autoresTP', autoresGeral: 'autoresGeral', autoresImportados: 'autoresImportados',
     relatorioImportados: 'relatorioComprasImportados', analiseImportados: 'analiseImportados',
+    relatorioItensImportados: 'relatorioItensImportados',
     comparativoAutores: 'comparativoAutoresTP', relatorioReq: 'relatorioReqTP',
     cartasTroca: 'cartasTroca',
     atas: 'atas',
@@ -390,6 +391,7 @@ const ICONES_NAV = {
   autoresImportados: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
   relatorioImportados: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/>',
   analiseImportados: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/>',
+  relatorioItensImportados: '<path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/><path d="M13 13h4M13 16h4"/>',
   comparativoAutores: '<path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/>',
   relatorioReq: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M8 11h8M8 15h8M8 19h5"/>',
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
@@ -675,6 +677,7 @@ const TRILHAS = {
   autoresImportados: ['Importados', 'Listagem de Autores Importados'],
   relatorioImportados: ['Importados', 'Relatório de Compras Importados'],
   analiseImportados: ['Importados', 'Tabela Análise Importados'],
+  relatorioItensImportados: ['Importados', 'Relatório de Itens Importados'],
   relatorioItens: ['Consultas', 'Relatório de Itens'],
   atas: ['Consultas', 'Atas de Registro de Preço'],
   usuarios: ['Administração', 'Usuários'],
@@ -718,6 +721,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaAutoresImportados').hidden = pagina !== 'autoresImportados';
   document.getElementById('paginaRelatorioImportados').hidden = pagina !== 'relatorioImportados';
   document.getElementById('paginaAnaliseImportados').hidden = pagina !== 'analiseImportados';
+  document.getElementById('paginaRelatorioItensImportados').hidden = pagina !== 'relatorioItensImportados';
   document.getElementById('paginaComparativoAutores').hidden = pagina !== 'comparativoAutores';
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
   document.getElementById('paginaCartasTroca').hidden = pagina !== 'cartasTroca';
@@ -757,6 +761,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'autoresImportados') await carregarAutoresImportados();
     if (pagina === 'relatorioImportados') await carregarRelatorioImportados();
     if (pagina === 'analiseImportados') await carregarAnaliseImportados();
+    if (pagina === 'relatorioItensImportados') await carregarRelatorioItensImportados();
     if (pagina === 'comparativoAutores') await carregarComparativo();
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
     if (pagina === 'cartasTroca') await carregarCartasTroca();
@@ -5378,6 +5383,7 @@ function linhaCompImpHTML(r) {
       <td class="col-num">${cel(r.quantidade_solicitada)}</td>
       <td class="col-codigo">${cel(r.sei)}</td>
       <td class="col-codigo">${cel(r.req_gsnet)}</td>
+      <td class="col-codigo">${cel(r.codigo_gsnet_item)}</td>
       <td class="col-num">${r.valor_medio_unitario ? brlPlan(parseValorImp(r.valor_medio_unitario)) : '—'}</td>
       <td class="col-num">${vt != null ? brlPlan(vt) : '—'}</td>
       <td class="col-codigo">${cel(r.solicitacao_drs_sei)}</td>
@@ -5402,6 +5408,89 @@ async function carregarAnaliseImportados() {
   relImpCache = dados.itens || [];
   renderAnaliseImp();
 }
+
+// ==================== Relatório de Itens Importados ====================
+// Itens importado='Sim' com demanda ativa, uma linha por SCODES. A coluna
+// Código GSNET é editável (salva por item) para quem tem a ação "editar".
+// Carrega TODOS de uma vez (poucas centenas) e filtra no navegador.
+let itensImportadosCache = [];
+
+async function carregarRelatorioItensImportados() {
+  const dados = await api('/itens-importados');
+  itensImportadosCache = dados.itens || [];
+  const selCat = document.getElementById('filtroCategoriaItensImportados');
+  const atual = selCat.value;
+  selCat.innerHTML = '<option value="">Categoria: todas</option>' +
+    (dados.categorias || []).map((c) => `<option value="${escAttr(c)}">${escHtml(c)}</option>`).join('');
+  selCat.value = atual;
+  const sub = document.getElementById('subtituloItensImportados');
+  if (sub) {
+    sub.textContent = dados.dataReferencia
+      ? `Itens importados com demanda ativa — atualizado em ${formatarData(dados.dataReferencia)}${horaImportacao(dados.dataImportacao)}. Digite o Código GSNET conforme os códigos forem criados.`
+      : 'Itens importados com demanda ativa. Digite o Código GSNET conforme os códigos forem criados.';
+  }
+  renderItensImportados();
+}
+
+function renderItensImportados() {
+  const q = normalizarBusca(document.getElementById('filtroBuscaItensImportados').value);
+  const cat = document.getElementById('filtroCategoriaItensImportados').value;
+  let lista = itensImportadosCache;
+  if (cat) lista = lista.filter((i) => (i.categoria || '') === cat);
+  if (q) lista = lista.filter((i) =>
+    normalizarBusca(`${i.codigo} ${i.catmat || ''} ${i.siafisico || ''} ${i.descricao || ''} ${i.categoria || ''} ${i.codigoGsnet || ''}`).includes(q));
+
+  const podeEditar = temPermissao('relatorioItensImportados', 'editar');
+  const corpo = document.getElementById('corpoTabelaItensImportados');
+  corpo.innerHTML = lista.map((i) => `<tr>
+    <td class="col-codigo">${escHtml(i.codigo)}</td>
+    <td class="col-codigo">${escHtml(i.catmat || '—')}</td>
+    <td class="col-codigo">${escHtml(i.siafisico || '—')}</td>
+    <td>${escHtml(i.descricao || '—')}</td>
+    <td>${escHtml(i.categoria || '—')}</td>
+    <td><input type="text" class="ii-gsnet" data-codigo="${escAttr(i.codigo)}" value="${escAttr(i.codigoGsnet || '')}" placeholder="—" style="width:150px;" ${podeEditar ? '' : 'readonly'}></td>
+  </tr>`).join('');
+  document.getElementById('estadoVazioItensImportados').hidden = lista.length > 0;
+  document.getElementById('totalItensImportados').textContent = `${fmtNumero(lista.length)} item(ns)`;
+
+  if (podeEditar) {
+    corpo.querySelectorAll('.ii-gsnet').forEach((inp) =>
+      inp.addEventListener('change', () => salvarGsnetItem(inp)));
+  }
+}
+
+async function salvarGsnetItem(inp) {
+  const codigo = inp.dataset.codigo;
+  const valor = inp.value.trim();
+  inp.disabled = true;
+  try {
+    await api('/itens-importados/gsnet', { method: 'PUT', body: JSON.stringify({ codigo_item: codigo, codigo_gsnet: valor }) });
+    inp.style.borderColor = 'var(--selo)';
+    setTimeout(() => { inp.style.borderColor = ''; }, 1200);
+    const it = itensImportadosCache.find((x) => x.codigo === codigo);
+    if (it) it.codigoGsnet = valor;
+  } catch (e) {
+    alert('Não foi possível salvar o Código GSNET: ' + e.message);
+  } finally {
+    inp.disabled = false;
+  }
+}
+
+document.getElementById('filtroBuscaItensImportados').addEventListener('input', renderItensImportados);
+document.getElementById('filtroCategoriaItensImportados').addEventListener('change', renderItensImportados);
+document.getElementById('botaoLimparFiltrosItensImportados').addEventListener('click', () => {
+  document.getElementById('filtroBuscaItensImportados').value = '';
+  document.getElementById('filtroCategoriaItensImportados').value = '';
+  renderItensImportados();
+});
+document.getElementById('botaoExportarItensImportados').addEventListener('click', () => {
+  const p = new URLSearchParams();
+  const b = document.getElementById('filtroBuscaItensImportados').value.trim();
+  const c = document.getElementById('filtroCategoriaItensImportados').value;
+  if (b) p.set('busca', b);
+  if (c) p.set('categoria', c);
+  window.location.href = '/api/itens-importados/csv?' + p.toString();
+});
 
 function renderAnaliseImp() {
   const q = normalizarBusca(document.getElementById('filtroBuscaAnaliseImp').value);

@@ -91,6 +91,7 @@
           <a href="#" data-pagina="autoresImportados">Listagem de Autores Importados</a>
           <a href="#" data-pagina="relatorioImportados">Relatório de Compras Importados</a>
           <a href="#" data-pagina="analiseImportados">Tabela Análise Importados</a>
+          <a href="#" data-pagina="relatorioItensImportados">Relatório de Itens Importados</a>
         </div>
 
         <div class="nav-grupo">
@@ -2010,7 +2011,8 @@
                   <th>CATMAT</th>
                   <th>Qtde Solicitada</th>
                   <th>SEI</th>
-                  <th>Req. GSNET</th>
+                  <th>Req. GSNET Compras</th>
+                  <th>Código GSNET</th>
                   <th>Valor Médio Unit.</th>
                   <th>Valor Total Aquisição</th>
                   <th>Solicitação DRS SEI</th>
@@ -2062,6 +2064,7 @@
                   <th>Qtde Solicitada</th>
                   <th>SEI</th>
                   <th>Req. GSNET</th>
+                  <th>Código GSNET</th>
                   <th>Valor Médio Unit.</th>
                   <th>Valor Total Aquisição</th>
                   <th>Solicitação DRS SEI</th>
@@ -2077,6 +2080,42 @@
             </table>
           </div>
           <div class="estado-vazio" id="estadoVazioAnaliseImp" hidden>Nenhuma solicitação nos status Embarque / Instrução Processual / Solicitado.</div>
+        </div>
+      </section>
+
+      <section id="paginaRelatorioItensImportados" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Relatório de Itens Importados</h2>
+            <p id="subtituloItensImportados">Itens importados com demanda ativa. Digite o Código GSNET conforme os códigos forem criados.</p>
+          </div>
+        </div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaItensImportados" placeholder="Buscar por SCODES, CATMAT, siafísico, descrição ou GSNET…" style="min-width:320px;">
+          <select id="filtroCategoriaItensImportados"><option value="">Categoria: todas</option></select>
+          <button id="botaoLimparFiltrosItensImportados" class="botao-secundario" type="button">Limpar</button>
+          <span id="totalItensImportados" style="font-size:13px; color:var(--cinza-texto);"></span>
+          <button id="botaoExportarItensImportados" class="botao-secundario" type="button" style="margin-left:auto;">⬇ Exportar CSV</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table style="width:100%;">
+              <thead>
+                <tr>
+                  <th style="white-space:nowrap;">Código SCODES</th>
+                  <th style="white-space:nowrap;">CATMAT</th>
+                  <th style="white-space:nowrap;">SIAFÍSICO</th>
+                  <th style="min-width:420px;">Descrição do Item</th>
+                  <th style="white-space:nowrap;">Categoria</th>
+                  <th style="white-space:nowrap;">Código GSNET</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaItensImportados"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioItensImportados" hidden>Nenhum item importado com demanda ativa encontrado.</div>
         </div>
       </section>
 
