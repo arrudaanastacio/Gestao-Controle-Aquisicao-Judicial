@@ -11009,7 +11009,7 @@ async function buscarRupturas() {
 // Monta um cartão de quebra (por categoria / por tipo de item).
 // A coluna "%" é a participação daquela linha no TOTAL de rupturas do grupo —
 // a barrinha usa a mesma proporção, para leitura imediata.
-function quebraRupturas(titulo, dados, rotuloColuna, campo) {
+function quebraRupturas(titulo, dados, rotuloColuna, campo, pacientesDistintos) {
   if (!dados || !dados.length) return '';
   const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
   const total = dados.reduce((s, x) => s + (x.rupturas || 0), 0) || 1;
@@ -11026,19 +11026,23 @@ function quebraRupturas(titulo, dados, rotuloColuna, campo) {
       + '<td>' + nf(x.pacientes) + '</td>'
       + '</tr>';
   }).join('');
-  // Soma das colunas. Itens: cada item tem uma só categoria/tipo, então a soma
-  // é o total distinto. Pacientes: um mesmo paciente pode ter ruptura em mais
-  // de uma categoria/tipo, então a soma pode ser MAIOR que o nº de pacientes
-  // distintos (por isso o title de aviso).
+  // Total de Itens = soma por linha (cada item tem uma só categoria/tipo, então
+  // a soma já é o total distinto). Total de Pacientes = nº de pacientes
+  // DISTINTOS do período (não a soma das linhas): um mesmo paciente pode ter
+  // ruptura em vários grupos, então somar contaria em duplicidade e daria
+  // valores diferentes entre as tabelas. O distinto é igual ao card "Pacientes
+  // impactados" e igual nas duas quebras.
   const totalItens = dados.reduce((s, x) => s + (x.itens || 0), 0);
-  const totalPacientes = dados.reduce((s, x) => s + (x.pacientes || 0), 0);
+  const totalPac = pacientesDistintos != null
+    ? pacientesDistintos
+    : dados.reduce((s, x) => s + (x.pacientes || 0), 0);
   return '<div class="cartao-quebra"><h4>' + titulo + '</h4>'
     + '<table><thead><tr><th>' + rotuloColuna + '</th><th>Rupturas</th><th>%</th><th>Itens</th><th>Pacientes</th></tr></thead>'
     + '<tbody>' + linhas + '</tbody>'
     + '<tfoot><tr><td><strong>Total</strong></td><td><strong>' + nf(total) + '</strong></td>'
     + '<td class="col-pct">100%</td>'
     + '<td><strong>' + nf(totalItens) + '</strong></td>'
-    + '<td><strong title="Soma por linha; um paciente pode aparecer em mais de uma categoria/tipo">' + nf(totalPacientes) + '</strong></td>'
+    + '<td><strong title="Pacientes distintos no período (não é a soma das linhas: um paciente pode aparecer em mais de uma categoria/tipo)">' + nf(totalPac) + '</strong></td>'
     + '</tr></tfoot>'
     + '</table></div>';
 }
@@ -11162,8 +11166,8 @@ function renderRupturas(d) {
   }
 
   document.getElementById('quebrasRupturas').innerHTML =
-    quebraRupturas('Por categoria', d.porCategoria, 'Categoria', 'categoria')
-    + quebraRupturas('Por tipo de item', d.porTipo, 'Tipo', 'tipo');
+    quebraRupturas('Por categoria', d.porCategoria, 'Categoria', 'categoria', k.pacientes)
+    + quebraRupturas('Por tipo de item', d.porTipo, 'Tipo', 'tipo', k.pacientes);
 
   // Deixa explícito, na aba de indicadores, QUAL recorte está desenhado —
   // os filtros ficam na outra aba, então sem isso o usuário olha o gráfico
