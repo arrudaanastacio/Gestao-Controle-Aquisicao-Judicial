@@ -11037,7 +11037,11 @@ function quebraRupturas(titulo, dados, rotuloColuna, campo, pacientesDistintos) 
     ? pacientesDistintos
     : dados.reduce((s, x) => s + (x.pacientes || 0), 0);
   return '<div class="cartao-quebra"><h4>' + titulo + '</h4>'
-    + '<table><thead><tr><th>' + rotuloColuna + '</th><th>Rupturas</th><th>%</th><th>Itens</th><th>Pacientes</th></tr></thead>'
+    + '<table><thead><tr><th>' + rotuloColuna + '</th>'
+    + '<th title="Total de ocorrências de ruptura no período (cada falta conta 1; o mesmo paciente pode contar mais de uma vez).">Rupturas <span style="cursor:help; color:var(--cinza-texto); font-size:11px;">ⓘ</span></th>'
+    + '<th>%</th>'
+    + '<th title="Itens (medicamentos/materiais) distintos com ruptura no período.">Itens <span style="cursor:help; color:var(--cinza-texto); font-size:11px;">ⓘ</span></th>'
+    + '<th title="Pacientes distintos com ruptura. Na linha Total é o total de pacientes distintos do período (não a soma das linhas: um paciente pode aparecer em mais de uma categoria/tipo).">Pacientes <span style="cursor:help; color:var(--cinza-texto); font-size:11px;">ⓘ</span></th></tr></thead>'
     + '<tbody>' + linhas + '</tbody>'
     + '<tfoot><tr><td><strong>Total</strong></td><td><strong>' + nf(total) + '</strong></td>'
     + '<td class="col-pct">100%</td>'
