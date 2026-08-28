@@ -435,7 +435,13 @@ const CAMPOS_COMPRA_IMP = [
 ];
 
 router.get('/compras-importados', (req, res) => {
-  const itens = db.prepare('SELECT * FROM compras_importados ORDER BY id DESC').all();
+  // Traz junto o "Código GSNET" cadastrado no Relatório de Itens Importados
+  // (tabela itens_gsnet, por SCODES) — preenche a coluna automaticamente.
+  const itens = db.prepare(`
+    SELECT ci.*, g.codigo_gsnet AS codigo_gsnet_item
+      FROM compras_importados ci
+      LEFT JOIN itens_gsnet g ON g.codigo_item = ci.codigo_item
+     ORDER BY ci.id DESC`).all();
   res.json({ total: itens.length, itens });
 });
 
