@@ -47,6 +47,7 @@
 | 39b | **Rupturas** — corrige **duplicidade de borda** (a API UDTP devolve `fim+1`; importador só gravava linhas dentro do período pedido) + **"Atualizar agora" só admin** (botão escondido + `exigirPerfil` na rota); dados de produção corrigidos (v1.19.1) | ad309ec | 28/08/2026 | 🚀 PUBLICADO (prod ad309ec) |
 | 40b | **Rupturas** — linha **Total** das quebras (Por categoria / Por tipo) passa a somar **Itens** e **Pacientes** (pacientes com aviso de que a soma pode passar do total distinto) (v1.19.2) | e73ded7 | 28/08/2026 | 🚀 PUBLICADO (prod e73ded7) |
 | 41b | **Rupturas** — Total de **Pacientes** nas quebras vira o nº **distinto** (igual ao card "Pacientes impactados" e igual nas duas tabelas); antes a soma por linha divergia (779 vs 759) por contar o mesmo paciente em vários grupos (v1.19.3) | 6581c89 | 28/08/2026 | 🚀 PUBLICADO (prod 6581c89) |
+| 42b | **Rupturas (Andamento de compra)** — tooltips (ⓘ) nas colunas **Rupturas** e **Pacientes** explicando a composição (ocorrências × pessoas distintas; Rupturas − Pacientes = repetições) (v1.19.4) | bcbb12d | 28/08/2026 | 🚀 PUBLICADO (prod bcbb12d) |
 
 ### Detalhe do item 12 — Listagem de Autores Importados
 
