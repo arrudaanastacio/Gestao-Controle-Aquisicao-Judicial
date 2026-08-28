@@ -2973,16 +2973,43 @@ async function injetarSaldoIblOD(codigo, alvoId) {
       <td>${fmtNumero(l.disponivel)}</td>
     </tr>`).join('');
     alvo.innerHTML = `
-      <h4>Estoque IBL — Outras Demandas <span class="texto-apoio">(locais ${escHtml((s.locais || []).join(' + ') || '—')})</span></h4>
-      <div class="grade-resumo" style="grid-template-columns:repeat(3,1fr); margin-bottom:8px;">
-        ${kpiCard('chart', fmtNumero(s.disponivel), 'Disponível IBL', 'saldo consolidado')}
-        ${kpiCard('doc', fmtNumero(s.total), 'Total IBL', 'todas as situações')}
+      <h4>Estoque IBL — Outras Demandas <span class="texto-apoio">(locais ${escHtml((s.locais || []).join(' + ') || '—')} · disponível e dentro da validade)</span></h4>
+      <div class="grade-resumo" style="grid-template-columns:repeat(2,1fr); margin-bottom:8px;">
+        ${kpiCard('chart', fmtNumero(s.disponivel), 'Disponível IBL', 'situação disponível · dentro da validade')}
         ${kpiCard('relogio', s.validadeProxima || '—', 'Validade + próxima', 'menor validade')}
       </div>
       ${lotesHtml ? `<div class="rolagem-tabela"><table><thead><tr><th>Local</th><th>Lote</th><th>Validade</th><th>Disponível</th></tr></thead><tbody>${lotesHtml}</tbody></table></div>` : ''}
       ${s.geradoEm ? `<div class="texto-apoio" style="font-size:12px; margin-top:4px;">IBL ao vivo · gerado em ${formatarData(s.geradoEm.slice(0, 10))} às ${s.geradoEm.slice(11, 16)}</div>` : ''}`;
   } catch (e) {
     alvo.innerHTML = '<div class="texto-apoio" style="color:var(--vermelho);">Não consegui carregar o estoque IBL (Outras Demandas).</div>';
+  }
+}
+
+// Injeta no modal o saldo IBL dos IMPORTADOS (local 2999). Casa por Código
+// GSNET -> SCODES (itens_gsnet). Só aparece quando o item importado existe no
+// IBL. `codigo` é o SCODES (codigo_item).
+async function injetarSaldoIblImportado(codigo, alvoId) {
+  const alvo = document.getElementById(alvoId);
+  if (!alvo || !codigo) { if (alvo) alvo.innerHTML = ''; return; }
+  alvo.innerHTML = '<div class="texto-apoio" style="padding:6px 0;">Consultando estoque IBL (Importados)…</div>';
+  try {
+    const s = await api('/ibl-item/saldo-importado?codigo=' + encodeURIComponent(codigo));
+    if (s.disponivel == null) { alvo.innerHTML = ''; return; } // sem estoque disponível/vigente no IBL Importados
+    const lotesHtml = (s.lotes || []).map((l) => `<tr>
+      <td class="col-codigo">${escHtml(l.lote || '—')}</td>
+      <td class="col-data">${l.validade ? iblSeloValidade(iblValidadeIso(l.validade), l.validade) : '—'}</td>
+      <td>${fmtNumero(l.quantidade)}</td>
+    </tr>`).join('');
+    alvo.innerHTML = `
+      <h4>Estoque IBL — Importados <span class="texto-apoio">(local 2999 · disponível e dentro da validade)</span></h4>
+      <div class="grade-resumo" style="grid-template-columns:repeat(2,1fr); margin-bottom:8px;">
+        ${kpiCard('chart', fmtNumero(s.disponivel), 'Disponível IBL', 'situação DISPONÍVEL · dentro da validade')}
+        ${kpiCard('relogio', s.validadeProxima || '—', 'Validade + próxima', 'menor validade')}
+      </div>
+      ${lotesHtml ? `<div class="rolagem-tabela"><table><thead><tr><th>Lote</th><th>Validade</th><th>Quantidade</th></tr></thead><tbody>${lotesHtml}</tbody></table></div>` : ''}
+      ${s.geradoEm ? `<div class="texto-apoio" style="font-size:12px; margin-top:4px;">IBL ao vivo · gerado em ${formatarData(s.geradoEm.slice(0, 10))} às ${s.geradoEm.slice(11, 16)}</div>` : ''}`;
+  } catch (e) {
+    alvo.innerHTML = '<div class="texto-apoio" style="color:var(--vermelho);">Não consegui carregar o estoque IBL (Importados).</div>';
   }
 }
 
@@ -4406,11 +4433,15 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp', unidade = '')
     html += '</tbody></table></div>';
   }
 
-  // Placeholder do bloco de estoque IBL (Outras Demandas) — carregado após render.
+  // Placeholders dos blocos de estoque IBL (Outras Demandas e Importados) —
+  // carregados após render. Cada um só aparece se o item existir no respectivo
+  // local do IBL.
   html += '<div id="blocoIblOD" style="margin-top:6px;"></div>';
+  html += '<div id="blocoIblImportado" style="margin-top:6px;"></div>';
 
   conteudo.innerHTML = html;
   injetarSaldoIblOD(dados.codigo, 'blocoIblOD');
+  injetarSaldoIblImportado(dados.codigo, 'blocoIblImportado');
 }
 
 // -------------------- Gestão de validades --------------------
