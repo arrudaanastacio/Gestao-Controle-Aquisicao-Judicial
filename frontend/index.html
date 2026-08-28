@@ -1475,6 +1475,7 @@
               <input type="date" id="filtroInicioRupturas" title="Início do período"></label>
             <label style="display:flex; align-items:center; gap:6px; font-size:13px;">até
               <input type="date" id="filtroFimRupturas" title="Fim do período"></label>
+            <button id="botaoCarregarRupturas" class="botao-primario" type="button" style="padding:6px 16px;" title="Carregar as rupturas do período informado">Carregar</button>
             <input type="text" id="filtroBuscaRupturas" placeholder="Buscar por medicamento, código, protocolo ou paciente…" style="min-width:300px;">
             <select id="filtroCategoriaRupturas"><option value="">Categoria: todas</option></select>
             <select id="filtroTipoRupturas"><option value="">Tipo de item: todos</option></select>
@@ -1500,6 +1501,7 @@
 
           <!-- ABA 1: lista -->
           <div id="abaRupturasLista">
+            <div id="totalLinhasRupturas" style="margin:2px 0 10px; font-size:14px;"></div>
             <div class="tabela-wrap">
               <div class="tabela-rolavel-x">
                 <table>
