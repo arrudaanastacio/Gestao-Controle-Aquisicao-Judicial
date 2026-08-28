@@ -945,7 +945,7 @@ router.get('/requisicoes', (req, res) => {
   // Permissão de caixa
   const permitidas = caixasDoUsuario(req.usuario); // null = admin (todas + sem-caixa)
   const ehAdmin = permitidas === null;
-  const verTodas = ehAdmin || usuarioVeTodas(req.usuario); // inclui itens SEM caixa
+  const veTodas = ehAdmin || usuarioVeTodas(req.usuario); // permissão da aba "Todas"
 
   // Contagens por caixa (rótulos das abas), aplicando só os filtros base.
   const whereBase = condBase.length ? `WHERE ${condBase.join(' AND ')}` : '';
@@ -955,7 +955,7 @@ router.get('/requisicoes', (req, res) => {
   for (const l of linhasCont) {
     const cx = l.cx === '(sem)' ? 'sem' : l.cx;
     contagens[cx] = l.c;
-    if (ehAdmin || permitidas.includes(cx) || (verTodas && cx === 'sem')) totalPermitido += l.c;
+    if (ehAdmin || permitidas.includes(cx)) totalPermitido += l.c;
   }
   const caixasVisiveis = ehAdmin ? CAIXAS : permitidas;
 
@@ -965,12 +965,10 @@ router.get('/requisicoes', (req, res) => {
   if (!ehAdmin) {
     if (caixa && caixa !== 'todas' && permitidas.includes(caixa)) {
       cond.push('r.caixa = ?'); params.push(caixa);
+    } else if (permitidas.length) {
+      cond.push(`r.caixa IN (${permitidas.map(() => '?').join(',')})`); params.push(...permitidas);
     } else {
-      // Aba "Todas": as caixas permitidas (+ os SEM caixa, se tiver "Todas").
-      const partes = [];
-      if (permitidas.length) { partes.push(`r.caixa IN (${permitidas.map(() => '?').join(',')})`); params.push(...permitidas); }
-      if (verTodas) partes.push("(r.caixa IS NULL OR r.caixa = '')");
-      cond.push(partes.length ? `(${partes.join(' OR ')})` : '1 = 0');
+      cond.push('1 = 0');
     }
   } else if (caixa && caixa !== 'todas') {
     if (caixa === 'sem') cond.push("(r.caixa IS NULL OR r.caixa = '')");
@@ -985,7 +983,7 @@ router.get('/requisicoes', (req, res) => {
 
   res.json({
     total, requisicoes, page: Number(page), pageSize: limit,
-    caixas: { ehAdmin, visiveis: caixasVisiveis, contagens, totalPermitido },
+    caixas: { ehAdmin, veTodas, visiveis: caixasVisiveis, contagens, totalPermitido },
   });
 });
 
@@ -999,7 +997,10 @@ router.get('/requisicoes/itens', (req, res) => {
   // Permissão de caixa (Materiais/Medicamentos/Nutrição). Admin => todas.
   const permitidas = caixasDoUsuario(req.usuario);
   const ehAdmin = permitidas === null;
-  const verTodas = ehAdmin || usuarioVeTodas(req.usuario); // inclui itens SEM caixa
+  // "Todas" é uma PERMISSÃO de aba: quem tem vê a aba "Todas"; quem não tem só
+  // vê as abas das caixas que possui. Não altera o conteúdo (segue a união das
+  // caixas permitidas).
+  const veTodas = ehAdmin || usuarioVeTodas(req.usuario);
   // Abas virtuais por STATUS de atendimento (à direita): Finalizado e Cancelado
   // saem das caixas normais. 'finalizado'/'cancelado' NÃO filtram por caixa.
   const abaStatus = caixa === 'finalizado' ? 'Finalizado' : (caixa === 'cancelado' ? 'Cancelado' : null);
@@ -1007,13 +1008,8 @@ router.get('/requisicoes/itens', (req, res) => {
   const aplicaCaixa = (cond, params) => {
     if (!ehAdmin) {
       if (caixaEspecifica && permitidas.includes(caixaEspecifica)) { cond.push('r.caixa = ?'); params.push(caixaEspecifica); }
-      else {
-        // Aba "Todas": as caixas permitidas (+ os SEM caixa, se tiver "Todas").
-        const partes = [];
-        if (permitidas.length) { partes.push(`r.caixa IN (${permitidas.map(() => '?').join(',')})`); params.push(...permitidas); }
-        if (verTodas) partes.push("(r.caixa IS NULL OR r.caixa = '')");
-        cond.push(partes.length ? `(${partes.join(' OR ')})` : '1 = 0');
-      }
+      else if (permitidas.length) { cond.push(`r.caixa IN (${permitidas.map(() => '?').join(',')})`); params.push(...permitidas); }
+      else cond.push('1 = 0');
     } else if (caixaEspecifica) {
       if (caixaEspecifica === 'sem') cond.push("(r.caixa IS NULL OR r.caixa = '')");
       else { cond.push('r.caixa = ?'); params.push(caixaEspecifica); }
@@ -1052,11 +1048,10 @@ router.get('/requisicoes/itens', (req, res) => {
     const wi = [...condI, 'ri.status_atendimento = ?']; const pi = [...paramsI, st];
     const wc = [...condC, 'r.status_atendimento = ?']; const pc = [...paramsC, st];
     if (!ehAdmin) {
-      const partes = []; const p = [];
-      if (permitidas.length) { partes.push(`r.caixa IN (${permitidas.map(() => '?').join(',')})`); p.push(...permitidas); }
-      if (verTodas) partes.push("(r.caixa IS NULL OR r.caixa = '')");
-      const clause = partes.length ? `(${partes.join(' OR ')})` : '1 = 0';
-      wi.push(clause); pi.push(...p); wc.push(clause); pc.push(...p);
+      if (permitidas.length) {
+        const inp = `r.caixa IN (${permitidas.map(() => '?').join(',')})`;
+        wi.push(inp); pi.push(...permitidas); wc.push(inp); pc.push(...permitidas);
+      } else { wi.push('1 = 0'); wc.push('1 = 0'); }
     }
     const i = db.prepare(`SELECT COUNT(*) c FROM requisicao_itens ri JOIN requisicoes r ON r.id = ri.requisicao_id WHERE ${wi.join(' AND ')}`).get(...pi).c;
     const c = db.prepare(`SELECT COUNT(*) c FROM requisicoes r WHERE ${wc.join(' AND ')}`).get(...pc).c;
@@ -1078,7 +1073,7 @@ router.get('/requisicoes/itens', (req, res) => {
   let totalPermitido = 0;
   for (const [cx, n] of Object.entries(contagens)) {
     if (cx === 'finalizado' || cx === 'cancelado') continue; // abas de status contam à parte
-    if (ehAdmin || (cx !== 'sem' && permitidas.includes(cx)) || (verTodas && cx === 'sem')) totalPermitido += n;
+    if (ehAdmin || (cx !== 'sem' && permitidas.includes(cx))) totalPermitido += n;
   }
 
   // Aplica a restrição de caixa (permissão + aba) às duas consultas.
@@ -1148,7 +1143,7 @@ router.get('/requisicoes/itens', (req, res) => {
 
   res.json({
     total, itens, page: Number(page), pageSize: limit, resumo,
-    caixas: { ehAdmin, visiveis: caixasVisiveis, contagens, totalPermitido },
+    caixas: { ehAdmin, veTodas, visiveis: caixasVisiveis, contagens, totalPermitido },
   });
 });
 

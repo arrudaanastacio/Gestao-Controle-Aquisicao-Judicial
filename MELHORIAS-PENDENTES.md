@@ -54,7 +54,7 @@
 | 46b | Relatório de Itens Importados — usar **largura total** da tela (max-width:none no `.conteudo`, como as demais telas largas) (v1.20.1) | 634299d | 28/08/2026 | 🚀 PUBLICADO (prod 634299d) |
 | 47b | **Estoque IBL nos modais** (Estoque TP e Demais Unidades) — novo bloco **"Estoque IBL — Importados"** (local 2999, casando por Código GSNET → SCODES via `itens_gsnet`) + regra dos dois blocos: só estoque **disponível e dentro da validade** (vencido/reservado não aparece) (v1.21.0) | d4e5b8d | 28/08/2026 | 🚀 PUBLICADO (prod d4e5b8d) |
 | 48b | **Admin — Derrubar sessões**: botão na tela Usuários que desconecta todos (menos você) via corte global de sessões (invalida tokens anteriores; front cai no login); persistido, sobrevive ao reinício — útil ao subir atualização (v1.22.0) | 0517aa1 | 28/08/2026 | 🚀 PUBLICADO (prod 0517aa1) |
-| 49b | **Permissão de caixa "Todas"** (Relatório de Primeiro Atendimento): opção aditiva que dá a aba "Todas" completa, incluindo itens **sem caixa** (Procedimentos/Outros) que só o admin via (v1.22.0) | 0517aa1 | 28/08/2026 | 🚀 PUBLICADO (prod 0517aa1) |
+| 49b | **Permissão de caixa "Todas"** (Relatório de Primeiro Atendimento): checkbox por usuário que **mostra/esconde a aba "Todas"** do relatório (marcado vê, sem marcar não vê; conteúdo = união das caixas). Admin sempre vê (v1.22.0 → corrigido em v1.22.1) | 060492a | 28/08/2026 | 🚀 PUBLICADO (prod 060492a) |
 
 ### Detalhe do item 12 — Listagem de Autores Importados
 

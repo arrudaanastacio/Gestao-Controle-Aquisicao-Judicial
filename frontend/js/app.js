@@ -9167,10 +9167,12 @@ function renderAbasCaixaReq(caixas) {
   const barra = document.getElementById('abasCaixaReq');
   if (!barra) return;
   if (!caixas) { barra.hidden = true; barra.innerHTML = ''; return; }
-  const { ehAdmin, visiveis = [], contagens = {}, totalPermitido = 0 } = caixas;
+  const { ehAdmin, veTodas = false, visiveis = [], contagens = {}, totalPermitido = 0 } = caixas;
   // "Todas" primeiro; depois as caixas em ordem ALFABÉTICA (Manipulado,
   // Materiais, Medicamentos, Nutrição); "Sem caixa" (admin) por último.
-  const abas = [{ chave: 'todas', rot: 'Todas', n: totalPermitido }];
+  // A aba "Todas" só aparece para quem tem a permissão (admin sempre).
+  const abas = [];
+  if (veTodas) abas.push({ chave: 'todas', rot: 'Todas', n: totalPermitido });
   [...visiveis].sort((a, b) => a.localeCompare(b, 'pt')).forEach((c) => abas.push({ chave: c, rot: c, n: contagens[c] || 0 }));
   if (ehAdmin && (contagens.sem || 0) > 0) abas.push({ chave: 'sem', rot: 'Sem caixa', n: contagens.sem });
   // Abas de STATUS, à direita (Cancelado e Finalizado).
@@ -9179,9 +9181,18 @@ function renderAbasCaixaReq(caixas) {
     { chave: 'finalizado', rot: 'Finalizado', n: contagens.finalizado || 0 },
   ];
 
-  // Se a aba ativa não existe mais (ex.: mudou de usuário), volta para "Todas".
+  // Se a aba ativa não existe mais (ex.: sem permissão de "Todas"), cai para a
+  // primeira aba disponível (Todas, se tiver; senão a primeira caixa) e
+  // recarrega a lista nessa aba, para o conteúdo bater com a aba destacada.
   const todasChaves = [...abas, ...abasStatus].map((a) => a.chave);
-  if (!todasChaves.includes(estadoRelReq.caixa)) estadoRelReq.caixa = 'todas';
+  if (!todasChaves.includes(estadoRelReq.caixa)) {
+    const alvo = todasChaves[0]; // sempre existe (Cancelado/Finalizado no mínimo)
+    if (alvo && alvo !== estadoRelReq.caixa) {
+      estadoRelReq.caixa = alvo;
+      carregarTabelaRelReq(); // recarrega na aba certa (conteúdo bate com a aba)
+      return;
+    }
+  }
 
   const btn = (a) => `<button type="button" class="chip-faixa ${estadoRelReq.caixa === a.chave ? 'ativo' : ''}" data-caixa="${a.chave}">${escHtml(a.rot)} (${fmtNumero(a.n)})</button>`;
   barra.hidden = false;
@@ -10021,7 +10032,7 @@ async function abrirModalPermissoes(usuarioId, nome) {
     caixaBox.hidden = false;
     const marcadas = new Set(caixasReq || []);
     caixaLista.innerHTML = (todasCaixas || []).map((c) => {
-      const rot = c === 'Todas' ? 'Todas (inclui itens sem caixa: Procedimentos/Outros)' : c;
+      const rot = c === 'Todas' ? 'Todas (mostra a aba "Todas" no relatório)' : c;
       return `<label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" class="chk-caixa-req" value="${escAttr(c)}" ${marcadas.has(c) ? 'checked' : ''}> ${escHtml(rot)}</label>`;
     }).join('');
   }
