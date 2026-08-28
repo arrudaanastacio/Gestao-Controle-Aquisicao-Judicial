@@ -11026,11 +11026,20 @@ function quebraRupturas(titulo, dados, rotuloColuna, campo) {
       + '<td>' + nf(x.pacientes) + '</td>'
       + '</tr>';
   }).join('');
+  // Soma das colunas. Itens: cada item tem uma só categoria/tipo, então a soma
+  // é o total distinto. Pacientes: um mesmo paciente pode ter ruptura em mais
+  // de uma categoria/tipo, então a soma pode ser MAIOR que o nº de pacientes
+  // distintos (por isso o title de aviso).
+  const totalItens = dados.reduce((s, x) => s + (x.itens || 0), 0);
+  const totalPacientes = dados.reduce((s, x) => s + (x.pacientes || 0), 0);
   return '<div class="cartao-quebra"><h4>' + titulo + '</h4>'
     + '<table><thead><tr><th>' + rotuloColuna + '</th><th>Rupturas</th><th>%</th><th>Itens</th><th>Pacientes</th></tr></thead>'
     + '<tbody>' + linhas + '</tbody>'
     + '<tfoot><tr><td><strong>Total</strong></td><td><strong>' + nf(total) + '</strong></td>'
-    + '<td class="col-pct">100%</td><td></td><td></td></tr></tfoot>'
+    + '<td class="col-pct">100%</td>'
+    + '<td><strong>' + nf(totalItens) + '</strong></td>'
+    + '<td><strong title="Soma por linha; um paciente pode aparecer em mais de uma categoria/tipo">' + nf(totalPacientes) + '</strong></td>'
+    + '</tr></tfoot>'
     + '</table></div>';
 }
 
