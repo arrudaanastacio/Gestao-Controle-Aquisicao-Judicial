@@ -11115,6 +11115,11 @@ function renderRupturas(d) {
   estadoRupturas.inicio = d.periodo.inicio;
   estadoRupturas.fim = d.periodo.fim;
 
+  // "Atualizar agora" consulta a API ao vivo e regrava o período — ação de
+  // admin. Colaboradores só consultam o que está guardado (botão Carregar).
+  const btnAtualizar = document.getElementById('botaoAtualizarRupturas');
+  if (btnAtualizar) btnAtualizar.hidden = !(estado.usuario && estado.usuario.perfil === 'admin');
+
   const nunca = !d.atualizadoEm;
   document.getElementById('conteudoRupturas').hidden = nunca;
   const aviso = document.getElementById('avisoSemRupturas');
