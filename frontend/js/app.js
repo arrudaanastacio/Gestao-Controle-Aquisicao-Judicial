@@ -10964,10 +10964,10 @@ const estadoRupturas = { inicio: null, fim: null };
 
 function paramsRupturas() {
   const p = new URLSearchParams();
-  const ini = document.getElementById('filtroInicioRupturas').value;
-  const fim = document.getElementById('filtroFimRupturas').value;
-  if (ini) p.set('inicio', ini);
-  if (fim) p.set('fim', fim);
+  // Usa o período JÁ APLICADO (cravado no botão Carregar), não o que está sendo
+  // digitado — assim mudar a data só recarrega quando o usuário clica Carregar.
+  if (estadoRupturas.inicio) p.set('inicio', estadoRupturas.inicio);
+  if (estadoRupturas.fim) p.set('fim', estadoRupturas.fim);
   const busca = document.getElementById('filtroBuscaRupturas').value.trim();
   if (busca) p.set('busca', busca);
   const cat = document.getElementById('filtroCategoriaRupturas').value;
@@ -11133,11 +11133,19 @@ function renderRupturas(d) {
   const nf = (n) => Number(n || 0).toLocaleString('pt-BR');
   const k = d.kpis || {};
   document.getElementById('kpisRupturas').innerHTML = [
-    kpiCard('list', nf(k.totalRupturas), 'Rupturas', 'ocorrências no período', k.totalRupturas > 0 ? 'critico' : ''),
+    kpiCard('list', nf(k.totalRupturas), 'Total de linhas', 'ocorrências no período (bate com a API)', k.totalRupturas > 0 ? 'critico' : ''),
     kpiCard('chart', nf(k.quantidadeTotal), 'Quantidade em falta', 'soma do que não foi entregue'),
     kpiCard('relogio', nf(k.pacientes), 'Pacientes impactados', 'pessoas que não levaram o item'),
     kpiCard('doc', nf(k.itens), 'Itens', 'medicamentos/materiais distintos'),
   ].join('');
+
+  // Indicador de linhas na própria aba Lista (o mesmo total dos KPIs), para
+  // quem for consultar o relatório saber quantas linhas o período traz.
+  const elTotal = document.getElementById('totalLinhasRupturas');
+  if (elTotal) {
+    elTotal.innerHTML = '<strong>' + nf(k.totalRupturas) + '</strong> linha(s) no período '
+      + '<span class="texto-apoio">(' + formatarData(d.periodo.inicio) + ' a ' + formatarData(d.periodo.fim) + ')</span>';
+  }
 
   document.getElementById('quebrasRupturas').innerHTML =
     quebraRupturas('Por categoria', d.porCategoria, 'Categoria', 'categoria')
@@ -11228,10 +11236,27 @@ document.getElementById('filtroBuscaRupturas').addEventListener('input', () => {
     buscarRupturas().catch((e) => alert('Erro: ' + e.message));
   }, 300);
 });
-['filtroInicioRupturas', 'filtroFimRupturas', 'filtroCategoriaRupturas',
-  'filtroTipoRupturas', 'filtroImportadoRupturas', 'filtroOutrasRupturas'].forEach((id) => {
+// Os filtros de refino (categoria/tipo/importado/outras) recarregam na hora.
+// As DATAS não: elas só valem quando o usuário clica "Carregar" (cravar período).
+['filtroCategoriaRupturas', 'filtroTipoRupturas', 'filtroImportadoRupturas', 'filtroOutrasRupturas'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => {
     buscarRupturas().catch((e) => alert('Erro: ' + e.message));
+  });
+});
+// Botão "Carregar": crava o período informado e busca as rupturas dele.
+function carregarPeriodoRupturas() {
+  const ini = document.getElementById('filtroInicioRupturas').value;
+  const fim = document.getElementById('filtroFimRupturas').value;
+  if (ini && fim && ini > fim) { alert('A data inicial não pode ser maior que a data final.'); return; }
+  estadoRupturas.inicio = ini || null;
+  estadoRupturas.fim = fim || null;
+  buscarRupturas().catch((e) => alert('Erro: ' + e.message));
+}
+document.getElementById('botaoCarregarRupturas').addEventListener('click', carregarPeriodoRupturas);
+// Enter dentro dos campos de data também carrega.
+['filtroInicioRupturas', 'filtroFimRupturas'].forEach((id) => {
+  document.getElementById(id).addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); carregarPeriodoRupturas(); }
   });
 });
 document.getElementById('botaoLimparFiltrosRupturas').addEventListener('click', () => {
@@ -11240,6 +11265,9 @@ document.getElementById('botaoLimparFiltrosRupturas').addEventListener('click', 
     .forEach((id) => { document.getElementById(id).value = ''; });
   document.getElementById('filtroInicioRupturas').value = '';
   document.getElementById('filtroFimRupturas').value = '';
+  // Volta ao período padrão (últimos 30 dias) na próxima busca.
+  estadoRupturas.inicio = null;
+  estadoRupturas.fim = null;
   buscarRupturas().catch((e) => alert('Erro: ' + e.message));
 });
 document.getElementById('botaoExportarRupturas').addEventListener('click', () => {
@@ -11251,13 +11279,11 @@ document.getElementById('botaoAtualizarRupturas').addEventListener('click', asyn
   botao.disabled = true;
   botao.textContent = '⏳ Consultando a API…';
   try {
-    // Reimporta EXATAMENTE o período mostrado no relatório (as datas do filtro
-    // já vêm preenchidas após o 1º carregamento). Assim as pontas antigas —
-    // fora da janela móvel dos últimos 30 dias — também se atualizam e o total
-    // armazenado passa a bater com a consulta ao vivo da API.
-    const inicio = document.getElementById('filtroInicioRupturas').value;
-    const fim = document.getElementById('filtroFimRupturas').value;
-    const corpo = (inicio && fim) ? { inicio, fim } : {};
+    // Reimporta EXATAMENTE o período CRAVADO no relatório (o que foi carregado).
+    // Assim as pontas antigas — fora da janela móvel dos últimos 30 dias —
+    // também se atualizam e o total armazenado passa a bater com a API ao vivo.
+    const corpo = (estadoRupturas.inicio && estadoRupturas.fim)
+      ? { inicio: estadoRupturas.inicio, fim: estadoRupturas.fim } : {};
     const r = await api('/rupturas/importar-agora', { method: 'POST', body: JSON.stringify(corpo) });
     alert('Rupturas atualizadas: ' + r.totalRegistros + ' ocorrência(s) de '
       + formatarData(r.periodoInicio) + ' a ' + formatarData(r.periodoFim)
