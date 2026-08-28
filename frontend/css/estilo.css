@@ -833,6 +833,27 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 /* IBL: o conteúdo fica logo abaixo das abas, sem caixa em volta. */
 .painel-pasta { background: transparent; border: none; border-radius: 0; padding: 12px 2px 0; }
 
+/* Exceção: o filtro "Mostrar:" da aba Andamento de compra (Rupturas) usa o
+   formato de pasta (pedido do Rafael), embora seja um grupo data-situacao. */
+#situacaoComprasRupturas {
+  display: flex; gap: 4px; align-items: flex-end; flex-wrap: wrap;
+  border-bottom: 1px solid var(--linha); padding-left: 4px; margin: 0;
+}
+#situacaoComprasRupturas .chip-faixa {
+  background: var(--papel); color: var(--cinza-texto);
+  border: 1px solid var(--linha); border-radius: 9px 9px 0 0;
+  padding: 8px 16px; font-size: 13px; cursor: pointer;
+  margin-bottom: -1px; line-height: 1.2;
+}
+#situacaoComprasRupturas .chip-faixa:hover {
+  border-color: var(--linha-forte); color: var(--tinta); background: var(--papel-elevado);
+}
+#situacaoComprasRupturas .chip-faixa.ativo {
+  background: var(--papel-elevado); color: var(--selo); font-weight: 600;
+  border-color: var(--linha); border-top: 3px solid var(--selo);
+  border-bottom-color: var(--papel-elevado); padding-top: 6px;
+}
+
 /* Cards de demanda/consumo por programa no modal de estoque (Judicial/Adm/JEFAZ). */
 .grade-programas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
 .card-programa { border: 1px solid var(--linha); border-radius: var(--raio-cartao); padding: 12px 14px; background: var(--papel-elevado); }
