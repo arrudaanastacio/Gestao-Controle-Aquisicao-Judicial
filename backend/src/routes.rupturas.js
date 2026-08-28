@@ -15,6 +15,7 @@ const express = require('express');
 const db = require('./db');
 const { importarRupturasPeriodo, importarUltimos30Dias, janelaPadrao, DIAS_JANELA_PADRAO } = require('./rupturasUdtp');
 const { credenciaisConfiguradas } = require('./udtpApi');
+const { exigirPerfil } = require('./auth');
 
 const router = express.Router();
 
@@ -462,8 +463,11 @@ router.get('/csv', (req, res) => {
   res.send('﻿' + cab + '\n' + corpo);
 });
 
-// ---------- Atualizar agora ----------
-router.post('/importar-agora', async (req, res) => {
+// ---------- Atualizar agora (só admin) ----------
+// Consulta a API UDTP ao vivo e regrava o período. Restrito ao admin: os
+// colaboradores consultam o que está guardado; a atualização da fonte externa
+// é ação administrativa (a rotina automática 2×/dia também mantém os dados).
+router.post('/importar-agora', exigirPerfil('admin'), async (req, res) => {
   const email = req.usuario ? req.usuario.email : 'sistema';
   const { inicio, fim } = (req.body || {});
   try {

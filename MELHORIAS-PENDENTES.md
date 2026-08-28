@@ -44,6 +44,7 @@
 | 36b | Reabrir — popup **Individual/Coletiva** na linha individual (Individual = tela Por paciente; Coletiva = tela Por Item p/ incluir outros pacientes); individual pode **virar coletiva** no mesmo nº de controle (coletiva vai direto p/ Por Item) (v1.18.0) | 598405e | 27/08/2026 | 🚀 PUBLICADO (prod 598405e) |
 | 37b | **Rupturas** — botão "Atualizar agora" passa a reimportar **o período selecionado** no filtro (não só os últimos 30 dias), corrigindo divergência com a API ao vivo quando o intervalo tem dias fora da janela móvel (v1.18.1) | 8c02c58 | 28/08/2026 | 🚀 PUBLICADO (prod 8c02c58) |
 | 38b | **Rupturas** — botão **"Carregar"** para cravar o período (datas não recarregam mais no change; Enter também carrega) + indicador **"X linha(s) no período"** na aba Lista + card "Total de linhas"; Atualizar/Exportar/refino usam o período cravado (v1.19.0) | 8d917e5 | 28/08/2026 | 🚀 PUBLICADO (prod 8d917e5) |
+| 39b | **Rupturas** — corrige **duplicidade de borda** (a API UDTP devolve `fim+1`; importador só gravava linhas dentro do período pedido) + **"Atualizar agora" só admin** (botão escondido + `exigirPerfil` na rota); dados de produção corrigidos (v1.19.1) | ad309ec | 28/08/2026 | 🚀 PUBLICADO (prod ad309ec) |
 
 ### Detalhe do item 12 — Listagem de Autores Importados
 

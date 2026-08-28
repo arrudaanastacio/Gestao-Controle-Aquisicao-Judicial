@@ -40,7 +40,12 @@ function mapearLinha(reg) {
 }
 
 function gravarSnapshot(inicio, fim, registros, usuarioEmail) {
-  const linhas = registros.map(mapearLinha);
+  // A API da UDTP devolve um dia ALÉM do `fim` pedido (ex.: pedindo até
+  // 25/08 ela retorna também 26/08). Como o DELETE abaixo só limpa
+  // [inicio, fim], inserir essas linhas de borda duplicava o dia extra a cada
+  // reimportação. Solução: só gravar o que está DENTRO do período pedido.
+  const linhas = registros.map(mapearLinha)
+    .filter((l) => l.data && l.data >= inicio && l.data <= fim);
 
   let importacaoId;
   db.exec('BEGIN');
