@@ -3082,6 +3082,12 @@
     <div class="modal" style="max-width:min(1100px, 95vw); width:100%;">
       <h3 id="tituloModalPermissoes">Permissões</h3>
       <p class="descricao-item">Marque o que este usuário pode fazer em cada módulo. O traço (—) significa que a ação não existe naquele módulo.</p>
+      <div id="clonarAcessosBox" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:var(--papel); border:1px solid var(--linha); border-radius:8px; padding:8px 12px; margin-bottom:12px;">
+        <span style="font-size:13px;">⧉ Clonar acessos de:</span>
+        <select id="clonarDeSelect" style="min-width:240px;"><option value="">— escolha um usuário —</option></select>
+        <button type="button" class="botao-secundario" id="botaoClonarAcessos" style="padding:5px 14px;">Clonar</button>
+        <span class="descricao-item" style="margin:0;">Copia módulos, ações e caixas do usuário escolhido. Revise e clique em Salvar.</span>
+      </div>
       <div class="tabela-permissoes-wrap">
         <table class="tabela tabela-permissoes" style="text-align:center;">
           <thead><tr id="cabecalhoPermissoes"></tr></thead>
