@@ -10037,6 +10037,23 @@ async function abrirModalPermissoes(usuarioId, nome) {
     }).join('');
   }
 
+  // Barra "Clonar acessos": some para admin (super-usuário) e é preenchida com
+  // os demais usuários. Ao clonar, copia módulos/ações/caixas para os checkboxes.
+  const clonarBox = document.getElementById('clonarAcessosBox');
+  const clonarSel = document.getElementById('clonarDeSelect');
+  if (perfilUsuario === 'admin') {
+    clonarBox.hidden = true;
+  } else {
+    clonarBox.hidden = false;
+    clonarSel.innerHTML = '<option value="">— escolha um usuário —</option>';
+    try {
+      const { usuarios } = await api('/usuarios');
+      clonarSel.innerHTML += (usuarios || [])
+        .filter((u) => u.id !== usuarioId)
+        .map((u) => `<option value="${u.id}">${escHtml(u.nome)} — ${escHtml(u.email)}</option>`).join('');
+    } catch (_) { /* silencioso: sem clonagem se a lista falhar */ }
+  }
+
   // Quando o interruptor mestre muda, liga/desliga as caixinhas de ação da linha.
   corpo.querySelectorAll('.chk-habilitado').forEach((chk) => {
     chk.addEventListener('change', () => {
@@ -10055,6 +10072,45 @@ async function abrirModalPermissoes(usuarioId, nome) {
 }
 
 document.getElementById('botaoCancelarPermissoes').addEventListener('click', () => { modalPermissoes.hidden = true; });
+
+// Aplica um conjunto de permissões (módulos/ações + caixas) aos checkboxes do
+// modal aberto — usado pela clonagem. Não salva; o admin revisa e clica Salvar.
+function aplicarPermissoesNaGrade(permissoes, habilitado, caixasReq) {
+  const corpo = document.getElementById('corpoPermissoes');
+  corpo.querySelectorAll('.chk-habilitado').forEach((chk) => {
+    const mod = chk.dataset.hab;
+    const on = !!(habilitado && habilitado[mod]);
+    chk.checked = on;
+    const linha = corpo.querySelector(`tr[data-linha="${mod}"]`);
+    linha.querySelectorAll('input[data-acao]').forEach((c) => {
+      const ac = c.dataset.acao;
+      c.disabled = !on;
+      c.checked = on && !!(permissoes[mod] && permissoes[mod][ac]);
+    });
+    linha.style.opacity = on ? '1' : '0.5';
+  });
+  const marcadas = new Set(caixasReq || []);
+  modalPermissoes.querySelectorAll('.chk-caixa-req').forEach((c) => { c.checked = marcadas.has(c.value); });
+}
+
+document.getElementById('botaoClonarAcessos').addEventListener('click', async () => {
+  const sel = document.getElementById('clonarDeSelect');
+  const srcId = sel.value;
+  if (!srcId) { alert('Escolha o usuário de quem copiar os acessos.'); return; }
+  const nomeSrc = sel.options[sel.selectedIndex].text;
+  if (!confirm(`Copiar TODOS os acessos de:\n${nomeSrc}\npara este usuário?\n\nAs marcações atuais serão substituídas. Você ainda precisa clicar em "Salvar permissões".`)) return;
+  const b = document.getElementById('botaoClonarAcessos');
+  b.disabled = true;
+  try {
+    const perm = await api(`/usuarios/${srcId}/permissoes`);
+    aplicarPermissoesNaGrade(perm.permissoes || {}, perm.habilitado || {}, perm.caixasReq || []);
+    alert('✓ Acessos copiados. Revise a grade e clique em "Salvar permissões".');
+  } catch (e) {
+    alert('Não consegui copiar os acessos: ' + e.message);
+  } finally {
+    b.disabled = false;
+  }
+});
 
 document.getElementById('botaoSalvarPermissoes').addEventListener('click', async () => {
   const permissoes = {};
