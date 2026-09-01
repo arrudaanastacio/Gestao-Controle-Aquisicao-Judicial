@@ -98,6 +98,7 @@
           <p class="nav-grupo-titulo nav-unidade-titulo">📑 Consultas</p>
           <a href="#" data-pagina="relatorioItens">Relatório de Itens</a>
           <a href="#" data-pagina="atas">Atas de Registro de Preço</a>
+          <a href="#" data-pagina="consumoEntrega">Consumo x Entrega</a>
         </div>
 
         <div class="nav-grupo">
@@ -2119,6 +2120,77 @@
         </div>
       </section>
 
+      <section id="paginaConsumoEntrega" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Consumo x Entrega</h2>
+            <p>Compara o consumo estimado (consumo mensal × período) com a quantidade real entregue (recibos do SCODES), por SCODES.</p>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <button id="botaoAtualizarConsumoEntrega" class="botao-secundario" type="button" hidden>🔄 Atualizar via Oracle</button>
+          </div>
+        </div>
+        <div id="statusOracleConsumoEntrega" class="aviso-status" hidden style="margin:0 0 10px;"></div>
+
+        <div class="filtros-faixa" id="abasConsumoEntrega" style="margin:6px 0 14px;">
+          <button type="button" class="chip-faixa ativo" data-aba="tp">Tenente Pena</button>
+          <button type="button" class="chip-faixa" data-aba="od">Outras Demandas</button>
+        </div>
+
+        <div class="barra-filtros">
+          <label style="font-size:13px; color:var(--cinza-texto);">Período:
+            <select id="filtroPeriodoConsumoEntrega">
+              <option value="30">Últimos 30 dias</option>
+              <option value="60">Últimos 60 dias</option>
+              <option value="90">Últimos 90 dias</option>
+              <option value="120">Últimos 120 dias</option>
+              <option value="180">Últimos 180 dias</option>
+              <option value="365">Últimos 365 dias</option>
+            </select>
+          </label>
+          <input type="text" id="filtroBuscaConsumoEntrega" placeholder="Buscar por SCODES…" style="min-width:220px;">
+          <button id="botaoLimparConsumoEntrega" class="botao-secundario" type="button">Limpar</button>
+          <span id="totalConsumoEntrega" style="font-size:13px; color:var(--cinza-texto);"></span>
+          <span id="carimboConsumoEntrega" style="font-size:12px; color:var(--cinza-texto);"></span>
+          <button id="botaoExportarConsumoEntrega" class="botao-secundario" type="button" style="margin-left:auto;">⬇ Exportar CSV</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table style="width:100%;">
+              <thead>
+                <tr>
+                  <th style="white-space:nowrap;">Código SCODES</th>
+                  <th style="min-width:320px;">Descrição do Item</th>
+                  <th class="num" style="white-space:nowrap;">Demanda</th>
+                  <th class="num" style="white-space:nowrap;">Consumo /mês</th>
+                  <th class="num" style="white-space:nowrap;" id="thConsumoEstimadoCE">Consumo estim. (per.)</th>
+                  <th class="num" style="white-space:nowrap;">Demandas atendidas</th>
+                  <th class="num" style="white-space:nowrap;" id="thRealEntregueCE">Real entregue</th>
+                  <th class="num" style="white-space:nowrap;">Periodic. média</th>
+                  <th class="num" style="white-space:nowrap;">% Consumo × Entrega</th>
+                  <th style="white-space:nowrap;"></th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaConsumoEntrega"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioConsumoEntrega" hidden>Nenhum item de demanda ativa encontrado neste escopo.</div>
+        </div>
+      </section>
+
+      <!-- Modal: detalhe consolidado por mês (botão Ver) -->
+      <div class="fundo-modal" id="modalDetalheConsumoEntrega" hidden>
+        <div class="modal" style="max-width:min(980px, 96vw); width:96vw;">
+          <h3 id="tituloDetalheConsumoEntrega">Consolidado por mês</h3>
+          <p class="texto-secundario" id="subDetalheConsumoEntrega" style="margin-top:-6px;"></p>
+          <div id="corpoDetalheConsumoEntrega" style="max-height:60vh; overflow:auto;"></div>
+          <div class="acoes-modal">
+            <button type="button" class="botao-secundario" id="fecharDetalheConsumoEntrega">Fechar</button>
+          </div>
+        </div>
+      </div>
+
       <section id="paginaComparativoAutores" hidden>
         <div class="cabecalho-pagina">
           <div>
@@ -3593,6 +3665,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=68"></script>
+  <script src="/js/app.js?v=75"></script>
 </body>
 </html>

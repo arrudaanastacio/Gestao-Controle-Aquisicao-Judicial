@@ -53,6 +53,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', usuariosRoutes);   // só admin (guarda interna)
 app.use('/api/itens', itensRoutes);         // consulta de apoio do catálogo
 app.use('/api/config', configRoutes);       // leitura aberta, escrita só admin
+app.use('/api/sigem', require('./routes.integracaoSigem')); // integração SIGEM (chave de API própria, sem login JWT)
 app.use('/api/importacoes', autenticar, importacoesInfoRoutes); // só data/hora, sem trava de módulo
 
 // Rotas de dados: travadas por MÓDULO. A ação (ver/inserir/editar/excluir/
@@ -95,6 +96,7 @@ app.use('/api/autores', autenticar, exigirModuloDinamico((req) => {
 }), autoresRoutes);
 
 app.use('/api/itens-importados', autenticar, exigirModulo('relatorioItensImportados'), require('./routes.itensImportados'));
+app.use('/api/consumo-entrega', autenticar, exigirModulo('consumoEntrega'), require('./routes.consumoEntrega'));
 app.use('/api/relatorio-itens', autenticar, exigirModulo('relatorioItens'), relatorioItensRoutes);
 app.use('/api/atas', autenticar, exigirModulo('atas'), atasRoutes);
 app.use('/api/planejamento', autenticar, exigirModulo('planejamento'), require('./routes.planejamento'));

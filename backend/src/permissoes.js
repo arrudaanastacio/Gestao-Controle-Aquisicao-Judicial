@@ -54,6 +54,7 @@ const MODULOS = [
   { chave: 'relatorioComprasImportados', rotulo: 'Relatório de Compras Importados', acoes: ['visualizar', 'inserir', 'editar', 'excluir', 'exportar'] },
   { chave: 'analiseImportados', rotulo: 'Tabela Análise Importados', acoes: ['visualizar', 'editar', 'exportar'] },
   { chave: 'relatorioItensImportados', rotulo: 'Relatório de Itens Importados', acoes: ['visualizar', 'editar', 'exportar'] },
+  { chave: 'consumoEntrega', rotulo: 'Consumo x Entrega', acoes: ['visualizar', 'exportar'] },
   { chave: 'estoqueOD', rotulo: 'Estoque GSNET/IBL', acoes: ['visualizar', 'exportar', 'importar'] },
   // "Importar" = botão "Atualizar da API" (consulta ao vivo o WMS IBL).
   { chave: 'estoqueIblApi', rotulo: 'Estoque IBL (API)', acoes: ['visualizar', 'exportar', 'importar'] },
