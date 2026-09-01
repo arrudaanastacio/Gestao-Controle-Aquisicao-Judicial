@@ -5823,10 +5823,22 @@ async function escolherItemImp(it) {
   } catch (e) { corpo.innerHTML = `<p class="texto-apoio" style="color:var(--vermelho);">Erro: ${e.message}</p>`; }
 }
 
+// Qtde a Comprar do paciente = Qtde de Consumo × Autonomia de compra (meses).
+function piQtdComprar(p) {
+  const consumo = parseNumeroReq(p.qtde_consumo);
+  const aut = p._autonomia == null ? 1 : parseNumeroReq(p._autonomia);
+  return Math.ceil(consumo * aut); // sempre inteiro (arredonda p/ cima: não comprar menos que o necessário)
+}
+
 function renderPacientesImp() {
   const corpo = document.getElementById('piCorpoPacientes');
-  corpo.innerHTML = `<table class="tabela"><thead><tr>
-      <th style="width:34px;"></th><th>Paciente</th><th>Unidade</th><th>Protocolo</th><th>Status da demanda</th><th></th>
+  // Autonomia de compra padrão = 1 mês (igual à tela coletiva "Por item").
+  piPacientes.forEach((p) => { if (p._autonomia == null) p._autonomia = 1; });
+  corpo.innerHTML = `<table class="tabela" style="min-width:1080px;"><thead><tr>
+      <th style="width:34px;"></th><th>Paciente</th><th>Unidade</th><th>Protocolo</th><th>Status da demanda</th>
+      <th style="text-align:right;">Periodicidade</th><th style="text-align:right;">Prazo</th>
+      <th style="text-align:right;">Qtde de Consumo</th><th style="width:96px; text-align:right;">Autonomia (m)</th>
+      <th style="text-align:right;">Qtde a Comprar</th><th></th>
     </tr></thead><tbody>${piPacientes.map((p, i) => {
       const tip = p.ja_existe ? `já consta aquisição do item para o paciente${p.status_anterior ? ' (última: ' + escHtml(p.status_anterior) + ')' : ''}` : '';
       const chk = `<input type="checkbox" class="pi-chk" data-idx="${i}" ${p.ja_existe ? 'disabled' : ''}>`;
@@ -5839,18 +5851,33 @@ function renderPacientesImp() {
         <td>${escHtml(p.unidade_dispensadora || '—')}</td>
         <td class="col-codigo">${escHtml(p.protocolo || '—')}</td>
         <td style="font-size:12px;">${escHtml(p.status_demanda || '—')}</td>
+        <td class="num">${escHtml(p.periodicidade || '—')}</td>
+        <td class="num">${escHtml(p.prazo || '—')}</td>
+        <td class="num">${escHtml(p.qtde_consumo || '—')}</td>
+        <td><input type="number" class="pi-aut" data-idx="${i}" value="${escAttr(String(p._autonomia))}" min="0" step="1" ${p.ja_existe ? 'disabled' : ''} style="width:78px; text-align:right; padding:4px 6px;"></td>
+        <td class="num pi-comprar" data-idx="${i}" style="font-weight:600;">${fmtNumero(piQtdComprar(p))}</td>
         <td>${incluir}</td>
       </tr>`;
     }).join('')}</tbody></table>`;
   corpo.querySelectorAll('.pi-chk').forEach((c) => c.addEventListener('change', atualizarContadorPiSel));
   corpo.querySelectorAll('.pi-incluir').forEach((b) => b.addEventListener('click', () => incluirMesmoAssimImp(Number(b.dataset.idx), b)));
+  corpo.querySelectorAll('.pi-aut').forEach((inp) => inp.addEventListener('input', () => {
+    const idx = Number(inp.dataset.idx);
+    piPacientes[idx]._autonomia = parseNumeroReq(inp.value);
+    const cel = corpo.querySelector(`.pi-comprar[data-idx="${idx}"]`);
+    if (cel) cel.textContent = fmtNumero(piQtdComprar(piPacientes[idx]));
+    atualizarContadorPiSel();
+  }));
   document.getElementById('piSelTodos').checked = false;
   atualizarContadorPiSel();
 }
 
 function atualizarContadorPiSel() {
-  const n = document.querySelectorAll('#piCorpoPacientes .pi-chk:checked').length;
-  document.getElementById('piContadorSel').textContent = `${n} selecionado(s)`;
+  const marcados = [...document.querySelectorAll('#piCorpoPacientes .pi-chk:checked')];
+  const n = marcados.length;
+  const subtotal = marcados.reduce((s, c) => s + piQtdComprar(piPacientes[Number(c.dataset.idx)]), 0);
+  document.getElementById('piContadorSel').textContent =
+    n > 0 ? `${n} selecionado(s) · Qtde a Comprar (subtotal): ${fmtNumero(+subtotal.toFixed(2))}` : '0 selecionado(s)';
   document.getElementById('piAdicionar').textContent = n > 0 ? `Adicionar ${n} selecionado(s)` : 'Adicionar selecionados';
 }
 
@@ -5897,7 +5924,7 @@ function renderValoresImp() {
       <th>SEI</th><th>Req. GSNET</th><th>Data Solic.</th><th>Nº Empenho</th><th>Nº Recibo</th><th>Data Entrega</th><th>Status</th>
     </tr></thead><tbody>${piSelecionados.map((p, i) => `<tr data-idx="${i}">
       <td style="font-weight:500; min-width:160px;">${escHtml(p.autor || '—')}<br><span class="col-codigo" style="font-size:10px;">${escHtml(p.unidade_dispensadora || '')}</span></td>
-      <td><input type="text" class="piv-qtde" data-idx="${i}" style="width:90px;"></td>
+      <td><input type="text" class="piv-qtde" data-idx="${i}" value="${p._autonomia != null ? escAttr(String(piQtdComprar(p))) : ''}" style="width:90px;"></td>
       <td><input type="text" class="piv-valor" data-idx="${i}" value="${piValorMedio ? escAttr(piValorMedio) : ''}" style="width:100px;"></td>
       <td><input type="text" class="piv-total" data-idx="${i}" readonly style="width:110px; background:var(--realce-tabela);"></td>
       <td><input type="text" class="piv-sei" data-idx="${i}" style="width:120px;"></td>
@@ -5916,6 +5943,7 @@ function renderValoresImp() {
     corpo.querySelector(`.piv-total[data-idx="${i}"]`).value = tot == null ? '' : tot.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
   corpo.querySelectorAll('.piv-qtde, .piv-valor').forEach((el) => el.addEventListener('input', () => recalc(Number(el.dataset.idx))));
+  piSelecionados.forEach((_, i) => recalc(i)); // calcula o Valor Total inicial (Qtde vem pré-preenchida)
 }
 
 // Repete os valores da 1ª linha nas demais.

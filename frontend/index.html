@@ -1936,7 +1936,7 @@
         </div>
 
         <div class="fundo-modal" id="modalPorItemImp" hidden>
-          <div class="modal" style="max-width:820px;">
+          <div class="modal" style="max-width:min(1180px, 96vw); width:96vw;">
             <h3>Adicionar por item</h3>
             <p class="texto-secundario" style="margin-top:-6px;">Escolha o item, selecione os pacientes e envie todos ao Relatório de Compras Importados.</p>
 
@@ -1952,7 +1952,7 @@
                 <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600;"><input type="checkbox" id="piSelTodos"> Selecionar todos</label>
                 <span id="piContadorSel" class="texto-secundario" style="font-size:12px;">0 selecionados</span>
               </div>
-              <div class="tabela-rolavel" id="piCorpoPacientes" style="max-height:52vh;"></div>
+              <div class="tabela-rolavel" id="piCorpoPacientes" style="max-height:52vh; overflow-x:auto;"></div>
             </div>
 
             <div id="piEtapaValores" hidden>
@@ -3593,6 +3593,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=66"></script>
+  <script src="/js/app.js?v=68"></script>
 </body>
 </html>
