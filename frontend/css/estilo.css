@@ -792,6 +792,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .conteudo:has(> #paginaDistribuicao:not([hidden])),
 .conteudo:has(> #paginaUsuarios:not([hidden])),
 .conteudo:has(> #paginaRelatorioItensImportados:not([hidden])),
+.conteudo:has(> #paginaConsumoEntrega:not([hidden])),
 .conteudo:has(> #paginaPlanejamento:not([hidden])) {
   max-width: none;
 }

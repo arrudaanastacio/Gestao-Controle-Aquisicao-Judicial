@@ -229,6 +229,8 @@ async function carregarUsuario() {
     document.getElementById('botaoAtualizarRelatorioItens').hidden = false;
     document.getElementById('botaoImportarClassificacao').hidden = false;
     verificarStatusOracleRelatorioItens();
+    document.getElementById('botaoAtualizarConsumoEntrega').hidden = false;
+    verificarStatusOracleConsumoEntrega();
     document.querySelectorAll('.botao-atualizar-agora').forEach((b) => { b.hidden = false; });
     document.getElementById('acoesAtasAdmin').hidden = false;
     atualizarBadgeAlertas();
@@ -274,6 +276,7 @@ function aplicarPermissoesNav() {
     autores: 'autoresTP', autoresGeral: 'autoresGeral', autoresImportados: 'autoresImportados',
     relatorioImportados: 'relatorioComprasImportados', analiseImportados: 'analiseImportados',
     relatorioItensImportados: 'relatorioItensImportados',
+    consumoEntrega: 'consumoEntrega',
     comparativoAutores: 'comparativoAutoresTP', relatorioReq: 'relatorioReqTP',
     cartasTroca: 'cartasTroca',
     atas: 'atas',
@@ -392,6 +395,7 @@ const ICONES_NAV = {
   relatorioImportados: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/>',
   analiseImportados: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/>',
   relatorioItensImportados: '<path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/><path d="M13 13h4M13 16h4"/>',
+  consumoEntrega: '<path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/>',
   comparativoAutores: '<path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/>',
   relatorioReq: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M8 11h8M8 15h8M8 19h5"/>',
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
@@ -680,6 +684,7 @@ const TRILHAS = {
   relatorioItensImportados: ['Importados', 'Relatório de Itens Importados'],
   relatorioItens: ['Consultas', 'Relatório de Itens'],
   atas: ['Consultas', 'Atas de Registro de Preço'],
+  consumoEntrega: ['Consultas', 'Consumo x Entrega'],
   usuarios: ['Administração', 'Usuários'],
   importadores: ['Administração', 'Importação'],
   statusServicos: ['Administração', 'Status dos Serviços'],
@@ -722,6 +727,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaRelatorioImportados').hidden = pagina !== 'relatorioImportados';
   document.getElementById('paginaAnaliseImportados').hidden = pagina !== 'analiseImportados';
   document.getElementById('paginaRelatorioItensImportados').hidden = pagina !== 'relatorioItensImportados';
+  document.getElementById('paginaConsumoEntrega').hidden = pagina !== 'consumoEntrega';
   document.getElementById('paginaComparativoAutores').hidden = pagina !== 'comparativoAutores';
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
   document.getElementById('paginaCartasTroca').hidden = pagina !== 'cartasTroca';
@@ -762,6 +768,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'relatorioImportados') await carregarRelatorioImportados();
     if (pagina === 'analiseImportados') await carregarAnaliseImportados();
     if (pagina === 'relatorioItensImportados') await carregarRelatorioItensImportados();
+    if (pagina === 'consumoEntrega') await carregarConsumoEntrega();
     if (pagina === 'comparativoAutores') await carregarComparativo();
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
     if (pagina === 'cartasTroca') await carregarCartasTroca();
@@ -7112,6 +7119,232 @@ document.getElementById('botaoAtualizarRelatorioItens').addEventListener('click'
     mostrarStatusOracleRelatorioItens('❌ Erro de rede ao iniciar.', '#b00020');
     botao.disabled = false;
   }
+});
+
+// ==================== Consumo x Entrega ====================
+// Cruza consumo estimado (consumo mensal × período) com a entrega real
+// (recibos do SCODES). Abas TP/OD; período 30–365 dias a partir de hoje.
+const estadoConsumoEntrega = { aba: 'tp', dados: null };
+let debounceConsumoEntrega = null;
+
+function periodoConsumoEntrega() {
+  return parseInt(document.getElementById('filtroPeriodoConsumoEntrega').value, 10) || 30;
+}
+
+async function carregarConsumoEntrega() {
+  const corpo = document.getElementById('corpoTabelaConsumoEntrega');
+  const dias = periodoConsumoEntrega();
+  const busca = document.getElementById('filtroBuscaConsumoEntrega').value.trim();
+  corpo.innerHTML = '<tr><td colspan="10" style="padding:14px; color:var(--cinza-texto);">Carregando…</td></tr>';
+  try {
+    const qs = new URLSearchParams({ escopo: estadoConsumoEntrega.aba, dias: String(dias) });
+    if (busca) qs.set('scodes', busca);
+    const d = await api('/consumo-entrega?' + qs.toString());
+    estadoConsumoEntrega.dados = d;
+    renderConsumoEntrega(d);
+  } catch (e) {
+    corpo.innerHTML = `<tr><td colspan="10" style="padding:14px; color:var(--vermelho);">Erro: ${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+function renderConsumoEntrega(d) {
+  const corpo = document.getElementById('corpoTabelaConsumoEntrega');
+  const vazio = document.getElementById('estadoVazioConsumoEntrega');
+  const dias = d.dias;
+  // Rótulos dinâmicos das colunas com o período.
+  document.getElementById('thConsumoEstimadoCE').textContent = `Consumo estim. (${dias}d)`;
+  document.getElementById('thRealEntregueCE').textContent = 'Real entregue';
+
+  document.getElementById('totalConsumoEntrega').textContent =
+    `${fmtNumero(d.total)} item(ns) de demanda ativa`;
+  const carimbo = document.getElementById('carimboConsumoEntrega');
+  carimbo.textContent = d.dataCarga
+    ? `· recibos atualizados até ${formatarDataHora(d.dataCarga)}`
+    : '· sem carga de recibos ainda — use “Atualizar via Oracle”';
+
+  if (!d.itens.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
+  vazio.hidden = true;
+  corpo.innerHTML = d.itens.map((it) => {
+    const pct = it.percentual;
+    const corPct = pct == null ? '' : (pct < 70 ? 'color:#b45309;' : (pct > 130 ? 'color:#1c6cad;' : 'color:#1f5c52;'));
+    return `<tr>
+      <td class="col-codigo" style="white-space:nowrap;">${escHtml(it.codigo_item)}</td>
+      <td>${escHtml(it.descricao || '—')}</td>
+      <td class="num">${fmtNumero(it.demanda)}</td>
+      <td class="num">${fmtNumero(it.consumo_mensal)}</td>
+      <td class="num">${fmtNumero(it.consumo_estimado_periodo)}</td>
+      <td class="num">${fmtNumero(it.demandas_atendidas)}</td>
+      <td class="num">${fmtNumero(it.soma_real_entregue)}</td>
+      <td class="num">${it.periodicidade_media == null ? '—' : it.periodicidade_media.toFixed(1)}</td>
+      <td class="num" style="font-weight:600; ${corPct}">${pct == null ? '—' : fmtNumero(pct) + '%'}</td>
+      <td><button type="button" class="botao-secundario ce-ver" data-cod="${escAttr(it.codigo_item)}" style="padding:3px 10px; font-size:12px;">Ver</button></td>
+    </tr>`;
+  }).join('');
+  corpo.querySelectorAll('.ce-ver').forEach((b) => b.addEventListener('click', () => abrirDetalheConsumoEntrega(b.dataset.cod)));
+}
+
+async function abrirDetalheConsumoEntrega(codigo) {
+  const dias = periodoConsumoEntrega();
+  const modal = document.getElementById('modalDetalheConsumoEntrega');
+  const corpo = document.getElementById('corpoDetalheConsumoEntrega');
+  document.getElementById('subDetalheConsumoEntrega').textContent = 'Carregando…';
+  corpo.innerHTML = '';
+  modal.hidden = false;
+  try {
+    const qs = new URLSearchParams({ escopo: estadoConsumoEntrega.aba, dias: String(dias), codigo });
+    const d = await api('/consumo-entrega/detalhe?' + qs.toString());
+    document.getElementById('tituloDetalheConsumoEntrega').textContent = `${d.codigo_item} — consolidado por mês`;
+    document.getElementById('subDetalheConsumoEntrega').textContent =
+      `${d.descricao || ''} · ${estadoConsumoEntrega.aba === 'od' ? 'Outras Demandas' : 'Tenente Pena'} · últimos ${dias} dias`;
+    const nMeses = d.meses.length || 1;
+    const totalReal = d.meses.reduce((s, m) => s + (m.soma_real || 0), 0);
+    const consumoEstMes = d.consumo_mensal || 0;
+    // A partir de 60 dias, faz mais sentido a MÉDIA/mês (decidido com o Rafael).
+    const mostrarMedia = dias >= 60;
+    const linhas = d.meses.map((m) => `
+      <tr>
+        <td>${escHtml(m.mes)}</td>
+        <td class="num">${fmtNumero(consumoEstMes)}</td>
+        <td class="num">${fmtNumero(m.demandas_atendidas)}</td>
+        <td class="num">${fmtNumero(m.soma_real)}</td>
+        <td class="num">${m.periodicidade_media == null ? '—' : m.periodicidade_media.toFixed(1)}</td>
+      </tr>`).join('');
+    const rodape = mostrarMedia
+      ? `<tr style="font-weight:600; border-top:2px solid var(--linha);">
+           <td>Média/mês</td>
+           <td class="num">${fmtNumero(consumoEstMes)}</td>
+           <td class="num">${fmtNumero(+(d.meses.reduce((s, m) => s + m.demandas_atendidas, 0) / nMeses).toFixed(1))}</td>
+           <td class="num">${fmtNumero(+(totalReal / nMeses).toFixed(2))}</td>
+           <td class="num">—</td>
+         </tr>`
+      : '';
+    const tabelaMeses = d.meses.length
+      ? `<table class="tabela" style="width:100%;"><thead><tr>
+           <th>Mês</th><th class="num">Consumo estim./mês</th><th class="num">Demandas atendidas</th><th class="num">Real entregue</th><th class="num">Periodic. média</th>
+         </tr></thead><tbody>${linhas}${rodape}</tbody></table>`
+      : '<p class="texto-apoio" style="padding:10px 0;">Sem recibos neste período para este item.</p>';
+
+    // Consolidado por UNIDADE — só na aba Outras Demandas (itens em várias unidades).
+    let blocoUnidades = '';
+    if (estadoConsumoEntrega.aba === 'od' && (d.unidades || []).length) {
+      const unidadesOrdenadas = d.unidades
+        .filter((u) => (u.demanda || 0) > 0) // não mostra unidade sem demanda
+        .sort((a, b) => String(a.unidade).localeCompare(String(b.unidade), 'pt-BR', { numeric: true }));
+      const linhasUnid = unidadesOrdenadas.map((u) => {
+        const est = (u.consumo_mensal || 0) * (dias / 30);
+        const pct = est > 0 ? (u.soma_real / est) * 100 : null;
+        const corPct = pct == null ? '' : (pct < 70 ? 'color:#b45309;' : (pct > 130 ? 'color:#1c6cad;' : 'color:#1f5c52;'));
+        return `
+        <tr>
+          <td>${escHtml(u.unidade)}</td>
+          <td class="num">${fmtNumero(u.demanda)}</td>
+          <td class="num">${fmtNumero(u.consumo_mensal)}</td>
+          <td class="num">${fmtNumero(u.demandas_atendidas)}</td>
+          <td class="num">${fmtNumero(u.soma_real)}</td>
+          <td class="num">${u.periodicidade_media == null ? '—' : u.periodicidade_media.toFixed(1)}</td>
+          <td class="num" style="font-weight:600; ${corPct}">${pct == null ? '—' : fmtNumero(+pct.toFixed(1)) + '%'}</td>
+        </tr>`;
+      }).join('');
+      if (unidadesOrdenadas.length) blocoUnidades = `
+        <div style="margin-top:18px; font-weight:600; color:var(--cinza-texto); font-size:13px;">Consolidado por unidade</div>
+        <div style="overflow-x:auto;">
+          <table class="tabela" style="width:100%; min-width:720px; margin-top:6px;"><thead><tr>
+            <th>Unidade</th><th class="num">Demanda</th><th class="num">Consumo /mês</th><th class="num">Demandas atendidas</th><th class="num">Real entregue</th><th class="num">Periodic. média</th><th class="num">% Cons. × Entr.</th>
+          </tr></thead><tbody>${linhasUnid}</tbody></table>
+        </div>`;
+    }
+    corpo.innerHTML = tabelaMeses + blocoUnidades;
+  } catch (e) {
+    corpo.innerHTML = `<p class="texto-apoio" style="color:var(--vermelho);">Erro: ${escHtml(e.message)}</p>`;
+  }
+}
+
+function exportarConsumoEntregaCSV() {
+  const d = estadoConsumoEntrega.dados;
+  if (!d || !d.itens.length) { alert('Nada para exportar.'); return; }
+  const cab = ['SCODES', 'Descrição', 'Demanda', 'Consumo/mês', `Consumo estim (${d.dias}d)`, 'Demandas atendidas', 'Real entregue', 'Periodicidade média', '% Consumo x Entrega'];
+  const linhas = d.itens.map((it) => [
+    it.codigo_item, it.descricao || '', it.demanda, it.consumo_mensal, it.consumo_estimado_periodo,
+    it.demandas_atendidas, it.soma_real_entregue, it.periodicidade_media == null ? '' : it.periodicidade_media,
+    it.percentual == null ? '' : it.percentual,
+  ]);
+  const csv = [cab, ...linhas].map((l) => l.map((c) => {
+    const s = String(c ?? '');
+    return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(';')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `consumo-x-entrega_${estadoConsumoEntrega.aba}_${d.dias}d.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// Listeners da tela Consumo x Entrega.
+document.querySelectorAll('#abasConsumoEntrega .chip-faixa').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#abasConsumoEntrega .chip-faixa').forEach((b) => b.classList.toggle('ativo', b === btn));
+    estadoConsumoEntrega.aba = btn.dataset.aba;
+    carregarConsumoEntrega();
+  });
+});
+document.getElementById('filtroPeriodoConsumoEntrega').addEventListener('change', carregarConsumoEntrega);
+document.getElementById('filtroBuscaConsumoEntrega').addEventListener('input', () => {
+  clearTimeout(debounceConsumoEntrega);
+  debounceConsumoEntrega = setTimeout(carregarConsumoEntrega, 350);
+});
+document.getElementById('botaoLimparConsumoEntrega').addEventListener('click', () => {
+  document.getElementById('filtroBuscaConsumoEntrega').value = '';
+  carregarConsumoEntrega();
+});
+document.getElementById('botaoExportarConsumoEntrega').addEventListener('click', exportarConsumoEntregaCSV);
+document.getElementById('fecharDetalheConsumoEntrega').addEventListener('click', () => { document.getElementById('modalDetalheConsumoEntrega').hidden = true; });
+document.getElementById('modalDetalheConsumoEntrega').addEventListener('click', (ev) => { if (ev.target.id === 'modalDetalheConsumoEntrega') ev.currentTarget.hidden = true; });
+
+// ---------- Atualizar via Oracle (recibos) ----------
+let timerStatusOracleCE = null;
+function mostrarStatusOracleCE(texto, cor) {
+  const el = document.getElementById('statusOracleConsumoEntrega');
+  el.textContent = texto; el.style.color = cor || ''; el.hidden = !texto;
+}
+async function verificarStatusOracleConsumoEntrega() {
+  try {
+    const r = await fetch('/api/consumo-entrega/atualizar-oracle/status');
+    const s = await r.json();
+    const botao = document.getElementById('botaoAtualizarConsumoEntrega');
+    if (s.rodando) {
+      botao.disabled = true;
+      if (!timerStatusOracleCE) timerStatusOracleCE = setInterval(verificarStatusOracleConsumoEntrega, 5000);
+      const min = s.inicio ? Math.floor((Date.now() - new Date(s.inicio)) / 60000) : 0;
+      mostrarStatusOracleCE(`⏳ Atualizando recibos via Oracle… (${min} min) — pode continuar usando o sistema.`, '#8a6d00');
+    } else {
+      botao.disabled = false;
+      if (timerStatusOracleCE) { clearInterval(timerStatusOracleCE); timerStatusOracleCE = null; }
+      if (s.ultimoErro) {
+        mostrarStatusOracleCE('❌ Falha na última atualização: ' + s.ultimoErro, '#b00020');
+      } else if (s.ultimoResumo) {
+        const seg = Math.round((s.ultimoResumo.duracaoMs || 0) / 1000);
+        mostrarStatusOracleCE(`✅ Recibos atualizados: ${fmtNumero(s.ultimoResumo.gravadas || 0)} linhas (${seg}s). Recarregue a tabela.`, '#1f5c52');
+        if (estado.paginaAtual === 'consumoEntrega') carregarConsumoEntrega();
+      } else {
+        mostrarStatusOracleCE('', '');
+      }
+    }
+  } catch (_) { /* silencioso */ }
+}
+document.getElementById('botaoAtualizarConsumoEntrega').addEventListener('click', async () => {
+  if (!confirm('Atualizar os recibos (entrega real) direto do Oracle (SCODES)?\n\nPuxa ~13 meses de recibos e roda em segundo plano — você pode continuar usando o sistema.')) return;
+  const botao = document.getElementById('botaoAtualizarConsumoEntrega');
+  botao.disabled = true;
+  mostrarStatusOracleCE('⏳ Iniciando…', '#8a6d00');
+  try {
+    const r = await fetch('/api/consumo-entrega/atualizar-oracle', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) { mostrarStatusOracleCE('❌ ' + (d.erro || 'Não foi possível iniciar.'), '#b00020'); botao.disabled = false; return; }
+    if (timerStatusOracleCE) clearInterval(timerStatusOracleCE);
+    timerStatusOracleCE = setInterval(verificarStatusOracleConsumoEntrega, 5000);
+    verificarStatusOracleConsumoEntrega();
+  } catch (e) { mostrarStatusOracleCE('❌ Erro de rede ao iniciar.', '#b00020'); botao.disabled = false; }
 });
 
 // -------------------- Comparativo de Autores (anterior × atual) --------------------

@@ -96,6 +96,7 @@ app.use('/api/autores', autenticar, exigirModuloDinamico((req) => {
 }), autoresRoutes);
 
 app.use('/api/itens-importados', autenticar, exigirModulo('relatorioItensImportados'), require('./routes.itensImportados'));
+app.use('/api/consumo-entrega', autenticar, exigirModulo('consumoEntrega'), require('./routes.consumoEntrega'));
 app.use('/api/relatorio-itens', autenticar, exigirModulo('relatorioItens'), relatorioItensRoutes);
 app.use('/api/atas', autenticar, exigirModulo('atas'), atasRoutes);
 app.use('/api/planejamento', autenticar, exigirModulo('planejamento'), require('./routes.planejamento'));

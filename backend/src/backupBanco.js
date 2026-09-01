@@ -33,12 +33,34 @@
 // =====================================================================
 const fs = require('fs');
 const path = require('path');
+const { DatabaseSync } = require('node:sqlite');
 const db = require('./db');
 const { agendarDiariamente } = require('./agendadorUtil');
 const reg = require('./registroServicos');
 
 const PASTA_BACKUPS = path.join(__dirname, '..', 'data', 'backups');
 const PASTA_MENSAIS = path.join(PASTA_BACKUPS, 'mensais');
+
+// Tabelas grandes e 100% deriváveis do Oracle que NÃO precisam ir para o
+// backup (recarregáveis via "Atualizar via Oracle"). São removidas apenas da
+// CÓPIA de backup, nunca do banco vivo.
+const TABELAS_FORA_DO_BACKUP = ['recibos_entregas'];
+
+// Abre o arquivo de backup e remove as tabelas deriváveis, compactando em
+// seguida. Falha silenciosa: se der errado, o backup continua válido (só
+// maior). Nunca toca no banco vivo.
+function podarTabelasDerivaveis(arquivoBackup) {
+  let bak;
+  try {
+    bak = new DatabaseSync(arquivoBackup);
+    for (const t of TABELAS_FORA_DO_BACKUP) bak.exec(`DROP TABLE IF EXISTS ${t}`);
+    bak.exec('VACUUM');
+  } catch (e) {
+    console.warn(`[BACKUP BANCO] Não consegui podar tabelas deriváveis do backup: ${e.message}`);
+  } finally {
+    if (bak) { try { bak.close(); } catch (_) { /* ignora */ } }
+  }
+}
 
 function nomeArquivoHoje() {
   const d = new Date();
@@ -153,6 +175,11 @@ function rodarBackup(opcoesRegistro = {}) {
     // controlado pelo próprio sistema (nunca vem de entrada do usuário),
     // então só escapamos aspas simples por segurança.
     db.exec(`VACUUM INTO '${destino.replace(/'/g, "''")}'`);
+    // Remove do ARQUIVO DE BACKUP (não do banco vivo) tabelas grandes e 100%
+    // deriváveis do Oracle — não precisam ir para o backup. Ex.: recibos do
+    // Extrato (relatório Consumo x Entrega), recarregáveis via "Atualizar via
+    // Oracle". Enxuga o .bak sem perda: é só rodar a carga de novo se preciso.
+    podarTabelasDerivaveis(destino);
     const segundos = Math.round((Date.now() - t0) / 1000);
     const tamanhoMB = (fs.statSync(destino).size / (1024 * 1024)).toFixed(1);
     console.log(`[BACKUP BANCO] Backup salvo: ${nomeArquivoHoje()} (${tamanhoMB} MB, ${segundos}s).`);

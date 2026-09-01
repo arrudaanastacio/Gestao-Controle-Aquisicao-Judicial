@@ -775,6 +775,30 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_entlotes_unidade ON entrada_lotes_itens(
 const colunasEntLotes = db.prepare("PRAGMA table_info(entrada_lotes_itens)").all().map((c) => c.name);
 if (!colunasEntLotes.includes('categoria')) db.exec("ALTER TABLE entrada_lotes_itens ADD COLUMN categoria TEXT");
 
+// Recibos (entrega real) do Extrato de Recibos Emitidos (via Oracle/SCODES).
+// Base do relatório "Consumo x Entrega". Guarda no nível de recibo por
+// (SCODES, demanda, unidade, data) para permitir recortar QUALQUER janela
+// (últimos 30/60/90/120/180/365 dias a partir de hoje) com precisão de dia.
+// Conteúdo é SUBSTITUÍDO por completo a cada sincronização (janela ~12 meses).
+db.exec(`
+CREATE TABLE IF NOT EXISTS recibos_entregas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_item TEXT,
+  descricao_item TEXT,
+  id_demanda TEXT,
+  unidade TEXT,
+  categoria TEXT,
+  tipo_demanda TEXT,
+  status_demanda TEXT,
+  periodicidade REAL,
+  qtde_real_entregue REAL,
+  data_recibo TEXT,
+  data_carga TEXT DEFAULT (datetime('now','localtime'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_recibos_codigo ON recibos_entregas(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_recibos_data ON recibos_entregas(data_recibo);`);
+
 // Movimentações de SAÍDA com Lotes/Validade (via Oracle/SCODES). Mesma
 // lógica da tabela de Entrada: janela dos últimos 12 meses recalculada na
 // query SQL e conteúdo substituído por completo a cada sincronização.
