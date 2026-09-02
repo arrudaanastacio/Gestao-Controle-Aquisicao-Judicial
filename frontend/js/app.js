@@ -1086,6 +1086,7 @@ async function carregarSolicitacoes() {
           <td>${valorCelula(s.qtde_entregue)}</td>
           <td>${valorCelula(s.qtde_pendente)}</td>
           <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
+          <td>${escHtml(s.status_item_processo || '—')}</td>
           <td>${estado.usuario.perfil === 'admin' ? `<button class="botao-editar" data-id="${s.id}">Editar</button>` : ''}</td>
         </tr>
       `;
@@ -1460,6 +1461,7 @@ async function carregarRelatorio() {
         <td>${valorCelula(s.qtde_entregue)}</td>
         <td>${valorCelula(s.qtde_pendente)}</td>
         <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
+        <td>${escHtml(s.status_item_processo || '—')}</td>
       </tr>
     `;
   }).join('');

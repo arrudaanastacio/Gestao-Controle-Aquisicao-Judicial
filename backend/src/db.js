@@ -1354,6 +1354,38 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_empenhos_nota ON empenhos(nota_empenho);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_empenhos_scodes ON empenhos(scodes);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_empenhos_empresa ON empenhos(empresa);`);
 
+// compras_estrategico: foto do Relatório Estratégico de COMPRAS do GsnetCompras
+// (17 colunas escolhidas), importada 1x/dia pelo robô automacao-empenhos/
+// importar-compras.js (que também cria a tabela). Recriada aqui de forma
+// idempotente só para garantir que exista antes do 1º import — as telas
+// "Aquisição em Andamento TP" e "Relatório de Compras Geral" leem a coluna
+// ds_status_item_processo daqui (casada por codigo_item + nr_requisicao).
+db.exec(`
+CREATE TABLE IF NOT EXISTS compras_estrategico (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT,
+  cd_item_siafisico TEXT,
+  codigo_item TEXT,
+  ds_origem_registro TEXT,
+  ano_ref TEXT,
+  mes_ref TEXT,
+  tp_demanda_planilha TEXT,
+  nr_qtde_pendente REAL,
+  nr_requisicao TEXT,
+  ds_situacao_item_rc TEXT,
+  protocolo_processo TEXT,
+  ds_modalidade TEXT,
+  qt_item_processo REAL,
+  ds_situacao_it_proc TEXT,
+  dt_iniciosessaopub TEXT,
+  dt_fimsessaopub TEXT,
+  ds_status_item_processo TEXT,
+  numero_empenho TEXT
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_compras_estrat_item ON compras_estrategico(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_compras_estrat_req ON compras_estrategico(nr_requisicao);`);
+
 // cartas_troca: o CONTROLE em si. Cada registro é 1 carta para 1 item de 1
 // empenho (relação 1-para-1 por linha empenho+medicamento). A empresa protocola
 // a carta quando quer entregar um item com validade menor que a exigida no
