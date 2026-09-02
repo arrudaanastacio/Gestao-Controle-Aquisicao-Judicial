@@ -799,6 +799,54 @@ CREATE TABLE IF NOT EXISTS recibos_entregas (
 db.exec(`CREATE INDEX IF NOT EXISTS idx_recibos_codigo ON recibos_entregas(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_recibos_data ON recibos_entregas(data_recibo);`);
 
+// Conciliação (Associar): baixa de ENTREGA (movimentação de entrada) e de
+// EMPENHO (Controle de Empenhos) nas solicitações de compra. Duas tabelas:
+//   propostas_conciliacao -> fila do robô ("Pendente de aprovação"), persiste
+//     entre execuções; regenerada pelo robô mas guarda o que já foi decidido.
+//   associacoes -> fonte da verdade + AUDITORIA do que foi aplicado, com os
+//     valores ANTERIORES guardados para permitir DESFAZER com exatidão.
+db.exec(`
+CREATE TABLE IF NOT EXISTS propostas_conciliacao (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  origem TEXT,                 -- 'entrega' | 'empenho'
+  chave_origem TEXT,           -- chave natural da entrada, ou id do empenho
+  codigo_item TEXT,
+  solicitacao_id INTEGER,
+  quantidade REAL,
+  confianca TEXT,              -- 'alta' | 'revisar'
+  sinais_json TEXT,            -- quais sinais bateram (SCODES/Empenho/Quantidade)
+  resultado_previsto TEXT,     -- 'Finalizado' | 'Entrega Parcial' | 'Empenhado'
+  detalhe_json TEXT,           -- foto da linha de origem (entrada/empenho)
+  situacao TEXT DEFAULT 'pendente', -- 'pendente' | 'aprovada' | 'rejeitada'
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_prop_situacao ON propostas_conciliacao(origem, situacao);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_prop_chave ON propostas_conciliacao(origem, chave_origem);`);
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS associacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  origem TEXT,                 -- 'entrega' | 'empenho'
+  codigo_item TEXT,
+  solicitacao_id INTEGER,
+  sol_ano INTEGER, sol_mes TEXT, sol_tipo TEXT,
+  quantidade REAL,             -- quantidade aplicada
+  chave_origem TEXT,           -- chave natural da entrada / id do empenho (evita duplicar)
+  detalhe_json TEXT,           -- foto da linha de origem
+  -- valores ANTERIORES da solicitação (para desfazer com exatidão):
+  status_anterior TEXT, status_novo TEXT,
+  qtde_entregue_anterior REAL, qtde_pendente_anterior REAL, data_entrega_anterior TEXT,
+  n_empenho_anterior TEXT, quantidade_empenho_anterior REAL,
+  como TEXT,                   -- 'robo' | 'manual'
+  usuario_email TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  desfeita INTEGER DEFAULT 0, desfeita_em TEXT, desfeita_por TEXT
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_assoc_chave ON associacoes(origem, chave_origem, desfeita);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_assoc_sol ON associacoes(solicitacao_id);`);
+
 // Movimentações de SAÍDA com Lotes/Validade (via Oracle/SCODES). Mesma
 // lógica da tabela de Entrada: janela dos últimos 12 meses recalculada na
 // query SQL e conteúdo substituído por completo a cada sincronização.

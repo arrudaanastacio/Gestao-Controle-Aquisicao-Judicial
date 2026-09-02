@@ -41,6 +41,8 @@
             <a href="#" data-pagina="evolucao">Evolução de Estoque</a>
             <a href="#" data-pagina="historico">Histórico de Estoque</a>
             <a href="#" data-pagina="entradaLotes">Movimentação de Entrada</a>
+            <a href="#" data-pagina="associarEntrada">Associar Entrada à Compra</a>
+            <a href="#" data-pagina="roboEmpenhos">Robô de Empenhos</a>
             <a href="#" data-pagina="saidaLotes">Movimentação de Saída</a>
             <a href="#" data-pagina="reservas">Reservas de Estoque</a>
             <a href="#" data-pagina="rupturas">Rupturas</a>
@@ -2191,6 +2193,142 @@
         </div>
       </div>
 
+      <section id="paginaAssociarEntrada" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Associar Entrada à Compra</h2>
+            <p>O robô cruza cada entrada com as compras em aberto (SCODES + Empenho + Quantidade) e dá a baixa de entrega. Você aprova ou associa manualmente.</p>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <button id="botaoGerarConciliacao" class="botao-secundario" type="button" hidden>🤖 Rodar robô agora</button>
+          </div>
+        </div>
+        <div id="statusConciliacao" class="aviso-status" hidden style="margin:0 0 10px;"></div>
+
+        <div class="filtros-faixa" id="abasConciliacao" style="margin:6px 0 14px;">
+          <button type="button" class="chip-faixa ativo" data-aba="pend">Pendente de aprovação <span class="cont-aba" id="contPend"></span></button>
+          <button type="button" class="chip-faixa" data-aba="assoc">A associar <span class="cont-aba" id="contAssoc"></span></button>
+          <button type="button" class="chip-faixa" data-aba="aud">Auditoria <span class="cont-aba" id="contAud"></span></button>
+        </div>
+
+        <!-- Pendente de aprovação -->
+        <div id="concViewPend">
+          <div class="tabela-wrap"><div class="tabela-rolavel-x">
+            <table style="width:100%;">
+              <thead><tr>
+                <th>Entrada</th><th>Compra sugerida</th><th>Confiança</th><th>Resultado</th><th></th>
+              </tr></thead>
+              <tbody id="concPendBody"></tbody>
+            </table>
+          </div><div class="estado-vazio" id="concPendVazio" hidden>Nenhuma proposta pendente. Rode o robô para gerar.</div></div>
+        </div>
+
+        <!-- A associar -->
+        <div id="concViewAssoc" hidden>
+          <div class="barra-filtros">
+            <input type="text" id="concBuscaAssoc" placeholder="Buscar por SCODES, item ou empenho…" style="min-width:280px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--cinza-texto);"><input type="checkbox" id="concSoComEmpenho" checked> Só com empenho</label>
+            <span id="concAssocTotal" style="font-size:13px; color:var(--cinza-texto);"></span>
+          </div>
+          <div class="tabela-wrap"><div class="tabela-rolavel-x">
+            <table style="width:100%;">
+              <thead><tr>
+                <th>Data</th><th>Item / SCODES</th><th class="num">Qtde</th><th>Empenho</th><th></th>
+              </tr></thead>
+              <tbody id="concAssocBody"></tbody>
+            </table>
+          </div><div class="estado-vazio" id="concAssocVazio" hidden>Nada para associar manualmente.</div></div>
+        </div>
+
+        <!-- Auditoria -->
+        <div id="concViewAud" hidden>
+          <div class="tabela-wrap"><div class="tabela-rolavel-x">
+            <table style="width:100%;">
+              <thead><tr>
+                <th>Registrado em</th><th>Item / SCODES</th><th>Entrada</th><th>Compra (mês)</th><th class="num">Qtde</th><th>Status</th><th>Origem</th><th></th>
+              </tr></thead>
+              <tbody id="concAudBody"></tbody>
+            </table>
+          </div><div class="estado-vazio" id="concAudVazio" hidden>Nenhuma baixa registrada.</div></div>
+        </div>
+      </section>
+
+      <!-- Modal: associar entrada manualmente -->
+      <div class="fundo-modal" id="modalAssociarEntrada" hidden>
+        <div class="modal" style="max-width:640px;">
+          <h3>Associar entrada a uma compra</h3>
+          <p class="texto-secundario" style="margin-top:-6px;">Selecione a qual mês associar. A quantidade vem da própria entrada.</p>
+          <div id="concEntradaBox" style="display:flex; flex-wrap:wrap; gap:12px 20px; border:1px solid var(--linha); border-radius:var(--raio); padding:12px 14px; background:var(--realce-tabela); margin-bottom:12px;"></div>
+          <div class="tabela-rolavel" id="concCorpoCompras" style="max-height:44vh;"></div>
+          <div id="concResultado" class="aviso-status" hidden style="margin-top:12px;"></div>
+          <div class="acoes-modal">
+            <button type="button" class="botao-secundario" id="concCancelar">Cancelar</button>
+            <button type="button" class="botao-primario" id="concConfirmar" disabled>Confirmar associação</button>
+          </div>
+        </div>
+      </div>
+
+      <section id="paginaRoboEmpenhos" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Robô de Empenhos</h2>
+            <p>O robô cruza o Controle de Empenhos com as compras em aberto sem empenho (SCODES/Siafísico + Requisição + SEI + Quantidade) e preenche o Nº Empenho. Você aprova ou associa manualmente.</p>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <button id="botaoGerarEmpenhos" class="botao-secundario" type="button" hidden>🤖 Rodar robô agora</button>
+          </div>
+        </div>
+
+        <div class="filtros-faixa" id="abasEmpenhos" style="margin:6px 0 14px;">
+          <button type="button" class="chip-faixa ativo" data-aba="pend">Pendente de aprovação <span class="cont-aba" id="empContPend"></span></button>
+          <button type="button" class="chip-faixa" data-aba="assoc">A associar <span class="cont-aba" id="empContAssoc"></span></button>
+          <button type="button" class="chip-faixa" data-aba="aud">Auditoria de empenhos <span class="cont-aba" id="empContAud"></span></button>
+        </div>
+
+        <div id="empViewPend">
+          <div class="tabela-wrap"><div class="tabela-rolavel-x">
+            <table style="width:100%;"><thead><tr>
+              <th>Compra sem empenho</th><th>Empenho sugerido</th><th>Confiança</th><th>Resultado</th><th></th>
+            </tr></thead><tbody id="empPendBody"></tbody></table>
+          </div><div class="estado-vazio" id="empPendVazio" hidden>Nenhuma proposta pendente. Rode o robô para gerar.</div></div>
+        </div>
+
+        <div id="empViewAssoc" hidden>
+          <div class="barra-filtros">
+            <input type="text" id="empBuscaAssoc" placeholder="Buscar por SCODES ou mês…" style="min-width:260px;">
+            <span id="empAssocTotal" style="font-size:13px; color:var(--cinza-texto);"></span>
+          </div>
+          <div class="tabela-wrap"><div class="tabela-rolavel-x">
+            <table style="width:100%;"><thead><tr>
+              <th>Compra (mês)</th><th>Item / SCODES</th><th class="num">Solicitada</th><th>Requisição GSNET</th><th></th>
+            </tr></thead><tbody id="empAssocBody"></tbody></table>
+          </div><div class="estado-vazio" id="empAssocVazio" hidden>Nenhuma compra em aberto sem empenho.</div></div>
+        </div>
+
+        <div id="empViewAud" hidden>
+          <div class="tabela-wrap"><div class="tabela-rolavel-x">
+            <table style="width:100%;"><thead><tr>
+              <th>Registrado em</th><th>Item / SCODES</th><th>Compra (mês)</th><th>Nº Empenho</th><th class="num">Qtde</th><th>Status</th><th>Origem</th><th></th>
+            </tr></thead><tbody id="empAudBody"></tbody></table>
+          </div><div class="estado-vazio" id="empAudVazio" hidden>Nenhum empenho associado.</div></div>
+        </div>
+      </section>
+
+      <!-- Modal: associar empenho a uma compra -->
+      <div class="fundo-modal" id="modalAssociarEmpenho" hidden>
+        <div class="modal" style="max-width:720px;">
+          <h3>Associar empenho a uma compra</h3>
+          <p class="texto-secundario" style="margin-top:-6px;">Escolha o empenho do Controle de Empenhos para preencher esta compra.</p>
+          <div id="empCompraBox" style="display:flex; flex-wrap:wrap; gap:12px 20px; border:1px solid var(--linha); border-radius:var(--raio); padding:12px 14px; background:var(--realce-tabela); margin-bottom:12px;"></div>
+          <div class="tabela-rolavel" id="empCorpoCandidatos" style="max-height:46vh;"></div>
+          <div id="empResultado" class="aviso-status" hidden style="margin-top:12px;"></div>
+          <div class="acoes-modal">
+            <button type="button" class="botao-secundario" id="empCancelar">Cancelar</button>
+            <button type="button" class="botao-primario" id="empConfirmar" disabled>Confirmar empenho</button>
+          </div>
+        </div>
+      </div>
+
       <section id="paginaComparativoAutores" hidden>
         <div class="cabecalho-pagina">
           <div>
@@ -3665,6 +3803,6 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=75"></script>
+  <script src="/js/app.js?v=77"></script>
 </body>
 </html>

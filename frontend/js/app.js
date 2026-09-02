@@ -231,6 +231,8 @@ async function carregarUsuario() {
     verificarStatusOracleRelatorioItens();
     document.getElementById('botaoAtualizarConsumoEntrega').hidden = false;
     verificarStatusOracleConsumoEntrega();
+    document.getElementById('botaoGerarConciliacao').hidden = false;
+    document.getElementById('botaoGerarEmpenhos').hidden = false;
     document.querySelectorAll('.botao-atualizar-agora').forEach((b) => { b.hidden = false; });
     document.getElementById('acoesAtasAdmin').hidden = false;
     atualizarBadgeAlertas();
@@ -277,6 +279,8 @@ function aplicarPermissoesNav() {
     relatorioImportados: 'relatorioComprasImportados', analiseImportados: 'analiseImportados',
     relatorioItensImportados: 'relatorioItensImportados',
     consumoEntrega: 'consumoEntrega',
+    associarEntrada: 'associarEntrada',
+    roboEmpenhos: 'roboEmpenhos',
     comparativoAutores: 'comparativoAutoresTP', relatorioReq: 'relatorioReqTP',
     cartasTroca: 'cartasTroca',
     atas: 'atas',
@@ -396,6 +400,8 @@ const ICONES_NAV = {
   analiseImportados: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/>',
   relatorioItensImportados: '<path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/><path d="M13 13h4M13 16h4"/>',
   consumoEntrega: '<path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/>',
+  associarEntrada: '<path d="M4 7h16"/><path d="M4 12h10"/><path d="M4 17h7"/><path d="M15 16l2 2 4-4"/>',
+  roboEmpenhos: '<rect x="4" y="8" width="16" height="12" rx="2"/><path d="M9 8V5a3 3 0 0 1 6 0v3"/><path d="M9 14h.01M15 14h.01"/>',
   comparativoAutores: '<path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/>',
   relatorioReq: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M8 11h8M8 15h8M8 19h5"/>',
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
@@ -685,6 +691,8 @@ const TRILHAS = {
   relatorioItens: ['Consultas', 'Relatório de Itens'],
   atas: ['Consultas', 'Atas de Registro de Preço'],
   consumoEntrega: ['Consultas', 'Consumo x Entrega'],
+  associarEntrada: ['Estoque', 'Associar Entrada à Compra'],
+  roboEmpenhos: ['Estoque', 'Robô de Empenhos'],
   usuarios: ['Administração', 'Usuários'],
   importadores: ['Administração', 'Importação'],
   statusServicos: ['Administração', 'Status dos Serviços'],
@@ -728,6 +736,8 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaAnaliseImportados').hidden = pagina !== 'analiseImportados';
   document.getElementById('paginaRelatorioItensImportados').hidden = pagina !== 'relatorioItensImportados';
   document.getElementById('paginaConsumoEntrega').hidden = pagina !== 'consumoEntrega';
+  document.getElementById('paginaAssociarEntrada').hidden = pagina !== 'associarEntrada';
+  document.getElementById('paginaRoboEmpenhos').hidden = pagina !== 'roboEmpenhos';
   document.getElementById('paginaComparativoAutores').hidden = pagina !== 'comparativoAutores';
   document.getElementById('paginaRelatorioReq').hidden = pagina !== 'relatorioReq';
   document.getElementById('paginaCartasTroca').hidden = pagina !== 'cartasTroca';
@@ -769,6 +779,8 @@ async function mudarPagina(pagina) {
     if (pagina === 'analiseImportados') await carregarAnaliseImportados();
     if (pagina === 'relatorioItensImportados') await carregarRelatorioItensImportados();
     if (pagina === 'consumoEntrega') await carregarConsumoEntrega();
+    if (pagina === 'associarEntrada') await carregarAssociarEntrada();
+    if (pagina === 'roboEmpenhos') await carregarRoboEmpenhos();
     if (pagina === 'comparativoAutores') await carregarComparativo();
     if (pagina === 'relatorioReq') await carregarRelatorioReq();
     if (pagina === 'cartasTroca') await carregarCartasTroca();
@@ -7345,6 +7357,430 @@ document.getElementById('botaoAtualizarConsumoEntrega').addEventListener('click'
     timerStatusOracleCE = setInterval(verificarStatusOracleConsumoEntrega, 5000);
     verificarStatusOracleConsumoEntrega();
   } catch (e) { mostrarStatusOracleCE('❌ Erro de rede ao iniciar.', '#b00020'); botao.disabled = false; }
+});
+
+// ==================== Associar Entrada à Compra (conciliação) ====================
+// Notificação efêmera simples (não havia toast no app).
+function mostrarToast(msg) {
+  let t = document.getElementById('__toastGlobal');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = '__toastGlobal';
+    t.style.cssText = 'position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px); background:var(--selo, #1f5c52); color:#fff; padding:11px 18px; border-radius:10px; font-size:13.5px; font-weight:500; box-shadow:0 8px 24px rgba(0,0,0,.2); opacity:0; transition:.28s; z-index:9999; pointer-events:none; max-width:90vw;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(0)'; });
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(20px)'; }, 2800);
+}
+
+const estadoConc = { aba: 'pend', propostas: [], aAssociar: [], auditoria: [], modalEntrada: null, escolha: null };
+
+async function carregarAssociarEntrada() {
+  await Promise.all([carregarConcPropostas(), carregarConcAssociar(), carregarConcAuditoria()]);
+  mostrarAbaConc(estadoConc.aba);
+}
+async function carregarConcPropostas() {
+  try { estadoConc.propostas = (await api('/conciliacao/entrada/propostas')).propostas || []; }
+  catch (e) { estadoConc.propostas = []; }
+  renderConcPend();
+}
+async function carregarConcAssociar() {
+  try { estadoConc.aAssociar = (await api('/conciliacao/entrada/a-associar')).fila || []; }
+  catch (e) { estadoConc.aAssociar = []; }
+  renderConcAssoc();
+}
+async function carregarConcAuditoria() {
+  try { estadoConc.auditoria = (await api('/conciliacao/auditoria')).auditoria || []; }
+  catch (e) { estadoConc.auditoria = []; }
+  renderConcAud();
+}
+
+function mostrarAbaConc(aba) {
+  estadoConc.aba = aba;
+  document.querySelectorAll('#abasConciliacao .chip-faixa').forEach((b) => b.classList.toggle('ativo', b.dataset.aba === aba));
+  document.getElementById('concViewPend').hidden = aba !== 'pend';
+  document.getElementById('concViewAssoc').hidden = aba !== 'assoc';
+  document.getElementById('concViewAud').hidden = aba !== 'aud';
+}
+
+function chipConfConc(c) {
+  return c === 'alta'
+    ? '<span class="tag-status" style="background:#1f7a5c22; color:#1f7a5c; border:1px solid #1f7a5c55;">Alta confiança</span>'
+    : '<span class="tag-status" style="background:#1c6cad22; color:#1c6cad; border:1px solid #1c6cad55;">Revisar</span>';
+}
+function sinaisConc(s) {
+  const rot = { SCODES: 'SCODES', Empenho: 'Empenho', Quantidade: 'Quantidade' };
+  return '<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:5px;">' + Object.keys(rot).map((k) => {
+    const ok = s[k];
+    const cor = ok ? 'background:#1f7a5c18; color:#1f7a5c; border-color:#1f7a5c40;' : 'background:var(--realce-tabela); color:var(--cinza-texto); border-color:var(--linha);';
+    return `<span style="font-size:10.5px; padding:1px 6px; border-radius:5px; border:1px solid; ${cor}${ok ? '' : ' text-decoration:line-through;'}">${ok ? '✓' : '✕'} ${rot[k]}</span>`;
+  }).join('') + '</div>';
+}
+
+function renderConcPend() {
+  const corpo = document.getElementById('concPendBody');
+  const vazio = document.getElementById('concPendVazio');
+  document.getElementById('contPend').textContent = estadoConc.propostas.length ? `(${estadoConc.propostas.length})` : '';
+  if (!estadoConc.propostas.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
+  vazio.hidden = true;
+  corpo.innerHTML = estadoConc.propostas.map((p) => {
+    const d = p.detalhe || {};
+    const badge = p.resultado_previsto === 'Finalizado'
+      ? '<span class="tag-status" style="background:#1f7a5c22; color:#1f7a5c; border:1px solid #1f7a5c55;">Finalizado</span>'
+      : '<span class="tag-status" style="background:#b4530922; color:#b45309; border:1px solid #b4530955;">Entrega Parcial</span>';
+    return `<tr>
+      <td><div style="font-weight:500;">${escHtml(d.item || p.codigo_item)}</div>
+        <div class="col-codigo">${escHtml(p.codigo_item)}</div>
+        <div class="texto-apoio" style="font-size:11.5px; margin-top:3px;">${escHtml((d.data_entrada || '').slice(0, 16))} · <b>${fmtNumero(p.quantidade)} un</b> · empenho ${escHtml(d.nota_empenho || '—')}</div></td>
+      <td><b>${escHtml(d.sol_mes || '')}/${escHtml(String(d.sol_ano || ''))} · ${escHtml(d.sol_tipo || '')}</b>
+        <div class="texto-apoio" style="font-size:12px;">${escHtml(d.sol_status || '')} · pendente ${fmtNumero(d.sol_pendente || 0)}</div></td>
+      <td>${chipConfConc(p.confianca)}${sinaisConc(p.sinais || {})}</td>
+      <td>${badge}</td>
+      <td style="text-align:right; white-space:nowrap;">
+        <button class="botao-secundario conc-rej" data-id="${p.id}" style="padding:4px 10px; font-size:12px;">Rejeitar</button>
+        <button class="botao-primario conc-apr" data-id="${p.id}" style="padding:4px 10px; font-size:12px;">Aprovar</button></td>
+    </tr>`;
+  }).join('');
+  corpo.querySelectorAll('.conc-apr').forEach((b) => b.addEventListener('click', () => aprovarConc(b.dataset.id)));
+  corpo.querySelectorAll('.conc-rej').forEach((b) => b.addEventListener('click', () => rejeitarConc(b.dataset.id)));
+}
+
+async function aprovarConc(id) {
+  try {
+    const r = await api('/conciliacao/entrada/aprovar/' + id, { method: 'POST' });
+    mostrarToast(`Aprovado — compra ficou ${r.status}.`);
+    await Promise.all([carregarConcPropostas(), carregarConcAuditoria()]);
+  } catch (e) { alert(e.message); }
+}
+async function rejeitarConc(id) {
+  try {
+    await api('/conciliacao/entrada/rejeitar/' + id, { method: 'POST' });
+    await Promise.all([carregarConcPropostas(), carregarConcAssociar()]);
+  } catch (e) { alert(e.message); }
+}
+
+function renderConcAssoc() {
+  const corpo = document.getElementById('concAssocBody');
+  const vazio = document.getElementById('concAssocVazio');
+  document.getElementById('contAssoc').textContent = estadoConc.aAssociar.length ? `(${estadoConc.aAssociar.length})` : '';
+  const termo = normalizarBusca(document.getElementById('concBuscaAssoc').value || '');
+  const soEmp = document.getElementById('concSoComEmpenho').checked;
+  let lista = estadoConc.aAssociar.filter((e) => !soEmp || (e.nota_empenho && e.nota_empenho !== '—' && e.nota_empenho !== ''));
+  if (termo) lista = lista.filter((e) => normalizarBusca(`${e.codigo_item} ${e.item} ${e.nota_empenho || ''}`).includes(termo));
+  document.getElementById('concAssocTotal').textContent = `${fmtNumero(lista.length)} de ${fmtNumero(estadoConc.aAssociar.length)}`;
+  const mostra = lista.slice(0, 200);
+  if (!mostra.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
+  vazio.hidden = true;
+  corpo.innerHTML = mostra.map((e, i) => `<tr>
+      <td class="col-codigo">${escHtml((e.data_entrada || '').slice(0, 16))}</td>
+      <td><div style="font-weight:500;">${escHtml(e.item || '—')}</div><div class="col-codigo">${escHtml(e.codigo_item)}</div></td>
+      <td class="num" style="font-weight:600;">${fmtNumero(e.qtde)}</td>
+      <td class="col-codigo">${escHtml(e.nota_empenho || '—')}</td>
+      <td style="text-align:right;"><button class="botao-primario conc-assoc" data-idx="${i}" style="padding:4px 10px; font-size:12px;">Associar</button></td>
+    </tr>`).join('') + (lista.length > 200 ? `<tr><td colspan="5" class="texto-apoio" style="text-align:center;">Mostrando 200 de ${fmtNumero(lista.length)}. Refine a busca.</td></tr>` : '');
+  corpo.querySelectorAll('.conc-assoc').forEach((b) => b.addEventListener('click', () => abrirModalAssoc(mostra[Number(b.dataset.idx)])));
+}
+
+async function abrirModalAssoc(entrada) {
+  estadoConc.modalEntrada = entrada; estadoConc.escolha = null;
+  document.getElementById('concEntradaBox').innerHTML = [
+    ['Item', escHtml(entrada.item || entrada.codigo_item)],
+    ['SCODES', `<span class="col-codigo">${escHtml(entrada.codigo_item)}</span>`],
+    ['Entrada', `<span class="col-codigo">${escHtml((entrada.data_entrada || '').slice(0, 16))}</span>`],
+    ['Qtde a baixar', `<b>${fmtNumero(entrada.qtde)}</b>`],
+    ['Empenho', `<span class="col-codigo">${escHtml(entrada.nota_empenho || '—')}</span>`],
+  ].map(([k, v]) => `<div><div class="texto-apoio" style="font-size:10.5px; text-transform:uppercase;">${k}</div><div style="font-weight:600; font-size:13px;">${v}</div></div>`).join('');
+  const corpo = document.getElementById('concCorpoCompras');
+  corpo.innerHTML = '<p class="texto-apoio" style="padding:8px 0;">Carregando compras em aberto…</p>';
+  document.getElementById('concResultado').hidden = true;
+  document.getElementById('concConfirmar').disabled = true;
+  document.getElementById('modalAssociarEntrada').hidden = false;
+  try {
+    const d = await api('/conciliacao/entrada/compras-abertas?codigo=' + encodeURIComponent(entrada.codigo_item));
+    if (!d.compras.length) { corpo.innerHTML = '<p class="texto-apoio" style="padding:8px 0;">Nenhuma compra em aberto para este SCODES.</p>'; return; }
+    corpo.innerHTML = `<table class="tabela"><tbody>${d.compras.map((c, i) => `
+      <tr class="conc-opt" data-idx="${i}" style="cursor:pointer;">
+        <td style="width:26px;"><input type="radio" name="concCompra" value="${i}"></td>
+        <td><b>${escHtml(c.mes)}/${escHtml(String(c.ano))} · ${escHtml(c.tipo)}</b>
+          <div class="texto-apoio" style="font-size:12px;">${escHtml(c.status)} · pendente ${fmtNumero(c.pendente)} · ${c.n_empenho ? 'empenho ' + escHtml(c.n_empenho) : 'sem empenho'}</div></td>
+      </tr>`).join('')}</tbody></table>`;
+    corpo._compras = d.compras;
+    corpo.querySelectorAll('.conc-opt').forEach((o) => o.addEventListener('click', () => selecionarCompraConc(Number(o.dataset.idx))));
+  } catch (e) { corpo.innerHTML = `<p class="texto-apoio" style="color:var(--vermelho);">Erro: ${escHtml(e.message)}</p>`; }
+}
+
+function selecionarCompraConc(idx) {
+  const corpo = document.getElementById('concCorpoCompras');
+  const c = corpo._compras[idx]; estadoConc.escolha = c;
+  corpo.querySelectorAll('.conc-opt').forEach((o, i) => { o.style.background = i === idx ? 'var(--realce-tabela)' : ''; const r = o.querySelector('input'); if (r) r.checked = i === idx; });
+  const q = estadoConc.modalEntrada.qtde;
+  const res = document.getElementById('concResultado');
+  let html;
+  if (q >= c.pendente) {
+    const sobra = q - c.pendente;
+    html = `<b>Finalizado</b> — baixa ${fmtNumero(c.pendente)} de ${fmtNumero(c.pendente)}; a compra de ${escHtml(c.mes)} é finalizada.` + (sobra > 0 ? ` <span style="color:#b45309;">Sobra ${fmtNumero(sobra)} un.</span>` : '');
+  } else {
+    html = `<b>Entrega Parcial</b> — baixa ${fmtNumero(q)} de ${fmtNumero(c.pendente)}; pendente cai para ${fmtNumero(c.pendente - q)}.`;
+  }
+  const emp = estadoConc.modalEntrada.nota_empenho;
+  if (emp && emp !== '—' && c.n_empenho && normalizarBusca(emp).replace(/ne0*/g, 'ne') !== normalizarBusca(c.n_empenho).replace(/ne0*/g, 'ne')) {
+    html += `<br><span style="color:#b45309;">⚠ Empenho divergente: entrada ${escHtml(emp)} ≠ compra ${escHtml(c.n_empenho)} — confirme.</span>`;
+  }
+  res.innerHTML = html; res.hidden = false;
+  document.getElementById('concConfirmar').disabled = false;
+}
+
+async function confirmarAssocConc() {
+  const e = estadoConc.modalEntrada, c = estadoConc.escolha;
+  if (!c) return;
+  const btn = document.getElementById('concConfirmar'); btn.disabled = true;
+  try {
+    const r = await api('/conciliacao/entrada/associar-manual', { method: 'POST', body: JSON.stringify({
+      solicitacao_id: c.id, quantidade: e.qtde, chave_origem: e.chave_origem,
+      detalhe: { item: e.item, data_entrada: e.data_entrada, nota_fiscal: e.nota_fiscal, nota_empenho: e.nota_empenho, lote: e.lote, qtde: e.qtde },
+    }) });
+    document.getElementById('modalAssociarEntrada').hidden = true;
+    mostrarToast(`Associado a ${c.mes} — ${r.status}.`);
+    await Promise.all([carregarConcAssociar(), carregarConcAuditoria()]);
+  } catch (err) { alert(err.message); btn.disabled = false; }
+}
+
+function renderConcAud() {
+  const corpo = document.getElementById('concAudBody');
+  const vazio = document.getElementById('concAudVazio');
+  document.getElementById('contAud').textContent = estadoConc.auditoria.length ? `(${estadoConc.auditoria.length})` : '';
+  if (!estadoConc.auditoria.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
+  vazio.hidden = true;
+  corpo.innerHTML = estadoConc.auditoria.map((a) => {
+    const d = a.detalhe || {};
+    const badge = a.status === 'Finalizado'
+      ? '<span class="tag-status" style="background:#1f7a5c22; color:#1f7a5c; border:1px solid #1f7a5c55;">Finalizado</span>'
+      : '<span class="tag-status" style="background:#b4530922; color:#b45309; border:1px solid #b4530955;">Entrega Parcial</span>';
+    return `<tr${a.desfeita ? ' style="opacity:.5;"' : ''}>
+      <td class="col-codigo">${escHtml((a.criado_em || '').slice(0, 16))}</td>
+      <td><div style="font-weight:500;">${escHtml(d.item || a.codigo_item)}</div><div class="col-codigo">${escHtml(a.codigo_item)}</div></td>
+      <td class="col-codigo">${escHtml((d.data_entrada || '').slice(0, 10))}</td>
+      <td>${escHtml(a.mes || '')}/${escHtml(String(a.ano || ''))} · ${escHtml(a.tipo || '')}</td>
+      <td class="num" style="font-weight:600;">${fmtNumero(a.quantidade)}</td>
+      <td>${a.desfeita ? '<span class="texto-apoio">desfeita</span>' : badge}</td>
+      <td class="texto-apoio">${a.como === 'manual' ? 'Manual' : 'Robô'}</td>
+      <td style="text-align:right;">${a.desfeita ? '' : `<button class="botao-secundario conc-undo" data-id="${a.id}" style="padding:4px 10px; font-size:12px;">Desfazer</button>`}</td>
+    </tr>`;
+  }).join('');
+  corpo.querySelectorAll('.conc-undo').forEach((b) => b.addEventListener('click', () => desfazerConc(b.dataset.id)));
+}
+async function desfazerConc(id) {
+  if (!confirm('Desfazer esta baixa? A compra volta ao status anterior.')) return;
+  try {
+    await api('/conciliacao/desfazer/' + id, { method: 'POST' });
+    mostrarToast('Baixa desfeita.');
+    await Promise.all([carregarConcAuditoria(), carregarConcAssociar(), carregarConcPropostas()]);
+  } catch (e) { alert(e.message); }
+}
+
+// Listeners da tela Associar Entrada
+document.querySelectorAll('#abasConciliacao .chip-faixa').forEach((b) => b.addEventListener('click', () => mostrarAbaConc(b.dataset.aba)));
+document.getElementById('concBuscaAssoc').addEventListener('input', renderConcAssoc);
+document.getElementById('concSoComEmpenho').addEventListener('change', renderConcAssoc);
+document.getElementById('concCancelar').addEventListener('click', () => { document.getElementById('modalAssociarEntrada').hidden = true; });
+document.getElementById('modalAssociarEntrada').addEventListener('click', (ev) => { if (ev.target.id === 'modalAssociarEntrada') ev.currentTarget.hidden = true; });
+document.getElementById('concConfirmar').addEventListener('click', confirmarAssocConc);
+document.getElementById('botaoGerarConciliacao').addEventListener('click', async () => {
+  const btn = document.getElementById('botaoGerarConciliacao'); btn.disabled = true; btn.textContent = '🤖 Rodando…';
+  try {
+    const r = await api('/conciliacao/entrada/gerar', { method: 'POST' });
+    mostrarToast(`Robô rodou: ${r.total} proposta(s) — ${r.alta} alta, ${r.revisar} revisar.`);
+    await carregarAssociarEntrada();
+  } catch (e) { alert(e.message); }
+  btn.disabled = false; btn.textContent = '🤖 Rodar robô agora';
+});
+
+// ==================== Robô de Empenhos ====================
+const estadoEmp = { aba: 'pend', propostas: [], aAssociar: [], auditoria: [], modalCompra: null, escolha: null };
+
+async function carregarRoboEmpenhos() {
+  await Promise.all([carregarEmpPropostas(), carregarEmpAssociar(), carregarEmpAuditoria()]);
+  mostrarAbaEmp(estadoEmp.aba);
+}
+async function carregarEmpPropostas() {
+  try { estadoEmp.propostas = (await api('/conciliacao/empenho/propostas')).propostas || []; } catch (e) { estadoEmp.propostas = []; }
+  renderEmpPend();
+}
+async function carregarEmpAssociar() {
+  try { estadoEmp.aAssociar = (await api('/conciliacao/empenho/a-associar')).fila || []; } catch (e) { estadoEmp.aAssociar = []; }
+  renderEmpAssoc();
+}
+async function carregarEmpAuditoria() {
+  try { estadoEmp.auditoria = (await api('/conciliacao/auditoria?origem=empenho')).auditoria || []; } catch (e) { estadoEmp.auditoria = []; }
+  renderEmpAud();
+}
+function mostrarAbaEmp(aba) {
+  estadoEmp.aba = aba;
+  document.querySelectorAll('#abasEmpenhos .chip-faixa').forEach((b) => b.classList.toggle('ativo', b.dataset.aba === aba));
+  document.getElementById('empViewPend').hidden = aba !== 'pend';
+  document.getElementById('empViewAssoc').hidden = aba !== 'assoc';
+  document.getElementById('empViewAud').hidden = aba !== 'aud';
+}
+function sinaisEmp(s) {
+  const rot = { SCODES: 'SCODES', Requisicao: 'Requisição', SEI: 'SEI', Quantidade: 'Quantidade' };
+  return '<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:5px;">' + Object.keys(rot).map((k) => {
+    const ok = s[k];
+    const cor = ok ? 'background:#1f7a5c18; color:#1f7a5c; border-color:#1f7a5c40;' : 'background:var(--realce-tabela); color:var(--cinza-texto); border-color:var(--linha);';
+    return `<span style="font-size:10.5px; padding:1px 6px; border-radius:5px; border:1px solid; ${cor}${ok ? '' : ' text-decoration:line-through;'}">${ok ? '✓' : '✕'} ${rot[k]}</span>`;
+  }).join('') + '</div>';
+}
+function renderEmpPend() {
+  const corpo = document.getElementById('empPendBody'), vazio = document.getElementById('empPendVazio');
+  document.getElementById('empContPend').textContent = estadoEmp.propostas.length ? `(${estadoEmp.propostas.length})` : '';
+  if (!estadoEmp.propostas.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
+  vazio.hidden = true;
+  corpo.innerHTML = estadoEmp.propostas.map((p) => {
+    const d = p.detalhe || {};
+    return `<tr>
+      <td><b>${escHtml(d.sol_mes || '')}/${escHtml(String(d.sol_ano || ''))} · ${escHtml(d.sol_tipo || '')}</b>
+        <div class="col-codigo">${escHtml(p.codigo_item)}</div>
+        <div class="texto-apoio" style="font-size:11.5px;">${escHtml(d.sol_status || '')} · solicitada ${fmtNumero(d.sol_solicitada || 0)}</div></td>
+      <td><b class="col-codigo" style="font-size:13px;">${escHtml(d.nota_empenho || '—')}</b>
+        <div class="texto-apoio" style="font-size:11.5px;">qtde ${fmtNumero(d.quantidade || 0)}${d.numero_requisicao ? ' · req ' + escHtml(d.numero_requisicao) : ''}</div>
+        <div class="texto-apoio" style="font-size:11px;">${escHtml((d.empresa || '').slice(0, 34))}</div></td>
+      <td>${chipConfConc(p.confianca)}${sinaisEmp(p.sinais || {})}</td>
+      <td><span class="tag-status" style="background:#1c6cad22; color:#1c6cad; border:1px solid #1c6cad55;">→ Empenhado</span></td>
+      <td style="text-align:right; white-space:nowrap;">
+        <button class="botao-secundario emp-rej" data-id="${p.id}" style="padding:4px 10px; font-size:12px;">Rejeitar</button>
+        <button class="botao-primario emp-apr" data-id="${p.id}" style="padding:4px 10px; font-size:12px;">Aprovar</button></td>
+    </tr>`;
+  }).join('');
+  corpo.querySelectorAll('.emp-apr').forEach((b) => b.addEventListener('click', () => aprovarEmp(b.dataset.id)));
+  corpo.querySelectorAll('.emp-rej').forEach((b) => b.addEventListener('click', () => rejeitarEmp(b.dataset.id)));
+}
+async function aprovarEmp(id) {
+  try {
+    const r = await api('/conciliacao/empenho/aprovar/' + id, { method: 'POST' });
+    mostrarToast(`Empenho ${r.n_empenho} preenchido — status ${r.status}.`);
+    await Promise.all([carregarEmpPropostas(), carregarEmpAssociar(), carregarEmpAuditoria()]);
+  } catch (e) { alert(e.message); }
+}
+async function rejeitarEmp(id) {
+  try { await api('/conciliacao/empenho/rejeitar/' + id, { method: 'POST' }); await carregarEmpPropostas(); }
+  catch (e) { alert(e.message); }
+}
+function renderEmpAssoc() {
+  const corpo = document.getElementById('empAssocBody'), vazio = document.getElementById('empAssocVazio');
+  document.getElementById('empContAssoc').textContent = estadoEmp.aAssociar.length ? `(${estadoEmp.aAssociar.length})` : '';
+  const termo = normalizarBusca(document.getElementById('empBuscaAssoc').value || '');
+  let lista = estadoEmp.aAssociar;
+  if (termo) lista = lista.filter((s) => normalizarBusca(`${s.codigo_item} ${s.mes} ${s.ano}`).includes(termo));
+  document.getElementById('empAssocTotal').textContent = `${fmtNumero(lista.length)} de ${fmtNumero(estadoEmp.aAssociar.length)}`;
+  const mostra = lista.slice(0, 200);
+  if (!mostra.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
+  vazio.hidden = true;
+  corpo.innerHTML = mostra.map((s, i) => `<tr>
+      <td><b>${escHtml(s.mes)}/${escHtml(String(s.ano))} · ${escHtml(s.tipo)}</b><div class="texto-apoio" style="font-size:11.5px;">${escHtml(s.status)}</div></td>
+      <td class="col-codigo">${escHtml(s.codigo_item)}</td>
+      <td class="num" style="font-weight:600;">${fmtNumero(s.solicitada || 0)}</td>
+      <td class="col-codigo">${escHtml(s.requisicao_gsnet || '—')}</td>
+      <td style="text-align:right;"><button class="botao-primario emp-assoc" data-idx="${i}" style="padding:4px 10px; font-size:12px;">Escolher empenho</button></td>
+    </tr>`).join('') + (lista.length > 200 ? `<tr><td colspan="5" class="texto-apoio" style="text-align:center;">Mostrando 200 de ${fmtNumero(lista.length)}. Refine a busca.</td></tr>` : '');
+  corpo.querySelectorAll('.emp-assoc').forEach((b) => b.addEventListener('click', () => abrirModalEmp(mostra[Number(b.dataset.idx)])));
+}
+async function abrirModalEmp(compra) {
+  estadoEmp.modalCompra = compra; estadoEmp.escolha = null;
+  document.getElementById('empCompraBox').innerHTML = [
+    ['Compra', `<b>${escHtml(compra.mes)}/${escHtml(String(compra.ano))} · ${escHtml(compra.tipo)}</b>`],
+    ['SCODES', `<span class="col-codigo">${escHtml(compra.codigo_item)}</span>`],
+    ['Solicitada', `<b>${fmtNumero(compra.solicitada || 0)}</b>`],
+    ['Requisição GSNET', `<span class="col-codigo">${escHtml(compra.requisicao_gsnet || '—')}</span>`],
+    ['Status', escHtml(compra.status)],
+  ].map(([k, v]) => `<div><div class="texto-apoio" style="font-size:10.5px; text-transform:uppercase;">${k}</div><div style="font-weight:600; font-size:13px;">${v}</div></div>`).join('');
+  const corpo = document.getElementById('empCorpoCandidatos');
+  corpo.innerHTML = '<p class="texto-apoio" style="padding:8px 0;">Buscando empenhos candidatos…</p>';
+  document.getElementById('empResultado').hidden = true;
+  document.getElementById('empConfirmar').disabled = true;
+  document.getElementById('modalAssociarEmpenho').hidden = false;
+  try {
+    const d = await api('/conciliacao/empenho/candidatos?codigo=' + encodeURIComponent(compra.codigo_item));
+    if (!d.empenhos.length) { corpo.innerHTML = '<p class="texto-apoio" style="padding:8px 0;">Nenhum empenho encontrado para este SCODES/Siafísico no Controle de Empenhos.</p>'; return; }
+    corpo.innerHTML = `<table class="tabela"><tbody>${d.empenhos.map((e, i) => `
+      <tr class="emp-opt" data-idx="${i}" style="cursor:${e.ja_associado ? 'not-allowed' : 'pointer'}; ${e.ja_associado ? 'opacity:.45;' : ''}">
+        <td style="width:26px;"><input type="radio" name="empCand" value="${i}" ${e.ja_associado ? 'disabled' : ''}></td>
+        <td><b class="col-codigo" style="font-size:13px;">${escHtml(e.nota_empenho || '—')}</b>${e.ja_associado ? ' <span class="texto-apoio">(já usado)</span>' : ''}
+          <div class="texto-apoio" style="font-size:12px;">qtde ${fmtNumero(e.quantidade || 0)}${e.numero_requisicao ? ' · req ' + escHtml(e.numero_requisicao) : ''} · ${escHtml((e.empresa || '').slice(0, 30))}</div></td>
+      </tr>`).join('')}</tbody></table>`;
+    corpo._emps = d.empenhos;
+    corpo.querySelectorAll('.emp-opt').forEach((o) => o.addEventListener('click', () => {
+      const e = corpo._emps[Number(o.dataset.idx)];
+      if (e.ja_associado) return;
+      selecionarEmpCand(Number(o.dataset.idx));
+    }));
+  } catch (e) { corpo.innerHTML = `<p class="texto-apoio" style="color:var(--vermelho);">Erro: ${escHtml(e.message)}</p>`; }
+}
+function selecionarEmpCand(idx) {
+  const corpo = document.getElementById('empCorpoCandidatos');
+  const e = corpo._emps[idx]; estadoEmp.escolha = e;
+  corpo.querySelectorAll('.emp-opt').forEach((o, i) => { o.style.background = i === idx ? 'var(--realce-tabela)' : ''; const r = o.querySelector('input'); if (r && !r.disabled) r.checked = i === idx; });
+  const c = estadoEmp.modalCompra;
+  const novoStatus = (c.status === 'Planejamento' || c.status === 'Adjudicado') ? 'Empenhado' : c.status;
+  const res = document.getElementById('empResultado');
+  res.innerHTML = `Preenche <b>Nº Empenho ${escHtml(e.nota_empenho)}</b> e <b>Qtde Empenhada ${fmtNumero(e.quantidade || 0)}</b>` + (novoStatus !== c.status ? ` · status <b>${escHtml(c.status)} → ${escHtml(novoStatus)}</b>.` : ` · status mantém <b>${escHtml(c.status)}</b>.`);
+  res.hidden = false;
+  document.getElementById('empConfirmar').disabled = false;
+}
+async function confirmarAssocEmp() {
+  const c = estadoEmp.modalCompra, e = estadoEmp.escolha; if (!e) return;
+  const btn = document.getElementById('empConfirmar'); btn.disabled = true;
+  try {
+    const r = await api('/conciliacao/empenho/associar-manual', { method: 'POST', body: JSON.stringify({
+      solicitacao_id: c.solicitacao_id, chave_origem: e.chave_origem,
+      detalhe: { nota_empenho: e.nota_empenho, quantidade: e.quantidade, empresa: e.empresa, numero_requisicao: e.numero_requisicao, processo: e.processo, sol_mes: c.mes, sol_ano: c.ano, sol_tipo: c.tipo },
+    }) });
+    document.getElementById('modalAssociarEmpenho').hidden = true;
+    mostrarToast(`Empenho ${r.n_empenho} preenchido — status ${r.status}.`);
+    await Promise.all([carregarEmpAssociar(), carregarEmpAuditoria()]);
+  } catch (err) { alert(err.message); btn.disabled = false; }
+}
+function renderEmpAud() {
+  const corpo = document.getElementById('empAudBody'), vazio = document.getElementById('empAudVazio');
+  document.getElementById('empContAud').textContent = estadoEmp.auditoria.length ? `(${estadoEmp.auditoria.length})` : '';
+  if (!estadoEmp.auditoria.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
+  vazio.hidden = true;
+  corpo.innerHTML = estadoEmp.auditoria.map((a) => {
+    const d = a.detalhe || {};
+    return `<tr${a.desfeita ? ' style="opacity:.5;"' : ''}>
+      <td class="col-codigo">${escHtml((a.criado_em || '').slice(0, 16))}</td>
+      <td><div style="font-weight:500;">${escHtml(d.medicamento || d.item || a.codigo_item)}</div><div class="col-codigo">${escHtml(a.codigo_item)}</div></td>
+      <td>${escHtml(a.mes || '')}/${escHtml(String(a.ano || ''))} · ${escHtml(a.tipo || '')}</td>
+      <td class="col-codigo">${escHtml(d.nota_empenho || '—')}</td>
+      <td class="num" style="font-weight:600;">${fmtNumero(a.quantidade || 0)}</td>
+      <td>${a.desfeita ? '<span class="texto-apoio">desfeita</span>' : '<span class="tag-status" style="background:#1c6cad22; color:#1c6cad; border:1px solid #1c6cad55;">' + escHtml(a.status || 'Empenhado') + '</span>'}</td>
+      <td class="texto-apoio">${a.como === 'manual' ? 'Manual' : 'Robô'}</td>
+      <td style="text-align:right;">${a.desfeita ? '' : `<button class="botao-secundario emp-undo" data-id="${a.id}" style="padding:4px 10px; font-size:12px;">Desfazer</button>`}</td>
+    </tr>`;
+  }).join('');
+  corpo.querySelectorAll('.emp-undo').forEach((b) => b.addEventListener('click', () => desfazerEmp(b.dataset.id)));
+}
+async function desfazerEmp(id) {
+  if (!confirm('Desfazer este empenho? A compra volta ao status e empenho anteriores.')) return;
+  try {
+    await api('/conciliacao/desfazer/' + id, { method: 'POST' });
+    mostrarToast('Empenho desfeito.');
+    await Promise.all([carregarEmpAuditoria(), carregarEmpAssociar(), carregarEmpPropostas()]);
+  } catch (e) { alert(e.message); }
+}
+document.querySelectorAll('#abasEmpenhos .chip-faixa').forEach((b) => b.addEventListener('click', () => mostrarAbaEmp(b.dataset.aba)));
+document.getElementById('empBuscaAssoc').addEventListener('input', renderEmpAssoc);
+document.getElementById('empCancelar').addEventListener('click', () => { document.getElementById('modalAssociarEmpenho').hidden = true; });
+document.getElementById('modalAssociarEmpenho').addEventListener('click', (ev) => { if (ev.target.id === 'modalAssociarEmpenho') ev.currentTarget.hidden = true; });
+document.getElementById('empConfirmar').addEventListener('click', confirmarAssocEmp);
+document.getElementById('botaoGerarEmpenhos').addEventListener('click', async () => {
+  const btn = document.getElementById('botaoGerarEmpenhos'); btn.disabled = true; btn.textContent = '🤖 Rodando…';
+  try {
+    const r = await api('/conciliacao/empenho/gerar', { method: 'POST' });
+    mostrarToast(`Robô rodou: ${r.total} proposta(s) — ${r.alta} alta, ${r.revisar} revisar.`);
+    await carregarRoboEmpenhos();
+  } catch (e) { alert(e.message); }
+  btn.disabled = false; btn.textContent = '🤖 Rodar robô agora';
 });
 
 // -------------------- Comparativo de Autores (anterior × atual) --------------------
