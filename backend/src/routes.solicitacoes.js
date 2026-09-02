@@ -13,6 +13,15 @@ const ORDEM_MES = {
 const STATUS_FINALIZADOS = ['Finalizado', 'Cancelado', 'Revogado', 'Fracassado', 'Deserto'];
 const STATUS_EM_ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial'];
 
+// Status do item NO PROCESSO (GSNET, via robô de Compras) que indicam pendência
+// — usados na aba de Alertas "Pendências no processo".
+const STATUS_PROC_PENDENCIA = ['Descontinuado', 'Cancelado', 'Deserto', 'Fracassado', 'Revogado'];
+// Sub-select que resolve o "Status Item Processo" de uma solicitação (alias s).
+const SUB_STATUS_PROC = `(SELECT ce.ds_status_item_processo FROM compras_estrategico ce
+  WHERE ce.codigo_item = s.codigo_item AND TRIM(ce.nr_requisicao) = TRIM(s.requisicao_gsnet)
+    AND ce.ds_status_item_processo IS NOT NULL AND ce.ds_status_item_processo <> ''
+  ORDER BY ce.id DESC LIMIT 1)`;
+
 // Lista/busca solicitações com filtros (todos os perfis podem consultar)
 router.get('/', (req, res) => {
   const { q, status, ano, mes, atrasados, statusProcesso, page = 1, pageSize = 50 } = req.query;
@@ -117,6 +126,36 @@ router.get('/status-processo', (req, res) => {
     ).all().map((r) => r.v);
   } catch (_) { valores = []; }
   res.json({ valores });
+});
+
+// Pendências no processo (para a aba de Alertas): solicitações cujo Status Item
+// Processo (GSNET) é um dos STATUS_PROC_PENDENCIA. Devolve a contagem de cada
+// status (para os "badges" das abas) e, se `status` for um deles, TODAS as
+// linhas daquele status (sem paginação — são poucas centenas).
+router.get('/pendencias-processo', (req, res) => {
+  const status = String(req.query.status || '').trim();
+  const contagens = {};
+  try {
+    for (const st of STATUS_PROC_PENDENCIA) {
+      contagens[st] = db.prepare(
+        `SELECT COUNT(*) c FROM solicitacoes s JOIN itens i ON s.codigo_item = i.codigo_item
+         WHERE ${SUB_STATUS_PROC} = ?`
+      ).get(st).c;
+    }
+  } catch (_) { /* sem compras_estrategico ainda */ }
+
+  let solicitacoes = [];
+  if (STATUS_PROC_PENDENCIA.includes(status)) {
+    try {
+      solicitacoes = db.prepare(
+        `SELECT s.*, i.descricao, i.codigo_siafisico, ${SUB_STATUS_PROC} AS status_item_processo
+         FROM solicitacoes s JOIN itens i ON s.codigo_item = i.codigo_item
+         WHERE ${SUB_STATUS_PROC} = ?
+         ORDER BY s.ano DESC, s.id DESC`
+      ).all(status);
+    } catch (_) { solicitacoes = []; }
+  }
+  res.json({ statuses: STATUS_PROC_PENDENCIA, contagens, status, solicitacoes });
 });
 
 // Busca do andamento de um medicamento específico por código ou descrição,

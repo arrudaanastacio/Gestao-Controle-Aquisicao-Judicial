@@ -10536,6 +10536,78 @@ async function carregarAlertas() {
   container.querySelectorAll('button[data-siaf]').forEach((btn) => {
     btn.addEventListener('click', () => abrirRelatorioSiafisico(btn.dataset.siaf, document.getElementById('filtroCategoriaAlerta').value));
   });
+
+  carregarPendenciasProcesso();
+}
+
+// ---- Aba de Alertas: "Pendências no processo de compra (GSNET)" ----
+// Uma aba por status (Descontinuado/Cancelado/Deserto/Fracassado/Revogado);
+// cada aba mostra, no formato do Relatório de Compras, os itens cujo Status Item
+// Processo é aquele status. Fonte: robô de Compras (compras_estrategico).
+let pendProcStatusAtivo = null;
+let pendProcListenerPronto = false;
+
+async function carregarPendenciasProcesso(status) {
+  const bloco = document.getElementById('blocoPendenciaProcesso');
+  if (!bloco) return;
+  if (!pendProcListenerPronto) {
+    document.getElementById('abasPendenciaProcesso').addEventListener('click', (ev) => {
+      const chip = ev.target.closest('[data-status-proc]');
+      if (chip) carregarPendenciasProcesso(chip.dataset.statusProc);
+    });
+    pendProcListenerPronto = true;
+  }
+
+  let dados;
+  try { dados = await api(`/solicitacoes/pendencias-processo?status=${encodeURIComponent(status || pendProcStatusAtivo || '')}`); }
+  catch (e) { bloco.hidden = true; return; }
+
+  const contagens = dados.contagens || {};
+  const statuses = dados.statuses || [];
+  const total = statuses.reduce((s, st) => s + (contagens[st] || 0), 0);
+  if (total === 0) { bloco.hidden = true; return; }
+  bloco.hidden = false;
+
+  // Aba ativa: a pedida (se tiver itens) ou a 1a com itens.
+  let ativo = dados.status && contagens[dados.status] ? dados.status : null;
+  if (!ativo) ativo = statuses.find((st) => (contagens[st] || 0) > 0) || statuses[0];
+  // Se a aba ativa mudou (não veio linha da pedida), rebusca as linhas dela.
+  if (ativo !== dados.status) { return carregarPendenciasProcesso(ativo); }
+  pendProcStatusAtivo = ativo;
+
+  document.getElementById('abasPendenciaProcesso').innerHTML = statuses.map((st) =>
+    `<button type="button" class="chip-faixa ${st === ativo ? 'ativo' : ''}" data-status-proc="${escAttr(st)}">${escHtml(st)} <span class="cont-aba">${contagens[st] || 0}</span></button>`
+  ).join('');
+
+  const corpo = document.getElementById('corpoPendenciaProcesso');
+  const vazio = document.getElementById('vazioPendenciaProcesso');
+  const linhas = dados.solicitacoes || [];
+  if (!linhas.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
+  vazio.hidden = true;
+  corpo.innerHTML = linhas.map((s) => {
+    const classe = classeStatus(s.status, s.data_previsao_entrega);
+    const rotulo = rotuloStatus(s.status, s.data_previsao_entrega);
+    return `
+      <tr>
+        <td class="col-codigo">${s.codigo_item || '—'}</td>
+        <td class="col-codigo">${s.codigo_siafisico || '—'}</td>
+        <td>${s.descricao || '—'}</td>
+        <td>${s.ano || '—'}</td>
+        <td>${s.mes || '—'}</td>
+        <td>${s.tipo ? `<span class="tag-tipo">${s.tipo}</span>` : '—'}</td>
+        <td>${s.modalidade_compra || '—'}</td>
+        <td class="col-codigo">${s.n_oficio || '—'}</td>
+        <td>${valorCelula(s.qtde_solicitada)}</td>
+        <td class="col-data">${formatarData(s.data_solicitacao)}</td>
+        <td class="col-codigo">${fmtGsnet(s.requisicao_gsnet) || '—'}</td>
+        <td class="col-codigo">${s.n_empenho || '—'}</td>
+        <td class="col-data">${formatarData(s.data_entrega)}</td>
+        <td>${valorCelula(s.qtde_entregue)}</td>
+        <td>${valorCelula(s.qtde_pendente)}</td>
+        <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
+        <td>${escHtml(s.status_item_processo || '—')}</td>
+      </tr>`;
+  }).join('');
 }
 
 // Modal do alerta "Siafísico duplicado": itens do Estoque TP (demanda ativa)

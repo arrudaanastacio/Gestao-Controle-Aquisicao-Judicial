@@ -2967,6 +2967,42 @@
         </div>
         <div id="graficoAlertasCategoria" class="grafico-categoria"></div>
         <div id="listaAlertas"></div>
+
+        <!-- Pendências no processo de compra (GSNET) — uma aba por status -->
+        <div id="blocoPendenciaProcesso" style="margin-top:24px;" hidden>
+          <h3 style="margin:0 0 2px;">Pendências no processo de compra (GSNET)</h3>
+          <p class="texto-apoio" style="margin:0 0 10px;">Itens cujo <strong>Status Item Processo</strong> indica que a compra não avançou. Dados do robô de Compras (GsnetCompras).</p>
+          <div class="filtros-faixa" id="abasPendenciaProcesso" style="margin:6px 0 14px;"></div>
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Código do Item</th>
+                    <th>Código Siafísico</th>
+                    <th>Descrição do Item</th>
+                    <th>Ano</th>
+                    <th>Mês</th>
+                    <th>Tipo</th>
+                    <th>Modalidade de Compra</th>
+                    <th>Ofício</th>
+                    <th>Qtde. Solicitada</th>
+                    <th>Data de Solicitação</th>
+                    <th>Requisição GSNET</th>
+                    <th>Nº Empenho</th>
+                    <th>Data Entrega</th>
+                    <th>Qtde. Entregue</th>
+                    <th>Qtde. Pendente</th>
+                    <th>Status do Item</th>
+                    <th>Status Item Processo</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoPendenciaProcesso"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="vazioPendenciaProcesso" hidden>Nenhum item neste status.</div>
+          </div>
+        </div>
       </section>
 
       <section id="paginaUsuarios" hidden>
