@@ -15,7 +15,7 @@ const STATUS_EM_ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Pa
 
 // Lista/busca solicitações com filtros (todos os perfis podem consultar)
 router.get('/', (req, res) => {
-  const { q, status, ano, mes, atrasados, page = 1, pageSize = 50 } = req.query;
+  const { q, status, ano, mes, atrasados, statusProcesso, page = 1, pageSize = 50 } = req.query;
   const limit = Math.min(parseInt(pageSize, 10) || 50, 200);
   const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
 
@@ -50,6 +50,13 @@ router.get('/', (req, res) => {
       AND date(s.data_previsao_entrega) < date('now')
       AND (s.status IS NULL OR s.status NOT IN (${STATUS_FINALIZADOS.map(() => '?').join(',')}))`);
     params.push(...STATUS_FINALIZADOS);
+  }
+  if (statusProcesso) {
+    condicoes.push(`(SELECT ce.ds_status_item_processo FROM compras_estrategico ce
+      WHERE ce.codigo_item = s.codigo_item AND TRIM(ce.nr_requisicao) = TRIM(s.requisicao_gsnet)
+        AND ce.ds_status_item_processo IS NOT NULL AND ce.ds_status_item_processo <> ''
+      ORDER BY ce.id DESC LIMIT 1) = ?`);
+    params.push(statusProcesso);
   }
 
   const where = condicoes.length ? `WHERE ${condicoes.join(' AND ')}` : '';
@@ -96,6 +103,20 @@ router.get('/resumo', (req, res) => {
   `).all().sort((a, b) => a.ano - b.ano || ORDEM_MES[a.mes] - ORDEM_MES[b.mes]);
 
   res.json({ porStatus, atrasados, porMes });
+});
+
+// Valores distintos de "Status Item Processo" (do robô de Compras) para popular
+// o filtro nas telas de Aquisição em Andamento e Relatório de Compras Geral.
+router.get('/status-processo', (req, res) => {
+  let valores = [];
+  try {
+    valores = db.prepare(
+      `SELECT DISTINCT ds_status_item_processo AS v FROM compras_estrategico
+       WHERE ds_status_item_processo IS NOT NULL AND ds_status_item_processo <> ''
+       ORDER BY v`
+    ).all().map((r) => r.v);
+  } catch (_) { valores = []; }
+  res.json({ valores });
 });
 
 // Busca do andamento de um medicamento específico por código ou descrição,

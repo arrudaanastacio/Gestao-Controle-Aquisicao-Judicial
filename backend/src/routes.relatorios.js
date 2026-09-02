@@ -20,7 +20,7 @@ const ORDEM_MES = {
  * permitir consolidações parciais, mas por padrão devolve a base completa.
  */
 router.get('/consolidado', (req, res) => {
-  const { q, status, ano, mes, formato } = req.query;
+  const { q, status, ano, mes, statusProcesso, formato } = req.query;
 
   const condicoes = [
     "s.modalidade_compra IS NOT NULL",
@@ -48,6 +48,13 @@ router.get('/consolidado', (req, res) => {
   if (mes) {
     condicoes.push('s.mes = ?');
     params.push(mes);
+  }
+  if (statusProcesso) {
+    condicoes.push(`(SELECT ce.ds_status_item_processo FROM compras_estrategico ce
+      WHERE ce.codigo_item = s.codigo_item AND TRIM(ce.nr_requisicao) = TRIM(s.requisicao_gsnet)
+        AND ce.ds_status_item_processo IS NOT NULL AND ce.ds_status_item_processo <> ''
+      ORDER BY ce.id DESC LIMIT 1) = ?`);
+    params.push(statusProcesso);
   }
 
   const where = `WHERE ${condicoes.join(' AND ')}`;

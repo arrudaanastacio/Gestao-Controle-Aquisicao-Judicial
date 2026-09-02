@@ -982,6 +982,7 @@ async function selecionarStatusPainel(status) {
 const filtroBusca = document.getElementById('filtroBusca');
 const filtroStatus = document.getElementById('filtroStatus');
 const filtroAno = document.getElementById('filtroAno');
+const filtroStatusProcesso = document.getElementById('filtroStatusProcesso');
 const filtroAtrasados = document.getElementById('filtroAtrasados');
 
 let debounceBusca;
@@ -991,6 +992,7 @@ filtroBusca.addEventListener('input', () => {
 });
 filtroStatus.addEventListener('change', () => { estado.solicitacoes.pagina = 1; carregarSolicitacoes(); });
 filtroAno.addEventListener('change', () => { estado.solicitacoes.pagina = 1; carregarSolicitacoes(); });
+filtroStatusProcesso.addEventListener('change', () => { estado.solicitacoes.pagina = 1; carregarSolicitacoes(); });
 filtroAtrasados.addEventListener('change', () => { estado.solicitacoes.pagina = 1; carregarSolicitacoes(); });
 
 function preencherAnos() {
@@ -1050,9 +1052,11 @@ async function carregarSolicitacoes() {
   if (filtroBusca.value) params.set('q', filtroBusca.value);
   if (filtroStatus.value) params.set('status', filtroStatus.value);
   if (filtroAno.value) params.set('ano', filtroAno.value);
+  if (filtroStatusProcesso.value) params.set('statusProcesso', filtroStatusProcesso.value);
   if (filtroAtrasados.checked) params.set('atrasados', 'true');
   params.set('page', estado.solicitacoes.pagina);
   params.set('pageSize', estado.solicitacoes.pageSize);
+  popularFiltroStatusProcesso();
 
   const { solicitacoes, total } = await api(`/solicitacoes?${params.toString()}`);
   estado.solicitacoes.total = total;
@@ -1363,6 +1367,7 @@ async function buscarMedicamento() {
 const filtroAnoRelatorio = document.getElementById('filtroAnoRelatorio');
 const filtroBuscaRelatorio = document.getElementById('filtroBuscaRelatorio');
 const filtroStatusRelatorio = document.getElementById('filtroStatusRelatorio');
+const filtroStatusProcessoRelatorio = document.getElementById('filtroStatusProcessoRelatorio');
 
 // Monta os parâmetros de filtro atuais do relatório
 function paramsRelatorio() {
@@ -1370,6 +1375,7 @@ function paramsRelatorio() {
   if (filtroAnoRelatorio.value) params.set('ano', filtroAnoRelatorio.value);
   if (filtroBuscaRelatorio.value.trim()) params.set('q', filtroBuscaRelatorio.value.trim());
   if (filtroStatusRelatorio.value) params.set('status', filtroStatusRelatorio.value);
+  if (filtroStatusProcessoRelatorio.value) params.set('statusProcesso', filtroStatusProcessoRelatorio.value);
   return params;
 }
 
@@ -1381,6 +1387,7 @@ document.getElementById('botaoExportarRelatorio').addEventListener('click', () =
 
 filtroAnoRelatorio.addEventListener('change', carregarRelatorio);
 filtroStatusRelatorio.addEventListener('change', carregarRelatorio);
+filtroStatusProcessoRelatorio.addEventListener('change', carregarRelatorio);
 let debounceBuscaRelatorio;
 filtroBuscaRelatorio.addEventListener('input', () => {
   clearTimeout(debounceBuscaRelatorio);
@@ -1390,8 +1397,27 @@ document.getElementById('botaoLimparFiltrosRelatorio').addEventListener('click',
   filtroBuscaRelatorio.value = '';
   filtroStatusRelatorio.value = '';
   filtroAnoRelatorio.value = '';
+  filtroStatusProcessoRelatorio.value = '';
   carregarRelatorio();
 });
+
+// Popula (uma vez) os dois filtros "Status Item Processo" com os valores reais
+// vindos do robô de Compras (compras_estrategico). Preserva a seleção atual.
+let statusProcessoCarregado = false;
+async function popularFiltroStatusProcesso() {
+  if (statusProcessoCarregado) return;
+  statusProcessoCarregado = true;
+  let valores = [];
+  try { valores = (await api('/solicitacoes/status-processo')).valores || []; }
+  catch (e) { statusProcessoCarregado = false; return; }
+  const opcoes = valores.map((v) => `<option value="${escAttr(v)}">${escHtml(v)}</option>`).join('');
+  for (const sel of [filtroStatusProcesso, filtroStatusProcessoRelatorio]) {
+    if (!sel) continue;
+    const atual = sel.value;
+    sel.innerHTML = '<option value="">Status Item Processo: todos</option>' + opcoes;
+    sel.value = atual;
+  }
+}
 
 // KPIs do Relatório de Compras TP, calculados no navegador a partir das linhas
 // já carregadas — refletem o filtro atual (ano/status/busca) da tela.
@@ -1414,6 +1440,7 @@ function renderKpisRelatorio(solicitacoes) {
 
 async function carregarRelatorio() {
   carregarUltimaAtualizacao('atualizadoRelatorio', 'solicitacoes');
+  popularFiltroStatusProcesso();
   if (filtroAnoRelatorio.options.length <= 1) {
     const anoAtual = new Date().getFullYear();
     for (let a = anoAtual + 1; a >= 2025; a--) {
