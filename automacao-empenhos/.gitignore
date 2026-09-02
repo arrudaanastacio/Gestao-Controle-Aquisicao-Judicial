@@ -4,7 +4,11 @@ dump-*.html
 *.png
 campos-*.json
 links-*.json
+form-*.json
+config-*.json
+compras-*.html
 downloads/
+downloads-compras/
 *.xlsx
 log.txt
 log-*.txt
