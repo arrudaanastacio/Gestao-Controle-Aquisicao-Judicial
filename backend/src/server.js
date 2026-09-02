@@ -97,6 +97,11 @@ app.use('/api/autores', autenticar, exigirModuloDinamico((req) => {
 
 app.use('/api/itens-importados', autenticar, exigirModulo('relatorioItensImportados'), require('./routes.itensImportados'));
 app.use('/api/consumo-entrega', autenticar, exigirModulo('consumoEntrega'), require('./routes.consumoEntrega'));
+app.use('/api/conciliacao', autenticar, exigirModuloDinamico((req) => {
+  if (req.path.startsWith('/empenho')) return 'roboEmpenhos';
+  if (req.path.startsWith('/entrada')) return 'associarEntrada';
+  return ['associarEntrada', 'roboEmpenhos']; // /auditoria e /desfazer: qualquer um
+}), require('./routes.conciliacao'));
 app.use('/api/relatorio-itens', autenticar, exigirModulo('relatorioItens'), relatorioItensRoutes);
 app.use('/api/atas', autenticar, exigirModulo('atas'), atasRoutes);
 app.use('/api/planejamento', autenticar, exigirModulo('planejamento'), require('./routes.planejamento'));

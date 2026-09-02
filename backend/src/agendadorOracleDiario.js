@@ -18,6 +18,7 @@ const { executarAtualizacaoEntradaLotesOracle } = require('./routes.entradaLotes
 const { executarAtualizacaoSaidaLotesOracle } = require('./routes.saidaLotes');
 const { executarAtualizacaoRelatorioItensOracle } = require('./routes.relatorioItens');
 const { executarAtualizacaoRecibosOracle } = require('./routes.consumoEntrega');
+const conc = require('./conciliacao');
 const { agendarDiariamente } = require('./agendadorUtil');
 const reg = require('./registroServicos');
 const db = require('./db');
@@ -75,10 +76,17 @@ async function rodarCadeiaDiaria(opcoesRegistro = {}) {
   await etapa('Relatório de Itens', executarAtualizacaoRelatorioItensOracle);
   console.log('[AGENDADOR ORACLE] Relatório de Itens concluído. Iniciando Recibos (Consumo x Entrega)...');
   await etapa('Recibos (Consumo x Entrega)', executarAtualizacaoRecibosOracle);
+  // Robôs de conciliação: só REGENERAM as propostas "pendentes de aprovação"
+  // (não aplicam nada sozinhos — a baixa continua dependendo do aceite humano).
+  // Empenhos primeiro (não é obrigatório, mas mantém a ordem do pipeline).
+  console.log('[AGENDADOR ORACLE] Recibos concluído. Regenerando propostas do Robô de Empenhos...');
+  await etapa('Robô de Empenhos (propostas)', async () => conc.regenerarEmpenho());
+  console.log('[AGENDADOR ORACLE] Regenerando propostas do Associar Entrada...');
+  await etapa('Associar Entrada (propostas)', async () => conc.regenerarEntrada());
   console.log('[AGENDADOR ORACLE] Cadeia diária concluída.');
 
   reg.marcarFim('oracleDiario');
-  const tudoFalhou = falhas.length === 6;
+  const tudoFalhou = falhas.length === 8;
   reg.registrarExecucao('oracleDiario', {
     resultado: tudoFalhou ? 'erro' : 'sucesso',
     nivel: tudoFalhou ? 'ERROR' : (falhas.length ? 'WARNING' : 'INFO'),
@@ -97,7 +105,7 @@ function iniciarAgendadorOracleDiario() {
   }
   const hora = Math.min(23, Math.max(0, parseInt(process.env.HORA_SYNC_ESTOQUE, 10) || 6));
   const minuto = Math.min(59, Math.max(0, parseInt(process.env.MINUTO_SYNC_ESTOQUE, 10) || 0));
-  console.log(`[AGENDADOR ORACLE] Ativo — Estoque inicia às ${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}, Autores, Entrada (lotes), Saída (lotes), Relatório de Itens e Recibos (Consumo x Entrega) em seguida.`);
+  console.log(`[AGENDADOR ORACLE] Ativo — Estoque inicia às ${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}, seguido de Autores, Entrada/Saída (lotes), Relatório de Itens, Recibos e os robôs de conciliação (Empenhos e Entrada).`);
   agendarDiariamente('AGENDADOR ORACLE', hora, minuto, rodarCadeiaDiaria, {
     recuperarSePerdido: true,
     jaRodouHoje: estoqueImportouHoje,
