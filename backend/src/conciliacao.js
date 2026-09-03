@@ -80,6 +80,16 @@ function chavesJaAssociadas() {
   return set;
 }
 
+// Conjunto de chaves de entrada marcadas como IGNORAR — para pular (some das
+// abas Pendente e "A associar" e não gera proposta).
+function chavesIgnoradas() {
+  const set = new Set();
+  try {
+    for (const r of db.prepare('SELECT chave_origem FROM entradas_ignoradas').all()) set.add(r.chave_origem);
+  } catch (_) { /* tabela pode nao existir em banco antigo */ }
+  return set;
+}
+
 // Escolhe a melhor solicitação-candidata para uma entrada.
 // Ordem de preferência: casa empenho > quantidade exata > menor pendente que caiba.
 function melhorCandidata(entrada, candidatas) {
@@ -106,6 +116,7 @@ function melhorCandidata(entrada, candidatas) {
 function gerarPropostasEntrada() {
   const abertas = solicitacoesAbertasPorItem();
   const jaAssoc = chavesJaAssociadas();
+  const ignoradas = chavesIgnoradas();
   const entradas = db.prepare(
     "SELECT * FROM entrada_lotes_itens WHERE unidade LIKE '%Tenente Pena%'"
   ).all();
@@ -118,6 +129,7 @@ function gerarPropostasEntrada() {
     if (!candidatas || !candidatas.length) continue;      // sem compra em aberto
     const chave = chaveEntrada(e);
     if (jaAssoc.has(chave)) continue;                     // já associada
+    if (ignoradas.has(chave)) continue;                   // marcada como Ignorar
 
     const best = melhorCandidata(e, candidatas);
     if (!best) continue;
@@ -281,5 +293,5 @@ function regenerarEmpenho() { return salvarPropostasPendentes('empenho', gerarPr
 module.exports = {
   STATUS_ABERTO, normalizarEmpenho, pendenteSolicitacao, chaveEntrada, chaveEmpenho, extrairSEI,
   solicitacoesAbertasPorItem, comprasSemEmpenhoPorItem, gerarPropostasEntrada, gerarPropostasEmpenho,
-  salvarPropostasPendentes, regenerarEntrada, regenerarEmpenho,
+  salvarPropostasPendentes, regenerarEntrada, regenerarEmpenho, chavesIgnoradas,
 };

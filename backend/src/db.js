@@ -1401,6 +1401,19 @@ CREATE TABLE IF NOT EXISTS pendencias_processo_resolvidas (
 );
 `);
 
+// entradas_ignoradas: entradas (Associar Entrada) que o usuario marcou como
+// "Ignorar" — NAO devem ser associadas a nenhuma compra. Somem das abas Pendente
+// e "A associar" e nao voltam. Chave = chaveEntrada (mesma do motor, estavel
+// entre recargas do Oracle). Desmarcar (reativar) remove a linha.
+db.exec(`
+CREATE TABLE IF NOT EXISTS entradas_ignoradas (
+  chave_origem TEXT PRIMARY KEY,
+  codigo_item TEXT,
+  ignorado_por TEXT,
+  ignorado_em TEXT
+);
+`);
+
 // cartas_troca: o CONTROLE em si. Cada registro é 1 carta para 1 item de 1
 // empenho (relação 1-para-1 por linha empenho+medicamento). A empresa protocola
 // a carta quando quer entregar um item com validade menor que a exigida no

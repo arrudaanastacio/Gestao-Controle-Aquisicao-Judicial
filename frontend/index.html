@@ -2222,8 +2222,24 @@
           <button type="button" class="chip-faixa" data-aba="aud">Auditoria <span class="cont-aba" id="contAud"></span></button>
         </div>
 
+        <div class="aviso-status" style="margin:0 0 12px; font-size:12.5px; line-height:1.55;">
+          <b>Aprovar</b>: a baixa de entrega sugerida está correta. &nbsp;·&nbsp;
+          <b>Rejeitar</b>: a sugestão está errada — a entrada volta para <b>A associar</b> para você ligar à compra certa. &nbsp;·&nbsp;
+          <b>Ignorar</b>: esta entrada não deve ser associada a nenhuma compra (some das listas).
+        </div>
+
         <!-- Pendente de aprovação -->
         <div id="concViewPend">
+          <div class="barra-filtros">
+            <input type="text" id="concBuscaPend" placeholder="Buscar por código, empenho ou descrição…" style="min-width:280px;">
+            <select id="concFiltroConf">
+              <option value="">Confiança: todas</option>
+              <option value="alta">Alta confiança</option>
+              <option value="revisar">Revisar</option>
+            </select>
+            <select id="concFiltroMes"><option value="">Mês da compra: todos</option></select>
+            <span id="concPendTotal" style="font-size:13px; color:var(--cinza-texto);"></span>
+          </div>
           <div class="tabela-wrap"><div class="tabela-rolavel-x">
             <table style="width:100%;">
               <thead><tr>
@@ -2239,6 +2255,7 @@
           <div class="barra-filtros">
             <input type="text" id="concBuscaAssoc" placeholder="Buscar por SCODES, item ou empenho…" style="min-width:280px;">
             <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--cinza-texto);"><input type="checkbox" id="concSoComEmpenho" checked> Só com empenho</label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--cinza-texto);"><input type="checkbox" id="concMostrarIgnoradas"> Mostrar ignoradas</label>
             <span id="concAssocTotal" style="font-size:13px; color:var(--cinza-texto);"></span>
           </div>
           <div class="tabela-wrap"><div class="tabela-rolavel-x">

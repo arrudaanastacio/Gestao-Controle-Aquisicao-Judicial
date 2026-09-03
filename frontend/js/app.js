@@ -7423,7 +7423,9 @@ async function carregarConcPropostas() {
   renderConcPend();
 }
 async function carregarConcAssociar() {
-  try { estadoConc.aAssociar = (await api('/conciliacao/entrada/a-associar')).fila || []; }
+  const inc = document.getElementById('concMostrarIgnoradas');
+  const q = inc && inc.checked ? '?incluirIgnoradas=true' : '';
+  try { estadoConc.aAssociar = (await api('/conciliacao/entrada/a-associar' + q)).fila || []; }
   catch (e) { estadoConc.aAssociar = []; }
   renderConcAssoc();
 }
@@ -7455,13 +7457,34 @@ function sinaisConc(s) {
   }).join('') + '</div>';
 }
 
+function mesCompra(p) { const d = p.detalhe || {}; return `${d.sol_mes || ''}/${d.sol_ano || ''}`; }
+
 function renderConcPend() {
   const corpo = document.getElementById('concPendBody');
   const vazio = document.getElementById('concPendVazio');
-  document.getElementById('contPend').textContent = estadoConc.propostas.length ? `(${estadoConc.propostas.length})` : '';
-  if (!estadoConc.propostas.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
+  const todas = estadoConc.propostas;
+  document.getElementById('contPend').textContent = todas.length ? `(${todas.length})` : '';
+
+  // Filtro de mês (opções vêm das compras sugeridas). Preserva a seleção atual.
+  const selMes = document.getElementById('concFiltroMes');
+  const meses = [...new Set(todas.map(mesCompra).filter((m) => m !== '/'))];
+  const mesSel = selMes.value;
+  selMes.innerHTML = '<option value="">Mês da compra: todos</option>' + meses.map((m) => `<option value="${escAttr(m)}">${escHtml(m)}</option>`).join('');
+  selMes.value = meses.includes(mesSel) ? mesSel : '';
+
+  // Filtros client-side: busca (código/empenho/descrição), confiança, mês.
+  const termo = normalizarBusca(document.getElementById('concBuscaPend').value || '');
+  const conf = document.getElementById('concFiltroConf').value;
+  const mes = selMes.value;
+  let lista = todas;
+  if (conf) lista = lista.filter((p) => p.confianca === conf);
+  if (mes) lista = lista.filter((p) => mesCompra(p) === mes);
+  if (termo) lista = lista.filter((p) => { const d = p.detalhe || {}; return normalizarBusca(`${p.codigo_item} ${d.item || ''} ${d.nota_empenho || ''}`).includes(termo); });
+  document.getElementById('concPendTotal').textContent = `${fmtNumero(lista.length)} de ${fmtNumero(todas.length)}`;
+
+  if (!lista.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
   vazio.hidden = true;
-  corpo.innerHTML = estadoConc.propostas.map((p) => {
+  corpo.innerHTML = lista.map((p) => {
     const d = p.detalhe || {};
     const badge = p.resultado_previsto === 'Finalizado'
       ? '<span class="tag-status" style="background:#1f7a5c22; color:#1f7a5c; border:1px solid #1f7a5c55;">Finalizado</span>'
@@ -7475,12 +7498,14 @@ function renderConcPend() {
       <td>${chipConfConc(p.confianca)}${sinaisConc(p.sinais || {})}</td>
       <td>${badge}</td>
       <td style="text-align:right; white-space:nowrap;">
+        <button class="botao-secundario conc-ign" data-chave="${escAttr(p.chave_origem || '')}" data-codigo="${escAttr(p.codigo_item)}" style="padding:4px 10px; font-size:12px;" title="Não associar esta entrada a nenhuma compra">Ignorar</button>
         <button class="botao-secundario conc-rej" data-id="${p.id}" style="padding:4px 10px; font-size:12px;">Rejeitar</button>
         <button class="botao-primario conc-apr" data-id="${p.id}" style="padding:4px 10px; font-size:12px;">Aprovar</button></td>
     </tr>`;
   }).join('');
   corpo.querySelectorAll('.conc-apr').forEach((b) => b.addEventListener('click', () => aprovarConc(b.dataset.id)));
   corpo.querySelectorAll('.conc-rej').forEach((b) => b.addEventListener('click', () => rejeitarConc(b.dataset.id)));
+  corpo.querySelectorAll('.conc-ign').forEach((b) => b.addEventListener('click', () => ignorarConc(b.dataset.chave, b.dataset.codigo, true)));
 }
 
 async function aprovarConc(id) {
@@ -7493,6 +7518,15 @@ async function aprovarConc(id) {
 async function rejeitarConc(id) {
   try {
     await api('/conciliacao/entrada/rejeitar/' + id, { method: 'POST' });
+    await Promise.all([carregarConcPropostas(), carregarConcAssociar()]);
+  } catch (e) { alert(e.message); }
+}
+// Ignorar (ignorar=true) ou Reativar (ignorar=false) uma entrada, pela chave estavel.
+async function ignorarConc(chave, codigo, ignorar) {
+  if (!chave) { alert('Entrada sem chave — não consigo ignorar.'); return; }
+  try {
+    await api('/conciliacao/entrada/ignorar', { method: 'POST', body: JSON.stringify({ chave_origem: chave, codigo_item: codigo, ignorar }) });
+    mostrarToast(ignorar ? 'Entrada ignorada — não aparece mais.' : 'Entrada reativada.');
     await Promise.all([carregarConcPropostas(), carregarConcAssociar()]);
   } catch (e) { alert(e.message); }
 }
@@ -7514,9 +7548,14 @@ function renderConcAssoc() {
       <td><div style="font-weight:500;">${escHtml(e.item || '—')}</div><div class="col-codigo">${escHtml(e.codigo_item)}</div></td>
       <td class="num" style="font-weight:600;">${fmtNumero(e.qtde)}</td>
       <td class="col-codigo">${escHtml(e.nota_empenho || '—')}</td>
-      <td style="text-align:right;"><button class="botao-primario conc-assoc" data-idx="${i}" style="padding:4px 10px; font-size:12px;">Associar</button></td>
+      <td style="text-align:right; white-space:nowrap;">${e.ignorada
+        ? `<button class="botao-secundario conc-reativar" data-chave="${escAttr(e.chave_origem || '')}" data-codigo="${escAttr(e.codigo_item)}" style="padding:4px 10px; font-size:12px;">Reativar</button>`
+        : `<button class="botao-secundario conc-ign2" data-chave="${escAttr(e.chave_origem || '')}" data-codigo="${escAttr(e.codigo_item)}" style="padding:4px 10px; font-size:12px;" title="Não associar esta entrada">Ignorar</button>
+           <button class="botao-primario conc-assoc" data-idx="${i}" style="padding:4px 10px; font-size:12px;">Associar</button>`}</td>
     </tr>`).join('') + (lista.length > 200 ? `<tr><td colspan="5" class="texto-apoio" style="text-align:center;">Mostrando 200 de ${fmtNumero(lista.length)}. Refine a busca.</td></tr>` : '');
   corpo.querySelectorAll('.conc-assoc').forEach((b) => b.addEventListener('click', () => abrirModalAssoc(mostra[Number(b.dataset.idx)])));
+  corpo.querySelectorAll('.conc-ign2').forEach((b) => b.addEventListener('click', () => ignorarConc(b.dataset.chave, b.dataset.codigo, true)));
+  corpo.querySelectorAll('.conc-reativar').forEach((b) => b.addEventListener('click', () => ignorarConc(b.dataset.chave, b.dataset.codigo, false)));
 }
 
 async function abrirModalAssoc(entrada) {
@@ -7620,6 +7659,10 @@ async function desfazerConc(id) {
 document.querySelectorAll('#abasConciliacao .chip-faixa').forEach((b) => b.addEventListener('click', () => mostrarAbaConc(b.dataset.aba)));
 document.getElementById('concBuscaAssoc').addEventListener('input', renderConcAssoc);
 document.getElementById('concSoComEmpenho').addEventListener('change', renderConcAssoc);
+document.getElementById('concBuscaPend').addEventListener('input', renderConcPend);
+document.getElementById('concFiltroConf').addEventListener('change', renderConcPend);
+document.getElementById('concFiltroMes').addEventListener('change', renderConcPend);
+document.getElementById('concMostrarIgnoradas').addEventListener('change', carregarConcAssociar);
 document.getElementById('concCancelar').addEventListener('click', () => { document.getElementById('modalAssociarEntrada').hidden = true; });
 document.getElementById('modalAssociarEntrada').addEventListener('click', (ev) => { if (ev.target.id === 'modalAssociarEntrada') ev.currentTarget.hidden = true; });
 document.getElementById('concConfirmar').addEventListener('click', confirmarAssocConc);

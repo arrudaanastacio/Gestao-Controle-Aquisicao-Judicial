@@ -126,11 +126,12 @@ router.post('/entrada/gerar', exigirPerfil('admin'), (req, res) => {
 
 // ---------- Listas ----------
 router.get('/entrada/propostas', (req, res) => {
+  const ignoradas = conc.chavesIgnoradas();
   const linhas = db.prepare(
     "SELECT * FROM propostas_conciliacao WHERE origem='entrega' AND situacao='pendente' ORDER BY (confianca='alta') DESC, id"
-  ).all();
+  ).all().filter((p) => !ignoradas.has(p.chave_origem));
   res.json({ propostas: linhas.map((p) => ({
-    id: p.id, codigo_item: p.codigo_item, solicitacao_id: p.solicitacao_id,
+    id: p.id, chave_origem: p.chave_origem, codigo_item: p.codigo_item, solicitacao_id: p.solicitacao_id,
     quantidade: p.quantidade, confianca: p.confianca,
     sinais: JSON.parse(p.sinais_json || '{}'), resultado_previsto: p.resultado_previsto,
     detalhe: JSON.parse(p.detalhe_json || '{}'),
@@ -167,23 +168,52 @@ router.get('/entrada/compras-abertas', (req, res) => {
 
 // Fila "A associar": entradas TP com compra em aberto do mesmo SCODES, ainda
 // não associadas e sem proposta pendente (inclui as rejeitadas pelo robô).
+// ?incluirIgnoradas=true -> modo revisao: devolve SO as marcadas como Ignorar.
 router.get('/entrada/a-associar', (req, res) => {
+  const incluirIgnoradas = req.query.incluirIgnoradas === 'true';
   const abertas = conc.solicitacoesAbertasPorItem();
   const jaAssoc = new Set(db.prepare("SELECT chave_origem FROM associacoes WHERE origem='entrega' AND desfeita=0").all().map(r => r.chave_origem));
   const emProposta = new Set(db.prepare("SELECT chave_origem FROM propostas_conciliacao WHERE origem='entrega' AND situacao='pendente'").all().map(r => r.chave_origem));
+  const ignoradas = conc.chavesIgnoradas();
   const entradas = db.prepare("SELECT * FROM entrada_lotes_itens WHERE unidade LIKE '%Tenente Pena%'").all();
   const fila = [];
   for (const e of entradas) {
     if (!abertas.get(e.codigo_item)) continue;
     const chave = conc.chaveEntrada(e);
     if (jaAssoc.has(chave) || emProposta.has(chave)) continue;
+    const ign = ignoradas.has(chave);
+    if (incluirIgnoradas ? !ign : ign) continue; // normal esconde ignoradas; revisao mostra so elas
     fila.push({
       chave_origem: chave, codigo_item: e.codigo_item, item: e.item,
       data_entrada: e.data_entrada, qtde: num(e.qtde), nota_fiscal: e.nota_fiscal,
-      nota_empenho: e.nota_empenho, lote: e.lote,
+      nota_empenho: e.nota_empenho, lote: e.lote, ignorada: ign,
     });
   }
   res.json({ fila });
+});
+
+// Marca/desmarca uma entrada como "Ignorar" (nao deve ser associada). Some das
+// abas Pendente e "A associar" e nao volta. Chave = chaveEntrada (estavel).
+router.post('/entrada/ignorar', (req, res) => {
+  const b = req.body || {};
+  const chave = String(b.chave_origem || '').trim();
+  const codigo = String(b.codigo_item || '').trim();
+  const ignorar = b.ignorar !== false; // padrao: marcar como ignorada
+  if (!chave) return res.status(400).json({ erro: 'Informe a entrada (chave_origem).' });
+  const email = (req.usuario && req.usuario.email) || null;
+  try {
+    if (ignorar) {
+      db.prepare(`INSERT INTO entradas_ignoradas (chave_origem, codigo_item, ignorado_por, ignorado_em)
+        VALUES (?, ?, ?, datetime('now','localtime'))
+        ON CONFLICT(chave_origem) DO UPDATE SET codigo_item=excluded.codigo_item, ignorado_por=excluded.ignorado_por, ignorado_em=excluded.ignorado_em`)
+        .run(chave, codigo || null, email);
+    } else {
+      db.prepare('DELETE FROM entradas_ignoradas WHERE chave_origem=?').run(chave);
+    }
+    db.prepare('INSERT INTO auditoria (usuario_email, acao, tabela, registro_id) VALUES (?,?,?,?)')
+      .run(email, ignorar ? 'ignorar_entrada' : 'reativar_entrada', 'entradas_ignoradas', chave.slice(0, 120));
+  } catch (e) { return res.status(400).json({ erro: 'Nao consegui salvar: ' + e.message }); }
+  res.json({ ok: true, ignorada: ignorar });
 });
 
 // ---------- Ações ----------
