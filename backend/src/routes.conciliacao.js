@@ -17,10 +17,26 @@ function dataEntradaISO(dt){ // '2026-08-31 13:16:00' -> '2026-08-31'
   if(!dt) return null; const s=String(dt); return s.slice(0,10);
 }
 
+// A tabela `solicitacoes` é reimportada ("refaz o mês" = DELETE+INSERT), o que
+// TROCA o id de cada linha. Uma proposta gerada antes da reimportação passa a
+// apontar para um id inexistente → "Solicitação não encontrada" ao aprovar.
+// Este helper reencontra a solicitação pela CHAVE NATURAL (codigo_item + ano +
+// mes + tipo) guardada no detalhe da proposta, quando o id não existir mais.
+function reencontrarSolicitacao(codigoItem, detalhe, opts = {}) {
+  if (!codigoItem || !detalhe || detalhe.sol_ano == null || !detalhe.sol_mes) return null;
+  const cond = opts.semEmpenho ? "AND (n_empenho IS NULL OR n_empenho='')" : '';
+  return db.prepare(
+    `SELECT * FROM solicitacoes
+      WHERE codigo_item=? AND ano=? AND mes=? AND (tipo IS ? OR tipo=?) ${cond}
+      ORDER BY id DESC LIMIT 1`
+  ).get(codigoItem, detalhe.sol_ano, detalhe.sol_mes, detalhe.sol_tipo || null, detalhe.sol_tipo || '');
+}
+
 // ---------- Aplicar / desfazer a BAIXA DE ENTREGA numa solicitação ----------
 // Núcleo compartilhado por "aprovar proposta" e "associar manual".
-function aplicarEntrega({ solicitacaoId, quantidade, chaveOrigem, detalhe, como, usuarioEmail }) {
-  const s = db.prepare('SELECT * FROM solicitacoes WHERE id = ?').get(solicitacaoId);
+function aplicarEntrega({ solicitacaoId, quantidade, chaveOrigem, detalhe, como, usuarioEmail, codigoItem }) {
+  let s = db.prepare('SELECT * FROM solicitacoes WHERE id = ?').get(solicitacaoId);
+  if (!s) s = reencontrarSolicitacao(codigoItem, detalhe);
   if (!s) throw new Error('Solicitação não encontrada.');
   const pend = conc.pendenteSolicitacao(s);
   const q = Math.min(num(quantidade) || 0, pend);
@@ -55,8 +71,9 @@ function aplicarEntrega({ solicitacaoId, quantidade, chaveOrigem, detalhe, como,
 }
 
 // ---------- Aplicar a BAIXA DE EMPENHO numa solicitação ----------
-function aplicarEmpenho({ solicitacaoId, chaveOrigem, detalhe, como, usuarioEmail }) {
-  const s = db.prepare('SELECT * FROM solicitacoes WHERE id = ?').get(solicitacaoId);
+function aplicarEmpenho({ solicitacaoId, chaveOrigem, detalhe, como, usuarioEmail, codigoItem }) {
+  let s = db.prepare('SELECT * FROM solicitacoes WHERE id = ?').get(solicitacaoId);
+  if (!s) s = reencontrarSolicitacao(codigoItem, detalhe, { semEmpenho: true });
   if (!s) throw new Error('Solicitação não encontrada.');
   const nEmp = detalhe && detalhe.nota_empenho ? String(detalhe.nota_empenho) : null;
   if (!nEmp) throw new Error('Empenho sem número.');
@@ -177,7 +194,7 @@ router.post('/entrada/aprovar/:id', (req, res) => {
     const r = aplicarEntrega({
       solicitacaoId: p.solicitacao_id, quantidade: p.quantidade,
       chaveOrigem: p.chave_origem, detalhe: JSON.parse(p.detalhe_json || '{}'),
-      como: 'robo', usuarioEmail: req.usuario.email,
+      como: 'robo', usuarioEmail: req.usuario.email, codigoItem: p.codigo_item,
     });
     db.prepare("UPDATE propostas_conciliacao SET situacao='aprovada' WHERE id=?").run(p.id);
     res.json({ ok: true, ...r });
@@ -226,7 +243,7 @@ router.post('/empenho/aprovar/:id', (req, res) => {
   const p = db.prepare("SELECT * FROM propostas_conciliacao WHERE id=? AND origem='empenho' AND situacao='pendente'").get(req.params.id);
   if (!p) return res.status(404).json({ erro: 'Proposta não encontrada.' });
   try {
-    const r = aplicarEmpenho({ solicitacaoId: p.solicitacao_id, chaveOrigem: p.chave_origem, detalhe: JSON.parse(p.detalhe_json || '{}'), como: 'robo', usuarioEmail: req.usuario.email });
+    const r = aplicarEmpenho({ solicitacaoId: p.solicitacao_id, chaveOrigem: p.chave_origem, detalhe: JSON.parse(p.detalhe_json || '{}'), como: 'robo', usuarioEmail: req.usuario.email, codigoItem: p.codigo_item });
     db.prepare("UPDATE propostas_conciliacao SET situacao='aprovada' WHERE id=?").run(p.id);
     res.json({ ok: true, ...r });
   } catch (e) { res.status(400).json({ erro: e.message }); }
