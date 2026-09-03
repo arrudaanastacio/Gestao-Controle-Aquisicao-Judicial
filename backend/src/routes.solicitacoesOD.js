@@ -226,7 +226,13 @@ router.get('/', (req, res) => {
   const total = db.prepare(`SELECT COUNT(*) as c FROM solicitacoes_od ${where}`).get(...params).c;
 
   const linhas = db.prepare(`
-    SELECT * FROM solicitacoes_od ${where}
+    SELECT solicitacoes_od.*,
+      (SELECT ce.ds_status_item_processo FROM compras_estrategico ce
+        WHERE ce.codigo_item = solicitacoes_od.codigo_item
+          AND TRIM(ce.nr_requisicao) = TRIM(solicitacoes_od.requisicao_gsnet)
+          AND ce.ds_status_item_processo IS NOT NULL AND ce.ds_status_item_processo <> ''
+        ORDER BY ce.id DESC LIMIT 1) AS status_item_processo
+    FROM solicitacoes_od ${where}
     ORDER BY ano DESC, id DESC
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset);

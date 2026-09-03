@@ -4235,6 +4235,7 @@ async function carregarTabelaSolicitacoesOD() {
         <td>${valorCelula(s.qtde_entregue)}</td>
         <td>${valorCelula(s.qtde_pendente)}</td>
         <td>${s.status || '—'}</td>
+        <td>${escHtml(s.status_item_processo || '—')}</td>
         <td>${s.observacao || '—'}</td>
       </tr>
     `).join('');
@@ -4340,6 +4341,7 @@ async function carregarTabelaAquisicaoODAndamento() {
         <td class="col-data">${formatarData(s.data_previsao_entrega)}</td>
         <td>${valorCelula(s.qtde_pendente)}</td>
         <td>${s.status || '—'}</td>
+        <td>${escHtml(s.status_item_processo || '—')}</td>
         <td>${s.observacao || '—'}</td>
       </tr>
     `).join('');
