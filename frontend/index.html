@@ -53,6 +53,7 @@
             <p class="nav-grupo-titulo nav-subgrupo-titulo">🛒 Compras</p>
             <a href="#" data-pagina="solicitacoes">Tabela Análise TP</a>
             <a href="#" data-pagina="relatorio">Relatório de Compras TP</a>
+            <a href="#" data-pagina="pendenciasProcesso">Pendências no Processo</a>
             <a href="#" data-pagina="comparativoAutores">Comparativo de Autores</a>
             <a href="#" data-pagina="relatorioReq">Relatório de Primeiro Atendimento</a>
             <a href="#" data-pagina="cartasTroca">Cartas de Troca</a>
@@ -2968,10 +2969,17 @@
         <div id="graficoAlertasCategoria" class="grafico-categoria"></div>
         <div id="listaAlertas"></div>
 
-        <!-- Pendências no processo de compra (GSNET) — uma aba por status -->
-        <div id="blocoPendenciaProcesso" style="margin-top:24px;" hidden>
-          <h3 style="margin:0 0 2px;">Pendências no processo de compra (GSNET)</h3>
-          <p class="texto-apoio" style="margin:0 0 10px;">Itens cujo <strong>Status Item Processo</strong> indica que a compra não avançou. Dados do robô de Compras (GsnetCompras).</p>
+      </section>
+
+      <!-- ===== Pendências no Processo de Compra (abas por status) ===== -->
+      <section id="paginaPendenciasProcesso" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Pendências no Processo de Compra</h2>
+            <p>Itens cujo <strong>Status Item Processo</strong> (GSNET) indica que a compra não avançou — uma aba por status. Dados do robô de Compras.</p>
+          </div>
+        </div>
+        <div id="blocoPendenciaProcesso">
           <div class="filtros-faixa" id="abasPendenciaProcesso" style="margin:6px 0 14px;"></div>
           <div class="tabela-wrap">
             <div class="tabela-rolavel-x">

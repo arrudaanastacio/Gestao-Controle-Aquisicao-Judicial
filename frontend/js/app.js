@@ -270,6 +270,7 @@ function aplicarPermissoesNav() {
   // por tela (13/07/2026), sem mais telas agrupadas sob o mesmo módulo.
   const mapa = {
     relatorio: 'relatorioComprasTP', solicitacoes: 'tabelaAnaliseTP',
+    pendenciasProcesso: 'tabelaAnaliseTP',
     solicitacoesOD: 'relatorioComprasOD', aquisicaoODAndamento: 'aquisicaoODAndamento',
     estoque: 'estoqueTP', monitoramento: 'monitoramentoEstoque', validades: 'validadesTP', historico: 'historicoEstoqueTP', evolucao: 'evolucaoEstoqueTP',
     estoqueGeral: 'estoqueGeral', estoqueOD: 'estoqueOD', estoqueIblApi: 'estoqueIblApi', distribuicao: 'distribuicao',
@@ -663,6 +664,7 @@ const TRILHAS = {
   painel: ['Painel'],
   relatorio: ['Tenente Pena', 'Compras', 'Relatório de Compras TP'],
   solicitacoes: ['Tenente Pena', 'Compras', 'Tabela Análise TP'],
+  pendenciasProcesso: ['Tenente Pena', 'Compras', 'Pendências no Processo'],
   comparativoAutores: ['Tenente Pena', 'Compras', 'Comparativo de Autores'],
   relatorioReq: ['Tenente Pena', 'Compras', 'Relatório de Primeiro Atendimento'],
   cartasTroca: ['Tenente Pena', 'Compras', 'Cartas de Troca'],
@@ -751,6 +753,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaElenco').hidden = pagina !== 'elenco';
   document.getElementById('paginaImportadores').hidden = pagina !== 'importadores';
   document.getElementById('paginaAlertas').hidden = pagina !== 'alertas';
+  document.getElementById('paginaPendenciasProcesso').hidden = pagina !== 'pendenciasProcesso';
   document.getElementById('paginaUsuarios').hidden = pagina !== 'usuarios';
   document.getElementById('paginaStatusServicos').hidden = pagina !== 'statusServicos';
 
@@ -792,6 +795,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'relatorioItens') await carregarRelatorioItens();
     if (pagina === 'planejamento') await carregarPlanejamento();
     if (pagina === 'alertas') await carregarAlertas();
+    if (pagina === 'pendenciasProcesso') await carregarPendenciasProcesso();
     if (pagina === 'usuarios') await carregarUsuarios();
     if (pagina === 'statusServicos') { await carregarStatusServicos(); iniciarPollingServicos(); }
   } catch (e) {
@@ -10536,8 +10540,6 @@ async function carregarAlertas() {
   container.querySelectorAll('button[data-siaf]').forEach((btn) => {
     btn.addEventListener('click', () => abrirRelatorioSiafisico(btn.dataset.siaf, document.getElementById('filtroCategoriaAlerta').value));
   });
-
-  carregarPendenciasProcesso();
 }
 
 // ---- Aba de Alertas: "Pendências no processo de compra (GSNET)" ----
