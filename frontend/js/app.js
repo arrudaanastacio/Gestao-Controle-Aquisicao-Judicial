@@ -10552,28 +10552,49 @@ let pendProcListenerPronto = false;
 async function carregarPendenciasProcesso(status) {
   const bloco = document.getElementById('blocoPendenciaProcesso');
   if (!bloco) return;
+  const admin = estado.usuario && estado.usuario.perfil === 'admin';
+  const chkTratados = document.getElementById('chkMostrarTratados');
+  const incluirTratados = !!(chkTratados && chkTratados.checked);
+
   if (!pendProcListenerPronto) {
     document.getElementById('abasPendenciaProcesso').addEventListener('click', (ev) => {
       const chip = ev.target.closest('[data-status-proc]');
       if (chip) carregarPendenciasProcesso(chip.dataset.statusProc);
     });
+    if (chkTratados) chkTratados.addEventListener('change', () => carregarPendenciasProcesso(pendProcStatusAtivo));
+    // Marcar/desmarcar "tratado" (só admin) — event delegation no corpo da tabela.
+    document.getElementById('corpoPendenciaProcesso').addEventListener('change', async (ev) => {
+      const chk = ev.target.closest('.chk-tratado');
+      if (!chk) return;
+      chk.disabled = true;
+      try {
+        await api('/solicitacoes/pendencias-processo/resolver', {
+          method: 'POST',
+          body: JSON.stringify({
+            codigo_item: chk.dataset.codigo, requisicao_gsnet: chk.dataset.req,
+            status_item_processo: chk.dataset.status, tratado: chk.checked,
+          }),
+        });
+        await carregarPendenciasProcesso(pendProcStatusAtivo);
+      } catch (e) { alert(e.message); chk.checked = !chk.checked; chk.disabled = false; }
+    });
     pendProcListenerPronto = true;
   }
 
   let dados;
-  try { dados = await api(`/solicitacoes/pendencias-processo?status=${encodeURIComponent(status || pendProcStatusAtivo || '')}`); }
+  try { dados = await api(`/solicitacoes/pendencias-processo?status=${encodeURIComponent(status || pendProcStatusAtivo || '')}&incluirTratados=${incluirTratados}`); }
   catch (e) { bloco.hidden = true; return; }
 
   const contagens = dados.contagens || {};
   const statuses = dados.statuses || [];
   const total = statuses.reduce((s, st) => s + (contagens[st] || 0), 0);
-  if (total === 0) { bloco.hidden = true; return; }
+  // Com "mostrar tratados", pode não haver pendências mas ainda haver tratados a exibir.
+  if (total === 0 && !incluirTratados) { bloco.hidden = true; return; }
   bloco.hidden = false;
 
-  // Aba ativa: a pedida (se tiver itens) ou a 1a com itens.
-  let ativo = dados.status && contagens[dados.status] ? dados.status : null;
+  // Aba ativa: a pedida (se tiver itens ou se mostra tratados) ou a 1a com itens.
+  let ativo = dados.status && (contagens[dados.status] || incluirTratados) ? dados.status : null;
   if (!ativo) ativo = statuses.find((st) => (contagens[st] || 0) > 0) || statuses[0];
-  // Se a aba ativa mudou (não veio linha da pedida), rebusca as linhas dela.
   if (ativo !== dados.status) { return carregarPendenciasProcesso(ativo); }
   pendProcStatusAtivo = ativo;
 
@@ -10589,8 +10610,12 @@ async function carregarPendenciasProcesso(status) {
   corpo.innerHTML = linhas.map((s) => {
     const classe = classeStatus(s.status, s.data_previsao_entrega);
     const rotulo = rotuloStatus(s.status, s.data_previsao_entrega);
+    const chk = `<input type="checkbox" class="chk-tratado"`
+      + ` data-codigo="${escAttr(s.codigo_item || '')}" data-req="${escAttr(s.requisicao_gsnet || '')}"`
+      + ` data-status="${escAttr(s.status_item_processo || '')}" ${s.tratado ? 'checked' : ''} ${admin ? '' : 'disabled'}`
+      + ` title="${admin ? 'Marcar como tratado (sai da lista)' : 'Somente admin'}">`;
     return `
-      <tr>
+      <tr${s.tratado ? ' style="opacity:.55;"' : ''}>
         <td class="col-codigo">${s.codigo_item || '—'}</td>
         <td class="col-codigo">${s.codigo_siafisico || '—'}</td>
         <td>${s.descricao || '—'}</td>
@@ -10608,6 +10633,7 @@ async function carregarPendenciasProcesso(status) {
         <td>${valorCelula(s.qtde_pendente)}</td>
         <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
         <td>${escHtml(s.status_item_processo || '—')}</td>
+        <td style="text-align:center;">${chk}</td>
       </tr>`;
   }).join('');
 }

@@ -2981,6 +2981,11 @@
         </div>
         <div id="blocoPendenciaProcesso">
           <div class="filtros-faixa" id="abasPendenciaProcesso" style="margin:6px 0 14px;"></div>
+          <div class="barra-filtros" style="justify-content:flex-end;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--cinza-texto);">
+              <input type="checkbox" id="chkMostrarTratados"> Mostrar tratados
+            </label>
+          </div>
           <div class="tabela-wrap">
             <div class="tabela-rolavel-x">
               <table>
@@ -3003,6 +3008,7 @@
                     <th>Qtde. Pendente</th>
                     <th>Status do Item</th>
                     <th>Status Item Processo</th>
+                    <th>Tratado</th>
                   </tr>
                 </thead>
                 <tbody id="corpoPendenciaProcesso"></tbody>

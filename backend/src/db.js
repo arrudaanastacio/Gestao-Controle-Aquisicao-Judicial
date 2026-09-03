@@ -1386,6 +1386,21 @@ CREATE TABLE IF NOT EXISTS compras_estrategico (
 db.exec(`CREATE INDEX IF NOT EXISTS idx_compras_estrat_item ON compras_estrategico(codigo_item);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_compras_estrat_req ON compras_estrategico(nr_requisicao);`);
 
+// pendencias_processo_resolvidas: itens que o usuário marcou como "tratados" na
+// tela "Pendências no Processo" (some da lista e não volta). Chave estável:
+// codigo_item + requisicao_gsnet (o id da solicitação muda a cada reimport do
+// "refaz o mês"). Desmarcar remove a linha e o item volta a aparecer.
+db.exec(`
+CREATE TABLE IF NOT EXISTS pendencias_processo_resolvidas (
+  codigo_item TEXT NOT NULL,
+  requisicao_gsnet TEXT NOT NULL,
+  status_item_processo TEXT,
+  resolvido_por TEXT,
+  resolvido_em TEXT,
+  PRIMARY KEY (codigo_item, requisicao_gsnet)
+);
+`);
+
 // cartas_troca: o CONTROLE em si. Cada registro é 1 carta para 1 item de 1
 // empenho (relação 1-para-1 por linha empenho+medicamento). A empresa protocola
 // a carta quando quer entregar um item com validade menor que a exigida no

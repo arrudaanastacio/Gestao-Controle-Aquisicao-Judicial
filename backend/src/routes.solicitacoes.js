@@ -132,14 +132,19 @@ router.get('/status-processo', (req, res) => {
 // Processo (GSNET) é um dos STATUS_PROC_PENDENCIA. Devolve a contagem de cada
 // status (para os "badges" das abas) e, se `status` for um deles, TODAS as
 // linhas daquele status (sem paginação — são poucas centenas).
+// Condição SQL: a solicitação (alias s) NÃO foi marcada como tratada.
+const NAO_TRATADO = `NOT EXISTS (SELECT 1 FROM pendencias_processo_resolvidas r
+  WHERE r.codigo_item = s.codigo_item AND TRIM(r.requisicao_gsnet) = TRIM(s.requisicao_gsnet))`;
+
 router.get('/pendencias-processo', (req, res) => {
   const status = String(req.query.status || '').trim();
+  const incluirTratados = req.query.incluirTratados === 'true';
   const contagens = {};
   try {
     for (const st of STATUS_PROC_PENDENCIA) {
       contagens[st] = db.prepare(
         `SELECT COUNT(*) c FROM solicitacoes s JOIN itens i ON s.codigo_item = i.codigo_item
-         WHERE ${SUB_STATUS_PROC} = ?`
+         WHERE ${SUB_STATUS_PROC} = ? AND ${NAO_TRATADO}`
       ).get(st).c;
     }
   } catch (_) { /* sem compras_estrategico ainda */ }
@@ -147,15 +152,49 @@ router.get('/pendencias-processo', (req, res) => {
   let solicitacoes = [];
   if (STATUS_PROC_PENDENCIA.includes(status)) {
     try {
+      const filtro = incluirTratados ? '' : `AND ${NAO_TRATADO}`;
       solicitacoes = db.prepare(
-        `SELECT s.*, i.descricao, i.codigo_siafisico, ${SUB_STATUS_PROC} AS status_item_processo
+        `SELECT s.*, i.descricao, i.codigo_siafisico, ${SUB_STATUS_PROC} AS status_item_processo,
+           (CASE WHEN ${NAO_TRATADO} THEN 0 ELSE 1 END) AS tratado
          FROM solicitacoes s JOIN itens i ON s.codigo_item = i.codigo_item
-         WHERE ${SUB_STATUS_PROC} = ?
+         WHERE ${SUB_STATUS_PROC} = ? ${filtro}
          ORDER BY s.ano DESC, s.id DESC`
       ).all(status);
     } catch (_) { solicitacoes = []; }
   }
-  res.json({ statuses: STATUS_PROC_PENDENCIA, contagens, status, solicitacoes });
+  res.json({ statuses: STATUS_PROC_PENDENCIA, contagens, status, incluirTratados, solicitacoes });
+});
+
+// Marca/desmarca uma pendência como "tratada" (some da lista e não volta).
+// Só admin. Chave estável = codigo_item + requisicao_gsnet.
+router.post('/pendencias-processo/resolver', exigirPerfil('admin'), (req, res) => {
+  const b = req.body || {};
+  const codigo_item = String(b.codigo_item || '').trim();
+  const requisicao = String(b.requisicao_gsnet || '').trim();
+  const statusProc = String(b.status_item_processo || '').trim();
+  const tratar = b.tratado !== false; // padrão: marcar como tratado
+  if (!codigo_item || !requisicao) return res.status(400).json({ erro: 'Informe codigo_item e requisicao_gsnet.' });
+  const email = (req.usuario && req.usuario.email) || null;
+  try {
+    if (tratar) {
+      db.prepare(`INSERT INTO pendencias_processo_resolvidas
+          (codigo_item, requisicao_gsnet, status_item_processo, resolvido_por, resolvido_em)
+        VALUES (?, ?, ?, ?, datetime('now','localtime'))
+        ON CONFLICT(codigo_item, requisicao_gsnet) DO UPDATE SET
+          status_item_processo=excluded.status_item_processo,
+          resolvido_por=excluded.resolvido_por, resolvido_em=excluded.resolvido_em`)
+        .run(codigo_item, requisicao, statusProc || null, email);
+    } else {
+      db.prepare('DELETE FROM pendencias_processo_resolvidas WHERE codigo_item=? AND TRIM(requisicao_gsnet)=TRIM(?)')
+        .run(codigo_item, requisicao);
+    }
+    db.prepare('INSERT INTO auditoria (usuario_email, acao, tabela, registro_id) VALUES (?,?,?,?)')
+      .run(email, tratar ? 'tratar_pendencia_processo' : 'reabrir_pendencia_processo',
+        'pendencias_processo_resolvidas', codigo_item + '|' + requisicao);
+  } catch (e) {
+    return res.status(400).json({ erro: 'Não consegui salvar: ' + e.message });
+  }
+  res.json({ ok: true, tratado: tratar });
 });
 
 // Busca do andamento de um medicamento específico por código ou descrição,
