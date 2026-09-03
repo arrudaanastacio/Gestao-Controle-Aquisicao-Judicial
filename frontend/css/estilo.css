@@ -765,6 +765,7 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
    já que têm muitas colunas e se beneficiam de mais espaço. */
 .conteudo:has(> #paginaSolicitacoes:not([hidden])),
 .conteudo:has(> #paginaRelatorio:not([hidden])),
+.conteudo:has(> #paginaPendenciasProcesso:not([hidden])),
 .conteudo:has(> #paginaEstoque:not([hidden])),
 .conteudo:has(> #paginaMonitoramento:not([hidden])),
 .conteudo:has(> #paginaEstoqueGeral:not([hidden])),
