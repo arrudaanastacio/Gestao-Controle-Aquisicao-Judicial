@@ -77,15 +77,6 @@ function dataISO(v) {
   return iso ? iso[1] : null;
 }
 
-function arquivoMaisNovo(pasta) {
-  if (!fs.existsSync(pasta)) return null;
-  const xlsx = fs.readdirSync(pasta)
-    .filter((f) => /\.xlsx$/i.test(f) && !/\.crdownload$/i.test(f))
-    .map((f) => ({ f, t: fs.statSync(path.join(pasta, f)).mtimeMs }))
-    .sort((a, b) => b.t - a.t);
-  return xlsx.length ? path.join(pasta, xlsx[0].f) : null;
-}
-
 function tsLocal(d = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
@@ -126,46 +117,58 @@ function registrarServico({ resultado, mensagem, registros, arquivo, inicioMs, d
   } catch (_) { /* status e opcional; nunca atrapalha a importacao */ }
 }
 
+// Le as linhas de UM arquivo .xlsx (aba "Dados"), casando colunas pelo NOME.
+function lerLinhas(arquivo) {
+  const wb = XLSX.read(fs.readFileSync(arquivo), { type: 'buffer', cellDates: true });
+  const nomeAba = wb.SheetNames.find((n) => normalizar(n) === 'dados') || wb.SheetNames[0];
+  const brutas = XLSX.utils.sheet_to_json(wb.Sheets[nomeAba], { header: 1, defval: null, raw: true });
+  if (!brutas.length) return [];
+  const cab = (brutas[0] || []).map((c) => String(c ?? '').trim().toUpperCase());
+  const COL = {};
+  const faltando = [];
+  for (const [campo, nomeCol] of Object.entries(MAPA)) {
+    const idx = cab.indexOf(nomeCol.toUpperCase());
+    COL[campo] = idx;
+    if (idx < 0) faltando.push(nomeCol);
+  }
+  if (faltando.length) throw new Error('em ' + path.basename(arquivo) + ' faltam colunas: ' + faltando.join(', '));
+  const linhas = [];
+  for (let i = 1; i < brutas.length; i++) {
+    const r = brutas[i];
+    if (!r) continue;
+    const linha = {};
+    for (const campo of CAMPOS) {
+      const bruto = COL[campo] >= 0 ? r[COL[campo]] : null;
+      linha[campo] = NUMERICOS.has(campo) ? numero(bruto) : DATAS.has(campo) ? dataISO(bruto) : texto(bruto);
+    }
+    if (!linha.codigo_item && !linha.cd_item_siafisico) continue; // linha valida = tem codigo
+    linhas.push(linha);
+  }
+  return linhas;
+}
+
+// Todos os .xlsx da pasta (o robo salva 1 por programa) ou o passado por argumento.
+function arquivosParaImportar(pasta) {
+  if (!fs.existsSync(pasta)) return [];
+  return fs.readdirSync(pasta)
+    .filter((f) => /\.xlsx$/i.test(f) && !/\.crdownload$/i.test(f))
+    .map((f) => path.join(pasta, f)).sort();
+}
+
 (function main() {
   const inicioMs = Date.now();
-  let arquivo = null;
+  let arquivos = [];
   try {
-    arquivo = process.argv[2] || arquivoMaisNovo(PASTA_DOWNLOAD);
-    if (!arquivo || !fs.existsSync(arquivo)) {
-      throw new Error('nao achei nenhum .xlsx para importar em ' + PASTA_DOWNLOAD);
-    }
-    console.log('Lendo:', arquivo);
-
-    const wb = XLSX.read(fs.readFileSync(arquivo), { type: 'buffer', cellDates: true });
-    const nomeAba = wb.SheetNames.find((n) => normalizar(n) === 'dados') || wb.SheetNames[0];
-    const brutas = XLSX.utils.sheet_to_json(wb.Sheets[nomeAba], { header: 1, defval: null, raw: true });
-    if (!brutas.length) throw new Error('a aba "' + nomeAba + '" esta vazia.');
-
-    // Cabecalho = 1a linha; acha a coluna de cada campo pelo NOME.
-    const cab = (brutas[0] || []).map((c) => String(c ?? '').trim().toUpperCase());
-    const COL = {};
-    const faltando = [];
-    for (const [campo, nomeCol] of Object.entries(MAPA)) {
-      const idx = cab.indexOf(nomeCol.toUpperCase());
-      COL[campo] = idx;
-      if (idx < 0) faltando.push(nomeCol);
-    }
-    if (faltando.length) throw new Error('nao achei estas colunas no relatorio: ' + faltando.join(', '));
-
+    arquivos = process.argv[2] ? [process.argv[2]] : arquivosParaImportar(PASTA_DOWNLOAD);
+    if (!arquivos.length) throw new Error('nao achei nenhum .xlsx para importar em ' + PASTA_DOWNLOAD);
     const linhas = [];
-    for (let i = 1; i < brutas.length; i++) {
-      const r = brutas[i];
-      if (!r) continue;
-      const linha = {};
-      for (const campo of CAMPOS) {
-        const bruto = COL[campo] >= 0 ? r[COL[campo]] : null;
-        linha[campo] = NUMERICOS.has(campo) ? numero(bruto) : DATAS.has(campo) ? dataISO(bruto) : texto(bruto);
-      }
-      // Linha valida = tem ao menos o codigo do item.
-      if (!linha.codigo_item && !linha.cd_item_siafisico) continue;
-      linhas.push(linha);
+    for (const arq of arquivos) {
+      if (!fs.existsSync(arq)) continue;
+      const parciais = lerLinhas(arq);
+      console.log('Lendo:', path.basename(arq), '->', parciais.length, 'linhas');
+      for (const l of parciais) linhas.push(l);
     }
-    if (linhas.length === 0) throw new Error('o arquivo nao tinha nenhuma linha de compra valida.');
+    if (linhas.length === 0) throw new Error('os arquivos nao tinham nenhuma linha de compra valida.');
 
     const db = new DatabaseSync(BANCO);
     garantirTabela(db);
@@ -180,7 +183,7 @@ function registrarServico({ resultado, mensagem, registros, arquivo, inicioMs, d
       const totalItens = db.prepare('SELECT COUNT(DISTINCT codigo_item) c FROM compras_estrategico').get().c;
       var resumo = { dataReferencia, totalLinhas: linhas.length, totalItens, totalEmpenhos };
       db.prepare('INSERT INTO importacoes (tipo, nome_arquivo, usuario_email, resumo) VALUES (?, ?, ?, ?)')
-        .run('compras', path.basename(arquivo), 'robo-automacao', JSON.stringify(resumo));
+        .run('compras', arquivos.map((a) => path.basename(a)).join(', '), 'robo-automacao', JSON.stringify(resumo));
       db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, dados_depois) VALUES (?, ?, ?, ?, ?)')
         .run(null, 'robo-automacao', 'importar_compras', 'compras_estrategico', JSON.stringify(resumo));
       db.exec('COMMIT');
@@ -196,12 +199,12 @@ function registrarServico({ resultado, mensagem, registros, arquivo, inicioMs, d
       resultado: 'sucesso',
       mensagem: `Importadas ${resumo.totalLinhas} linhas / ${resumo.totalItens} itens / ${resumo.totalEmpenhos} empenhos.`,
       registros: resumo.totalLinhas,
-      arquivo,
+      arquivo: arquivos.map((a) => path.basename(a)).join(', '),
       inicioMs,
     });
   } catch (e) {
     console.error('ERRO:', e.message);
-    registrarServico({ resultado: 'erro', mensagem: e.message, detalhe: e.stack, arquivo, inicioMs });
+    registrarServico({ resultado: 'erro', mensagem: e.message, detalhe: e.stack, arquivo: arquivos.map((a) => path.basename(a)).join(', '), inicioMs });
     process.exit(1);
   }
 })();

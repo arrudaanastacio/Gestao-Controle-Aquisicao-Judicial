@@ -24,7 +24,11 @@ const CHROME = process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Ap
 const USUARIO = process.env.GSNET_USUARIO;
 const SENHA = process.env.GSNET_SENHA;
 const UNIDADE = process.env.GSNET_UNIDADE || 'Gabinete do Coordenador - CAF';
-const PROGRAMA = process.env.GSNET_COMPRAS_PROGRAMA || 'Demandas Extraordinarias';
+// Um ou mais programas (o dropdown e de selecao unica, entao exportamos 1 arquivo
+// por programa e o importar-compras.js junta tudo). Nomes casam por "contem"
+// normalizado, entao "Demandas Extraordinarias" acha "DEMANDAS EXTRAORDINÁRIAS".
+const PROGRAMAS = (process.env.GSNET_COMPRAS_PROGRAMAS || 'Demandas Extraordinarias, Outras Demandas')
+  .split(',').map((s) => s.trim()).filter(Boolean);
 const PERIODO_INICIO = process.env.GSNET_COMPRAS_PERIODO_INICIO || '01/2025';
 const PASTA_DOWNLOAD = process.env.PASTA_DOWNLOAD_COMPRAS || path.join(__dirname, 'downloads-compras');
 const HEADLESS = /^(1|true|sim)$/i.test(process.env.HEADLESS || '');
@@ -159,6 +163,77 @@ function log(m) {
   try { fs.appendFileSync(LOG, s + '\n'); } catch (_) {}
 }
 
+// Abre o relatorio, aplica os filtros para UM programa, exporta e salva o .xlsx
+// com nome proprio do programa (senao o proximo export sobrescreve o RelatorioEstrategico.xlsx).
+async function exportarPrograma(page, programa, homeUrl) {
+  log('=== Programa: ' + programa + ' ===');
+  // Abre o relatorio e espera as Unidades (dropdown carrega no FOCO). Retenta.
+  await page.setExtraHTTPHeaders({ Referer: homeUrl }).catch(() => {});
+  let unidadeOk = false;
+  for (let tentativa = 1; tentativa <= 5 && !unidadeOk; tentativa++) {
+    log('  tentativa ' + tentativa + ': abrindo relatorio...');
+    await page.goto(URL_RELATORIO, { waitUntil: 'networkidle2', timeout: 60000, referer: homeUrl }).catch((e) => log('  goto erro: ' + e.message));
+    const temForm = await page.waitForSelector('#P_ID_UNID_INSTIT', { timeout: 15000 }).then(() => true).catch(() => false);
+    if (!temForm) {
+      log('  formulario nao apareceu (caiu na home?) — voltando e tentando de novo');
+      await page.goto(URL_INICIAL, { waitUntil: 'networkidle2', timeout: 60000 }).catch(() => {});
+      await espera(2500);
+      continue;
+    }
+    await espera(1200);
+    await dispararFoco(page, '#P_ID_UNID_INSTIT');
+    unidadeOk = await esperarOpcao(page, '#P_ID_UNID_INSTIT', UNIDADE, 12000);
+    if (!unidadeOk) { await dispararFoco(page, '#P_ID_UNID_INSTIT'); unidadeOk = await esperarOpcao(page, '#P_ID_UNID_INSTIT', UNIDADE, 15000); }
+    if (!unidadeOk) { log('  Unidades vazias — recarregando'); await espera(1500); }
+  }
+  await page.setExtraHTTPHeaders({}).catch(() => {});
+  if (!unidadeOk) throw new Error('A lista de Unidades nao carregou (programa "' + programa + '").');
+  await espera(500);
+
+  // Filtros
+  const un = await selecionarPorTexto(page, '#P_ID_UNID_INSTIT', UNIDADE, 'Un. Institucional');
+  log('  Un. Institucional: ' + un.texto);
+  await definirValor(page, '#P_DT_REF_INI', PERIODO_INICIO);
+  await definirValor(page, '#P_DT_REF_FIM', mesAtualMMYYYY());
+  log('  Periodo: ' + PERIODO_INICIO + ' ate ' + mesAtualMMYYYY());
+
+  // Programa (dropdown carrega no foco: CarregarDropDownListPS).
+  await dispararFoco(page, '#P_ID_PROGRAMA_SAUDE');
+  const achou = await esperarOpcao(page, '#P_ID_PROGRAMA_SAUDE', programa, 18000);
+  if (!achou) {
+    const opcoes = await page.evaluate(() => { const e = document.querySelector('#P_ID_PROGRAMA_SAUDE'); return e ? [...e.options].map((o) => o.textContent.trim()) : null; });
+    throw new Error('Nao achei o Programa "' + programa + '". Opcoes: ' + JSON.stringify(opcoes));
+  }
+  const pr = await selecionarPorTexto(page, '#P_ID_PROGRAMA_SAUDE', programa, 'Programa');
+  log('  Programa: ' + pr.texto);
+
+  // Tudo OFF + Com Processo (resto = padrao do site/print).
+  await definirCheckbox(page, '#ChkTudo', false);
+  await marcarRadio(page, 'P_PROC', 'C');
+  await espera(800);
+
+  // Export (POST gera na sessao -> iframe GerarExcel -> Chrome salva RelatorioEstrategico.xlsx).
+  const onResponse = async (resp) => {
+    const u2 = resp.url();
+    if (/GerarExcel/i.test(u2)) log('  [excel] ' + resp.status() + ' (' + (resp.headers()['content-type'] || '') + ', ' + (resp.headers()['content-length'] || '?') + ' bytes)');
+    else if (/RelatorioEstrategico\/fn[A-Za-z]*Estrategico\b/i.test(u2)) { try { log('  [gerar] ' + resp.status() + ' -> ' + (await resp.text()).slice(0, 160).replace(/\s+/g, ' ')); } catch (_) {} }
+  };
+  page.on('response', onResponse);
+  const t0 = Date.now() - 2000;
+  await page.click('#btnExportar').catch(async () => { await page.evaluate(() => { const b = document.querySelector('#btnExportar'); if (b) b.click(); }); });
+  const arquivo = await esperarXlsxNovo(PASTA_DOWNLOAD, t0, 300000);
+  page.off('response', onResponse);
+  if (!arquivo) throw new Error('O .xlsx nao apareceu em 5 min (programa "' + programa + '"). Veja o log.');
+
+  // Renomeia para nome proprio do programa (o proximo export sobrescreve o fixo).
+  const slug = normalizar(programa).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const destino = path.join(PASTA_DOWNLOAD, 'RelatorioEstrategico__' + slug + '.xlsx');
+  try { if (fs.existsSync(destino)) fs.unlinkSync(destino); fs.renameSync(arquivo, destino); }
+  catch (e) { log('  [aviso] nao consegui renomear (' + e.message + ') — mantendo ' + path.basename(arquivo)); return arquivo; }
+  log('  salvo: ' + path.basename(destino) + ' (' + fs.statSync(destino).size + ' bytes)');
+  return destino;
+}
+
 (async () => {
   try { fs.writeFileSync(LOG, ''); } catch (_) {}
   log('=== Inicio do robo de COMPRAS ===');
@@ -209,108 +284,19 @@ function log(m) {
     }
     await espera(2000);
 
-    log('2/5  Abrindo o Relatorio Estrategico de Compras e esperando as Unidades...');
     const homeUrl = page.url();
-    await page.setExtraHTTPHeaders({ Referer: homeUrl }).catch(() => {});
-    let unidadeOk = false;
-    for (let tentativa = 1; tentativa <= 5 && !unidadeOk; tentativa++) {
-      log('  tentativa ' + tentativa + ': abrindo relatorio...');
-      await page.goto(URL_RELATORIO, { waitUntil: 'networkidle2', timeout: 60000, referer: homeUrl }).catch((e) => log('  goto erro: ' + e.message));
-      const temForm = await page.waitForSelector('#P_ID_UNID_INSTIT', { timeout: 15000 }).then(() => true).catch(() => false);
-      if (!temForm) {
-        log('  formulario nao apareceu (caiu na home?) — voltando e tentando de novo');
-        await page.goto(URL_INICIAL, { waitUntil: 'networkidle2', timeout: 60000 }).catch(() => {});
-        await espera(2500);
-        continue;
-      }
-      // Dropdown de Unidade carrega no FOCO (igual ao de empenhos).
-      await espera(1200);
-      await dispararFoco(page, '#P_ID_UNID_INSTIT');
-      unidadeOk = await esperarOpcao(page, '#P_ID_UNID_INSTIT', UNIDADE, 12000);
-      if (!unidadeOk) { // re-dispara o foco uma vez e espera mais (AJAX lento)
-        await dispararFoco(page, '#P_ID_UNID_INSTIT');
-        unidadeOk = await esperarOpcao(page, '#P_ID_UNID_INSTIT', UNIDADE, 15000);
-      }
-      const info = await page.evaluate(() => {
-        const s = document.querySelector('#P_ID_UNID_INSTIT');
-        return s ? [...s.options].map((o) => (o.textContent || '').trim()) : null;
-      });
-      log('  Unidades: ' + JSON.stringify(info) + ' -> carregou CAF? ' + unidadeOk);
-      if (!unidadeOk) { log('  vazio/incompleto — vou recarregar a pagina'); await espera(1500); }
-    }
-    await page.setExtraHTTPHeaders({}).catch(() => {});
-    if (!unidadeOk) throw new Error('A lista de Unidades (Un. Institucional) nao carregou apos varias tentativas. Veja log-compras.txt.');
-    await espera(500);
-
-    log('3/5  Aplicando filtros...');
-    const un = await selecionarPorTexto(page, '#P_ID_UNID_INSTIT', UNIDADE, 'Un. Institucional');
-    log('     Un. Institucional: ' + un.texto);
-    await definirValor(page, '#P_DT_REF_INI', PERIODO_INICIO);
-    await definirValor(page, '#P_DT_REF_FIM', mesAtualMMYYYY());
-    log('     Periodo: ' + PERIODO_INICIO + ' ate ' + mesAtualMMYYYY());
-
-    // Programa (carrega no foco: CarregarDropDownListPS). Tenta ids conhecidos.
-    const seletoresPrograma = ['#P_ID_PROGRAMA_SAUDE', '#P_ID_PROGRAMA', 'select[title*="Programa" i]'];
-    let selPrograma = null;
-    for (const sel of seletoresPrograma) { if (await page.$(sel)) { selPrograma = sel; break; } }
-    if (selPrograma) {
-      await dispararFoco(page, selPrograma);
-      const achou = await esperarOpcao(page, selPrograma, PROGRAMA, 18000);
-      if (achou) {
-        const pr = await selecionarPorTexto(page, selPrograma, PROGRAMA, 'Programa');
-        log('     Programa (' + selPrograma + '): ' + pr.texto);
-      } else {
-        const opcoes = await page.evaluate((sel) => { const e = document.querySelector(sel); return e ? [...e.options].map((o) => o.textContent.trim()) : null; }, selPrograma);
-        log('     [ATENCAO] nao achei o Programa "' + PROGRAMA + '" em ' + selPrograma + '. Opcoes: ' + JSON.stringify(opcoes));
-      }
-    } else {
-      log('     [ATENCAO] nao encontrei o campo Programa pelos ids conhecidos — ver dump abaixo.');
+    // Limpa .xlsx antigos p/ o importador so pegar os desta rodada.
+    for (const f of fs.readdirSync(PASTA_DOWNLOAD)) {
+      if (/\.xlsx$/i.test(f)) { try { fs.unlinkSync(path.join(PASTA_DOWNLOAD, f)); } catch (_) {} }
     }
 
-    // Filtros pedidos pelo Rafael (minimo): DESMARCAR "Tudo" (ChkTudo) e marcar
-    // "Com Processo" (P_PROC=C). Todo o resto fica como o site ja vem por padrao
-    // (= o print): "Omitir Sub Itens" marcado, "Omitir NR" desmarcado, e as demais
-    // opcoes Com/Sem sem marcar.
-    await definirCheckbox(page, '#ChkTudo', false);
-    await marcarRadio(page, 'P_PROC', 'C'); // Com Processo
-    log('     Desmarcado: Tudo | Com: Processo | resto = padrao do site (print)');
-    await espera(800);
-
-    try { await page.screenshot({ path: path.join(__dirname, 'compras-antes-export.png'), fullPage: true }); } catch (_) {}
-
-    log('4/5  Exportando (pode demorar enquanto o relatorio e gerado)...');
-    const onResponse = async (resp) => {
-      const u2 = resp.url();
-      if (/RelatorioEstrategico\/fn[A-Za-z]*Estrategico\b/i.test(u2) && !/GerarExcel/i.test(u2)) {
-        try { log('  [gerar] ' + resp.status() + ' -> ' + (await resp.text()).slice(0, 200).replace(/\s+/g, ' ')); } catch (_) {}
-      } else if (/GerarExcel/i.test(u2)) {
-        const ct = resp.headers()['content-type'] || '';
-        log('  [excel] resposta ' + resp.status() + ' (' + ct + ', ' + (resp.headers()['content-length'] || '?') + ' bytes)');
-        if (/html|text/i.test(ct)) {
-          try {
-            const corpo = await resp.text();
-            fs.writeFileSync(path.join(__dirname, 'compras-excel-resposta.html'), corpo, 'utf8');
-            const semTags = corpo.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
-            log('  [excel] corpo (texto): ' + semTags);
-          } catch (_) {}
-        }
-      }
-    };
-    page.on('response', onResponse);
-
-    const t0 = Date.now() - 2000;
-    await page.click('#btnExportar').catch(async () => {
-      await page.evaluate(() => { const b = document.querySelector('#btnExportar'); if (b) b.click(); });
-    });
-
-    const arquivo = await esperarXlsxNovo(PASTA_DOWNLOAD, t0, 300000);
-    page.off('response', onResponse);
-    try { await page.screenshot({ path: path.join(__dirname, 'compras-apos-export.png'), fullPage: true }); } catch (_) {}
-    if (!arquivo) {
-      throw new Error('O .xlsx do Relatorio de Compras nao apareceu na pasta em 5 minutos. Veja o log e compras-apos-export.png.');
+    log('2/3  Exportando ' + PROGRAMAS.length + ' programa(s): ' + PROGRAMAS.join(' | '));
+    const arquivos = [];
+    for (const programa of PROGRAMAS) {
+      arquivos.push(await exportarPrograma(page, programa, homeUrl));
     }
 
-    log('5/5  PRONTO! Arquivo salvo (' + fs.statSync(arquivo).size + ' bytes): ' + arquivo);
+    log('3/3  PRONTO! ' + arquivos.length + ' arquivo(s): ' + arquivos.map((a) => path.basename(a)).join(', '));
     await espera(1500);
     await browser.close();
     process.exit(0);
