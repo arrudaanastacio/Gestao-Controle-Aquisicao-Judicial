@@ -404,6 +404,7 @@ const ICONES_NAV = {
   associarEntrada: '<path d="M4 7h16"/><path d="M4 12h10"/><path d="M4 17h7"/><path d="M15 16l2 2 4-4"/>',
   roboEmpenhos: '<rect x="4" y="8" width="16" height="12" rx="2"/><path d="M9 8V5a3 3 0 0 1 6 0v3"/><path d="M9 14h.01M15 14h.01"/>',
   comparativoAutores: '<path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/>',
+  pendenciasProcesso: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M12 10v4M12 18h.01"/>',
   relatorioReq: '<path d="M9 2h6l1 3H8z"/><rect x="4" y="5" width="16" height="17" rx="2"/><path d="M8 11h8M8 15h8M8 19h5"/>',
   relatorioItens: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   elenco: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
