@@ -1750,6 +1750,85 @@ document.getElementById('filtroBuscaEstoque').addEventListener('input', () => {
   clearTimeout(debounceBuscaEstoque);
   debounceBuscaEstoque = setTimeout(() => { estado.estoque.pagina = 1; carregarTabelaEstoque(); }, 350);
 });
+
+// ---------- Autocomplete de produtos (Estoque TP e Itens em Estoque Geral) ----------
+// Typeahead leve: a partir de 3 caracteres busca no backend (até 10 sugestões),
+// com navegação por teclado. Ao escolher, filtra a grade para aquele produto.
+// Não carrega os ~6 mil itens no navegador — a busca é sempre no servidor.
+function montarAutocompleteEstoque(inputId, escopoUnidade, aoSelecionar) {
+  const input = document.getElementById(inputId);
+  if (!input || input._acPronto) return;
+  input._acPronto = true;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'ac-wrap';
+  input.parentNode.insertBefore(wrap, input);
+  wrap.appendChild(input);
+  input.style.flex = '1';
+  input.style.minWidth = '0';
+  input.setAttribute('autocomplete', 'off');
+  const box = document.createElement('div');
+  box.className = 'ac-box';
+  box.hidden = true;
+  wrap.appendChild(box);
+
+  let resultados = [], ativo = -1, debounce, seq = 0;
+  const fechar = () => { box.hidden = true; ativo = -1; };
+  const abrir = () => { box.hidden = false; };
+
+  function render() {
+    if (!resultados.length) { box.innerHTML = '<div class="ac-vazio">Nenhum produto encontrado.</div>'; abrir(); return; }
+    box.innerHTML = resultados.map((r, i) => `
+      <div class="ac-item${i === ativo ? ' ativo' : ''}" data-i="${i}" role="option">
+        <div class="ac-desc">${escHtml(r.descricao)}</div>
+        <div class="ac-scode">SCODES: ${escHtml(r.codigo_scodes)}${r.siafisico ? ' · Siafísico ' + escHtml(r.siafisico) : ''}</div>
+      </div>`).join('');
+    abrir();
+    box.querySelectorAll('.ac-item').forEach((el) => {
+      // mousedown (antes do blur) para não fechar a lista antes do clique registrar.
+      el.addEventListener('mousedown', (ev) => { ev.preventDefault(); selecionar(Number(el.dataset.i)); });
+    });
+  }
+  function marcar() {
+    box.querySelectorAll('.ac-item').forEach((el, i) => el.classList.toggle('ativo', i === ativo));
+    const el = box.querySelector('.ac-item.ativo'); if (el) el.scrollIntoView({ block: 'nearest' });
+  }
+  function selecionar(i) {
+    const r = resultados[i]; if (!r) return;
+    input.value = r.descricao;
+    input.dataset.scodesSel = r.codigo_scodes;   // identifica o produto escolhido
+    fechar();
+    aoSelecionar(r);
+  }
+  async function buscar(q) {
+    const meu = ++seq;
+    box.innerHTML = '<div class="ac-vazio">Pesquisando…</div>'; abrir();
+    try {
+      const d = await api(`/estoque/busca-produtos?escopoUnidade=${escopoUnidade}&q=${encodeURIComponent(q)}`);
+      if (meu !== seq) return;                    // resposta antiga: ignora
+      resultados = d.results || []; ativo = -1; render();
+    } catch (e) { if (meu === seq) { resultados = []; render(); } }
+  }
+
+  input.addEventListener('input', () => {
+    if (input.dataset.scodesSel) delete input.dataset.scodesSel; // editou → invalida a seleção
+    clearTimeout(debounce);
+    const q = input.value.trim();
+    if (q.length < 3) { fechar(); return; }
+    debounce = setTimeout(() => buscar(q), 350);
+  });
+  input.addEventListener('keydown', (ev) => {
+    if (box.hidden) return;
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); ativo = Math.min(ativo + 1, resultados.length - 1); marcar(); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); ativo = Math.max(ativo - 1, 0); marcar(); }
+    else if (ev.key === 'Enter') { if (ativo >= 0) { ev.preventDefault(); selecionar(ativo); } }
+    else if (ev.key === 'Escape') { fechar(); }
+  });
+  input.addEventListener('blur', () => setTimeout(fechar, 150)); // dá tempo do mousedown do item
+  input.addEventListener('focus', () => { if (resultados.length && input.value.trim().length >= 3) abrir(); });
+}
+montarAutocompleteEstoque('filtroBuscaEstoque', 'udtp', () => { estado.estoque.pagina = 1; carregarTabelaEstoque(); });
+montarAutocompleteEstoque('filtroBuscaEstoqueGeral', 'geral', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
 document.getElementById('filtroSituacaoEstoque').addEventListener('change', () => {
   estado.estoque.pagina = 1; carregarTabelaEstoque();
 });

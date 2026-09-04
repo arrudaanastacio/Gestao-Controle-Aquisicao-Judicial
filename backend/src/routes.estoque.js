@@ -479,6 +479,49 @@ router.get('/filtros', (req, res) => {
   res.json(resultado);
 });
 
+// Autocomplete de produtos (typeahead): sugestões LEVES (até 10) por
+// descrição ou SCODES, na foto mais recente do estoque. Busca no backend —
+// nunca carrega os ~6 mil itens no navegador. Acento/caixa-insensível vêm do
+// override global de LIKE (db.js). Consulta parametrizada (sem SQL injection).
+router.get('/busca-produtos', (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 3) return res.json({ results: [] });          // só a partir de 3 caracteres
+  if (q.length > 80) return res.status(400).json({ erro: 'Termo de busca muito longo.' });
+
+  let dataRef = req.query.data;
+  if (!dataRef) {
+    const ultima = db.prepare('SELECT data_referencia FROM estoque_importacoes ORDER BY data_referencia DESC LIMIT 1').get();
+    if (!ultima) return res.json({ results: [] });
+    dataRef = ultima.data_referencia;
+  }
+
+  const condicoes = ['e.data_referencia = ?'];
+  const params = [dataRef];
+  const escCond = condEscopoUnidade(req.query.escopoUnidade, 'e.');
+  if (escCond) condicoes.push(escCond);
+  const like = `%${q}%`;
+  condicoes.push('(e.descricao LIKE ? OR e.codigo_item LIKE ? OR e.siafisico LIKE ?)');
+  params.push(like, like, like);
+
+  const prefixo = `${q}%`;
+  const sql = `
+    SELECT e.codigo_item, MAX(e.descricao) AS descricao, MAX(e.siafisico) AS siafisico
+    FROM estoque_itens e
+    WHERE ${condicoes.join(' AND ')}
+    GROUP BY e.codigo_item
+    ORDER BY
+      CASE WHEN MAX(e.descricao) LIKE ? THEN 0
+           WHEN e.codigo_item LIKE ? THEN 1 ELSE 2 END,
+      descricao COLLATE NOCASE
+    LIMIT 10`;
+  params.push(prefixo, prefixo);
+
+  const rows = db.prepare(sql).all(...params);
+  res.json({ results: rows.map((r) => ({
+    codigo_scodes: r.codigo_item, descricao: r.descricao, siafisico: r.siafisico || null,
+  })) });
+});
+
 router.get('/', (req, res) => {
   const { data, q, situacao, autonomia, demanda, escopoUnidade, page = 1, pageSize = 50,
     unidade, categoria, controlado, tipo_item, marca, importado, outras_demandas } = req.query;

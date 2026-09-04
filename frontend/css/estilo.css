@@ -1030,6 +1030,21 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 
 .barra-filtros input[type="text"] { min-width: 240px; flex: 1; }
 
+/* Autocomplete de produtos (Estoque TP e Geral) */
+.ac-wrap { position: relative; display: flex; flex: 1; min-width: 240px; }
+.ac-box {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60;
+  background: var(--papel, #fff); border: 1px solid var(--linha, #dcdcdc);
+  border-radius: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+  max-height: 320px; overflow-y: auto;
+}
+.ac-item { padding: 8px 11px; cursor: pointer; border-bottom: 1px solid var(--linha, #eee); }
+.ac-item:last-child { border-bottom: none; }
+.ac-item.ativo, .ac-item:hover { background: var(--realce-tabela, #f3f4f2); }
+.ac-desc { font-size: 13px; font-weight: 500; line-height: 1.3; }
+.ac-scode { font-size: 11.5px; color: var(--cinza-texto, #6b7280); margin-top: 1px; }
+.ac-vazio { padding: 10px 12px; font-size: 13px; color: var(--cinza-texto, #6b7280); }
+
 .botao-secundario,
 .botao-primario {
   display: inline-flex;
