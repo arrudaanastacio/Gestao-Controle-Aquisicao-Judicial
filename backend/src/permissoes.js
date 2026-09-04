@@ -63,7 +63,7 @@ const MODULOS = [
   { chave: 'distribuicao', rotulo: 'Distribuição', acoes: ['visualizar', 'exportar'] },
 
   // 🔍 Consultas
-  { chave: 'relatorioItens', rotulo: 'Relatório de Itens', acoes: ['visualizar', 'exportar', 'importar'] },
+  { chave: 'relatorioItens', rotulo: 'Relatório de Itens', acoes: ['visualizar', 'editar', 'exportar', 'importar'] },
   { chave: 'atas', rotulo: 'Atas de Registro de Preço (SISCOA)', acoes: ['visualizar', 'exportar', 'importar'] },
 
   // 📋 Planejamento de Compras
