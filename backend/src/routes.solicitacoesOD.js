@@ -231,7 +231,12 @@ router.get('/', (req, res) => {
         WHERE ce.codigo_item = solicitacoes_od.codigo_item
           AND TRIM(ce.nr_requisicao) = TRIM(solicitacoes_od.requisicao_gsnet)
           AND ce.ds_status_item_processo IS NOT NULL AND ce.ds_status_item_processo <> ''
-        ORDER BY ce.id DESC LIMIT 1) AS status_item_processo
+        ORDER BY ce.id DESC LIMIT 1) AS status_item_processo,
+      (SELECT ce.protocolo_processo FROM compras_estrategico ce
+        WHERE ce.codigo_item = solicitacoes_od.codigo_item
+          AND TRIM(ce.nr_requisicao) = TRIM(solicitacoes_od.requisicao_gsnet)
+          AND ce.protocolo_processo IS NOT NULL AND ce.protocolo_processo <> ''
+        ORDER BY ce.id DESC LIMIT 1) AS protocolo_processo
     FROM solicitacoes_od ${where}
     ORDER BY ano DESC, id DESC
     LIMIT ? OFFSET ?

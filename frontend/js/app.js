@@ -1494,6 +1494,7 @@ async function carregarRelatorio() {
         <td>${valorCelula(s.qtde_pendente)}</td>
         <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
         <td>${escHtml(s.status_item_processo || '—')}</td>
+        <td class="col-codigo">${escHtml(s.protocolo_processo || '—')}</td>
       </tr>
     `;
   }).join('');
@@ -4315,6 +4316,7 @@ async function carregarTabelaSolicitacoesOD() {
         <td>${valorCelula(s.qtde_pendente)}</td>
         <td>${s.status || '—'}</td>
         <td>${escHtml(s.status_item_processo || '—')}</td>
+        <td class="col-codigo">${escHtml(s.protocolo_processo || '—')}</td>
         <td>${s.observacao || '—'}</td>
         <td>${estado.usuario.perfil === 'admin' ? `<button class="botao-editar" data-id="${s.id}">Editar</button>` : ''}</td>
       </tr>
@@ -4614,7 +4616,7 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp', unidade = '')
     if (dados.temCompraAberta) {
       html += '<p class="aviso-compra-aberta">✓ Este item tem compra em aberto (em andamento).</p>';
     }
-    html += `<div class="rolagem-tabela"><table><thead><tr><th>Período</th><th>Modalidade</th><th>Qtd. solicitada</th><th>Qtd. pendente</th><th>Empenho</th><th>Previsão</th><th>Status</th></tr></thead><tbody>`;
+    html += `<div class="rolagem-tabela"><table><thead><tr><th>Período</th><th>Modalidade</th><th>Qtd. solicitada</th><th>Qtd. pendente</th><th>Empenho</th><th>Previsão</th><th>Status</th><th>Status Item Processo</th><th>Protocolo Processo</th></tr></thead><tbody>`;
     html += dados.compras.map((c) => {
       const classe = classeStatus(c.status, c.data_previsao_entrega);
       const rotulo = rotuloStatus(c.status, c.data_previsao_entrega);
@@ -4631,6 +4633,8 @@ async function abrirDetalheEstoque(codigoEncoded, escopo = 'udtp', unidade = '')
         <td>${c.n_empenho || '—'}</td>
         <td class="col-data">${formatarData(c.data_previsao_entrega)}</td>
         <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
+        <td>${escHtml(c.status_item_processo || '—')}</td>
+        <td class="col-codigo">${escHtml(c.protocolo_processo || '—')}</td>
       </tr>`;
     }).join('');
     html += '</tbody></table></div>';

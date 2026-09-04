@@ -85,6 +85,12 @@ router.get('/consolidado', (req, res) => {
           AND TRIM(ce.nr_requisicao) = TRIM(s.requisicao_gsnet)
           AND ce.ds_status_item_processo IS NOT NULL AND ce.ds_status_item_processo <> ''
         ORDER BY ce.id DESC LIMIT 1) AS status_item_processo,
+      (SELECT ce.protocolo_processo
+         FROM compras_estrategico ce
+        WHERE ce.codigo_item = s.codigo_item
+          AND TRIM(ce.nr_requisicao) = TRIM(s.requisicao_gsnet)
+          AND ce.protocolo_processo IS NOT NULL AND ce.protocolo_processo <> ''
+        ORDER BY ce.id DESC LIMIT 1) AS protocolo_processo,
       s.observacao,
       s.justificativa
     FROM solicitacoes s
@@ -110,7 +116,7 @@ router.get('/consolidado', (req, res) => {
       'modalidade_compra', 'n_oficio', 'qtde_solicitada', 'data_solicitacao',
       'requisicao_gsnet', 'n_empenho', 'quantidade_empenho', 'data_previsao_entrega',
       'data_entrega', 'qtde_entregue', 'qtde_pendente', 'status', 'status_item_processo',
-      'observacao', 'justificativa',
+      'protocolo_processo', 'observacao', 'justificativa',
     ];
     const escapar = (v) => {
       if (v === null || v === undefined) return '';
