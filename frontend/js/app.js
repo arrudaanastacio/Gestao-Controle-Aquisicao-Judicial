@@ -1096,6 +1096,7 @@ async function carregarSolicitacoes() {
           <td>${valorCelula(s.qtde_pendente)}</td>
           <td><span class="etiqueta-status ${classe}">${rotulo}</span></td>
           <td>${escHtml(s.status_item_processo || '—')}</td>
+          <td class="col-codigo">${escHtml(s.protocolo_processo || '—')}</td>
           <td>${estado.usuario.perfil === 'admin' ? `<button class="botao-editar" data-id="${s.id}">Editar</button>` : ''}</td>
         </tr>
       `;
@@ -4428,6 +4429,7 @@ async function carregarTabelaAquisicaoODAndamento() {
         <td>${valorCelula(s.qtde_pendente)}</td>
         <td>${s.status || '—'}</td>
         <td>${escHtml(s.status_item_processo || '—')}</td>
+        <td class="col-codigo">${escHtml(s.protocolo_processo || '—')}</td>
         <td>${s.observacao || '—'}</td>
         <td>${estado.usuario.perfil === 'admin' ? `<button class="botao-editar" data-id="${s.id}">Editar</button>` : ''}</td>
       </tr>
