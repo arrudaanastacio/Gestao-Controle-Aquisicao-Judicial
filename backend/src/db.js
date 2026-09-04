@@ -1020,6 +1020,9 @@ if (!colunasReqItens.includes('n_pacientes')) db.exec("ALTER TABLE requisicao_it
 if (!colunasReqItens.includes('situacao_ata')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN situacao_ata TEXT");
 if (!colunasReqItens.includes('escolha_ata')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN escolha_ata TEXT");
 if (!colunasReqItens.includes('valor_unitario')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN valor_unitario TEXT");
+// Unidade de Fornecimento (Dose/Mililitro/Grama) — guardada por item para a
+// requisição impressa mostrar a coluna mesmo ao reabrir uma requisição antiga.
+if (!colunasReqItens.includes('unidade_fornecimento')) db.exec("ALTER TABLE requisicao_itens ADD COLUMN unidade_fornecimento TEXT");
 
 // Relatório de Itens (catálogo completo) — substitui Consulta/Catálogo.
 // Substituído por completo a cada importação.

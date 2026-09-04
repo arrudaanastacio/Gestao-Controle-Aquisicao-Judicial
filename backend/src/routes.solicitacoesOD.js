@@ -240,6 +240,63 @@ router.get('/', (req, res) => {
   res.json({ solicitacoes: linhas, total, page: Number(page), pageSize: limit });
 });
 
+// ---------- Edição manual (mesma ideia do Tenente Pena) ----------
+// ATENÇÃO: solicitacoes_od é um ESPELHO da planilha OD — o vigia reescreve o
+// mês inteiro a cada importação (2x/dia). Uma edição feita aqui vale até a
+// próxima importação daquele mês sobrescrever a linha, exatamente como no
+// Relatório de Compras do Tenente Pena.
+const CAMPOS_EDITAVEIS_OD = [
+  'tipo', 'modalidade_compra', 'n_oficio', 'qtde_solicitada', 'data_solicitacao',
+  'requisicao_gsnet', 'n_empenho', 'data_previsao_entrega', 'data_entrega',
+  'qtde_entregue', 'qtde_pendente', 'status', 'observacao',
+];
+
+router.get('/:id', (req, res) => {
+  const item = db.prepare('SELECT * FROM solicitacoes_od WHERE id = ?').get(req.params.id);
+  if (!item) return res.status(404).json({ erro: 'Solicitação não encontrada.' });
+  res.json({ solicitacao: item });
+});
+
+router.put('/:id', (req, res) => {
+  const { id } = req.params;
+  const atual = db.prepare('SELECT * FROM solicitacoes_od WHERE id = ?').get(id);
+  if (!atual) return res.status(404).json({ erro: 'Solicitação não encontrada.' });
+
+  const sets = [];
+  const valores = [];
+  for (const campo of CAMPOS_EDITAVEIS_OD) {
+    if (campo in req.body) {
+      sets.push(`${campo} = ?`);
+      valores.push(req.body[campo]);
+    }
+  }
+  if (sets.length === 0) {
+    return res.status(400).json({ erro: 'Nenhum campo válido para atualizar.' });
+  }
+
+  db.prepare(`UPDATE solicitacoes_od SET ${sets.join(', ')} WHERE id = ?`).run(...valores, id);
+
+  db.prepare(
+    'INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_antes, dados_depois) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(req.usuario.id, req.usuario.email, 'editar_solicitacao_od', 'solicitacoes_od', id, JSON.stringify(atual), JSON.stringify(req.body));
+
+  res.json({ ok: true });
+});
+
+router.delete('/:id', (req, res) => {
+  const { id } = req.params;
+  const atual = db.prepare('SELECT * FROM solicitacoes_od WHERE id = ?').get(id);
+  if (!atual) return res.status(404).json({ erro: 'Solicitação não encontrada.' });
+
+  db.prepare('DELETE FROM solicitacoes_od WHERE id = ?').run(id);
+
+  db.prepare(
+    'INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_antes) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(req.usuario.id, req.usuario.email, 'excluir_solicitacao_od', 'solicitacoes_od', id, JSON.stringify(atual));
+
+  res.json({ ok: true });
+});
+
 // Atualização manual "agora" (admin) — relê o arquivo OD da pasta de rede e
 // reimporta, sem esperar o horário agendado. Usado pelos botões "Atualizar
 // agora" das telas Relatório de Compras OD e Aquisição em Andamento OD.

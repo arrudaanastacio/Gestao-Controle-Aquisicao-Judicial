@@ -431,7 +431,10 @@ router.get('/classificacao/:codigo', (req, res) => {
 });
 
 // ---------- Classificação: editar/gravar um item manualmente ----------
-router.put('/classificacao/:codigo', exigirPerfil('admin'), (req, res) => {
+// Permissão: quem tiver a ação "editar" no módulo relatorioItens (admin sempre).
+// A trava é feita pelo exigirModulo('relatorioItens') no server.js — por isso
+// NÃO exigimos mais o perfil admin aqui (antes era só admin).
+router.put('/classificacao/:codigo', (req, res) => {
   const codigo = String(req.params.codigo || '').trim();
   if (!codigo) return res.status(400).json({ erro: 'Código do item ausente.' });
   const b = req.body || {};

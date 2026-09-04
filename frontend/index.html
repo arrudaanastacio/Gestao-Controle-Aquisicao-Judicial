@@ -1181,6 +1181,7 @@
                   <th>Status</th>
                   <th>Status Item Processo</th>
                   <th>Observação</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody id="corpoTabelaSolicitacoesOD"></tbody>
@@ -1237,6 +1238,7 @@
                   <th>Status</th>
                   <th>Status Item Processo</th>
                   <th>Observação</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody id="corpoTabelaAquisicaoODAndamento"></tbody>
@@ -3287,6 +3289,94 @@
         <div class="acoes-modal">
           <button type="button" class="botao-secundario" id="botaoExcluirSolicitacao" hidden>Excluir</button>
           <button type="button" class="botao-secundario" id="botaoCancelarModal">Cancelar</button>
+          <button type="submit" class="botao-primario">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de edição de solicitação OD (Outras Demandas) -->
+  <div class="fundo-modal" id="modalSolicitacaoOD" hidden>
+    <div class="modal">
+      <h3>Editar solicitação (OD)</h3>
+      <p class="descricao-item" id="descricaoModalSolicitacaoOD"></p>
+      <p class="texto-apoio" style="margin:-4px 0 8px;">Esta linha é um espelho da planilha de Outras Demandas. A edição vale até a próxima importação automática daquele mês sobrescrever os dados.</p>
+      <form id="formSolicitacaoOD">
+        <div class="grade-form">
+          <div>
+            <label for="odCampoTipo">Tipo</label>
+            <input type="text" id="odCampoTipo">
+          </div>
+          <div>
+            <label for="odCampoModalidade">Modalidade de compra</label>
+            <input type="text" id="odCampoModalidade">
+          </div>
+
+          <div>
+            <label for="odCampoOficio">Nº Ofício</label>
+            <input type="text" id="odCampoOficio">
+          </div>
+          <div>
+            <label for="odCampoQtdeSolicitada">Qtde solicitada</label>
+            <input type="text" id="odCampoQtdeSolicitada">
+          </div>
+
+          <div>
+            <label for="odCampoDataSolicitacao">Data da solicitação</label>
+            <input type="date" id="odCampoDataSolicitacao">
+          </div>
+          <div>
+            <label for="odCampoRequisicaoGsnet">Requisição GSNET</label>
+            <input type="text" id="odCampoRequisicaoGsnet">
+          </div>
+
+          <div>
+            <label for="odCampoNEmpenho">Nº Empenho</label>
+            <input type="text" id="odCampoNEmpenho">
+          </div>
+          <div>
+            <label for="odCampoDataPrevisao">Previsão de entrega</label>
+            <input type="date" id="odCampoDataPrevisao">
+          </div>
+
+          <div>
+            <label for="odCampoDataEntrega">Data de entrega</label>
+            <input type="date" id="odCampoDataEntrega">
+          </div>
+          <div>
+            <label for="odCampoQtdeEntregue">Qtde entregue</label>
+            <input type="text" id="odCampoQtdeEntregue">
+          </div>
+
+          <div>
+            <label for="odCampoQtdePendente">Qtde pendente</label>
+            <input type="text" id="odCampoQtdePendente">
+          </div>
+          <div>
+            <label for="odCampoStatus">Status</label>
+            <select id="odCampoStatus">
+              <option value="">Em andamento</option>
+              <option>Planejamento</option>
+              <option>Adjudicado</option>
+              <option>Empenhado</option>
+              <option>Entrega Parcial</option>
+              <option>Finalizado</option>
+              <option>Cancelado</option>
+              <option>Deserto</option>
+              <option>Fracassado</option>
+              <option>Revogado</option>
+            </select>
+          </div>
+
+          <div class="campo-largo">
+            <label for="odCampoObservacao">Observação</label>
+            <textarea id="odCampoObservacao"></textarea>
+          </div>
+        </div>
+
+        <div class="acoes-modal">
+          <button type="button" class="botao-secundario" id="botaoExcluirSolicitacaoOD">Excluir</button>
+          <button type="button" class="botao-secundario" id="botaoCancelarModalOD">Cancelar</button>
           <button type="submit" class="botao-primario">Salvar</button>
         </div>
       </form>

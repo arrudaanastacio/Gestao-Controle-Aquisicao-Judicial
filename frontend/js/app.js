@@ -4237,8 +4237,13 @@ async function carregarTabelaSolicitacoesOD() {
         <td>${s.status || '—'}</td>
         <td>${escHtml(s.status_item_processo || '—')}</td>
         <td>${s.observacao || '—'}</td>
+        <td>${estado.usuario.perfil === 'admin' ? `<button class="botao-editar" data-id="${s.id}">Editar</button>` : ''}</td>
       </tr>
     `).join('');
+
+    corpo.querySelectorAll('.botao-editar').forEach((btn) => {
+      btn.addEventListener('click', () => abrirModalSolicitacaoOD(btn.dataset.id, 'relatorio'));
+    });
   }
 
   const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
@@ -4343,8 +4348,13 @@ async function carregarTabelaAquisicaoODAndamento() {
         <td>${s.status || '—'}</td>
         <td>${escHtml(s.status_item_processo || '—')}</td>
         <td>${s.observacao || '—'}</td>
+        <td>${estado.usuario.perfil === 'admin' ? `<button class="botao-editar" data-id="${s.id}">Editar</button>` : ''}</td>
       </tr>
     `).join('');
+
+    corpo.querySelectorAll('.botao-editar').forEach((btn) => {
+      btn.addEventListener('click', () => abrirModalSolicitacaoOD(btn.dataset.id, 'andamento'));
+    });
   }
 
   const totalPaginas = Math.max(Math.ceil(dados.total / dados.pageSize), 1);
@@ -4352,6 +4362,87 @@ async function carregarTabelaAquisicaoODAndamento() {
   document.getElementById('botaoAnteriorAquisicaoODAndamento').disabled = dados.page <= 1;
   document.getElementById('botaoProximoAquisicaoODAndamento').disabled = dados.page >= totalPaginas;
 }
+
+// -------------------- Modal de edição de solicitação OD --------------------
+// Espelha o modal do Tenente Pena, mas sobre a tabela solicitacoes_od. Como o
+// vigia OD reescreve o mês inteiro a cada importação, a edição vale até a
+// próxima importação daquele mês — igual ao comportamento do Relatório TP.
+const modalSolicitacaoOD = document.getElementById('modalSolicitacaoOD');
+const formSolicitacaoOD = document.getElementById('formSolicitacaoOD');
+let idSolicitacaoODEditando = null;
+let origemModalOD = 'relatorio'; // 'relatorio' ou 'andamento' — qual tela recarregar ao salvar
+
+function recarregarOrigemOD() {
+  if (origemModalOD === 'andamento') return carregarAquisicaoODAndamento();
+  return carregarSolicitacoesOD();
+}
+
+async function abrirModalSolicitacaoOD(id, origem = 'relatorio') {
+  idSolicitacaoODEditando = id;
+  origemModalOD = origem;
+  formSolicitacaoOD.reset();
+
+  const { solicitacao: s } = await api(`/solicitacoes-od/${id}`);
+  document.getElementById('descricaoModalSolicitacaoOD').textContent =
+    `${s.descricao || s.codigo_item} (${s.codigo_item}) · ${s.mes || ''}/${s.ano || ''}`;
+
+  document.getElementById('odCampoTipo').value = s.tipo || '';
+  document.getElementById('odCampoModalidade').value = s.modalidade_compra || '';
+  document.getElementById('odCampoOficio').value = s.n_oficio || '';
+  document.getElementById('odCampoQtdeSolicitada').value = s.qtde_solicitada ?? '';
+  document.getElementById('odCampoDataSolicitacao').value = s.data_solicitacao || '';
+  document.getElementById('odCampoRequisicaoGsnet').value = s.requisicao_gsnet || '';
+  document.getElementById('odCampoNEmpenho').value = s.n_empenho || '';
+  document.getElementById('odCampoDataPrevisao').value = s.data_previsao_entrega || '';
+  document.getElementById('odCampoDataEntrega').value = s.data_entrega || '';
+  document.getElementById('odCampoQtdeEntregue').value = s.qtde_entregue ?? '';
+  document.getElementById('odCampoQtdePendente').value = s.qtde_pendente ?? '';
+  document.getElementById('odCampoStatus').value = s.status || '';
+  document.getElementById('odCampoObservacao').value = s.observacao || '';
+
+  modalSolicitacaoOD.hidden = false;
+}
+
+document.getElementById('botaoCancelarModalOD').addEventListener('click', () => { modalSolicitacaoOD.hidden = true; });
+
+document.getElementById('botaoExcluirSolicitacaoOD').addEventListener('click', async () => {
+  if (!idSolicitacaoODEditando) return;
+  if (!confirm('Excluir esta solicitação? Ela pode voltar na próxima importação da planilha OD.')) return;
+  try {
+    await api(`/solicitacoes-od/${idSolicitacaoODEditando}`, { method: 'DELETE' });
+    modalSolicitacaoOD.hidden = true;
+    await recarregarOrigemOD();
+  } catch (e) {
+    alert(e.message);
+  }
+});
+
+formSolicitacaoOD.addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const txt = (id) => { const v = document.getElementById(id).value.trim(); return v === '' ? null : v; };
+  const corpo = {
+    tipo: txt('odCampoTipo'),
+    modalidade_compra: txt('odCampoModalidade'),
+    n_oficio: txt('odCampoOficio'),
+    qtde_solicitada: txt('odCampoQtdeSolicitada'),
+    data_solicitacao: txt('odCampoDataSolicitacao'),
+    requisicao_gsnet: txt('odCampoRequisicaoGsnet'),
+    n_empenho: txt('odCampoNEmpenho'),
+    data_previsao_entrega: txt('odCampoDataPrevisao'),
+    data_entrega: txt('odCampoDataEntrega'),
+    qtde_entregue: txt('odCampoQtdeEntregue'),
+    qtde_pendente: txt('odCampoQtdePendente'),
+    status: document.getElementById('odCampoStatus').value || null,
+    observacao: txt('odCampoObservacao'),
+  };
+  try {
+    await api(`/solicitacoes-od/${idSolicitacaoODEditando}`, { method: 'PUT', body: JSON.stringify(corpo) });
+    modalSolicitacaoOD.hidden = true;
+    await recarregarOrigemOD();
+  } catch (e) {
+    alert(e.message);
+  }
+});
 
 // Card de demanda/consumo por programa (Judicial / Adm / JEFAZ) no modal.
 function cardPrograma(titulo, cls, demanda, consumo, tooltip) {
@@ -6299,7 +6390,7 @@ async function carregarTabelaRelItens() {
         <td>${i.clas_unidade_fornecimento || '—'}</td>
         <td style="text-align:right;">${i.clas_embalagem_conversao != null ? fmtNumero(i.clas_embalagem_conversao) : '<span style="color:var(--aviso,#b8860b);">pendente</span>'}</td>
         <td>${marca(i.clas_inex)}</td>
-        <td>${ehAdmin
+        <td>${temPermissao('relatorioItens', 'editar')
           ? `<button class="botao-editar" data-codigo="${encodeURIComponent(i.codigo || '')}" data-desc="${(i.descricao_item || '').replace(/"/g, '&quot;')}">Editar</button>`
           : '—'}</td>
       </tr>
@@ -7097,7 +7188,7 @@ async function carregarTabelaPlanTP() {
         <td>${i.clas_responsavel_aquisicao || '—'}</td>
         <td>${marca(i.clas_inex)}</td>
         <td>${outros(i)}</td>
-        <td>${ehAdmin
+        <td>${temPermissao('relatorioItens', 'editar')
           ? `<button class="botao-editar" data-codigo="${encodeURIComponent(i.codigo || '')}" data-desc="${(i.descricao_item || '').replace(/"/g, '&quot;')}">Editar</button>`
           : '—'}</td>
       </tr>
@@ -8339,6 +8430,14 @@ async function selecionarPaciente(autor) {
       chip('Dispensações autorizadas', it.dispensacoes_autorizadas),
     ].join('');
     const consumoNum = parseNumeroReq(it.qtde_consumo);
+    // ----- Regras de alerta e de cálculo da Qtde de Aquisição -----
+    const conv = parseNumeroReq(it.embalagem_conversao);
+    const requerConversao = unidadeAquisicaoFracionada(it.unidade_fornecimento);
+    const prazoUnico = itemPrazoUnico(it);
+    const alertaHtml = htmlAlertaReq(it);
+    const etiquetaConv = htmlEtiquetaConversaoReq(it);
+    const autonomiaInicial = 1;
+    const qtdInicial = calcAquisicaoReq(paramsAquisicaoItem(it, autonomiaInicial));
     return `
       <label class="req-item" data-busca="${escAttr(normalizarBusca((it.descricao_item || '') + ' ' + (it.codigo_item || '') + ' ' + (it.cod_siafisico || '')))}" style="display:grid; grid-template-columns:24px 1fr 95px 110px; gap:10px; align-items:center; padding:9px 6px; border-bottom:1px solid var(--linha-tabela); cursor:pointer;">
         <input type="checkbox" class="req-check" data-idx="${idx}" style="width:auto;">
@@ -8346,18 +8445,19 @@ async function selecionarPaciente(autor) {
           <div style="font-size:13px;">${it.descricao_item || '—'}</div>
           <div class="col-codigo">${it.codigo_item || ''}${it.cod_siafisico ? ' · SIAF ' + it.cod_siafisico : ''}</div>
           ${it.subcategoria && String(it.subcategoria).trim() ? `<div class="tags-programa"><span class="tag-programa sub">${escHtml(String(it.subcategoria).trim())}</span></div>` : ''}
-          ${detalhes ? `<div style="margin-top:3px;">${detalhes}</div>` : ''}
+          ${(detalhes || etiquetaConv) ? `<div style="margin-top:3px;">${detalhes}${etiquetaConv}</div>` : ''}
+          ${alertaHtml}
           <div style="margin-top:3px;">${badge}</div>
           ${htmlEtiquetaAta(it.ata, 'pac_' + idx)}
           ${htmlValorUnit(it, 'pac_' + idx)}
         </div>
         <div>
           <label style="font-size:10px; color:var(--cinza-texto); display:block;">Autonomia de compra</label>
-          <input type="number" class="req-autonomia" data-idx="${idx}" data-consumo="${consumoNum}" value="1" min="0" step="1" style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px;">
+          <input type="number" class="req-autonomia" data-idx="${idx}" data-consumo="${consumoNum}" data-conv="${conv > 0 ? conv : 0}" data-requer="${requerConversao ? 1 : 0}" data-unico="${prazoUnico ? 1 : 0}" value="${autonomiaInicial}" min="0" step="1"${prazoUnico ? ' readonly title="Prazo “Único”: autonomia fixa em 1."' : ''} style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px;${prazoUnico ? ' background:var(--realce-tabela);' : ''}">
         </div>
         <div>
           <label style="font-size:10px; color:var(--cinza-texto); display:block;">Qtde de Aquisição</label>
-          <input type="number" class="req-qtd" data-idx="${idx}" value="${consumoNum}" readonly title="Consumo × Autonomia de compra" style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px; background:var(--realce-tabela); font-weight:600;">
+          <input type="number" class="req-qtd" data-idx="${idx}" value="${qtdInicial}" readonly title="Consumo × Autonomia de compra${requerConversao ? ' × conversão (arredondado p/ cima)' : ''}" style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px; background:var(--realce-tabela); font-weight:600;">
         </div>
       </label>`;
   }).join('');
@@ -8396,13 +8496,70 @@ function parseNumeroReq(v) {
   return isNaN(n) ? 0 : n;
 }
 
-// Qtde de Aquisição = Qtde de Consumo × Autonomia de compra
+// Calcula a Qtde de Aquisição da requisição de Primeiro Atendimento.
+// Regra base: Consumo × Autonomia de compra.
+//  • Itens com conversão (unidade Dose/Mililitro/Grama): Consumo × conversão ×
+//    Autonomia, arredondado PARA CIMA (não dá para comprar fração de embalagem).
+//  • Prazo “Único”: aquisição única — a autonomia é fixada em 1 (se também tiver
+//    conversão, ainda multiplica pela conversão).
+function calcAquisicaoReq({ consumo, conv, requer, unico, autonomia }) {
+  const mult = (requer && conv > 0) ? conv : 1;
+  const aut = unico ? 1 : (autonomia || 0);
+  const base = consumo * mult * aut;
+  return requer ? Math.ceil(base) : +(base).toFixed(2);
+}
+
+// Parâmetros de cálculo a partir de um item da requisição (individual ou
+// coletiva) + a autonomia de compra escolhida. Centraliza a leitura dos campos.
+function paramsAquisicaoItem(item, autonomia) {
+  return {
+    consumo: parseNumeroReq(item.qtde_consumo),
+    conv: parseNumeroReq(item.embalagem_conversao),
+    requer: unidadeAquisicaoFracionada(item.unidade_fornecimento),
+    unico: normalizarBusca(item.prazo || '').includes('unico'),
+    autonomia,
+  };
+}
+function itemPrazoUnico(item) { return normalizarBusca(item.prazo || '').includes('unico'); }
+
+// Motivos do alerta ⚠️ de um item: periodicidade alta, prazo único, dispensação.
+function motivosAlertaReq(item) {
+  const prazoNorm = normalizarBusca(item.prazo || '');
+  const motivos = [];
+  if (parseNumeroReq(item.periodicidade) >= 30) motivos.push('Periodicidade ≥ 30 dias — confira se a quantidade cobre o intervalo entre dispensações.');
+  if (prazoNorm.includes('unico')) motivos.push('Prazo “Único” — aquisição única: a Qtde de Aquisição usa autonomia fixa em 1.');
+  if (prazoNorm.includes('dispensa')) motivos.push('Prazo “Dispensação” — confira o nº de dispensações autorizadas antes de comprar.');
+  return motivos;
+}
+// Caixinha de alerta (ou '' quando não há motivo).
+function htmlAlertaReq(item) {
+  const motivos = motivosAlertaReq(item);
+  return motivos.length
+    ? `<div class="req-alerta" style="margin-top:4px; background:#fff8e1; border:1px solid #f0c000; border-radius:4px; padding:4px 8px; font-size:11px; color:#7a5b00;"><strong>⚠️ Atenção:</strong><ul style="margin:2px 0 0; padding-left:16px;">${motivos.map((m) => `<li>${escHtml(m)}</li>`).join('')}</ul></div>`
+    : '';
+}
+// Etiqueta "Possui conversão" (Dose/Mililitro/Grama) — ou '' se não for fracionado.
+function htmlEtiquetaConversaoReq(item) {
+  if (!unidadeAquisicaoFracionada(item.unidade_fornecimento)) return '';
+  const conv = parseNumeroReq(item.embalagem_conversao);
+  const u = item.unidade_fornecimento ? ' ' + escHtml(String(item.unidade_fornecimento)) : '';
+  return conv > 0
+    ? `<span title="A Qtde de Aquisição é calculada convertendo a embalagem informada no Relatório de Itens (Consumo × conversão × Autonomia de compra), arredondada para cima." style="display:inline-block; background:#e7f1ff; border:1px solid #9cc3ff; border-radius:4px; padding:1px 7px; margin:2px 4px 0 0; font-size:11px; color:#1c4f8f;">🔄 Possui conversão (×${fmtNumero(conv)}${u})</span>`
+    : `<span title="Este item é de unidade fracionada (${escAttr(String(item.unidade_fornecimento || ''))}) mas ainda não tem o fator de conversão cadastrado no Relatório de Itens. Cadastre a Embalagem de Conversão para a Qtde de Aquisição sair convertida." style="display:inline-block; background:#fdecea; border:1px solid #f5b3ab; border-radius:4px; padding:1px 7px; margin:2px 4px 0 0; font-size:11px; color:#a3372b;">🔄 Conversão pendente</span>`;
+}
+
+// Recalcula a Qtde de Aquisição quando a Autonomia de compra muda.
 function recalcularAquisicao(inpAutonomia) {
-  const idx = inpAutonomia.dataset.idx;
-  const consumo = parseNumeroReq(inpAutonomia.dataset.consumo);
-  const autonomia = parseNumeroReq(inpAutonomia.value);
-  const campoQtd = document.querySelector(`.req-qtd[data-idx="${idx}"]`);
-  if (campoQtd) campoQtd.value = +(consumo * autonomia).toFixed(2);
+  const d = inpAutonomia.dataset;
+  const q = calcAquisicaoReq({
+    consumo: parseNumeroReq(d.consumo),
+    conv: parseNumeroReq(d.conv),
+    requer: d.requer === '1',
+    unico: d.unico === '1',
+    autonomia: parseNumeroReq(inpAutonomia.value),
+  });
+  const campoQtd = document.querySelector(`.req-qtd[data-idx="${d.idx}"]`);
+  if (campoQtd) campoQtd.value = q;
 }
 
 document.getElementById('reqMarcarTodos').addEventListener('change', (ev) => {
@@ -8447,11 +8604,17 @@ function montarDocumentoRequisicao(d) {
   const preco = (v) => { if (v == null || v === '') return null; const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
   const brl = (v) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   let totalGeral = 0, temValor = false;
+  // Só mostra a coluna "Unid. Fornecimento" quando algum item exige conversão
+  // de embalagem (Dose/Mililitro/Grama) — mantém a requisição limpa nos demais.
+  const colUnid = (d.itens || []).some((it) => unidadeAquisicaoFracionada(it.unidade_fornecimento));
   const linhas = d.itens.map((it, i) => {
     const uni = preco(it.valor_unitario);
     const qtd = parseNumeroReq(it.quantidade);
     const tot = (uni != null && qtd) ? uni * qtd : null;
     if (tot != null) { totalGeral += tot; temValor = true; }
+    const cellUnid = colUnid
+      ? `<td>${unidadeAquisicaoFracionada(it.unidade_fornecimento) ? (it.unidade_fornecimento || '—') : '—'}</td>`
+      : '';
     return `
     <tr>
       <td style="text-align:center;">${i + 1}</td>
@@ -8459,6 +8622,7 @@ function montarDocumentoRequisicao(d) {
       <td>${it.cod_siafisico || '—'}</td>
       <td>${it.catmat || '—'}</td>
       <td>${it.descricao_item || '—'}</td>
+      ${cellUnid}
       <td style="text-align:center;">${it.qtde_consumo || '—'}</td>
       <td style="text-align:center;"><strong>${it.quantidade || '—'}</strong></td>
       <td style="text-align:right;">${brl(uni)}</td>
@@ -8466,7 +8630,7 @@ function montarDocumentoRequisicao(d) {
     </tr>`;
   }).join('');
   const totalRow = temValor
-    ? `<tr><td colspan="8" style="text-align:right;"><strong>Total da aquisição</strong></td><td style="text-align:right;"><strong>${brl(totalGeral)}</strong></td></tr>`
+    ? `<tr><td colspan="${colUnid ? 9 : 8}" style="text-align:right;"><strong>Total da aquisição</strong></td><td style="text-align:right;"><strong>${brl(totalGeral)}</strong></td></tr>`
     : '';
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${d.codigoControle || 'Requisição'} - ${d.autor}</title>
@@ -8497,7 +8661,7 @@ function montarDocumentoRequisicao(d) {
       <strong>Operador:</strong> ${d.operadorNome || '—'} &nbsp;|&nbsp; <strong>Login:</strong> ${d.operadorEmail || '—'}
     </div>
     <table>
-      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th>Qtde Consumo</th><th style="width:90px;">Quantidade de Aquisição</th><th style="width:90px;">Valor Unitário</th><th style="width:100px;">Valor Total</th></tr></thead>
+      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th>${colUnid ? '<th>Unid. Fornecimento</th>' : ''}<th>Qtde Consumo</th><th style="width:90px;">Quantidade de Aquisição</th><th style="width:90px;">Valor Unitário</th><th style="width:100px;">Valor Total</th></tr></thead>
       <tbody>${linhas}${totalRow}</tbody>
     </table>
     </body></html>`;
@@ -8509,11 +8673,15 @@ function montarDocumentoColetiva(r, itens, pacientes) {
   const preco = (v) => { if (v == null || v === '') return null; const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
   const brl = (v) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   let totalGeral = 0, temValor = false;
+  const colUnid = (itens || []).some((it) => unidadeAquisicaoFracionada(it.unidade_fornecimento));
   const linhasItens = itens.map((it, i) => {
     const uni = preco(it.valor_unitario);
     const qtd = parseNumeroReq(it.quantidade);
     const tot = (uni != null && qtd) ? uni * qtd : null;
     if (tot != null) { totalGeral += tot; temValor = true; }
+    const cellUnid = colUnid
+      ? `<td>${unidadeAquisicaoFracionada(it.unidade_fornecimento) ? (it.unidade_fornecimento || '—') : '—'}</td>`
+      : '';
     return `
     <tr>
       <td style="text-align:center;">${i + 1}</td>
@@ -8521,6 +8689,7 @@ function montarDocumentoColetiva(r, itens, pacientes) {
       <td>${it.cod_siafisico || '—'}</td>
       <td>${it.catmat || '—'}</td>
       <td>${it.descricao_item || '—'}</td>
+      ${cellUnid}
       <td style="text-align:center;">${it.n_pacientes != null ? it.n_pacientes : (it.detalhe ? it.detalhe.length : '—')}</td>
       <td style="text-align:center;"><strong>${it.quantidade || '—'}</strong></td>
       <td style="text-align:right;">${brl(uni)}</td>
@@ -8528,7 +8697,7 @@ function montarDocumentoColetiva(r, itens, pacientes) {
     </tr>`;
   }).join('');
   const totalRowItens = temValor
-    ? `<tr><td colspan="8" style="text-align:right;"><strong>Total da aquisição</strong></td><td style="text-align:right;"><strong>${brl(totalGeral)}</strong></td></tr>`
+    ? `<tr><td colspan="${colUnid ? 9 : 8}" style="text-align:right;"><strong>Total da aquisição</strong></td><td style="text-align:right;"><strong>${brl(totalGeral)}</strong></td></tr>`
     : '';
   // Itens solicitados POR PACIENTE, com a quantidade INDIVIDUAL (do detalhe de
   // cada item). A soma das quantidades por paciente = o total do item na tabela
@@ -8576,7 +8745,7 @@ function montarDocumentoColetiva(r, itens, pacientes) {
     </div>
     <h2>Total consolidado por medicamento</h2>
     <table>
-      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th><th style="width:70px;">Pacientes</th><th style="width:90px;">Qtde total</th><th style="width:90px;">Valor Unitário</th><th style="width:100px;">Valor Total</th></tr></thead>
+      <thead><tr><th style="width:28px;">#</th><th>Cód. Item</th><th>SIAFÍSICO</th><th>CATMAT</th><th>Descrição do Item</th>${colUnid ? '<th>Unid. Fornecimento</th>' : ''}<th style="width:70px;">Pacientes</th><th style="width:90px;">Qtde total</th><th style="width:90px;">Valor Unitário</th><th style="width:100px;">Valor Total</th></tr></thead>
       <tbody>${linhasItens}${totalRowItens}</tbody>
     </table>
     <h2>Pacientes da solicitação (${pacientes ? pacientes.length : 0})</h2>
@@ -8617,6 +8786,7 @@ async function gerarRequisicao() {
     periodicidade: it.periodicidade, dispensacoes_autorizadas: it.dispensacoes_autorizadas,
     autonomia_compra: it.autonomia_compra, catmat: it.catmat,
     situacao_ata: it.situacao_ata, escolha_ata: it.escolha_ata, valor_unitario: it.valor_unitario,
+    unidade_fornecimento: it.unidade_fornecimento,
   }));
 
   try {
@@ -8900,8 +9070,11 @@ function renderSelecionadosPac() {
   alvo.innerHTML = selecionados.map((p) => {
     const it = p.item || {};
     const s = tab.sel[p.autor];
-    const consumo = parseNumeroReq(it.qtde_consumo);
-    const qtd = +(consumo * (s.autonomia || 0)).toFixed(2);
+    const prazoUnico = itemPrazoUnico(it);
+    if (prazoUnico) s.autonomia = 1; // aquisição única: autonomia fixa em 1
+    const qtd = calcAquisicaoReq(paramsAquisicaoItem(it, s.autonomia || 0));
+    const etiquetaConv = htmlEtiquetaConversaoReq(it);
+    const alertaHtml = htmlAlertaReq(it);
     const aut = it.autonomia_atual;
     let badge = '<span style="color:var(--cinza-texto); font-size:11px;">sem dado de estoque</span>';
     if (aut !== null && aut !== undefined) {
@@ -8920,12 +9093,13 @@ function renderSelecionadosPac() {
         <div>
           <div style="font-size:13px; font-weight:500;">${escHtml(p.autor || '—')}</div>
           <div class="col-codigo">${[p.processo ? 'Proc. ' + p.processo : '', p.protocolo ? 'Prot. ' + p.protocolo : ''].filter(Boolean).join(' · ')}</div>
-          ${detalhes ? `<div style="margin-top:3px;">${detalhes}</div>` : ''}
+          ${(detalhes || etiquetaConv) ? `<div style="margin-top:3px;">${detalhes}${etiquetaConv}</div>` : ''}
+          ${alertaHtml}
           <div style="margin-top:3px;">${badge}</div>
         </div>
         <div>
           <label style="font-size:10px; color:var(--cinza-texto); display:block;">Autonomia de compra</label>
-          <input type="number" class="col-pac-aut" data-autor="${escHtml(p.autor)}" data-consumo="${consumo}" value="${s.autonomia}" min="0" step="1" style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px;">
+          <input type="number" class="col-pac-aut" data-autor="${escHtml(p.autor)}" data-consumo="${parseNumeroReq(it.qtde_consumo)}" value="${s.autonomia}" min="0" step="1"${prazoUnico ? ' readonly title="Prazo “Único”: autonomia fixa em 1."' : ''} style="width:100%; padding:6px 8px; border:1px solid var(--linha); border-radius:4px; font-size:13px;${prazoUnico ? ' background:var(--realce-tabela);' : ''}">
         </div>
         <div>
           <label style="font-size:10px; color:var(--cinza-texto); display:block;">Qtde de Aquisição</label>
@@ -8939,10 +9113,12 @@ function renderSelecionadosPac() {
     renderResultadosPac(); renderSelecionadosPac(); renderTabsColetiva(); atualizarContadorColetiva();
   }));
   alvo.querySelectorAll('.col-pac-aut').forEach((inp) => inp.addEventListener('input', () => {
+    const autor = inp.dataset.autor;
     const a = parseNumeroReq(inp.value);
-    tab.sel[inp.dataset.autor].autonomia = a;
-    const q = +(parseNumeroReq(inp.dataset.consumo) * a).toFixed(2);
-    const campo = alvo.querySelector(`.col-pac-qtd[data-autor="${cssEsc(inp.dataset.autor)}"]`);
+    tab.sel[autor].autonomia = a;
+    const p = tab.pacientes.find((x) => x.autor === autor);
+    const q = calcAquisicaoReq(paramsAquisicaoItem((p && p.item) || {}, a));
+    const campo = alvo.querySelector(`.col-pac-qtd[data-autor="${cssEsc(autor)}"]`);
     if (campo) campo.value = q;
     atualizarContadorColetiva();
   }));
@@ -8960,7 +9136,7 @@ function atualizarContadorColetiva() {
     if (!s || !s.checked) return;
     pacientesUnicos.add(p.autor);
     totalItens++;
-    aquisicaoTotal += parseNumeroReq(p.item.qtde_consumo) * (s.autonomia || 0);
+    aquisicaoTotal += calcAquisicaoReq(paramsAquisicaoItem(p.item || {}, s.autonomia || 0));
   }));
   document.getElementById('colContador').textContent =
     `${pacientesUnicos.size} paciente(s) · ${totalItens} item(ns) · aquisição total ${fmtNumero(+aquisicaoTotal.toFixed(2))}`;
@@ -9030,6 +9206,9 @@ async function reabrirColetiva(id) {
     try { d = await api(`/autores/itens-pacientes?codigos=${encodeURIComponent(it.codigo_item)}`); }
     catch (_) { d = { pacientes: [] }; }
     const pacientes = (d.pacientes || []).map((p) => ({ ...p, item: p.itens[0] }));
+    // Item de referência (mesmo medicamento) — carrega prazo/periodicidade/
+    // conversão para os pacientes injetados que já saíram da demanda atual.
+    const itemRef = (d.pacientes[0] && d.pacientes[0].itens[0]) || {};
     const sel = {};
     pacientes.forEach((p) => { sel[p.autor] = { checked: false, autonomia: 1 }; });
     // Detalhe por paciente: coletiva já tem it.detalhe; individual = só o autor,
@@ -9047,6 +9226,9 @@ async function reabrirColetiva(id) {
           item: {
             codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
             categoria: it.categoria, catmat: it.catmat, qtde_consumo: det.qtde_consumo,
+            prazo: itemRef.prazo, periodicidade: itemRef.periodicidade,
+            dispensacoes_autorizadas: itemRef.dispensacoes_autorizadas,
+            unidade_fornecimento: itemRef.unidade_fornecimento, embalagem_conversao: itemRef.embalagem_conversao,
           },
         });
       }
@@ -9087,12 +9269,14 @@ async function gerarColetiva() {
           tipo_demanda: p.tipo_demanda, itens: [],
         });
       }
+      const autonomiaEfetiva = itemPrazoUnico(it) ? 1 : (s.autonomia || 0);
       mapa.get(p.autor).itens.push({
         codigo_item: it.codigo_item, cod_siafisico: it.cod_siafisico, descricao_item: it.descricao_item,
         categoria: it.categoria, catmat: it.catmat, qtde_consumo: it.qtde_consumo, prazo: it.prazo,
         periodicidade: it.periodicidade, dispensacoes_autorizadas: it.dispensacoes_autorizadas,
-        autonomia_compra: String(s.autonomia || 0),
-        quantidade: +(parseNumeroReq(it.qtde_consumo) * (s.autonomia || 0)).toFixed(2),
+        unidade_fornecimento: it.unidade_fornecimento,
+        autonomia_compra: String(autonomiaEfetiva),
+        quantidade: calcAquisicaoReq(paramsAquisicaoItem(it, autonomiaEfetiva)),
         situacao_ata: situacaoAta, escolha_ata: escolhaAta,
         valor_unitario: valorUnit,
       });
