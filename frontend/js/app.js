@@ -244,6 +244,18 @@ async function carregarUsuario() {
     document.getElementById('avisoSomenteLeitura').hidden = temAlgumaEscrita();
     aplicarPermissoesNav();
   }
+
+  // Botões "Atualizar via Oracle": além do admin, liberados para quem tiver a
+  // permissão única "Atualizar via Oracle" (módulo atualizarOracle).
+  if (usuario.perfil !== 'admin' && temPermissao('atualizarOracle', 'visualizar')) {
+    const revelar = (id, fn) => { const el = document.getElementById(id); if (el) { el.hidden = false; if (fn) fn(); } };
+    revelar('botaoAtualizarOracle', verificarStatusOracle);
+    revelar('botaoAtualizarOracleEstoque', verificarStatusOracleEstoque);
+    revelar('botaoAtualizarEntradaLotes', verificarStatusOracleEntradaLotes);
+    revelar('botaoAtualizarSaidaLotes', verificarStatusOracleSaidaLotes);
+    revelar('botaoAtualizarRelatorioItens', verificarStatusOracleRelatorioItens);
+    revelar('botaoAtualizarConsumoEntrega', verificarStatusOracleConsumoEntrega);
+  }
 }
 
 // Verdadeiro se o usuário pode fazer a ação no módulo. Admin pode tudo.

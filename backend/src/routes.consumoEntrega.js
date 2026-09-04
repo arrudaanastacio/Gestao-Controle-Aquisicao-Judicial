@@ -14,7 +14,7 @@
 //   % = soma_real_entregue / consumo_estimado_periodo * 100
 // =====================================================================
 const express = require('express');
-const { exigirPerfil } = require('./auth');
+const { exigirPerfil, exigirOracle } = require('./auth');
 const db = require('./db');
 
 const router = express.Router();
@@ -238,7 +238,7 @@ function executarAtualizacaoRecibosOracle() {
     .finally(() => { estadoOracle.rodando = false; });
 }
 
-router.post('/atualizar-oracle', exigirPerfil('admin'), (req, res) => {
+router.post('/atualizar-oracle', exigirOracle, (req, res) => {
   if (estadoOracle.rodando) {
     return res.status(409).json({ erro: 'Já existe uma atualização via Oracle em andamento.', ...estadoOracle });
   }

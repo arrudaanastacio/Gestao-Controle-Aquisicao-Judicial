@@ -64,6 +64,7 @@ const MODULOS = [
 
   // 🔍 Consultas
   { chave: 'relatorioItens', rotulo: 'Relatório de Itens', acoes: ['visualizar', 'editar', 'exportar', 'importar'] },
+  { chave: 'atualizarOracle', rotulo: 'Atualizar via Oracle (todos os botões)', acoes: ['visualizar'] },
   { chave: 'atas', rotulo: 'Atas de Registro de Preço (SISCOA)', acoes: ['visualizar', 'exportar', 'importar'] },
 
   // 📋 Planejamento de Compras

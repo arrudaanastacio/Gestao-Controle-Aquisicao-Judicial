@@ -13,7 +13,7 @@
 const express = require('express');
 const XLSX = require('xlsx');
 const db = require('./db');
-const { autenticar, exigirPerfil } = require('./auth');
+const { autenticar, exigirPerfil, exigirOracle } = require('./auth');
 
 const router = express.Router();
 router.use(autenticar);
@@ -244,7 +244,7 @@ function iniciarAtualizacaoOracle(opcoes = {}) {
   return { iniciado: true, jaRodando: false };
 }
 
-router.post('/atualizar-oracle', exigirPerfil('admin'), (req, res) => {
+router.post('/atualizar-oracle', exigirOracle, (req, res) => {
   const r = iniciarAtualizacaoOracle({ usuarioEmail: req.usuario.email });
   if (!r.iniciado) {
     return res.status(409).json({ erro: 'Já existe uma atualização via Oracle em andamento.', ...estadoOracle });

@@ -31,7 +31,7 @@ const distribuicaoRoutes = require('./routes.distribuicao');
 const reservasRoutes = require('./routes.reservas');
 const rupturasRoutes = require('./routes.rupturas');
 const configRoutes = require('./routes.config');
-const { autenticar, exigirModulo, exigirModuloDinamico, exigirPerfil } = require('./auth');
+const { autenticar, exigirModulo, exigirModuloDinamico, exigirPerfil, liberarOracle } = require('./auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -72,19 +72,19 @@ app.use('/api/alertas', autenticar, exigirModulo('alertas'), alertasRoutes);
 // /api/estoque atende 4 telas: Estoque TP (padrão), Itens em Estoque Geral
 // (?escopoUnidade=geral), Consultar Validades TP (/validades), Histórico de
 // Estoque (/historico...) e Evolução de Estoque (/evolucao).
-app.use('/api/estoque', autenticar, exigirModuloDinamico((req) => {
+app.use('/api/estoque', autenticar, liberarOracle(exigirModuloDinamico((req) => {
   if (req.path.startsWith('/monitoramento')) return 'monitoramentoEstoque';
   if (req.query.escopoUnidade === 'geral') return 'estoqueGeral';
   if (req.path.startsWith('/validades')) return 'validadesTP';
   if (req.path.startsWith('/historico')) return 'historicoEstoqueTP';
   if (req.path.startsWith('/evolucao')) return 'evolucaoEstoqueTP';
   return 'estoqueTP';
-}), estoqueRoutes);
+})), estoqueRoutes);
 
 // /api/autores atende 4 telas: Listagem de Autores TP (padrão), Listagem de
 // Autores Demais Unidades (?escopoUnidade=geral), Relatório de Primeiro
 // Atendimento (/requisicoes) e Comparativo de Autores (/comparacao).
-app.use('/api/autores', autenticar, exigirModuloDinamico((req) => {
+app.use('/api/autores', autenticar, liberarOracle(exigirModuloDinamico((req) => {
   if (req.query.escopoUnidade === 'geral') return 'autoresGeral';
   // Detalhe do item (estoque/consumo/autonomia) é compartilhado: usado tanto no
   // Comparativo de Autores quanto no modal do Relatório de Primeiro Atendimento.
@@ -93,16 +93,16 @@ app.use('/api/autores', autenticar, exigirModuloDinamico((req) => {
   if (req.path.startsWith('/requisicoes')) return 'relatorioReqTP';
   if (req.path.startsWith('/comparacao')) return 'comparativoAutoresTP';
   return 'autoresTP';
-}), autoresRoutes);
+})), autoresRoutes);
 
 app.use('/api/itens-importados', autenticar, exigirModulo('relatorioItensImportados'), require('./routes.itensImportados'));
-app.use('/api/consumo-entrega', autenticar, exigirModulo('consumoEntrega'), require('./routes.consumoEntrega'));
+app.use('/api/consumo-entrega', autenticar, liberarOracle(exigirModulo('consumoEntrega')), require('./routes.consumoEntrega'));
 app.use('/api/conciliacao', autenticar, exigirModuloDinamico((req) => {
   if (req.path.startsWith('/empenho')) return 'roboEmpenhos';
   if (req.path.startsWith('/entrada')) return 'associarEntrada';
   return ['associarEntrada', 'roboEmpenhos']; // /auditoria e /desfazer: qualquer um
 }), require('./routes.conciliacao'));
-app.use('/api/relatorio-itens', autenticar, exigirModulo('relatorioItens'), relatorioItensRoutes);
+app.use('/api/relatorio-itens', autenticar, liberarOracle(exigirModulo('relatorioItens')), relatorioItensRoutes);
 app.use('/api/atas', autenticar, exigirModulo('atas'), atasRoutes);
 app.use('/api/planejamento', autenticar, exigirModulo('planejamento'), require('./routes.planejamento'));
 app.use('/api/cartas-troca', autenticar, exigirModulo('cartasTroca'), require('./routes.cartasTroca'));
@@ -118,8 +118,8 @@ app.use('/api/solicitacoes-od', autenticar, exigirModuloDinamico((req) =>
   req.query.emAberto === 'true' ? 'aquisicaoODAndamento' : 'relatorioComprasOD'
 ), solicitacoesODRoutes);
 
-app.use('/api/entrada-lotes', autenticar, exigirModulo('entradaLotes'), entradaLotesRoutes);
-app.use('/api/saida-lotes', autenticar, exigirModulo('saidaLotes'), saidaLotesRoutes);
+app.use('/api/entrada-lotes', autenticar, liberarOracle(exigirModulo('entradaLotes')), entradaLotesRoutes);
+app.use('/api/saida-lotes', autenticar, liberarOracle(exigirModulo('saidaLotes')), saidaLotesRoutes);
 app.use('/api/distribuicao', autenticar, exigirModulo('distribuicao'), distribuicaoRoutes);
 app.use('/api/reservas', autenticar, exigirModulo('reservas'), reservasRoutes);
 app.use('/api/rupturas', autenticar, exigirModulo('rupturas'), rupturasRoutes);

@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const db = require('./db');
-const { autenticar, exigirPerfil } = require('./auth');
+const { autenticar, exigirPerfil, exigirOracle } = require('./auth');
 const { referenciaParaColeta } = require('./diasUteis');
 
 const router = express.Router();
@@ -361,7 +361,7 @@ function iniciarAtualizacaoEstoqueOracle(opcoes = {}) {
 }
 
 // Botão "Atualizar via Oracle": dispara e responde na hora.
-router.post('/atualizar-oracle', exigirPerfil('admin'), (req, res) => {
+router.post('/atualizar-oracle', exigirOracle, (req, res) => {
   const r = iniciarAtualizacaoEstoqueOracle({ usuarioEmail: req.usuario.email, usuarioId: req.usuario.id });
   if (!r.iniciado) {
     return res.status(409).json({ erro: 'Já existe uma atualização via Oracle em andamento.', ...estadoOracleEstoque });

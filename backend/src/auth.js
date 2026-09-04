@@ -151,4 +151,35 @@ function exigirModuloDinamico(resolver) {
   };
 }
 
-module.exports = { gerarToken, autenticar, exigirPerfil, exigirModulo, exigirModuloDinamico, acaoDaRequisicao, definirCorteSessoes, carregarCorteSessoes, JWT_SECRET };
+// Permissão única "Atualizar via Oracle": admin, ou usuário com o módulo
+// `atualizarOracle` habilitado (ação visualizar). Governa todos os botões
+// "Atualizar via Oracle" das telas (Autores, Estoque, Movimentações, etc.).
+function usuarioPodeOracle(req) {
+  if (!req.usuario) return false;
+  if (req.usuario.perfil === 'admin') return true;
+  const db = require('./db');
+  const perm = db.prepare('SELECT * FROM permissoes WHERE usuario_id = ? AND modulo = ?')
+    .get(req.usuario.id, 'atualizarOracle');
+  return !!(perm && perm.habilitado === 1 && perm.visualizar === 1);
+}
+
+// Gate interno das rotas /atualizar-oracle (substitui exigirPerfil('admin')).
+function exigirOracle(req, res, next) {
+  if (!req.usuario) return res.status(401).json({ erro: 'Não autenticado. Faça login.' });
+  if (usuarioPodeOracle(req)) return next();
+  return res.status(403).json({ erro: 'Você não tem permissão para atualizar via Oracle.' });
+}
+
+// Envolve o gate de MÓDULO no mount: se a rota for de atualização via Oracle
+// (/atualizar-oracle...) e o usuário tiver a permissão única, deixa passar sem
+// exigir a permissão do módulo daquela tela. Caso contrário, aplica o gate normal.
+function liberarOracle(gateModulo) {
+  return (req, res, next) => {
+    if (req.usuario && (req.path || '').startsWith('/atualizar-oracle') && usuarioPodeOracle(req)) {
+      return next();
+    }
+    return gateModulo(req, res, next);
+  };
+}
+
+module.exports = { gerarToken, autenticar, exigirPerfil, exigirModulo, exigirModuloDinamico, acaoDaRequisicao, definirCorteSessoes, carregarCorteSessoes, JWT_SECRET, usuarioPodeOracle, exigirOracle, liberarOracle };
