@@ -78,6 +78,11 @@ const MODULOS = [
   { chave: 'elenco', rotulo: 'Elenco (Catálogo)', acoes: ['visualizar', 'editar', 'importar'] },
 ];
 
+// Ordena os módulos por rótulo (alfabética, pt-BR) — a grade de permissões e
+// os endpoints que a alimentam seguem essa ordem. Módulos novos entram já
+// ordenados automaticamente (não dependem da posição no array acima).
+MODULOS.sort((a, b) => a.rotulo.localeCompare(b.rotulo, 'pt-BR', { sensitivity: 'base' }));
+
 const MODULO_CHAVES = MODULOS.map((m) => m.chave);
 
 module.exports = { ACOES, ACOES_ROTULO, MODULOS, MODULO_CHAVES };

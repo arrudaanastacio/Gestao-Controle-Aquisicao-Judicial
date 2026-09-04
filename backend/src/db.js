@@ -1141,8 +1141,12 @@ if (!colunasPerm.includes('habilitado')) {
 const { MODULO_CHAVES } = require('./permissoes');
 function garantirPermissoesPadrao() {
   const usuarios = db.prepare("SELECT id, perfil FROM usuarios WHERE ativo = 1").all();
+  // Garante que exista uma LINHA para cada (usuário, módulo), mas SEM conceder
+  // acesso: módulo DESABILITADO e todas as ações em 0. Assim, módulos novos
+  // (ou usuários novos) NÃO vêm liberados para ninguém — o admin concede na
+  // grade de permissões. INSERT OR IGNORE preserva o que já foi concedido.
   const insert = db.prepare(
-    'INSERT OR IGNORE INTO permissoes (usuario_id, modulo, visualizar) VALUES (?, ?, 1)'
+    'INSERT OR IGNORE INTO permissoes (usuario_id, modulo, habilitado, visualizar) VALUES (?, ?, 0, 0)'
   );
   for (const u of usuarios) {
     if (u.perfil === 'admin') continue;
