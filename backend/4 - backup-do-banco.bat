@@ -11,8 +11,9 @@ echo Cria uma copia segura e datada do banco na pasta:
 echo     backend\data\backups
 echo.
 echo Pode rodar com o sistema LIGADO - a copia sai consistente.
-echo Backups diarios mantidos por 14 dias + 1 backup por mes
-echo (longo prazo) na subpasta backups\mensais.
+echo Os backups saem COMPACTADOS (.db.gz, ~80%% menores).
+echo Mantem os 7 ultimos diarios + 3 mensais (janela rolante).
+echo Para restaurar, use o "5 - restaurar-backup.bat".
 echo ============================================================
 echo.
 
