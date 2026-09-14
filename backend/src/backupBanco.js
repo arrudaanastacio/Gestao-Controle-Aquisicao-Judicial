@@ -8,9 +8,10 @@
 // principal).
 //
 // Os backups ficam em backend/data/backups/, um arquivo por dia
-// (AAAA-MM-DD), gerados só em DIAS ÚTEIS (seg–sex). Janela ROLANTE: mantém
-// só os últimos N backups diários por CONTAGEM (BACKUP_MANTER_DIARIOS,
-// padrão 7) — ao gerar um novo, o mais antigo é apagado automaticamente.
+// (AAAA-MM-DD.db.gz — COMPACTADO em gzip, reduz ~80%), gerados só em DIAS
+// ÚTEIS (seg–sex). Janela ROLANTE: mantém só os últimos N backups diários
+// por CONTAGEM (BACKUP_MANTER_DIARIOS, padrão 7) — ao gerar um novo, o mais
+// antigo é apagado. Para restaurar, descompactar com src/descompactarBackup.js.
 //
 // Além da cópia local, se BACKUP_PASTA_DRIVE apontar para uma pasta do
 // Google Drive para Desktop (ex.: "G:\Meu Drive\Backups Compras
@@ -35,10 +36,24 @@
 // =====================================================================
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const { DatabaseSync } = require('node:sqlite');
 const db = require('./db');
 const { agendarDiariamente } = require('./agendadorUtil');
 const reg = require('./registroServicos');
+
+// Compacta um arquivo para .gz por STREAMING (memória constante — importante
+// porque o backup tem centenas de MB). Reduz ~80% o tamanho no Drive.
+function comprimirGz(origem, destino) {
+  return new Promise((resolve, reject) => {
+    const inp = fs.createReadStream(origem);
+    const out = fs.createWriteStream(destino);
+    const gz = zlib.createGzip({ level: 6 });
+    inp.on('error', reject); gz.on('error', reject); out.on('error', reject);
+    out.on('finish', resolve);
+    inp.pipe(gz).pipe(out);
+  });
+}
 
 const PASTA_BACKUPS = path.join(__dirname, '..', 'data', 'backups');
 const PASTA_MENSAIS = path.join(PASTA_BACKUPS, 'mensais');
@@ -77,8 +92,10 @@ function nomeArquivoHoje() {
 function limparDiariosAntigos(pasta, manter, rotulo) {
   let arquivos;
   try {
+    // Aceita .db (backups antigos) e .db.gz (novos, compactados) — a janela
+    // rolante vai podando os antigos .db durante a transição.
     arquivos = fs.readdirSync(pasta)
-      .filter((n) => /^medicamentos_judicial_\d{4}-\d{2}-\d{2}\.db$/.test(n));
+      .filter((n) => /^medicamentos_judicial_\d{4}-\d{2}-\d{2}\.db(\.gz)?$/.test(n));
   } catch {
     return;
   }
@@ -112,11 +129,11 @@ function copiarParaDrive(origem, nomeArquivo, manterDiarios) {
   }
 }
 
-// Nome do backup mensal do mês corrente (ex.: ..._mensal_2026-07.db).
+// Nome do backup mensal do mês corrente (ex.: ..._mensal_2026-07.db.gz).
 function nomeMensalAtual() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
-  return `medicamentos_judicial_mensal_${d.getFullYear()}-${p(d.getMonth() + 1)}.db`;
+  return `medicamentos_judicial_mensal_${d.getFullYear()}-${p(d.getMonth() + 1)}.db.gz`;
 }
 
 // Mantém só os últimos N backups mensais numa pasta, apagando os mais
@@ -126,7 +143,7 @@ function limparMensaisAntigos(pasta, manter, rotulo) {
   let arquivos;
   try {
     arquivos = fs.readdirSync(pasta)
-      .filter((n) => /^medicamentos_judicial_mensal_\d{4}-\d{2}\.db$/.test(n));
+      .filter((n) => /^medicamentos_judicial_mensal_\d{4}-\d{2}\.db(\.gz)?$/.test(n));
   } catch {
     return;
   }
@@ -169,40 +186,47 @@ function garantirBackupMensal(origem, manter) {
 
 // Roda o backup do dia. Se reimportar no mesmo dia, sobrescreve o arquivo
 // de hoje (não acumula vários backups no mesmo dia).
-function rodarBackup(opcoesRegistro = {}) {
+async function rodarBackup(opcoesRegistro = {}) {
   const inicioMs = reg.marcarInicio('backup');
   try {
     fs.mkdirSync(PASTA_BACKUPS, { recursive: true });
-    const destino = path.join(PASTA_BACKUPS, nomeArquivoHoje());
-    if (fs.existsSync(destino)) fs.unlinkSync(destino);
+    const nomeDb = nomeArquivoHoje();          // ...AAAA-MM-DD.db (temporário)
+    const nomeGz = nomeDb + '.gz';             // ...AAAA-MM-DD.db.gz (final)
+    const destinoDb = path.join(PASTA_BACKUPS, nomeDb);
+    const destinoGz = path.join(PASTA_BACKUPS, nomeGz);
+    // Reexecução no mesmo dia sobrescreve (remove .db e .gz anteriores de hoje).
+    for (const f of [destinoDb, destinoGz]) if (fs.existsSync(f)) fs.unlinkSync(f);
 
     const t0 = Date.now();
     // VACUUM INTO não aceita parâmetro (?) para o caminho — o valor é
     // controlado pelo próprio sistema (nunca vem de entrada do usuário),
     // então só escapamos aspas simples por segurança.
-    db.exec(`VACUUM INTO '${destino.replace(/'/g, "''")}'`);
+    db.exec(`VACUUM INTO '${destinoDb.replace(/'/g, "''")}'`);
     // Remove do ARQUIVO DE BACKUP (não do banco vivo) tabelas grandes e 100%
     // deriváveis do Oracle — não precisam ir para o backup. Ex.: recibos do
     // Extrato (relatório Consumo x Entrega), recarregáveis via "Atualizar via
     // Oracle". Enxuga o .bak sem perda: é só rodar a carga de novo se preciso.
-    podarTabelasDerivaveis(destino);
+    podarTabelasDerivaveis(destinoDb);
+    // Compacta em .gz (reduz ~80%) e apaga o .db — no Drive fica só o .gz.
+    await comprimirGz(destinoDb, destinoGz);
+    fs.unlinkSync(destinoDb);
     const segundos = Math.round((Date.now() - t0) / 1000);
-    const tamanhoMB = (fs.statSync(destino).size / (1024 * 1024)).toFixed(1);
-    console.log(`[BACKUP BANCO] Backup salvo: ${nomeArquivoHoje()} (${tamanhoMB} MB, ${segundos}s).`);
+    const tamanhoMB = (fs.statSync(destinoGz).size / (1024 * 1024)).toFixed(1);
+    console.log(`[BACKUP BANCO] Backup salvo (compactado): ${nomeGz} (${tamanhoMB} MB, ${segundos}s).`);
 
     // Janela rolante: mantém só os últimos N backups diários (padrão 7).
     const manterDiarios = Math.max(1, parseInt(process.env.BACKUP_MANTER_DIARIOS, 10) || 7);
     limparDiariosAntigos(PASTA_BACKUPS, manterDiarios);
-    copiarParaDrive(destino, nomeArquivoHoje(), manterDiarios);
+    copiarParaDrive(destinoGz, nomeGz, manterDiarios);
 
     // Backup mensal de longo prazo (1 por mês, mantém os últimos N meses).
     const mensalManter = Math.max(1, parseInt(process.env.BACKUP_MENSAL_MANTER, 10) || 3);
-    garantirBackupMensal(destino, mensalManter);
+    garantirBackupMensal(destinoGz, mensalManter);
 
     reg.registrarExecucao('backup', {
       resultado: 'sucesso',
-      mensagem: `Backup salvo: ${nomeArquivoHoje()} (${tamanhoMB} MB, ${segundos}s). Mantendo os últimos ${manterDiarios} backups diários.`,
-      arquivo: nomeArquivoHoje(),
+      mensagem: `Backup salvo compactado: ${nomeGz} (${tamanhoMB} MB, ${segundos}s). Mantendo os últimos ${manterDiarios} backups diários.`,
+      arquivo: nomeGz,
       inicioMs,
       ...opcoesRegistro,
     });
@@ -237,7 +261,7 @@ function iniciarBackupDiario() {
       console.log('[BACKUP BANCO] Fim de semana — backup pulado (roda só em dias úteis).');
       return;
     }
-    rodarBackup();
+    rodarBackup().catch((e) => console.error('[BACKUP BANCO] Falha no backup agendado:', e.message));
   });
 }
 
@@ -246,10 +270,8 @@ module.exports = { iniciarBackupDiario, rodarBackup };
 // Permite rodar direto pela linha de comando: node src/backupBanco.js
 if (require.main === module) {
   require('dotenv').config();
-  try {
-    rodarBackup();
-  } catch (e) {
+  rodarBackup().catch((e) => {
     console.error('[BACKUP BANCO] Falha:', e.message);
     process.exitCode = 1;
-  }
+  });
 }
