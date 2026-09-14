@@ -8,8 +8,9 @@
 // principal).
 //
 // Os backups ficam em backend/data/backups/, um arquivo por dia
-// (AAAA-MM-DD). Mantém só os últimos N dias (BACKUP_RETENCAO_DIAS,
-// padrão 14) — apaga os mais antigos automaticamente.
+// (AAAA-MM-DD), gerados só em DIAS ÚTEIS (seg–sex). Janela ROLANTE: mantém
+// só os últimos N backups diários por CONTAGEM (BACKUP_MANTER_DIARIOS,
+// padrão 7) — ao gerar um novo, o mais antigo é apagado automaticamente.
 //
 // Além da cópia local, se BACKUP_PASTA_DRIVE apontar para uma pasta do
 // Google Drive para Desktop (ex.: "G:\Meu Drive\Backups Compras
@@ -18,17 +19,18 @@
 // fechado/deslogado), só avisa no log e segue — o backup local já
 // aconteceu de qualquer forma.
 //
-// Além dos backups diários (14 dias), guarda também um backup MENSAL de
-// longo prazo em backend/data/backups/mensais/ (1 por mês), para recuperar
-// o banco de meses atrás. Fica numa subpasta de propósito: a limpeza dos
-// diários apaga por data de modificação e não deve encostar nos mensais.
-// Mantém os últimos BACKUP_MENSAL_MANTER meses (padrão 12).
+// Além dos backups diários, guarda também um backup MENSAL de longo prazo
+// em backend/data/backups/mensais/ (1 por mês), para recuperar o banco de
+// meses atrás. Fica numa subpasta de propósito: a limpeza dos diários é por
+// contagem/padrão de nome e não encosta nos mensais.
+// Janela ROLANTE por contagem: mantém os últimos BACKUP_MENSAL_MANTER meses
+// (padrão 3) — ao criar o mês novo, o mês mais antigo é apagado.
 //
 // Ligado por padrão. Desligar com AUTO_BACKUP=false no .env.
 //   BACKUP_HORA=5              -> hora do backup (0-23), padrão 5
 //   BACKUP_MINUTO=0            -> minuto do backup (0-59), padrão 0
-//   BACKUP_RETENCAO_DIAS=14    -> quantos dias de backup diário manter
-//   BACKUP_MENSAL_MANTER=12    -> quantos backups mensais manter
+//   BACKUP_MANTER_DIARIOS=7    -> quantos backups diários manter (janela rolante)
+//   BACKUP_MENSAL_MANTER=3     -> quantos backups mensais manter (janela rolante)
 //   BACKUP_PASTA_DRIVE=        -> pasta do Google Drive (opcional)
 // =====================================================================
 const fs = require('fs');
@@ -68,31 +70,35 @@ function nomeArquivoHoje() {
   return `medicamentos_judicial_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.db`;
 }
 
-// Apaga backups mais antigos que a retenção configurada, numa pasta dada.
-function limparBackupsAntigos(pasta, dias, rotulo) {
-  const limiteMs = dias * 24 * 60 * 60 * 1000;
-  const agora = Date.now();
+// Mantém só os últimos N backups DIÁRIOS (por CONTAGEM), apagando os mais
+// antigos — janela ROLANTE: ao gerar um novo, o mais antigo sai. Economiza
+// espaço de forma previsível (fica sempre com ~N arquivos). O nome
+// AAAA-MM-DD ordena cronologicamente. Não toca nos mensais (padrão diferente).
+function limparDiariosAntigos(pasta, manter, rotulo) {
   let arquivos;
   try {
-    arquivos = fs.readdirSync(pasta);
+    arquivos = fs.readdirSync(pasta)
+      .filter((n) => /^medicamentos_judicial_\d{4}-\d{2}-\d{2}\.db$/.test(n));
   } catch {
     return;
   }
-  for (const nome of arquivos) {
-    if (!nome.endsWith('.db')) continue;
-    const caminho = path.join(pasta, nome);
-    const st = fs.statSync(caminho);
-    if (agora - st.mtimeMs > limiteMs) {
-      fs.unlinkSync(caminho);
-      console.log(`[BACKUP BANCO] Removido backup antigo${rotulo ? ' (' + rotulo + ')' : ''}: ${nome}`);
-    }
+  arquivos.sort(); // AAAA-MM-DD em ordem crescente (mais antigo primeiro)
+  const excedente = arquivos.slice(0, Math.max(0, arquivos.length - manter));
+  for (const nome of excedente) {
+    try {
+      fs.unlinkSync(path.join(pasta, nome));
+      console.log(`[BACKUP BANCO] Removido backup diário antigo${rotulo ? ' (' + rotulo + ')' : ''}: ${nome}`);
+    } catch (_) { /* ignora */ }
   }
 }
+
+// Dias úteis = segunda(1) a sexta(5). getDay(): 0=domingo, 6=sábado.
+function ehDiaUtil(d = new Date()) { const g = d.getDay(); return g >= 1 && g <= 5; }
 
 // Copia o backup do dia também para a pasta do Google Drive (se configurada).
 // Falha silenciosa (só loga aviso): o backup local já é o que garante os
 // dados, o Drive é uma segunda cópia de conveniência.
-function copiarParaDrive(origem, nomeArquivo, retencaoDias) {
+function copiarParaDrive(origem, nomeArquivo, manterDiarios) {
   const pastaDrive = process.env.BACKUP_PASTA_DRIVE;
   if (!pastaDrive) return;
   try {
@@ -100,7 +106,7 @@ function copiarParaDrive(origem, nomeArquivo, retencaoDias) {
     const destino = path.join(pastaDrive, nomeArquivo);
     fs.copyFileSync(origem, destino);
     console.log(`[BACKUP BANCO] Copiado também para o Google Drive: ${destino}`);
-    limparBackupsAntigos(pastaDrive, retencaoDias, 'Google Drive');
+    limparDiariosAntigos(pastaDrive, manterDiarios, 'Google Drive');
   } catch (e) {
     console.warn(`[BACKUP BANCO] Não consegui copiar para o Google Drive (${pastaDrive}): ${e.message}`);
   }
@@ -184,17 +190,18 @@ function rodarBackup(opcoesRegistro = {}) {
     const tamanhoMB = (fs.statSync(destino).size / (1024 * 1024)).toFixed(1);
     console.log(`[BACKUP BANCO] Backup salvo: ${nomeArquivoHoje()} (${tamanhoMB} MB, ${segundos}s).`);
 
-    const retencaoDias = Math.max(1, parseInt(process.env.BACKUP_RETENCAO_DIAS, 10) || 14);
-    limparBackupsAntigos(PASTA_BACKUPS, retencaoDias);
-    copiarParaDrive(destino, nomeArquivoHoje(), retencaoDias);
+    // Janela rolante: mantém só os últimos N backups diários (padrão 7).
+    const manterDiarios = Math.max(1, parseInt(process.env.BACKUP_MANTER_DIARIOS, 10) || 7);
+    limparDiariosAntigos(PASTA_BACKUPS, manterDiarios);
+    copiarParaDrive(destino, nomeArquivoHoje(), manterDiarios);
 
     // Backup mensal de longo prazo (1 por mês, mantém os últimos N meses).
-    const mensalManter = Math.max(1, parseInt(process.env.BACKUP_MENSAL_MANTER, 10) || 12);
+    const mensalManter = Math.max(1, parseInt(process.env.BACKUP_MENSAL_MANTER, 10) || 3);
     garantirBackupMensal(destino, mensalManter);
 
     reg.registrarExecucao('backup', {
       resultado: 'sucesso',
-      mensagem: `Backup salvo: ${nomeArquivoHoje()} (${tamanhoMB} MB, ${segundos}s). Retenção de ${retencaoDias} dias aplicada.`,
+      mensagem: `Backup salvo: ${nomeArquivoHoje()} (${tamanhoMB} MB, ${segundos}s). Mantendo os últimos ${manterDiarios} backups diários.`,
       arquivo: nomeArquivoHoje(),
       inicioMs,
       ...opcoesRegistro,
@@ -223,8 +230,15 @@ function iniciarBackupDiario() {
   }
   const hora = Math.min(23, Math.max(0, parseInt(process.env.BACKUP_HORA, 10) || 5));
   const minuto = Math.min(59, Math.max(0, parseInt(process.env.BACKUP_MINUTO, 10) || 0));
-  console.log(`[BACKUP BANCO] Agendado para ${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')} todo dia.`);
-  agendarDiariamente('BACKUP BANCO', hora, minuto, rodarBackup);
+  console.log(`[BACKUP BANCO] Agendado para ${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')} em dias úteis (seg–sex).`);
+  // O agendador dispara todo dia; aqui pulamos sábado/domingo (só dias úteis).
+  agendarDiariamente('BACKUP BANCO', hora, minuto, () => {
+    if (!ehDiaUtil()) {
+      console.log('[BACKUP BANCO] Fim de semana — backup pulado (roda só em dias úteis).');
+      return;
+    }
+    rodarBackup();
+  });
 }
 
 module.exports = { iniciarBackupDiario, rodarBackup };
