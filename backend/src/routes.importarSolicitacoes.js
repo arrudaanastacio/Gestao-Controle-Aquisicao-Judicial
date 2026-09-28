@@ -126,6 +126,41 @@ function processarPlanilha(buffer) {
   return { linhasComMovimento, abas };
 }
 
+// ---------- Auto-cadastro de item no elenco ----------
+// A tabela `solicitacoes` tem FK para `itens`, então uma solicitação só entra
+// se o item existir no elenco. Antes, item fora do elenco = linha descartada
+// em silêncio (o item podia estar no SCODES/Relatório de Itens, mas não no
+// elenco antigo `itens`). Agora, se o item não está em `itens`, ele é
+// cadastrado automaticamente: primeiro a partir do catálogo oficial do SCODES
+// (relatorio_itens); se lá também não houver, a partir da própria planilha do
+// Relatório de Compras (que traz siafísico e descrição em cada linha).
+const stmtItemSCODES = db.prepare(
+  `SELECT siafisico, descricao_item, catmat FROM relatorio_itens
+    WHERE codigo = ? ORDER BY data_referencia DESC, id DESC LIMIT 1`
+);
+const stmtInserirItemElenco = db.prepare(
+  `INSERT OR IGNORE INTO itens (codigo_item, codigo_siafisico, descricao, catmat, ativo, atualizado_em)
+   VALUES (?, ?, ?, ?, 1, datetime('now', 'localtime'))`
+);
+
+// Retorna 'existente' | 'scodes' | 'planilha' se o item existe (ou foi criado),
+// ou null se não deu para criar (sem descrição em nenhuma fonte).
+function garantirItemNoElenco(l, stmtBuscaItem) {
+  if (stmtBuscaItem.get(l.codigo_item)) return 'existente';
+  const sc = stmtItemSCODES.get(l.codigo_item);
+  if (sc && sc.descricao_item) {
+    stmtInserirItemElenco.run(
+      l.codigo_item, sc.siafisico || l.codigo_siafisico || null, sc.descricao_item, sc.catmat || null
+    );
+    return 'scodes';
+  }
+  if (l.descricao) {
+    stmtInserirItemElenco.run(l.codigo_item, l.codigo_siafisico || null, l.descricao, null);
+    return 'planilha';
+  }
+  return null;
+}
+
 // ---------- Pré-visualização (não grava nada) ----------
 router.post('/previa', upload.single('arquivo'), (req, res) => {
   if (!req.file) return res.status(400).json({ erro: 'Envie um arquivo .xlsx ou .xlsm.' });
@@ -142,13 +177,24 @@ router.post('/previa', upload.single('arquivo'), (req, res) => {
   const stmtBuscaItem = db.prepare('SELECT codigo_item FROM itens WHERE codigo_item = ?');
   const stmtBuscaExistente = db.prepare('SELECT id FROM solicitacoes WHERE codigo_item = ? AND ano = ? AND mes = ?');
 
-  let novos = 0, possiveisDuplicados = 0, itensInexistentes = 0;
+  let novos = 0, possiveisDuplicados = 0, itensInexistentes = 0, itensACadastrar = 0;
   const codigosInexistentes = new Set();
+  const codigosACadastrar = new Set();
 
   for (const l of linhasComMovimento) {
     if (!stmtBuscaItem.get(l.codigo_item)) {
-      itensInexistentes++;
-      codigosInexistentes.add(l.codigo_item);
+      // Item fora do elenco: será auto-cadastrado se existir no SCODES ou se a
+      // própria planilha trouxer descrição. Só é "inexistente" se nem isso.
+      const sc = stmtItemSCODES.get(l.codigo_item);
+      const criavel = (sc && sc.descricao_item) || l.descricao;
+      if (criavel) {
+        itensACadastrar++;
+        codigosACadastrar.add(l.codigo_item);
+        novos++; // a linha é nova; o item entra junto
+      } else {
+        itensInexistentes++;
+        codigosInexistentes.add(l.codigo_item);
+      }
       continue;
     }
     if (stmtBuscaExistente.get(l.codigo_item, l.ano, l.mes)) {
@@ -164,6 +210,8 @@ router.post('/previa', upload.single('arquivo'), (req, res) => {
     novos,
     possiveisDuplicados,
     itensInexistentes,
+    itensACadastrar,
+    codigosACadastrar: Array.from(codigosACadastrar).slice(0, 20),
     codigosInexistentes: Array.from(codigosInexistentes).slice(0, 20),
   });
 });
@@ -210,6 +258,7 @@ function gravarImportacao(buffer, modo, nomeArquivo, usuarioEmail, usuarioId = n
 
   let inseridos = 0, atualizados = 0, ignorados = 0, itensInexistentes = 0, apagados = 0;
   const codigosInexistentes = new Set();
+  const codigosCadastrados = new Set();
   const avisos = [];
 
   // Separa as linhas por mês, preservando a ordem da planilha.
@@ -228,14 +277,17 @@ function gravarImportacao(buffer, modo, nomeArquivo, usuarioEmail, usuarioId = n
       const [anoTxt, mes] = chave.split('||');
       const ano = Number(anoTxt);
 
-      // Só as linhas cujo item existe no catálogo podem ser gravadas.
+      // Só as linhas cujo item existe (ou pôde ser criado) no elenco podem ser
+      // gravadas. garantirItemNoElenco auto-cadastra a partir do SCODES/planilha.
       const gravaveis = [];
       for (const l of linhas) {
-        if (!stmtBuscaItem.get(l.codigo_item)) {
+        const origem = garantirItemNoElenco(l, stmtBuscaItem);
+        if (!origem) {
           itensInexistentes++;
           codigosInexistentes.add(l.codigo_item);
           continue;
         }
+        if (origem !== 'existente') codigosCadastrados.add(l.codigo_item);
         gravaveis.push(l);
       }
 
@@ -282,6 +334,8 @@ function gravarImportacao(buffer, modo, nomeArquivo, usuarioEmail, usuarioId = n
     abasProcessadas: abas, inseridos, atualizados, ignorados, itensInexistentes,
     apagados, mesesRefeitos: modo === 'substituir' ? porMes.size : 0,
     avisos,
+    itensCadastrados: codigosCadastrados.size,
+    codigosCadastrados: Array.from(codigosCadastrados).slice(0, 50),
     codigosInexistentes: Array.from(codigosInexistentes).slice(0, 20),
   };
 
