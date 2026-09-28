@@ -48,13 +48,13 @@ function tentarImportar(motivo) {
     const resumo = gravarImportacao(buffer, 'substituir', 'RELATÓRIO DE COMPRAS TENENTE PENA - Macro.xlsm', 'auto-importador');
     ultimaAssinatura = assin;
     salvarAssinatura('solicitacoes', ultimaAssinatura);
-    console.log(`[VIGIA SOLICITAÇÕES] ${motivo}: ${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados, ${resumo.itensInexistentes} itens não encontrados no elenco.`);
+    console.log(`[VIGIA SOLICITAÇÕES] ${motivo}: ${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados, ${resumo.itensCadastrados || 0} itens auto-cadastrados, ${resumo.itensInexistentes} itens não encontrados no elenco.`);
     reg.registrarExecucao('solicitacoesTP', {
       resultado: 'sucesso',
       // Item fora do elenco não quebra a importação, mas merece destaque —
       // vira aviso amarelo na tela em vez de passar despercebido.
       nivel: resumo.itensInexistentes > 0 ? 'WARNING' : 'INFO',
-      mensagem: `${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados, ${resumo.itensInexistentes} itens não encontrados no elenco.`,
+      mensagem: `${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados, ${resumo.itensCadastrados || 0} itens auto-cadastrados no elenco, ${resumo.itensInexistentes} não encontrados.`,
       registros: resumo.inseridos + resumo.atualizados,
       arquivo: 'RELATÓRIO DE COMPRAS TENENTE PENA - Macro.xlsm',
       inicioMs,
@@ -95,7 +95,7 @@ function forcarImportacaoSolicitacoes(usuarioEmail, usuarioId = null) {
   reg.registrarExecucao('solicitacoesTP', {
     resultado: 'sucesso',
     nivel: resumo.itensInexistentes > 0 ? 'WARNING' : 'INFO',
-    mensagem: `${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados, ${resumo.itensInexistentes} itens não encontrados no elenco.`,
+    mensagem: `${resumo.inseridos} inseridos, ${resumo.atualizados} atualizados, ${resumo.itensCadastrados || 0} itens auto-cadastrados no elenco, ${resumo.itensInexistentes} não encontrados.`,
     registros: resumo.inseridos + resumo.atualizados,
     arquivo: 'RELATÓRIO DE COMPRAS TENENTE PENA - Macro.xlsm',
     origem: 'manual',
