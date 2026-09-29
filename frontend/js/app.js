@@ -1826,7 +1826,7 @@ function anexarTermosBusca(params, inputId) {
 }
 
 // ---------- Autocomplete de produtos (Estoque TP e Itens em Estoque Geral) ----------
-// Typeahead leve: a partir de 3 caracteres busca no backend (até 10 sugestões),
+// Typeahead leve: a partir de 3 caracteres busca no backend (até 100 sugestões),
 // com navegação por teclado. Ao escolher, filtra a grade para aquele produto.
 // Não carrega os ~6 mil itens no navegador — a busca é sempre no servidor.
 function montarAutocompleteEstoque(inputId, escopoUnidade, aoSelecionar) {

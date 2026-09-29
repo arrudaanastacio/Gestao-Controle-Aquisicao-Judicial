@@ -492,7 +492,7 @@ router.get('/filtros', (req, res) => {
   res.json(resultado);
 });
 
-// Autocomplete de produtos (typeahead): sugestões LEVES (até 10) por
+// Autocomplete de produtos (typeahead): sugestões LEVES (até 100) por
 // descrição ou SCODES, na foto mais recente do estoque. Busca no backend —
 // nunca carrega os ~6 mil itens no navegador. Acento/caixa-insensível vêm do
 // override global de LIKE (db.js). Consulta parametrizada (sem SQL injection).
@@ -526,7 +526,7 @@ router.get('/busca-produtos', (req, res) => {
       CASE WHEN MAX(e.descricao) LIKE ? THEN 0
            WHEN e.codigo_item LIKE ? THEN 1 ELSE 2 END,
       descricao COLLATE NOCASE
-    LIMIT 10`;
+    LIMIT 100`;
   params.push(prefixo, prefixo);
 
   const rows = db.prepare(sql).all(...params);
