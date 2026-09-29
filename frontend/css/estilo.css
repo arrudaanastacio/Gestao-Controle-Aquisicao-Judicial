@@ -1045,6 +1045,20 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
 .ac-scode { font-size: 11.5px; color: var(--cinza-texto, #6b7280); margin-top: 1px; }
 .ac-vazio { padding: 10px 12px; font-size: 13px; color: var(--cinza-texto, #6b7280); }
 
+/* Etiquetas (chips) de filtro multi-seleção — itens/pacientes selecionados */
+.chips-box { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; margin-bottom: 6px; }
+.chips-box .chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 260px;
+  background: var(--verde-claro, #e6f0ea); color: var(--verde-escuro, #1f5c46);
+  border: 1px solid #bcd9cc; border-radius: 12px; padding: 1px 4px 1px 9px; font-size: 12px;
+}
+.chips-box .chip .chip-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chips-box .chip button {
+  border: none; background: transparent; color: inherit; cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 0 3px; border-radius: 10px;
+}
+.chips-box .chip button:hover { background: #bcd9cc; }
+
 .botao-secundario,
 .botao-primario {
   display: inline-flex;

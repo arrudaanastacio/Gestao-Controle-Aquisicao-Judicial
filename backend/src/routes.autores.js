@@ -247,10 +247,14 @@ function montarFiltroAutores(query) {
     cond.push("status_demanda LIKE 'Demanda Ativa%'");
     cond.push("EXISTS (SELECT 1 FROM relatorio_itens ri WHERE ri.codigo = autores_itens.codigo_item AND ri.importado = 'Sim')");
   }
-  if (query.q) {
-    cond.push('(autor LIKE ? OR processo LIKE ? OR protocolo LIKE ? OR descricao_item LIKE ? OR codigo_item LIKE ?)');
-    const like = `%${query.q}%`;
-    params.push(like, like, like, like, like);
+  // Busca por vários termos (o campo virou multi-seleção por etiquetas). Cada
+  // termo casa em autor/processo/protocolo/descrição/código; o conjunto é unido
+  // por OR (mostra tudo que casar com QUALQUER termo). Aceita 1 ou vários `q`.
+  const termos = [].concat(query.q || []).map((t) => String(t).trim()).filter(Boolean);
+  if (termos.length) {
+    const umTermo = '(autor LIKE ? OR processo LIKE ? OR protocolo LIKE ? OR descricao_item LIKE ? OR codigo_item LIKE ?)';
+    cond.push('(' + termos.map(() => umTermo).join(' OR ') + ')');
+    for (const t of termos) { const like = `%${t}%`; params.push(like, like, like, like, like); }
   }
   if (query.unidade) { cond.push('unidade_dispensadora = ?'); params.push(query.unidade); }
   if (query.status_demanda) { cond.push('status_demanda = ?'); params.push(query.status_demanda); }
