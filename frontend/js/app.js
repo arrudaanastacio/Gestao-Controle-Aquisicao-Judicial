@@ -8873,6 +8873,7 @@ async function gerarRequisicao() {
   if (!confirmarMisturaAta(itens.map((it) => modalidadeEfetiva(it.situacao_ata, it.escolha_ata)))) return;
 
   const operador = estado.usuario || {};
+  const apenasRegistro = document.getElementById('reqApenasRegistro').checked;
   const botao = document.getElementById('botaoGerarRequisicao');
   botao.disabled = true;
 
@@ -8894,6 +8895,7 @@ async function gerarRequisicao() {
         body: JSON.stringify({
           sei, itens: corpoItens,
           protocolo: info.protocolo, processo: info.processo, tipo_demanda: info.tipo_demanda,
+          apenas_registro: apenasRegistro,
         }),
       });
     } else {
@@ -8903,6 +8905,7 @@ async function gerarRequisicao() {
           autor: info.autor, idade: info.idade, unidade: info.unidade_dispensadora,
           procurador: info.procurador_estado, sei, itens: corpoItens,
           protocolo: info.protocolo, processo: info.processo, tipo_demanda: info.tipo_demanda,
+          apenas_registro: apenasRegistro,
         }),
       });
     }
@@ -9390,15 +9393,16 @@ async function gerarColetiva() {
   if (!confirmarMisturaAta([...modMap.values()])) return;
 
   const editar = reqModo === 'editar' && reqEditId;
+  const apenasRegistro = document.getElementById('reqApenasRegistro').checked;
   const botao = document.getElementById('botaoGerarColetiva');
   botao.disabled = true;
   try {
     const r = editar
       ? await api(`/autores/requisicoes/${reqEditId}/reabrir-coletiva`, {
-          method: 'PUT', body: JSON.stringify({ sei, pacientes }),
+          method: 'PUT', body: JSON.stringify({ sei, pacientes, apenas_registro: apenasRegistro }),
         })
       : await api('/autores/requisicoes/coletiva', {
-          method: 'POST', body: JSON.stringify({ sei, pacientes }),
+          method: 'POST', body: JSON.stringify({ sei, pacientes, apenas_registro: apenasRegistro }),
         });
     alert(editar
       ? `✓ Requisição ${r.codigo_controle} reaberta e atualizada — ${r.totalPacientes} paciente(s) · ${r.totalItens} medicamento(s)${r.coletiva ? '' : ' (individual)'}.`
@@ -10353,7 +10357,7 @@ async function carregarTabelaRelReq() {
             : it.status_estoque_coletiva
               ? '<span class="etiqueta-status cancelado" title="Ao menos um item com autonomia baixa">Aguardar / Atend. Parcial</span>'
               : '<span style="color:var(--cinza-texto); font-size:12px;">—</span>'}</td>
-          <td><select class="req-at-status" ${disC}>${opc(['Solicitado', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select></td>
+          <td><select class="req-at-status" ${disC}>${opc(['Solicitado', 'Registrado para acompanhamento', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select></td>
           <td><input type="text" class="req-at-gsnet" value="${fmtGsnet(it.requisicao_gsnet).replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;" ${disC}></td>
           <td><select class="req-at-tel" ${disC}>${opc(['Não', 'Sim'], it.telegrama_enviado)}</select></td>
           <td><input type="date" class="req-at-data" value="${it.data_envio || ''}" ${disC}></td>
@@ -10395,7 +10399,7 @@ async function carregarTabelaRelReq() {
           <td>${aut === null || aut === undefined ? '—' : fmtNumero(aut) + ' m'}</td>
           <td>${stEstoque}</td>
           <td>
-            <select class="req-at-status" ${dis}>${opc(['Solicitado', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select>
+            <select class="req-at-status" ${dis}>${opc(['Solicitado', 'Registrado para acompanhamento', 'Finalizado', 'Cancelado'], it.status_atendimento)}</select>
           </td>
           <td>
             <input type="text" class="req-at-gsnet" value="${fmtGsnet(it.requisicao_gsnet).replace(/"/g, '&quot;')}" placeholder="GSNET" style="width:120px;" ${dis}>

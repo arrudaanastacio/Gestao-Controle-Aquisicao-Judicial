@@ -9,6 +9,13 @@ const { CAIXAS, REGRA_VERSAO, criarCalculadoraCaixa, caixaPredominante } = requi
 const router = express.Router();
 router.use(autenticar);
 
+// Status inicial de atendimento. "Apenas registrar" (checkbox da Requisição de
+// Compra) grava o item só para acompanhamento — NÃO é um pedido de aquisição —,
+// então recebe um status próprio para não ser confundido com "Solicitado" por
+// quem consulta o Relatório de Primeiro Atendimento.
+const STATUS_ACOMPANHAMENTO = 'Registrado para acompanhamento';
+const statusInicialAtendimento = (apenasRegistro) => (apenasRegistro ? STATUS_ACOMPANHAMENTO : 'Solicitado');
+
 // Caixa (Materiais/Medicamentos/Nutrição) que o usuário pode ver no Relatório
 // de Primeiro Atendimento. Admin => todas. Não-admin: coluna usuarios.caixas_req
 // (JSON). NULL/ausente => todas (mantém quem já usava). '' guardado numa
@@ -714,9 +721,10 @@ router.get('/itens-pacientes', (req, res) => {
 // Um único controle, vários pacientes e itens somados por medicamento.
 // Status/telegrama é ÚNICO (nível da requisição).
 router.post('/requisicoes/coletiva', (req, res) => {
-  const { sei, pacientes } = req.body || {};
+  const { sei, pacientes, apenas_registro } = req.body || {};
   const lista = (Array.isArray(pacientes) ? pacientes : []).filter((p) => Array.isArray(p.itens) && p.itens.length);
   if (!lista.length) return res.status(400).json({ erro: 'Informe ao menos um paciente com item marcado.' });
+  const statusColetiva = statusInicialAtendimento(apenas_registro);
 
   const num = (v) => { const n = parseFloat(String(v ?? '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; };
 
@@ -753,9 +761,9 @@ router.post('/requisicoes/coletiva', (req, res) => {
     const info = db.prepare(`
       INSERT INTO requisicoes (autor, unidade, sei, operador_nome, operador_email, total_itens,
                                coletiva, total_pacientes, pacientes_json, status_atendimento, telegrama_enviado, caixa)
-      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, 'Solicitado', 'Não', ?)`).run(
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 'Não', ?)`).run(
       primeiro.autor, primeiro.unidade_dispensadora || null, sei || null, req.usuario.nome, req.usuario.email,
-      itensConsolidados.length, lista.length, JSON.stringify(pacientesInfo), caixaReq);
+      itensConsolidados.length, lista.length, JSON.stringify(pacientesInfo), statusColetiva, caixaReq);
     id = info.lastInsertRowid;
     codigoControle = `REQ-${new Date().getFullYear()}-${String(id).padStart(5, '0')}`;
     db.prepare('UPDATE requisicoes SET codigo_controle = ? WHERE id = ?').run(codigoControle, id);
@@ -800,9 +808,10 @@ router.put('/requisicoes/:id/reabrir-coletiva', (req, res) => {
     }
   }
 
-  const { sei, pacientes } = req.body || {};
+  const { sei, pacientes, apenas_registro } = req.body || {};
   const lista = (Array.isArray(pacientes) ? pacientes : []).filter((p) => Array.isArray(p.itens) && p.itens.length);
   if (!lista.length) return res.status(400).json({ erro: 'Informe ao menos um paciente com item marcado.' });
+  const statusReabrir = statusInicialAtendimento(apenas_registro);
 
   const num = (v) => { const n = parseFloat(String(v ?? '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; };
   const mapaItem = new Map();
@@ -837,18 +846,18 @@ router.put('/requisicoes/:id/reabrir-coletiva', (req, res) => {
     if (ehColetiva) {
       db.prepare(`UPDATE requisicoes SET coletiva = 1, autor = ?, unidade = ?, sei = ?, total_itens = ?, total_pacientes = ?,
         pacientes_json = ?, protocolo = NULL, processo = NULL, tipo_demanda = NULL, caixa = ?,
-        status_atendimento = 'Solicitado', telegrama_enviado = 'Não', data_envio = NULL, requisicao_gsnet = NULL,
+        status_atendimento = ?, telegrama_enviado = 'Não', data_envio = NULL, requisicao_gsnet = NULL,
         atualizado_em = datetime('now') WHERE id = ?`)
         .run(primeiro.autor, primeiro.unidade_dispensadora || null, sei || null, itensConsolidados.length, lista.length,
-          JSON.stringify(pacientesInfo), caixaReq, r.id);
+          JSON.stringify(pacientesInfo), caixaReq, statusReabrir, r.id);
     } else {
       db.prepare(`UPDATE requisicoes SET coletiva = 0, autor = ?, unidade = ?, sei = ?, total_itens = ?, total_pacientes = 1,
         pacientes_json = ?, protocolo = ?, processo = ?, tipo_demanda = ?, caixa = ?,
-        status_atendimento = 'Solicitado', telegrama_enviado = 'Não', data_envio = NULL, requisicao_gsnet = NULL,
+        status_atendimento = ?, telegrama_enviado = 'Não', data_envio = NULL, requisicao_gsnet = NULL,
         atualizado_em = datetime('now') WHERE id = ?`)
         .run(primeiro.autor, primeiro.unidade_dispensadora || null, sei || null, itensConsolidados.length,
           JSON.stringify(pacientesInfo), primeiro.protocolo || null, primeiro.processo || null, primeiro.tipo_demanda || null,
-          caixaReq, r.id);
+          caixaReq, statusReabrir, r.id);
     }
 
     db.prepare('DELETE FROM requisicao_itens WHERE requisicao_id = ?').run(r.id);
@@ -867,15 +876,15 @@ router.put('/requisicoes/:id/reabrir-coletiva', (req, res) => {
       const insItem = db.prepare(`
         INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
                                       tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat,
-                                      situacao_ata, escolha_ata, valor_unitario, unidade_fornecimento)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                                      situacao_ata, escolha_ata, valor_unitario, unidade_fornecimento, status_atendimento)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
       for (const it of itensConsolidados) {
         insItem.run(r.id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null,
           String(+it.quantidade.toFixed(2)), it.tipo_demanda || null, String(+it.qtde_consumo.toFixed(2)),
           it.prazo || null, it.periodicidade || null, it.dispensacoes_autorizadas || null,
           it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null,
           it.situacao_ata || null, it.escolha_ata || null, it.valor_unitario != null ? String(it.valor_unitario) : null,
-          it.unidade_fornecimento || null);
+          it.unidade_fornecimento || null, statusReabrir);
       }
     }
     db.exec('COMMIT');
@@ -893,10 +902,11 @@ router.put('/requisicoes/:id/reabrir-coletiva', (req, res) => {
 
 // ---------- Requisições: salvar (gera ID de controle) ----------
 router.post('/requisicoes', (req, res) => {
-  const { autor, idade, unidade, procurador, sei, itens, protocolo, processo, tipo_demanda } = req.body || {};
+  const { autor, idade, unidade, procurador, sei, itens, protocolo, processo, tipo_demanda, apenas_registro } = req.body || {};
   if (!autor || !Array.isArray(itens) || itens.length === 0) {
     return res.status(400).json({ erro: 'Informe o paciente e ao menos um item.' });
   }
+  const statusItem = statusInicialAtendimento(apenas_registro);
 
   const caixaReq = caixaPredominante(itens.map((i) => i.codigo_item), criarCalculadoraCaixa()) || '';
   const info = db.prepare(`
@@ -913,19 +923,19 @@ router.post('/requisicoes', (req, res) => {
   const stmt = db.prepare(`
     INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
                                   tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat,
-                                  situacao_ata, escolha_ata, valor_unitario, unidade_fornecimento)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  situacao_ata, escolha_ata, valor_unitario, unidade_fornecimento, status_atendimento)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const it of itens) {
     stmt.run(id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''),
       it.tipo_demanda || null, it.qtde_consumo != null ? String(it.qtde_consumo) : null, it.prazo || null, it.periodicidade || null, it.dispensacoes_autorizadas || null,
       it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null,
       it.situacao_ata || null, it.escolha_ata || null, it.valor_unitario != null ? String(it.valor_unitario) : null,
-      it.unidade_fornecimento || null);
+      it.unidade_fornecimento || null, statusItem);
   }
 
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(req.usuario.id, req.usuario.email, 'gerar_requisicao', 'requisicoes', id, JSON.stringify({ codigoControle, autor, sei, total: itens.length }));
+    .run(req.usuario.id, req.usuario.email, 'gerar_requisicao', 'requisicoes', id, JSON.stringify({ codigoControle, autor, sei, total: itens.length, apenas_registro: !!apenas_registro }));
 
   res.status(201).json({ id, codigo_controle: codigoControle });
 });
@@ -1240,10 +1250,11 @@ router.put('/requisicoes/:id', (req, res) => {
     if (algumEnviado) return res.status(403).json({ erro: 'Esta requisição já teve telegrama enviado; somente um administrador pode reabri-la.' });
   }
 
-  const { sei, itens, protocolo, processo, tipo_demanda } = req.body || {};
+  const { sei, itens, protocolo, processo, tipo_demanda, apenas_registro } = req.body || {};
   if (!Array.isArray(itens) || itens.length === 0) {
     return res.status(400).json({ erro: 'Informe ao menos um item.' });
   }
+  const statusItem = statusInicialAtendimento(apenas_registro);
 
   db.prepare("UPDATE requisicoes SET sei = ?, total_itens = ?, protocolo = ?, processo = ?, tipo_demanda = ?, atualizado_em = datetime('now') WHERE id = ?")
     .run(sei || null, itens.length, protocolo ?? r.protocolo, processo ?? r.processo, tipo_demanda ?? r.tipo_demanda, r.id);
@@ -1252,15 +1263,15 @@ router.put('/requisicoes/:id', (req, res) => {
   const stmt = db.prepare(`
     INSERT INTO requisicao_itens (requisicao_id, codigo_item, cod_siafisico, descricao_item, categoria, quantidade,
                                   tipo_demanda, qtde_consumo, prazo, periodicidade, dispensacoes_autorizadas, autonomia_compra, catmat,
-                                  situacao_ata, escolha_ata, valor_unitario, unidade_fornecimento)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  situacao_ata, escolha_ata, valor_unitario, unidade_fornecimento, status_atendimento)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const it of itens) {
     stmt.run(r.id, it.codigo_item || null, it.cod_siafisico || null, it.descricao_item || null, it.categoria || null, String(it.quantidade ?? ''),
       it.tipo_demanda || null, it.qtde_consumo != null ? String(it.qtde_consumo) : null, it.prazo || null, it.periodicidade || null, it.dispensacoes_autorizadas || null,
       it.autonomia_compra != null ? String(it.autonomia_compra) : null, it.catmat || null,
       it.situacao_ata || null, it.escolha_ata || null, it.valor_unitario != null ? String(it.valor_unitario) : null,
-      it.unidade_fornecimento || null);
+      it.unidade_fornecimento || null, statusItem);
   }
 
   db.prepare('INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, registro_id, dados_depois) VALUES (?, ?, ?, ?, ?, ?)')
