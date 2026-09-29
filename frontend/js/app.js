@@ -1765,6 +1765,66 @@ document.getElementById('filtroBuscaEstoque').addEventListener('input', () => {
   debounceBuscaEstoque = setTimeout(() => { estado.estoque.pagina = 1; carregarTabelaEstoque(); }, 350);
 });
 
+// ---------- Filtro por etiquetas (multi-seleção de itens/pacientes) ----------
+// Transforma um campo de busca simples em multi-seleção: cada termo escolhido
+// vira uma "etiqueta" (chip). O filtro passa a ser a UNIÃO das etiquetas + o que
+// estiver digitado no campo (transitório). Enter/vírgula transforma o texto
+// digitado em etiqueta. Guarda a API no próprio input (input._chips).
+function criarFiltroChips(inputId, aoMudar) {
+  const input = document.getElementById(inputId);
+  if (!input || input._chips) return input && input._chips;
+  const termos = []; // { valor, rotulo }
+  const ancora = input.closest('.ac-wrap') || input; // respeita o wrapper do autocomplete
+  const box = document.createElement('div');
+  box.className = 'chips-box';
+  box.hidden = true;
+  ancora.parentNode.insertBefore(box, ancora);
+
+  function render() {
+    box.hidden = termos.length === 0;
+    box.innerHTML = termos.map((t, i) =>
+      `<span class="chip" title="${escAttr(t.rotulo)}"><span class="chip-txt">${escHtml(t.rotulo)}</span><button type="button" data-i="${i}" aria-label="remover">×</button></span>`).join('');
+    box.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      termos.splice(Number(b.dataset.i), 1); render(); aoMudar();
+    }));
+  }
+  const apiChips = {
+    adicionar(valor, rotulo) {
+      valor = String(valor || '').trim();
+      if (!valor) return;
+      if (termos.some((t) => t.valor.toLowerCase() === valor.toLowerCase())) return;
+      termos.push({ valor, rotulo: rotulo || valor });
+      render(); aoMudar();
+    },
+    valores: () => termos.map((t) => t.valor),
+    limpar() { termos.length = 0; render(); },
+  };
+  // Enter/vírgula: vira etiqueta (só se o autocomplete não tiver consumido o Enter).
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ',') return;
+    if (ev.defaultPrevented) return; // o autocomplete já escolheu um item
+    const v = input.value.trim();
+    if (!v) return;
+    ev.preventDefault();
+    apiChips.adicionar(v, v);
+    input.value = '';
+  });
+  input._chips = apiChips;
+  return apiChips;
+}
+
+// Anexa ao params todos os termos de busca do campo: etiquetas + texto digitado
+// (transitório). Cada termo vira um `q` repetido → o backend une por OR.
+function anexarTermosBusca(params, inputId) {
+  const el = document.getElementById(inputId);
+  if (!el) return 0;
+  const termos = el._chips ? el._chips.valores().slice() : [];
+  const txt = el.value.trim();
+  if (txt && !termos.some((t) => t.toLowerCase() === txt.toLowerCase())) termos.push(txt);
+  termos.forEach((t) => params.append('q', t));
+  return termos.length;
+}
+
 // ---------- Autocomplete de produtos (Estoque TP e Itens em Estoque Geral) ----------
 // Typeahead leve: a partir de 3 caracteres busca no backend (até 10 sugestões),
 // com navegação por teclado. Ao escolher, filtra a grade para aquele produto.
@@ -1809,10 +1869,17 @@ function montarAutocompleteEstoque(inputId, escopoUnidade, aoSelecionar) {
   }
   function selecionar(i) {
     const r = resultados[i]; if (!r) return;
-    input.value = r.descricao;
-    input.dataset.scodesSel = r.codigo_scodes;   // identifica o produto escolhido
     fechar();
-    aoSelecionar(r);
+    if (input._chips) {
+      // Multi-seleção: cada escolha vira etiqueta (filtra pelo código, preciso).
+      input._chips.adicionar(r.codigo_scodes, r.descricao);
+      input.value = '';
+      delete input.dataset.scodesSel;
+    } else {
+      input.value = r.descricao;
+      input.dataset.scodesSel = r.codigo_scodes;   // identifica o produto escolhido
+      aoSelecionar(r);
+    }
   }
   async function buscar(q) {
     const meu = ++seq;
@@ -1843,6 +1910,8 @@ function montarAutocompleteEstoque(inputId, escopoUnidade, aoSelecionar) {
 }
 montarAutocompleteEstoque('filtroBuscaEstoque', 'udtp', () => { estado.estoque.pagina = 1; carregarTabelaEstoque(); });
 montarAutocompleteEstoque('filtroBuscaEstoqueGeral', 'geral', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
+criarFiltroChips('filtroBuscaEstoque', () => { estado.estoque.pagina = 1; carregarTabelaEstoque(); });
+criarFiltroChips('filtroBuscaEstoqueGeral', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
 document.getElementById('filtroSituacaoEstoque').addEventListener('change', () => {
   estado.estoque.pagina = 1; carregarTabelaEstoque();
 });
@@ -1926,6 +1995,7 @@ document.getElementById('monConteudo').addEventListener('click', (ev) => {
 
 document.getElementById('botaoLimparFiltrosEstoque').addEventListener('click', () => {
   document.getElementById('filtroBuscaEstoque').value = '';
+  document.getElementById('filtroBuscaEstoque')._chips?.limpar();
   document.getElementById('filtroSituacaoEstoque').value = '';
   document.getElementById('filtroAutonomiaEstoque').value = '';
   document.getElementById('filtroDemandaEstoque').value = '';
@@ -2489,7 +2559,7 @@ function exportarEstoqueTP() {
   const params = new URLSearchParams();
   params.set('escopoUnidade', 'udtp');
   if (estado.estoque.data) params.set('data', estado.estoque.data);
-  const q = document.getElementById('filtroBuscaEstoque').value.trim(); if (q) params.set('q', q);
+  anexarTermosBusca(params, 'filtroBuscaEstoque');
   const situacao = document.getElementById('filtroSituacaoEstoque').value; if (situacao) params.set('situacao', situacao);
   const autonomia = document.getElementById('filtroAutonomiaEstoque').value; if (autonomia) params.set('autonomia', autonomia);
   const demanda = document.getElementById('filtroDemandaEstoque').value; if (demanda) params.set('demanda', demanda);
@@ -2500,7 +2570,6 @@ function exportarEstoqueTP() {
 document.getElementById('botaoExportarEstoque').addEventListener('click', exportarEstoqueTP);
 
 async function carregarTabelaEstoque() {
-  const q = document.getElementById('filtroBuscaEstoque').value.trim();
   const situacao = document.getElementById('filtroSituacaoEstoque').value;
   const autonomia = document.getElementById('filtroAutonomiaEstoque').value;
   const demanda = document.getElementById('filtroDemandaEstoque').value;
@@ -2508,7 +2577,7 @@ async function carregarTabelaEstoque() {
   const params = new URLSearchParams({ page: estado.estoque.pagina, pageSize: estado.estoque.pageSize });
   params.set('escopoUnidade', 'udtp');
   if (estado.estoque.data) params.set('data', estado.estoque.data);
-  if (q) params.set('q', q);
+  anexarTermosBusca(params, 'filtroBuscaEstoque');
   if (situacao) params.set('situacao', situacao);
   if (autonomia) params.set('autonomia', autonomia);
   if (demanda) params.set('demanda', demanda);
@@ -2600,6 +2669,7 @@ COLS_FILTRO_GERAL.forEach(({ id }) => {
 });
 document.getElementById('botaoLimparFiltrosEstoqueGeral').addEventListener('click', () => {
   document.getElementById('filtroBuscaEstoqueGeral').value = '';
+  document.getElementById('filtroBuscaEstoqueGeral')._chips?.limpar();
   document.getElementById('filtroSituacaoEstoqueGeral').value = '';
   document.getElementById('filtroAutonomiaEstoqueGeral').value = '';
   document.getElementById('filtroDemandaEstoqueGeral').value = '';
@@ -2692,11 +2762,10 @@ async function carregarEstoqueGeral() {
 function paramsFiltroEstoqueGeral() {
   const params = new URLSearchParams({ escopoUnidade: 'geral' });
   if (estadoEstoqueGeral.data) params.set('data', estadoEstoqueGeral.data);
-  const q = document.getElementById('filtroBuscaEstoqueGeral').value.trim();
   const situacao = document.getElementById('filtroSituacaoEstoqueGeral').value;
   const autonomia = document.getElementById('filtroAutonomiaEstoqueGeral').value;
   const demanda = document.getElementById('filtroDemandaEstoqueGeral').value;
-  if (q) params.set('q', q);
+  anexarTermosBusca(params, 'filtroBuscaEstoqueGeral');
   if (situacao) params.set('situacao', situacao);
   if (autonomia) params.set('autonomia', autonomia);
   if (demanda) params.set('demanda', demanda);
@@ -2731,7 +2800,7 @@ function exportarEstoqueGeral() {
   const params = new URLSearchParams();
   params.set('escopoUnidade', 'geral');
   if (estadoEstoqueGeral.data) params.set('data', estadoEstoqueGeral.data);
-  const q = document.getElementById('filtroBuscaEstoqueGeral').value.trim(); if (q) params.set('q', q);
+  anexarTermosBusca(params, 'filtroBuscaEstoqueGeral');
   const situacao = document.getElementById('filtroSituacaoEstoqueGeral').value; if (situacao) params.set('situacao', situacao);
   const autonomia = document.getElementById('filtroAutonomiaEstoqueGeral').value; if (autonomia) params.set('autonomia', autonomia);
   const demanda = document.getElementById('filtroDemandaEstoqueGeral').value; if (demanda) params.set('demanda', demanda);
@@ -2742,7 +2811,6 @@ function exportarEstoqueGeral() {
 document.getElementById('botaoExportarEstoqueGeral').addEventListener('click', exportarEstoqueGeral);
 
 async function carregarTabelaEstoqueGeral() {
-  const q = document.getElementById('filtroBuscaEstoqueGeral').value.trim();
   const situacao = document.getElementById('filtroSituacaoEstoqueGeral').value;
   const autonomia = document.getElementById('filtroAutonomiaEstoqueGeral').value;
   const demanda = document.getElementById('filtroDemandaEstoqueGeral').value;
@@ -2750,7 +2818,7 @@ async function carregarTabelaEstoqueGeral() {
   const params = new URLSearchParams({ page: estadoEstoqueGeral.pagina, pageSize: estadoEstoqueGeral.pageSize });
   params.set('escopoUnidade', 'geral');
   if (estadoEstoqueGeral.data) params.set('data', estadoEstoqueGeral.data);
-  if (q) params.set('q', q);
+  anexarTermosBusca(params, 'filtroBuscaEstoqueGeral');
   if (situacao) params.set('situacao', situacao);
   if (autonomia) params.set('autonomia', autonomia);
   if (demanda) params.set('demanda', demanda);
@@ -5074,11 +5142,13 @@ document.getElementById('filtroBuscaAutores').addEventListener('input', () => {
   clearTimeout(debounceBuscaAutores);
   debounceBuscaAutores = setTimeout(() => { estadoAutores.pagina = 1; carregarTabelaAutores(); }, 350);
 });
+criarFiltroChips('filtroBuscaAutores', () => { estadoAutores.pagina = 1; carregarTabelaAutores(); });
 ['filtroUnidadeAutores', 'filtroStatusDemandaAutores', 'filtroStatusItemAutores', 'filtroCategoriaAutores'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => { estadoAutores.pagina = 1; carregarTabelaAutores(); });
 });
 document.getElementById('botaoLimparFiltrosAutores').addEventListener('click', () => {
   document.getElementById('filtroBuscaAutores').value = '';
+  document.getElementById('filtroBuscaAutores')._chips?.limpar();
   ['filtroUnidadeAutores', 'filtroStatusDemandaAutores', 'filtroStatusItemAutores', 'filtroCategoriaAutores']
     .forEach((id) => { document.getElementById(id).value = ''; });
   estadoAutores.pagina = 1; carregarTabelaAutores();
@@ -5112,8 +5182,7 @@ async function carregarAutores() {
 async function carregarTabelaAutores() {
   const params = new URLSearchParams({ page: estadoAutores.pagina, pageSize: estadoAutores.pageSize });
   params.set('escopoUnidade', 'udtp'); // principal: só a Tenente Pena
-  const q = document.getElementById('filtroBuscaAutores').value.trim();
-  if (q) params.set('q', q);
+  const nTermos = anexarTermosBusca(params, 'filtroBuscaAutores');
   const mapa = {
     unidade: 'filtroUnidadeAutores', status_demanda: 'filtroStatusDemandaAutores',
     status_item: 'filtroStatusItemAutores', categoria: 'filtroCategoriaAutores',
@@ -5129,7 +5198,7 @@ async function carregarTabelaAutores() {
   // Cards de resumo
   document.getElementById('grideResumoAutores').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAutores)}</div><div class="rotulo">Autores (distintos)</div></div>
-    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${q || params.has('unidade') ? ' filtradas' : ''}</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${nTermos || params.has('unidade') ? ' filtradas' : ''}</div></div>
     <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${horaImportacao(dados.dataImportacao)}</div></div>
   `;
 
@@ -5172,11 +5241,13 @@ document.getElementById('filtroBuscaAutoresGeral').addEventListener('input', () 
   clearTimeout(debounceBuscaAutoresGeral);
   debounceBuscaAutoresGeral = setTimeout(() => { estadoAutoresGeral.pagina = 1; carregarTabelaAutoresGeral(); }, 350);
 });
+criarFiltroChips('filtroBuscaAutoresGeral', () => { estadoAutoresGeral.pagina = 1; carregarTabelaAutoresGeral(); });
 ['filtroUnidadeAutoresGeral', 'filtroStatusDemandaAutoresGeral', 'filtroStatusItemAutoresGeral', 'filtroCategoriaAutoresGeral'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => { estadoAutoresGeral.pagina = 1; carregarTabelaAutoresGeral(); });
 });
 document.getElementById('botaoLimparFiltrosAutoresGeral').addEventListener('click', () => {
   document.getElementById('filtroBuscaAutoresGeral').value = '';
+  document.getElementById('filtroBuscaAutoresGeral')._chips?.limpar();
   ['filtroUnidadeAutoresGeral', 'filtroStatusDemandaAutoresGeral', 'filtroStatusItemAutoresGeral', 'filtroCategoriaAutoresGeral']
     .forEach((id) => { document.getElementById(id).value = ''; });
   estadoAutoresGeral.pagina = 1; carregarTabelaAutoresGeral();
@@ -5193,8 +5264,7 @@ function exportarAutores(escopoGeral) {
   const suf = escopoGeral ? 'AutoresGeral' : 'Autores';
   const params = new URLSearchParams();
   params.set('escopoUnidade', escopoGeral ? 'geral' : 'udtp');
-  const q = document.getElementById('filtroBusca' + suf).value.trim();
-  if (q) params.set('q', q);
+  anexarTermosBusca(params, 'filtroBusca' + suf);
   const mapa = {
     unidade: 'filtroUnidade' + suf, status_demanda: 'filtroStatusDemanda' + suf,
     status_item: 'filtroStatusItem' + suf, categoria: 'filtroCategoria' + suf,
@@ -5345,8 +5415,7 @@ async function carregarAutoresGeral() {
 async function carregarTabelaAutoresGeral() {
   const params = new URLSearchParams({ page: estadoAutoresGeral.pagina, pageSize: estadoAutoresGeral.pageSize });
   params.set('escopoUnidade', 'geral');
-  const q = document.getElementById('filtroBuscaAutoresGeral').value.trim();
-  if (q) params.set('q', q);
+  const nTermos = anexarTermosBusca(params, 'filtroBuscaAutoresGeral');
   const mapa = {
     unidade: 'filtroUnidadeAutoresGeral', status_demanda: 'filtroStatusDemandaAutoresGeral',
     status_item: 'filtroStatusItemAutoresGeral', categoria: 'filtroCategoriaAutoresGeral',
@@ -5361,7 +5430,7 @@ async function carregarTabelaAutoresGeral() {
 
   document.getElementById('grideResumoAutoresGeral').innerHTML = `
     <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.totalAutores)}</div><div class="rotulo">Autores (distintos)</div></div>
-    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${q || params.has('unidade') ? ' filtradas' : ''}</div></div>
+    <div class="cartao-resumo"><div class="numero">${fmtNumero(dados.total)}</div><div class="rotulo">Linhas (autor × item)${nTermos || params.has('unidade') ? ' filtradas' : ''}</div></div>
     <div class="cartao-resumo"><div class="numero" style="font-size:18px;">${dados.dataReferencia ? formatarData(dados.dataReferencia) : '—'}</div><div class="rotulo">Data do arquivo${horaImportacao(dados.dataImportacao)}</div></div>
   `;
 

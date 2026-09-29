@@ -22,6 +22,19 @@ function condEscopoUnidade(escopo, pfx = '') {
   return null; // 'geral' (e demais): sem filtro de unidade → todas, incluindo a Tenente Pena
 }
 
+// Busca por vários termos (o campo virou multi-seleção por etiquetas). Cada
+// termo casa em descrição/código/siafísico; o conjunto é unido por OR (mostra
+// tudo que casar com QUALQUER termo). Aceita `q` único ou repetido na URL.
+// Retorna { sql, params } ou null quando não há termo.
+function condBuscaEstoque(q, pfx = 'e.') {
+  const termos = [].concat(q || []).map((t) => String(t).trim()).filter(Boolean);
+  if (!termos.length) return null;
+  const umTermo = `(${pfx}descricao LIKE ? OR ${pfx}codigo_item LIKE ? OR ${pfx}siafisico LIKE ?)`;
+  const params = [];
+  for (const t of termos) { const like = `%${t}%`; params.push(like, like, like); }
+  return { sql: '(' + termos.map(() => umTermo).join(' OR ') + ')', params };
+}
+
 // Normaliza um texto de cabeçalho: minúsculas, sem acento, sem underscore,
 // espaços colapsados. Usado para casar colunas pelo NOME (robusto a mudanças
 // de posição/ordem das colunas no relatório).
@@ -544,11 +557,8 @@ router.get('/', (req, res) => {
   const escCond = condEscopoUnidade(escopoUnidade, 'e.');
   if (escCond) condicoes.push(escCond);
 
-  if (q) {
-    condicoes.push('(e.descricao LIKE ? OR e.codigo_item LIKE ? OR e.siafisico LIKE ?)');
-    const like = `%${q}%`;
-    params.push(like, like, like);
-  }
+  const cbBusca = condBuscaEstoque(q);
+  if (cbBusca) { condicoes.push(cbBusca.sql); params.push(...cbBusca.params); }
   if (situacao === 'ruptura') condicoes.push('(e.estoque <= 0 AND e.demandas > 0)');
   if (situacao === 'baixo') condicoes.push('(e.estoque > 0 AND e.autonomia > 0 AND e.autonomia <= ' + limiar + ')');
   if (situacao === 'zerado') condicoes.push('e.estoque <= 0');
@@ -639,7 +649,8 @@ router.get('/exportar', (req, res) => {
   const params = [dataRef];
   const escCond = condEscopoUnidade(escopoUnidade, 'e.');
   if (escCond) condicoes.push(escCond);
-  if (q) { condicoes.push('(e.descricao LIKE ? OR e.codigo_item LIKE ? OR e.siafisico LIKE ?)'); const like = `%${q}%`; params.push(like, like, like); }
+  const cbBuscaExp = condBuscaEstoque(q);
+  if (cbBuscaExp) { condicoes.push(cbBuscaExp.sql); params.push(...cbBuscaExp.params); }
   if (situacao === 'ruptura') condicoes.push('(e.estoque <= 0 AND e.demandas > 0)');
   if (situacao === 'baixo') condicoes.push('(e.estoque > 0 AND e.autonomia > 0 AND e.autonomia <= ' + limiar + ')');
   if (situacao === 'zerado') condicoes.push('e.estoque <= 0');
@@ -707,11 +718,8 @@ router.get('/resumo', (req, res) => {
   const params = [dataRef];
   const escCond = condEscopoUnidade(escopoUnidade, 'e.');
   if (escCond) condicoes.push(escCond);
-  if (q) {
-    condicoes.push('(e.descricao LIKE ? OR e.codigo_item LIKE ? OR e.siafisico LIKE ?)');
-    const like = `%${q}%`;
-    params.push(like, like, like);
-  }
+  const cbBusca = condBuscaEstoque(q);
+  if (cbBusca) { condicoes.push(cbBusca.sql); params.push(...cbBusca.params); }
   if (situacao === 'ruptura') condicoes.push('(e.estoque <= 0 AND e.demandas > 0)');
   if (situacao === 'baixo') condicoes.push('(e.estoque > 0 AND e.autonomia > 0 AND e.autonomia <= ' + limiar + ')');
   if (situacao === 'zerado') condicoes.push('e.estoque <= 0');
