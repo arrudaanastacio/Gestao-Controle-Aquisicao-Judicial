@@ -11673,10 +11673,11 @@ function abrirDetalheAta(id) {
   const clsV = classeVencimentoAta(a.vencimento);
   const tagV = clsV === 'vencido' ? 'cancelado' : clsV === 'proximo' ? 'atrasado' : 'finalizado';
 
+  // valor vem do SISCOA (dado externo) → escapa para evitar XSS no innerHTML.
   const linha = (rotulo, valor) => `
     <div style="display:flex; justify-content:space-between; gap:14px; padding:7px 0; border-bottom:1px solid var(--linha); font-size:13px;">
-      <span style="color:var(--cinza-texto);">${rotulo}</span>
-      <span style="text-align:right;">${valor ?? '—'}</span>
+      <span style="color:var(--cinza-texto);">${escHtml(rotulo)}</span>
+      <span style="text-align:right;">${valor == null ? '—' : escHtml(String(valor))}</span>
     </div>`;
 
   document.getElementById('conteudoModalAta').innerHTML = `
