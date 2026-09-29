@@ -8857,9 +8857,21 @@ function abrirDocumento(html) {
   win.document.close();
 }
 
+// Item "ATA em avaliação" (situacao_ata = 'AVALIACAO') exige que o técnico
+// escolha ATA ou SEM ATA. Sem a escolha, o valor unitário ficaria indefinido
+// (cairia no médio do SCODES, que pode divergir da ata), então a geração é
+// bloqueada. Retorna true e avisa quando há item pendente de escolha.
+function bloquearSeFaltaEscolhaAta(itens) {
+  const pend = (itens || []).find((it) => it.situacao_ata === 'AVALIACAO' && !it.escolha_ata);
+  if (!pend) return false;
+  alert(`Escolha ATA ou SEM ATA para o item em avaliação antes de gerar:\n\n• ${pend.descricao_item || pend.codigo_item || 'item'}\n\nSem essa escolha o valor unitário fica indefinido (usaria o valor médio, que pode divergir da ata).`);
+  return true;
+}
+
 async function gerarRequisicao() {
   const itens = coletarItensSelecionados();
   if (itens.length === 0) { alert('Selecione ao menos um medicamento.'); return; }
+  if (bloquearSeFaltaEscolhaAta(itens)) return;
 
   const info = reqPacienteAtual;
   const campoSei = document.getElementById('reqSEI');
@@ -9384,6 +9396,10 @@ async function gerarColetiva() {
   });
   const pacientes = [...mapa.values()];
   if (!pacientes.length) { alert('Marque ao menos um paciente.'); return; }
+
+  // Bloqueia se algum item "ATA em avaliação" ficou sem escolha ATA/SEM ATA.
+  const todosItens = pacientes.flatMap((p) => p.itens);
+  if (bloquearSeFaltaEscolhaAta(todosItens)) return;
 
   // Aviso quando a solicitação mistura ATA e SEM ATA (por medicamento distinto).
   const modMap = new Map();

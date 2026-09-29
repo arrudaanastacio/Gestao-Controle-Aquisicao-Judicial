@@ -67,14 +67,23 @@ function dataBRparaISO(v) {
   return `${ano}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
 }
 
-// Converte o número serial de data do Excel (dias desde 1899-12-30) para
-// "AAAA-MM-DD", usando só a parte inteira (o horário do dia é irrelevante
-// aqui e formatos texto tipo "4/10/25" são ambíguos entre DD/MM e MM/DD).
-function serialExcelParaISO(serial) {
+// Converte o serial de data que o EXPORT do SISCOA manda para "AAAA-MM-DD",
+// corrigindo um defeito da exportação: datas com dia <= 12 saem como NÚMERO
+// (serial do Excel) já com DIA e MÊS TROCADOS — o SISCOA formata "DD/MM" e
+// reinterpreta como "MM/DD" (padrão americano), gerando abril no lugar de
+// novembro, por exemplo. (Datas com dia > 12 não são ambíguas: saem como TEXTO
+// "dd/mm/aaaa" e vêm corretas, tratadas em dataBRparaISO.) Além disso o serial
+// vem a 23:59:56 (fração ~0,9996), então arredondamos para o dia certo.
+// Validado em 29/09/2026: nas 769 linhas numéricas do relatório, o vencimento
+// corrigido = publicação + 1 ano em 100% dos casos.
+function serialSiscoaParaISO(serial) {
   if (typeof serial !== 'number' || !Number.isFinite(serial)) return null;
-  const dias = Math.floor(serial);
+  const dias = Math.round(serial);
   const d = new Date(Date.UTC(1899, 11, 30) + dias * 86400000);
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  const mesUS = d.getUTCMonth() + 1; // posição do mês no serial = DIA verdadeiro
+  const diaUS = d.getUTCDate();      // posição do dia no serial  = MÊS verdadeiro
+  // Desfaz a troca: mês verdadeiro = diaUS, dia verdadeiro = mesUS.
+  return `${d.getUTCFullYear()}-${String(diaUS).padStart(2, '0')}-${String(mesUS).padStart(2, '0')}`;
 }
 
 // Lê uma célula de data diretamente da planilha (evita o texto formatado
@@ -84,7 +93,7 @@ function celulaData(sheet, linha, coluna) {
   if (coluna < 0) return null;
   const cel = sheet[XLSX.utils.encode_cell({ r: linha, c: coluna })];
   if (!cel) return null;
-  if (cel.t === 'n' && typeof cel.v === 'number') return serialExcelParaISO(cel.v);
+  if (cel.t === 'n' && typeof cel.v === 'number') return serialSiscoaParaISO(cel.v);
   return dataBRparaISO(cel.w ?? cel.v);
 }
 
