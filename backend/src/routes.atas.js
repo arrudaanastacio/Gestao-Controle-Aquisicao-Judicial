@@ -33,6 +33,7 @@ const MAPA_CABECALHOS = {
   vencimento: ['vencimento'],
   embalagem_primaria: ['embalagem primaria'],
   embalagem_secundaria: ['embalagem secundaria'],
+  programa: ['programa'],
 };
 const CAMPOS = Object.keys(MAPA_CABECALHOS);
 
@@ -136,6 +137,7 @@ function processarAtas(buffer) {
       vencimento: celulaData(sheet, i, COL.vencimento),
       embalagem_primaria: COL.embalagem_primaria >= 0 ? texto(r[COL.embalagem_primaria]) : null,
       embalagem_secundaria: COL.embalagem_secundaria >= 0 ? texto(r[COL.embalagem_secundaria]) : null,
+      programa: COL.programa >= 0 ? texto(r[COL.programa]) : null,
     });
   }
   return linhas;

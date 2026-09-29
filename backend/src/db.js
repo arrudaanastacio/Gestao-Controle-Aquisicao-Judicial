@@ -465,9 +465,15 @@ CREATE TABLE IF NOT EXISTS atas_itens (
   data_publicacao TEXT,
   vencimento TEXT,
   embalagem_primaria TEXT,
-  embalagem_secundaria TEXT
+  embalagem_secundaria TEXT,
+  programa TEXT
 );
 `);
+// Migração idempotente: coluna `programa` (importada do SISCOA) — bancos antigos.
+{
+  const colunasAtas = db.prepare('PRAGMA table_info(atas_itens)').all().map((c) => c.name);
+  if (!colunasAtas.includes('programa')) db.exec('ALTER TABLE atas_itens ADD COLUMN programa TEXT');
+}
 db.exec(`CREATE INDEX IF NOT EXISTS idx_atas_siafisico ON atas_itens(siafisico);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_atas_data ON atas_itens(data_referencia);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_atas_vencimento ON atas_itens(vencimento);`);
