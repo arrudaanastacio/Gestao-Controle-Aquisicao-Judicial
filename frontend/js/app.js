@@ -11652,6 +11652,14 @@ document.getElementById('botaoFecharModalAta').addEventListener('click', () => {
   document.getElementById('modalAtaItem').hidden = true;
 });
 
+// Responsável pela ata a partir do prefixo do número: M… = CAF, C… = CGA.
+function responsavelAta(ata) {
+  const c = String(ata || '').trim().charAt(0).toUpperCase();
+  if (c === 'M') return 'CAF';
+  if (c === 'C') return 'CGA';
+  return null; // outros prefixos: sem responsável definido (mostra "—")
+}
+
 function abrirDetalheAta(id) {
   const a = itensAtasCarregados.get(String(id));
   if (!a) return;
@@ -11677,12 +11685,15 @@ function abrirDetalheAta(id) {
       <div class="cartao-resumo"><div class="numero" style="font-size:20px;">${formatarData(a.data_publicacao)}</div><div class="rotulo">Data de publicação</div></div>
       <div class="cartao-resumo"><div class="numero"><span class="etiqueta-status ${tagV}" style="font-size:14px;">${formatarData(a.vencimento)}</span></div><div class="rotulo">Vencimento</div></div>
     </div>
+    ${linha('Responsável', responsavelAta(a.ata))}
     ${linha('Nome Comercial', a.nome_comercial)}
+    ${linha('Apresentação', a.apresentacao)}
     ${linha('Unidade de Fornecimento', a.unidade_fornecimento)}
     ${linha('Embalagem Primária', a.embalagem_primaria)}
     ${linha('Embalagem Secundária', a.embalagem_secundaria)}
     ${linha('Detentor do Registro', a.detentor_registro)}
-    ${linha('OC', a.oc)}
+    ${linha('Programa', a.programa)}
+    ${linha('Processo', a.oc)}
   `;
 
   document.getElementById('modalAtaItem').hidden = false;
