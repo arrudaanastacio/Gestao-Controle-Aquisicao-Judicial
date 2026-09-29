@@ -1806,8 +1806,8 @@ function criarFiltroChips(inputId, aoMudar) {
     const v = input.value.trim();
     if (!v) return;
     ev.preventDefault();
+    input.value = ''; // limpa antes: o recarregamento da etiqueta não vê o texto
     apiChips.adicionar(v, v);
-    input.value = '';
   });
   input._chips = apiChips;
   return apiChips;
@@ -1872,9 +1872,12 @@ function montarAutocompleteEstoque(inputId, escopoUnidade, aoSelecionar) {
     fechar();
     if (input._chips) {
       // Multi-seleção: cada escolha vira etiqueta (filtra pelo código, preciso).
-      input._chips.adicionar(r.codigo_scodes, r.descricao);
+      // Limpa o texto digitado ANTES de adicionar — senão o recarregamento
+      // disparado pela etiqueta ainda enxergaria o termo parcial e traria itens
+      // demais (ex.: "oxcarbazepina" mostraria todas as oxcarbazepinas).
       input.value = '';
       delete input.dataset.scodesSel;
+      input._chips.adicionar(r.codigo_scodes, r.descricao);
     } else {
       input.value = r.descricao;
       input.dataset.scodesSel = r.codigo_scodes;   // identifica o produto escolhido
