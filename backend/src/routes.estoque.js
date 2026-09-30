@@ -4,6 +4,7 @@ const XLSX = require('xlsx');
 const db = require('./db');
 const { autenticar, exigirPerfil, exigirOracle } = require('./auth');
 const { referenciaParaColeta } = require('./diasUteis');
+const { condNotInOcultas } = require('./unidadesOcultas');
 
 const router = express.Router();
 router.use(autenticar);
@@ -19,7 +20,11 @@ const STATUS_EM_ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Pa
 // Retorna a condição SQL (com o prefixo de coluna informado, ex.: 'e.') ou null.
 function condEscopoUnidade(escopo, pfx = '') {
   if (escopo === 'udtp') return `(${pfx}unidade IS NULL OR ${pfx}unidade LIKE '%Tenente Pena%')`;
-  return null; // 'geral' (e demais): sem filtro de unidade → todas, incluindo a Tenente Pena
+  if (escopo === 'geral') {
+    // Todas as unidades, MENOS as ocultas (mantém as linhas sem unidade).
+    return `(${pfx}unidade IS NULL OR ${condNotInOcultas(`${pfx}unidade`)})`;
+  }
+  return null; // demais escopos: sem filtro de unidade
 }
 
 // Busca por vários termos (o campo virou multi-seleção por etiquetas). Cada

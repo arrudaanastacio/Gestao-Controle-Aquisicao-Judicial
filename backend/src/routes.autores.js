@@ -5,6 +5,7 @@ const db = require('./db');
 const { autenticar, exigirPerfil, exigirOracle } = require('./auth');
 const { criarCalculadoraAta } = require('./ataSituacao');
 const { CAIXAS, REGRA_VERSAO, criarCalculadoraCaixa, caixaPredominante } = require('./caixaAtendimento');
+const { condNotInOcultas } = require('./unidadesOcultas');
 
 const router = express.Router();
 router.use(autenticar);
@@ -247,6 +248,8 @@ function montarFiltroAutores(query) {
     cond.push("status_demanda LIKE 'Demanda Ativa%'");
     cond.push("EXISTS (SELECT 1 FROM relatorio_itens ri WHERE ri.codigo = autores_itens.codigo_item AND ri.importado = 'Sim')");
   }
+  // UDs ocultas não aparecem em nenhuma listagem de autores (mantém as sem unidade).
+  cond.push(`(unidade_dispensadora IS NULL OR ${condNotInOcultas('unidade_dispensadora')})`);
   // Busca por vários termos (o campo virou multi-seleção por etiquetas). Cada
   // termo casa em autor/processo/protocolo/descrição/código; o conjunto é unido
   // por OR (mostra tudo que casar com QUALQUER termo). Aceita 1 ou vários `q`.
