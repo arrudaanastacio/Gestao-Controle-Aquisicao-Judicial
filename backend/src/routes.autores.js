@@ -356,11 +356,12 @@ const estadoOracle = { rodando: false, inicio: null, ultimoResumo: null, ultimoE
 function executarAtualizacaoOracle(opcoes = {}) {
   if (estadoOracle.rodando) return Promise.resolve({ pulou: true, motivo: 'já em andamento' });
   const { atualizarAutoresViaOracle } = require('../oracle/sync-demandas');
+  const { comTimeout } = require('./oracleWatchdog');
   estadoOracle.rodando = true;
   estadoOracle.inicio = new Date().toISOString();
   estadoOracle.ultimoErro = null;
 
-  return atualizarAutoresViaOracle(opcoes)
+  return comTimeout(atualizarAutoresViaOracle(opcoes), 'Listagem de Autores')
     .then((resumo) => {
       estadoOracle.ultimoResumo = { ...resumo, fim: new Date().toISOString() };
       console.log(`[SYNC AUTORES] Concluido via Oracle: ${resumo.totalLinhas} linhas / ${resumo.totalAutores} autores em ${Math.round((resumo.duracaoMs || 0) / 1000)}s.`);

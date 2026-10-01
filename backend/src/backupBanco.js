@@ -252,8 +252,12 @@ function iniciarBackupDiario() {
     console.log('[BACKUP BANCO] Desativado (AUTO_BACKUP=false).');
     return;
   }
-  const hora = Math.min(23, Math.max(0, parseInt(process.env.BACKUP_HORA, 10) || 5));
-  const minuto = Math.min(59, Math.max(0, parseInt(process.env.BACKUP_MINUTO, 10) || 0));
+  // Atenção: não usar "|| 5" aqui — hora 0 (meia-noite) é "falsy" e cairia no
+  // padrão. Number.isFinite aceita o 0 corretamente.
+  const horaEnv = parseInt(process.env.BACKUP_HORA, 10);
+  const minutoEnv = parseInt(process.env.BACKUP_MINUTO, 10);
+  const hora = Math.min(23, Math.max(0, Number.isFinite(horaEnv) ? horaEnv : 5));
+  const minuto = Math.min(59, Math.max(0, Number.isFinite(minutoEnv) ? minutoEnv : 0));
   console.log(`[BACKUP BANCO] Agendado para ${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')} em dias úteis (seg–sex).`);
   // O agendador dispara todo dia; aqui pulamos sábado/domingo (só dias úteis).
   agendarDiariamente('BACKUP BANCO', hora, minuto, () => {

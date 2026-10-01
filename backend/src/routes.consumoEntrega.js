@@ -220,10 +220,11 @@ const estadoOracle = { rodando: false, inicio: null, ultimoResumo: null, ultimoE
 function executarAtualizacaoRecibosOracle() {
   if (estadoOracle.rodando) return Promise.resolve({ pulou: true });
   const { atualizarRecibosViaOracle } = require('../oracle/sync-recibos');
+  const { comTimeout } = require('./oracleWatchdog');
   estadoOracle.rodando = true;
   estadoOracle.inicio = new Date().toISOString();
   estadoOracle.ultimoErro = null;
-  return atualizarRecibosViaOracle({ dias: 396 }) // ~13 meses (cobre 365 dias com margem)
+  return comTimeout(atualizarRecibosViaOracle({ dias: 396 }), 'Recibos (Consumo x Entrega)') // ~13 meses (cobre 365 dias com margem)
     .then((resumo) => {
       estadoOracle.ultimoResumo = { ...resumo, fim: new Date().toISOString() };
       console.log(`[SYNC RECIBOS] Concluido via Oracle: ${resumo.gravadas} linhas em ${Math.round((resumo.duracaoMs || 0) / 1000)}s.`);

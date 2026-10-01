@@ -108,11 +108,12 @@ const estadoOracle = { rodando: false, inicio: null, ultimoResumo: null, ultimoE
 function executarAtualizacaoEntradaLotesOracle(opcoes = {}) {
   if (estadoOracle.rodando) return Promise.resolve({ pulou: true, motivo: 'já em andamento' });
   const { atualizarEntradaLotesViaOracle } = require('../oracle/sync-entrada-lotes');
+  const { comTimeout } = require('./oracleWatchdog');
   estadoOracle.rodando = true;
   estadoOracle.inicio = new Date().toISOString();
   estadoOracle.ultimoErro = null;
 
-  return atualizarEntradaLotesViaOracle(opcoes)
+  return comTimeout(atualizarEntradaLotesViaOracle(opcoes), 'Entrada (lotes)')
     .then((resumo) => {
       estadoOracle.ultimoResumo = { ...resumo, fim: new Date().toISOString() };
       console.log(`[SYNC ENTRADA LOTES] Concluido via Oracle: ${resumo.totalLinhas} linhas em ${Math.round((resumo.duracaoMs || 0) / 1000)}s.`);

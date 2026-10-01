@@ -219,11 +219,12 @@ const estadoOracle = { rodando: false, inicio: null, ultimoResumo: null, ultimoE
 function executarAtualizacaoSaidaLotesOracle(opcoes = {}) {
   if (estadoOracle.rodando) return Promise.resolve({ pulou: true, motivo: 'já em andamento' });
   const { atualizarSaidaLotesViaOracle } = require('../oracle/sync-saida-lotes');
+  const { comTimeout } = require('./oracleWatchdog');
   estadoOracle.rodando = true;
   estadoOracle.inicio = new Date().toISOString();
   estadoOracle.ultimoErro = null;
 
-  return atualizarSaidaLotesViaOracle(opcoes)
+  return comTimeout(atualizarSaidaLotesViaOracle(opcoes), 'Saída (lotes)')
     .then((resumo) => {
       estadoOracle.ultimoResumo = { ...resumo, fim: new Date().toISOString() };
       console.log(`[SYNC SAIDA LOTES] Concluido via Oracle: ${resumo.totalLinhas} linhas em ${Math.round((resumo.duracaoMs || 0) / 1000)}s.`);
