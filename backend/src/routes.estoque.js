@@ -351,11 +351,12 @@ const estadoOracleEstoque = { rodando: false, inicio: null, ultimoResumo: null, 
 function executarAtualizacaoEstoqueOracle(opcoes = {}) {
   if (estadoOracleEstoque.rodando) return Promise.resolve({ pulou: true, motivo: 'já em andamento' });
   const { atualizarEstoqueViaOracle } = require('../oracle/sync-estoque');
+  const { comTimeout } = require('./oracleWatchdog');
   estadoOracleEstoque.rodando = true;
   estadoOracleEstoque.inicio = new Date().toISOString();
   estadoOracleEstoque.ultimoErro = null;
 
-  return atualizarEstoqueViaOracle(opcoes)
+  return comTimeout(atualizarEstoqueViaOracle(opcoes), 'Estoque')
     .then((resumo) => {
       estadoOracleEstoque.ultimoResumo = { ...resumo, fim: new Date().toISOString() };
       console.log(`[SYNC ESTOQUE] Concluido via Oracle: ${resumo.totalItens} itens em ${Math.round((resumo.duracaoMs || 0) / 1000)}s.`);

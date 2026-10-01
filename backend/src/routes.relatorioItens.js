@@ -372,11 +372,12 @@ const estadoOracle = { rodando: false, inicio: null, ultimoResumo: null, ultimoE
 function executarAtualizacaoRelatorioItensOracle(opcoes = {}) {
   if (estadoOracle.rodando) return Promise.resolve({ pulou: true, motivo: 'já em andamento' });
   const { atualizarRelatorioItensViaOracle } = require('../oracle/sync-relatorio-itens');
+  const { comTimeout } = require('./oracleWatchdog');
   estadoOracle.rodando = true;
   estadoOracle.inicio = new Date().toISOString();
   estadoOracle.ultimoErro = null;
 
-  return atualizarRelatorioItensViaOracle(opcoes)
+  return comTimeout(atualizarRelatorioItensViaOracle(opcoes), 'Relatório de Itens')
     .then((resumo) => {
       estadoOracle.ultimoResumo = { ...resumo, fim: new Date().toISOString() };
       console.log(`[SYNC RELATÓRIO ITENS] Concluido via Oracle: ${resumo.totalItens} itens em ${Math.round((resumo.duracaoMs || 0) / 1000)}s.`);
