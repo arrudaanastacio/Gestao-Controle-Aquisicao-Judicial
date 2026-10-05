@@ -568,6 +568,7 @@ router.get('/', (req, res) => {
   if (situacao === 'ruptura') condicoes.push('(e.estoque <= 0 AND e.demandas > 0)');
   if (situacao === 'baixo') condicoes.push('(e.estoque > 0 AND e.autonomia > 0 AND e.autonomia <= ' + limiar + ')');
   if (situacao === 'zerado') condicoes.push('e.estoque <= 0');
+  if (situacao === 'estoque_sem_demanda') condicoes.push('(e.estoque > 0 AND (e.demandas = 0 OR e.demandas IS NULL))');
 
   // Filtro por faixa de autonomia (meses de cobertura).
   // Considera apenas itens com autonomia preenchida (não nula).
@@ -660,6 +661,7 @@ router.get('/exportar', (req, res) => {
   if (situacao === 'ruptura') condicoes.push('(e.estoque <= 0 AND e.demandas > 0)');
   if (situacao === 'baixo') condicoes.push('(e.estoque > 0 AND e.autonomia > 0 AND e.autonomia <= ' + limiar + ')');
   if (situacao === 'zerado') condicoes.push('e.estoque <= 0');
+  if (situacao === 'estoque_sem_demanda') condicoes.push('(e.estoque > 0 AND (e.demandas = 0 OR e.demandas IS NULL))');
   const FX = { '0': 'e.autonomia = 0', '0-1': 'e.autonomia >= 0 AND e.autonomia <= 1', '1-2': 'e.autonomia > 1 AND e.autonomia <= 2', '2-6': 'e.autonomia > 2 AND e.autonomia <= 6', '6mais': 'e.autonomia > 6' };
   if (autonomia && FX[autonomia]) condicoes.push('e.autonomia IS NOT NULL AND (' + FX[autonomia] + ')');
   if (demanda === 'com') condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
@@ -729,6 +731,7 @@ router.get('/resumo', (req, res) => {
   if (situacao === 'ruptura') condicoes.push('(e.estoque <= 0 AND e.demandas > 0)');
   if (situacao === 'baixo') condicoes.push('(e.estoque > 0 AND e.autonomia > 0 AND e.autonomia <= ' + limiar + ')');
   if (situacao === 'zerado') condicoes.push('e.estoque <= 0');
+  if (situacao === 'estoque_sem_demanda') condicoes.push('(e.estoque > 0 AND (e.demandas = 0 OR e.demandas IS NULL))');
   const FX = { '0': 'e.autonomia = 0', '0-1': 'e.autonomia >= 0 AND e.autonomia <= 1', '1-2': 'e.autonomia > 1 AND e.autonomia <= 2', '2-6': 'e.autonomia > 2 AND e.autonomia <= 6', '6mais': 'e.autonomia > 6' };
   if (autonomia && FX[autonomia]) condicoes.push('e.autonomia IS NOT NULL AND (' + FX[autonomia] + ')');
   if (demanda === 'com') condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
