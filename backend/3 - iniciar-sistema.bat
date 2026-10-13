@@ -24,8 +24,20 @@ echo.
 
 rem Usa o repositorio de certificados do Windows (CA da UDTP/gov).
 set NODE_USE_SYSTEM_CA=1
+
+:loop_servidor
 node src/server.js
 
+rem Se o Node saiu por ERRO (errorlevel >= 1), sobe de novo sozinho apos 3s.
+rem Saida limpa (fechar a janela / Ctrl+C respondido com Y) NAO reinicia.
+if errorlevel 1 (
+  echo.
+  echo [%date% %time%] O servidor caiu inesperadamente. Reiniciando em 3 segundos...
+  echo (Para NAO reiniciar, feche esta janela agora.)
+  timeout /t 3 /nobreak >nul
+  goto loop_servidor
+)
+
 echo.
-echo O servidor foi encerrado.
+echo O servidor foi encerrado normalmente.
 pause

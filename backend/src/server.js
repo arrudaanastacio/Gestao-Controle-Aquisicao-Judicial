@@ -4,6 +4,31 @@ const cookieParser = require('cookie-parser');
 const path = require('path');
 const fs = require('fs');
 
+// =====================================================================
+// REDE DE SEGURANÇA GLOBAL contra quedas do servidor.
+//
+// Por que isto existe: o app roda MUITOS processos de fundo (vigias de
+// arquivos na rede, agendador Oracle, backup). No Node 15+, um erro
+// assíncrono que escape sem tratamento (uncaughtException) ou uma promessa
+// rejeitada sem .catch() (unhandledRejection) ENCERRA o processo inteiro —
+// e, sem laço de reinício, o sistema simplesmente "cai". Aqui a gente:
+//   1) GRAVA o erro num arquivo com data/hora (para achar a causa raiz), e
+//   2) MANTÉM o servidor de pé (prioriza disponibilidade — é ferramenta
+//      interna de rede; "no ar degradado" é melhor que "fora do ar").
+// O laço de reinício na .bat cuida do caso extremo em que o processo
+// realmente morra por outro motivo.
+// =====================================================================
+const CAMINHO_LOG_FATAL = path.join(__dirname, '..', 'erros-fatais.log');
+function registrarErroFatal(tipo, err) {
+  const quando = new Date().toISOString();
+  const detalhe = (err && err.stack) || (err && err.message) || String(err);
+  const linha = `\n[${quando}] ${tipo}\n${detalhe}\n`;
+  try { fs.appendFileSync(CAMINHO_LOG_FATAL, linha); } catch (_) {}
+  try { console.error(`[ERRO FATAL CONTIDO] ${tipo}:`, detalhe); } catch (_) {}
+}
+process.on('unhandledRejection', (motivo) => registrarErroFatal('unhandledRejection', motivo));
+process.on('uncaughtException', (err) => registrarErroFatal('uncaughtException', err));
+
 // Versão do sistema: lida do arquivo VERSION na raiz do projeto.
 let VERSAO = '—';
 try {
