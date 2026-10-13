@@ -96,20 +96,46 @@ function texto(v) {
   return l === null ? null : String(l).trim();
 }
 
-// Converte número no formato brasileiro: ponto = separador de milhar,
-// vírgula = decimal. Ex.: "5,48" -> 5.48 ; "3.092.580" -> 3092580 ; "7,1572" -> 7.1572
+// Converte número de planilha para Number, entendendo DOIS formatos:
+//   (a) brasileiro clássico: ponto = milhar, vírgula = decimal
+//       "5,48" -> 5.48 ; "3.092.580" -> 3092580 ; "7,1572" -> 7.1572
+//   (b) ponto como DECIMAL (vem assim quando o Excel guarda número de verdade
+//       e a leitura entrega "19.82", "1.41", "0.1982" — sem vírgula)
+//
+// Por que isto importa: quando a sincronização via Oracle está fora do ar e o
+// estoque é atualizado por IMPORTAÇÃO MANUAL de planilha, o consumo chega como
+// "19.82" (ponto decimal). A versão antiga assumia "sem vírgula => todo ponto é
+// milhar" e apagava o ponto, transformando 19,82 em 1982 (e 1,41 em 141).
+//
+// Regra para string só com ponto(s), sem vírgula:
+//   - mais de um ponto ("3.092.580")                    -> milhar
+//   - um ponto, 3 dígitos depois e inteiro != 0 ("1.982")-> milhar (quantidade)
+//   - qualquer outro caso ("19.82","1.41","0.1982","12.5")-> DECIMAL
+// O caso "1.982" é genuinamente ambíguo; tratamos como milhar porque consumos
+// fracionários sempre chegam com "0," / "0." na frente, então não são afetados.
 function numero(v) {
   const l = limpar(v);
   if (l === null) return null;
   if (typeof l === 'number') return l;
   let s = String(l).trim();
+  if (s === '') return null;
+  const negativo = s.startsWith('-');
+  s = s.replace(/[^\d.,]/g, ''); // mantém só dígitos, ponto e vírgula
+
   if (s.includes(',')) {
-    s = s.replace(/\./g, '').replace(',', '.'); // remove milhares, vírgula vira ponto
-  } else {
-    s = s.replace(/\./g, ''); // sem vírgula: pontos são separador de milhar
+    // Tem vírgula => vírgula é o decimal; pontos são milhar.
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (s.includes('.')) {
+    const partes = s.split('.');
+    const depois = partes[partes.length - 1];      // dígitos após o último ponto
+    const inteiro = partes.slice(0, -1).join('');    // tudo antes do último ponto
+    const ehMilhar = partes.length > 2 || (depois.length === 3 && /[1-9]/.test(inteiro));
+    s = ehMilhar ? partes.join('') : `${inteiro}.${depois}`;
   }
+
   const n = parseFloat(s);
-  return Number.isFinite(n) ? n : null;
+  if (!Number.isFinite(n)) return null;
+  return negativo ? -Math.abs(n) : n;
 }
 
 // Lê o relatório de estoque e retorna {linhas, dataReferencia, nomeAba}

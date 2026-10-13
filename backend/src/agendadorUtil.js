@@ -54,7 +54,13 @@ function agendarDiariamente(nomeLog, hora, minuto, tarefa, opcoes = {}) {
 
   setTimeout(() => {
     console.log(`[${nomeLog}] Disparando atualização automática via Oracle...`);
-    tarefa();
+    // IMPORTANTE: `tarefa` é assíncrona. Precisa de .catch() — sem ele, uma
+    // rejeição que escape do try/catch interno (ex.: falha ao gravar no registro
+    // de serviços, fora das etapas protegidas) vira unhandledRejection e, no
+    // Node 15+, DERRUBA o processo inteiro. O caminho de recuperação acima já
+    // protege; aqui estava faltando.
+    Promise.resolve().then(tarefa).catch((e) =>
+      console.error(`[${nomeLog}] Falha na atualização automática:`, e && e.message));
     agendarDiariamente(nomeLog, hora, minuto, tarefa, opcoes); // reagenda para o dia seguinte
   }, ms);
 }
