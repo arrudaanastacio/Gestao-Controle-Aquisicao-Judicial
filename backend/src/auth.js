@@ -10,6 +10,27 @@ if (JWT_SECRET === 'troque-este-segredo-em-producao' || JWT_SECRET.length < 32) 
   console.error('[SEGURANÇA] JWT_SECRET ausente/fraco! Defina um segredo forte (>=32 caracteres) no backend/.env ANTES de usar em rede.');
 }
 
+// IP de origem da requisição (considera proxy/túnel via X-Forwarded-For).
+function ipDaRequisicao(req) {
+  if (!req) return '';
+  const xff = (req.headers && req.headers['x-forwarded-for']) || '';
+  const primeiro = String(xff).split(',')[0].trim();
+  return primeiro || req.ip || (req.socket && req.socket.remoteAddress) || '';
+}
+
+// Registra um EVENTO DE SEGURANÇA na trilha de auditoria (login, logout, acesso
+// negado). Nunca lança: um erro de log jamais pode derrubar a requisição, e
+// NUNCA gravamos senha/token aqui. tabela='seguranca' para filtrar fácil depois.
+function registrarSeguranca(req, dados) {
+  try {
+    const db = require('./db');
+    const { usuario_id = null, usuario_email = null, acao, detalhe = null } = dados || {};
+    db.prepare(
+      'INSERT INTO auditoria (usuario_id, usuario_email, acao, tabela, origem, dados_depois) VALUES (?,?,?,?,?,?)'
+    ).run(usuario_id, usuario_email, acao, 'seguranca', ipDaRequisicao(req), detalhe ? JSON.stringify(detalhe) : null);
+  } catch (_) { /* log de segurança nunca interrompe o fluxo */ }
+}
+
 function gerarToken(usuario) {
   return jwt.sign(
     { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil },
@@ -71,6 +92,11 @@ function autenticar(req, res, next) {
 function exigirPerfil(...perfis) {
   return (req, res, next) => {
     if (!req.usuario || !perfis.includes(req.usuario.perfil)) {
+      registrarSeguranca(req, {
+        usuario_id: req.usuario && req.usuario.id, usuario_email: req.usuario && req.usuario.email,
+        acao: 'acesso_negado',
+        detalhe: { exige_perfil: perfis.join('|'), perfil_atual: req.usuario && req.usuario.perfil, metodo: req.method, caminho: req.originalUrl || req.path },
+      });
       return res.status(403).json({ erro: 'Você não tem permissão para esta ação.' });
     }
     next();
@@ -120,6 +146,11 @@ function exigirModulo(modulo) {
     // Precisa do módulo habilitado E da ação específica marcada.
     if (perm && perm.habilitado === 1 && perm[acao] === 1) return next();
 
+    registrarSeguranca(req, {
+      usuario_id: req.usuario && req.usuario.id, usuario_email: req.usuario && req.usuario.email,
+      acao: 'acesso_negado',
+      detalhe: { modulo, acaoTentada: acao, metodo: req.method, caminho: req.originalUrl || req.path },
+    });
     return res.status(403).json({
       erro: 'Você não tem permissão para esta ação neste módulo.',
     });
@@ -153,6 +184,11 @@ function exigirModuloDinamico(resolver) {
 
     if (temAlgum) return next();
 
+    registrarSeguranca(req, {
+      usuario_id: req.usuario && req.usuario.id, usuario_email: req.usuario && req.usuario.email,
+      acao: 'acesso_negado',
+      detalhe: { modulo: modulos.join('|'), acaoTentada: acao, metodo: req.method, caminho: req.originalUrl || req.path },
+    });
     return res.status(403).json({
       erro: 'Você não tem permissão para esta ação neste módulo.',
     });
@@ -175,6 +211,11 @@ function usuarioPodeOracle(req) {
 function exigirOracle(req, res, next) {
   if (!req.usuario) return res.status(401).json({ erro: 'Não autenticado. Faça login.' });
   if (usuarioPodeOracle(req)) return next();
+  registrarSeguranca(req, {
+    usuario_id: req.usuario && req.usuario.id, usuario_email: req.usuario && req.usuario.email,
+    acao: 'acesso_negado',
+    detalhe: { recurso: 'atualizarOracle', metodo: req.method, caminho: req.originalUrl || req.path },
+  });
   return res.status(403).json({ erro: 'Você não tem permissão para atualizar via Oracle.' });
 }
 
@@ -190,4 +231,4 @@ function liberarOracle(gateModulo) {
   };
 }
 
-module.exports = { gerarToken, autenticar, exigirPerfil, exigirModulo, exigirModuloDinamico, acaoDaRequisicao, definirCorteSessoes, carregarCorteSessoes, JWT_SECRET, usuarioPodeOracle, exigirOracle, liberarOracle };
+module.exports = { gerarToken, autenticar, exigirPerfil, exigirModulo, exigirModuloDinamico, acaoDaRequisicao, definirCorteSessoes, carregarCorteSessoes, JWT_SECRET, usuarioPodeOracle, exigirOracle, liberarOracle, registrarSeguranca };

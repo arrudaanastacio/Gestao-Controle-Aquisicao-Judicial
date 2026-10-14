@@ -1,7 +1,8 @@
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
-const { gerarToken, autenticar } = require('./auth');
+const { gerarToken, autenticar, registrarSeguranca, JWT_SECRET } = require('./auth');
 
 const router = express.Router();
 const isProd = process.env.NODE_ENV === 'production';
@@ -14,6 +15,14 @@ router.post('/login', (req, res) => {
 
   const usuario = db.prepare('SELECT * FROM usuarios WHERE email = ? AND ativo = 1').get(email);
   if (!usuario || !bcrypt.compareSync(senha, usuario.senha_hash)) {
+    // Registra a tentativa (sem NUNCA gravar a senha). Distingue, só no log
+    // interno, usuário inexistente/inativo de senha incorreta.
+    registrarSeguranca(req, {
+      usuario_id: usuario ? usuario.id : null,
+      usuario_email: email,
+      acao: 'login_falho',
+      detalhe: { motivo: usuario ? 'senha_incorreta' : 'usuario_inexistente_ou_inativo' },
+    });
     return res.status(401).json({ erro: 'E-mail ou senha incorretos.' });
   }
 
@@ -30,12 +39,22 @@ router.post('/login', (req, res) => {
     maxAge: 8 * 60 * 60 * 1000,
   });
 
+  registrarSeguranca(req, { usuario_id: usuario.id, usuario_email: usuario.email, acao: 'login_ok' });
   res.json({
     usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil },
   });
 });
 
 router.post('/logout', (req, res) => {
+  // Melhor-esforço: identifica quem está saindo a partir do próprio cookie,
+  // para registrar o logout. Se o token estiver ausente/inválido, apenas limpa.
+  try {
+    const t = req.cookies && req.cookies.token;
+    if (t) {
+      const u = jwt.verify(t, JWT_SECRET);
+      registrarSeguranca(req, { usuario_id: u.id, usuario_email: u.email, acao: 'logout' });
+    }
+  } catch (_) { /* token inválido/expirado: nada a registrar */ }
   res.clearCookie('token');
   res.json({ ok: true });
 });
