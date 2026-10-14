@@ -6,9 +6,12 @@ campos-*.json
 links-*.json
 form-*.json
 config-*.json
+consultar-empenho-form.json
+ce-*.png
 compras-*.html
 downloads/
 downloads-compras/
+downloads-consultar-empenhos/
 *.xlsx
 log.txt
 log-*.txt
