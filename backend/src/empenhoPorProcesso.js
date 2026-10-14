@@ -28,57 +28,71 @@ function normNE(v) {
   return m ? `${m[1]}NE${m[2]}` : s;
 }
 
-// Cache do mapa processo(SEI) -> Map(empenhoNormalizado -> empenhoOriginal).
-let cache = null;
-let cacheEm = 0;
+// Dois índices em cache:
+//   proc:  SEI            -> Map(empenhoNorm -> empenhoOriginal)   (todas as fontes)
+//   item:  "codigo|SEI"   -> Map(empenhoNorm -> empenhoOriginal)   (fontes com item: empenhos.scodes, compras_estrategico.codigo_item)
+// Casar por ITEM+processo é preciso (pega o empenho DAQUELE item mesmo que o
+// processo tenha vários empenhos). Só cai no "por processo" quando o item não
+// está nas fontes a nível de item.
+let cacheProc = null, cacheItem = null, cacheEm = 0;
 const CACHE_MS = 60 * 1000;
 
-function construirMapa() {
-  const mapa = new Map();
-  const add = (proc, ne) => {
-    const p = extrairSEI(proc); const n = normNE(ne);
-    if (!p || !n) return;
-    if (!mapa.has(p)) mapa.set(p, new Map());
-    if (!mapa.get(p).has(n)) mapa.get(p).set(n, String(ne).trim()); // guarda o 1o formato visto
+function construir() {
+  const proc = new Map(); const item = new Map();
+  const addProc = (p, ne) => {
+    const sei = extrairSEI(p); const n = normNE(ne); if (!sei || !n) return;
+    if (!proc.has(sei)) proc.set(sei, new Map());
+    if (!proc.get(sei).has(n)) proc.get(sei).set(n, String(ne).trim());
   };
-  const fontes = [
-    'SELECT processo_sem_papel AS p, nota_empenho AS e FROM empenhos',
-    'SELECT numero_processo AS p, numero_empenho AS e FROM empenhos_consulta',
-    'SELECT protocolo_processo AS p, numero_empenho AS e FROM compras_estrategico',
-  ];
-  for (const sql of fontes) {
-    try { for (const r of db.prepare(sql).all()) add(r.p, r.e); }
-    catch (_) { /* fonte pode nao existir ainda */ }
+  const addItem = (cod, p, ne) => {
+    const sei = extrairSEI(p); const n = normNE(ne); const c = cod && String(cod).trim();
+    if (!sei || !n || !c) return;
+    const k = c + '|' + sei;
+    if (!item.has(k)) item.set(k, new Map());
+    if (!item.get(k).has(n)) item.get(k).set(n, String(ne).trim());
+  };
+  // empenhos: item-level (scodes = codigo_item) + processo
+  try { for (const r of db.prepare('SELECT scodes AS c, processo_sem_papel AS p, nota_empenho AS e FROM empenhos').all()) { addProc(r.p, r.e); addItem(r.c, r.p, r.e); } } catch (_) {}
+  // empenhos_consulta: só processo (não tem item)
+  try { for (const r of db.prepare('SELECT numero_processo AS p, numero_empenho AS e FROM empenhos_consulta').all()) addProc(r.p, r.e); } catch (_) {}
+  // compras_estrategico: item-level (codigo_item) + processo
+  try { for (const r of db.prepare('SELECT codigo_item AS c, protocolo_processo AS p, numero_empenho AS e FROM compras_estrategico').all()) { addProc(r.p, r.e); addItem(r.c, r.p, r.e); } } catch (_) {}
+  return { proc, item };
+}
+function mapas() {
+  if (cacheProc && Date.now() - cacheEm < CACHE_MS) return { proc: cacheProc, item: cacheItem };
+  const m = construir(); cacheProc = m.proc; cacheItem = m.item; cacheEm = Date.now();
+  return m;
+}
+
+// Resolve o empenho de uma solicitação (codigoItem + nOficio), com 100% de
+// confiança: 1) item+processo com 1 empenho; 2) senão, processo com 1 empenho.
+// Devolve null quando ambíguo (vários empenhos) ou não encontrado.
+function resolver(codigoItem, nOficio) {
+  const sei = extrairSEI(nOficio);
+  if (!sei) return null;
+  const { proc, item } = mapas();
+  if (codigoItem) {
+    const mm = item.get(String(codigoItem).trim() + '|' + sei);
+    if (mm && mm.size === 1) return [...mm.values()][0];   // item + processo (preciso)
   }
-  return mapa;
+  const pm = proc.get(sei);
+  if (pm && pm.size === 1) return [...pm.values()][0];       // fallback: processo único
+  return null;
 }
-function mapa() {
-  if (cache && Date.now() - cacheEm < CACHE_MS) return cache;
-  cache = construirMapa(); cacheEm = Date.now();
-  return cache;
-}
+// Compat.: resolve só por processo (sem item).
+function empenhoUnicoDoOficio(nOficio) { return resolver(null, nOficio); }
 
-// Devolve o empenho ÚNICO do processo contido em `nOficio`, ou null se o processo
-// não existe nas fontes OU tem mais de um empenho (ambíguo -> fica para aprovação).
-function empenhoUnicoDoOficio(nOficio) {
-  const p = extrairSEI(nOficio);
-  if (!p) return null;
-  const emps = mapa().get(p);
-  if (!emps || emps.size !== 1) return null;
-  return [...emps.values()][0];
-}
-
-// Overlay: preenche n_empenho (e marca n_empenho_auto=true) nas linhas vazias.
-// `campoOficio` default 'n_oficio'. Nao altera linhas que ja tem empenho.
+// Overlay: preenche n_empenho (+ flag n_empenho_auto) nas linhas vazias.
 function preencher(linhas, campoOficio = 'n_oficio') {
   if (!Array.isArray(linhas) || !linhas.length) return linhas;
   for (const l of linhas) {
     const atual = l.n_empenho == null ? '' : String(l.n_empenho).trim();
     if (atual !== '' && atual !== '-') continue;
-    const sugerido = empenhoUnicoDoOficio(l[campoOficio]);
+    const sugerido = resolver(l.codigo_item, l[campoOficio]);
     if (sugerido) { l.n_empenho = sugerido; l.n_empenho_auto = true; }
   }
   return linhas;
 }
 
-module.exports = { extrairSEI, normNE, empenhoUnicoDoOficio, preencher, _construirMapa: construirMapa };
+module.exports = { extrairSEI, normNE, resolver, empenhoUnicoDoOficio, preencher, _construir: construir };
