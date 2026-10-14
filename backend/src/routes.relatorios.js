@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('./db');
 const { autenticar } = require('./auth');
+const EmpProc = require('./empenhoPorProcesso');
 
 const router = express.Router();
 router.use(autenticar);
@@ -98,6 +99,7 @@ router.get('/consolidado', (req, res) => {
     ${where}
   `).all(...params)
     .sort((a, b) => a.ano - b.ano || ORDEM_MES[a.mes] - ORDEM_MES[b.mes] || a.codigo_item.localeCompare(b.codigo_item));
+  EmpProc.preencher(linhas); // overlay: Nº Empenho pelo processo quando vazio e inequívoco (vale p/ tela e CSV)
 
   // Resumo por mês, útil para conferir o controle mês a mês na mesma resposta.
   // Faz o mesmo JOIN com itens porque o filtro de busca usa colunas de i.

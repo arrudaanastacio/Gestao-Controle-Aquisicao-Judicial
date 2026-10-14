@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('./db');
 const { autenticar, exigirPerfil } = require('./auth');
+const EmpProc = require('./empenhoPorProcesso');
 
 const router = express.Router();
 router.use(autenticar);
@@ -95,6 +96,7 @@ router.get('/', (req, res) => {
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
 
+  EmpProc.preencher(linhas); // overlay: preenche Nº Empenho pelo processo quando vazio e inequívoco (1 empenho)
   res.json({ solicitacoes: linhas, total, page: Number(page), pageSize: limit });
 });
 

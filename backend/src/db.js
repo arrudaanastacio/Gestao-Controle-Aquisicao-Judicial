@@ -1431,6 +1431,34 @@ CREATE TABLE IF NOT EXISTS entradas_ignoradas (
 );
 `);
 
+// empenhos_consulta: foto da tela "Consultar Empenho" (Menu Empenhos > Empenhos)
+// do GsnetCompras, importada pelo robo automacao-empenhos/importar-consultar-empenhos.js
+// (que tambem cria a tabela). 1 linha por Nº Empenho. Usada por empenhoPorProcesso.js
+// para preencher o Nº Empenho das solicitacoes casando pelo Nº Processo.
+db.exec(`
+CREATE TABLE IF NOT EXISTS empenhos_consulta (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT,
+  numero_empenho TEXT,
+  prioridade TEXT,
+  numero_processo TEXT,
+  valor_total REAL,
+  data_emissao TEXT,
+  data_publicacao TEXT,
+  data_retorno TEXT,
+  data_envio_fornecedor TEXT,
+  data_ateste_recebimento TEXT,
+  data_limite_entrega TEXT,
+  data_entrega_final TEXT,
+  fornecedor_cnpj TEXT,
+  fornecedor TEXT,
+  gerado_por TEXT,
+  data_gerado TEXT
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_emp_consulta_ne ON empenhos_consulta(numero_empenho);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_emp_consulta_proc ON empenhos_consulta(numero_processo);`);
+
 // cartas_troca: o CONTROLE em si. Cada registro é 1 carta para 1 item de 1
 // empenho (relação 1-para-1 por linha empenho+medicamento). A empresa protocola
 // a carta quando quer entregar um item com validade menor que a exigida no
