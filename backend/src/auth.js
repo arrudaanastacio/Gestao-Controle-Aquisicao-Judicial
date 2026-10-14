@@ -2,6 +2,14 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'troque-este-segredo-em-producao';
 
+// Tripwire de segurança: nunca rodar (sobretudo em produção) com o segredo
+// padrão ou um segredo curto/fraco — isso permitiria forjar tokens de sessão.
+// Hoje o .env já define um segredo forte; este aviso evita regressão silenciosa.
+// (Aviso, não encerra: encerrar brigaria com o laço de reinício da .bat.)
+if (JWT_SECRET === 'troque-este-segredo-em-producao' || JWT_SECRET.length < 32) {
+  console.error('[SEGURANÇA] JWT_SECRET ausente/fraco! Defina um segredo forte (>=32 caracteres) no backend/.env ANTES de usar em rede.');
+}
+
 function gerarToken(usuario) {
   return jwt.sign(
     { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil },

@@ -7973,6 +7973,13 @@ function sinaisEmp(s) {
 function renderEmpPend() {
   const corpo = document.getElementById('empPendBody'), vazio = document.getElementById('empPendVazio');
   document.getElementById('empContPend').textContent = estadoEmp.propostas.length ? `(${estadoEmp.propostas.length})` : '';
+  // Botão "Aprovar todas": só aparece quando há propostas de confiança ALTA.
+  const qtdeAlta = estadoEmp.propostas.filter((p) => p.confianca === 'alta').length;
+  const btnTodas = document.getElementById('botaoAprovarTodasEmp');
+  if (btnTodas) {
+    btnTodas.hidden = qtdeAlta === 0;
+    btnTodas.textContent = `✓ Aprovar todas (${qtdeAlta} de confiança alta)`;
+  }
   if (!estadoEmp.propostas.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
   vazio.hidden = true;
   corpo.innerHTML = estadoEmp.propostas.map((p) => {
@@ -8120,6 +8127,21 @@ document.getElementById('botaoGerarEmpenhos').addEventListener('click', async ()
     await carregarRoboEmpenhos();
   } catch (e) { alert(e.message); }
   btn.disabled = false; btn.textContent = '🤖 Rodar robô agora';
+});
+
+document.getElementById('botaoAprovarTodasEmp').addEventListener('click', async () => {
+  const qtdeAlta = estadoEmp.propostas.filter((p) => p.confianca === 'alta').length;
+  if (!qtdeAlta) return;
+  if (!confirm(`Aprovar ${qtdeAlta} proposta(s) de confiança ALTA?\n\nIsso preenche o Nº Empenho e muda Planejamento/Adjudicado para Empenhado. As "a revisar" continuam manuais.`)) return;
+  const btn = document.getElementById('botaoAprovarTodasEmp'); const txt = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Aprovando…';
+  try {
+    const r = await api('/conciliacao/empenho/aprovar-todas', { method: 'POST' });
+    const falhas = (r.erros && r.erros.length) ? ` · ${r.erros.length} falha(s)` : '';
+    mostrarToast(`${r.aprovadas} de ${r.total} aprovada(s)${falhas}.`);
+    await Promise.all([carregarEmpPropostas(), carregarEmpAssociar(), carregarEmpAuditoria()]);
+  } catch (e) { alert(e.message); }
+  btn.disabled = false; btn.textContent = txt;
 });
 
 // -------------------- Comparativo de Autores (anterior × atual) --------------------

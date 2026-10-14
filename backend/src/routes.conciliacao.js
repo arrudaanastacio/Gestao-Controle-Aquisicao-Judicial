@@ -49,6 +49,14 @@ function aplicarEntrega({ solicitacaoId, quantidade, chaveOrigem, detalhe, como,
   const novoStatus = novoPendente <= 0 ? 'Finalizado' : 'Entrega Parcial';
   const dataEntrega = detalhe && detalhe.data_entrada ? dataEntradaISO(detalhe.data_entrada) : null;
 
+  // Se a compra ainda está SEM empenho ("-"/vazio) e a entrada traz o número
+  // (toda entrada vem de um empenho), aproveita a aprovação da entrega para
+  // preencher o Nº Empenho junto — assim o Relatório de Compras deixa de
+  // mostrar "-". Não sobrescreve um empenho já preenchido.
+  const semEmpenhoAtual = !s.n_empenho || ['', '-'].includes(String(s.n_empenho).trim());
+  const empenhoDaEntrada = detalhe && detalhe.nota_empenho ? String(detalhe.nota_empenho).trim() : '';
+  const nEmpenhoFinal = (semEmpenhoAtual && empenhoDaEntrada) ? empenhoDaEntrada : s.n_empenho;
+
   const info = db.prepare(`
     INSERT INTO associacoes
       (origem, codigo_item, solicitacao_id, sol_ano, sol_mes, sol_tipo, quantidade,
@@ -61,8 +69,8 @@ function aplicarEntrega({ solicitacaoId, quantidade, chaveOrigem, detalhe, como,
     s.status, novoStatus, entregueAnt, num(s.qtde_pendente), s.data_entrega, como, usuarioEmail || null
   );
 
-  db.prepare(`UPDATE solicitacoes SET qtde_entregue=?, qtde_pendente=?, status=?, data_entrega=COALESCE(?, data_entrega) WHERE id=?`)
-    .run(novoEntregue, novoPendente, novoStatus, dataEntrega, s.id);
+  db.prepare(`UPDATE solicitacoes SET qtde_entregue=?, qtde_pendente=?, status=?, data_entrega=COALESCE(?, data_entrega), n_empenho=? WHERE id=?`)
+    .run(novoEntregue, novoPendente, novoStatus, dataEntrega, nEmpenhoFinal, s.id);
 
   db.prepare('INSERT INTO auditoria (usuario_email, acao, tabela, registro_id) VALUES (?,?,?,?)')
     .run(usuarioEmail || 'robo', 'associar_entrega', 'solicitacoes', String(s.id));
@@ -277,6 +285,39 @@ router.post('/empenho/aprovar/:id', (req, res) => {
     db.prepare("UPDATE propostas_conciliacao SET situacao='aprovada' WHERE id=?").run(p.id);
     res.json({ ok: true, ...r });
   } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+
+// Aprovar de uma vez TODAS as propostas de confiança ALTA. As "a revisar"
+// continuam exigindo aprovação individual (match mais fraco, precisa de olho
+// humano). Tudo numa transação; falhas individuais são coletadas e NÃO
+// derrubam as demais nem o processo.
+router.post('/empenho/aprovar-todas', (req, res) => {
+  const pendentes = db.prepare(
+    "SELECT * FROM propostas_conciliacao WHERE origem='empenho' AND situacao='pendente' AND confianca='alta' ORDER BY id"
+  ).all();
+  let aprovadas = 0;
+  const erros = [];
+  db.exec('BEGIN');
+  try {
+    for (const p of pendentes) {
+      try {
+        aplicarEmpenho({
+          solicitacaoId: p.solicitacao_id, chaveOrigem: p.chave_origem,
+          detalhe: JSON.parse(p.detalhe_json || '{}'), como: 'robo',
+          usuarioEmail: req.usuario.email, codigoItem: p.codigo_item,
+        });
+        db.prepare("UPDATE propostas_conciliacao SET situacao='aprovada' WHERE id=?").run(p.id);
+        aprovadas++;
+      } catch (e) {
+        erros.push({ id: p.id, codigo_item: p.codigo_item, erro: e.message });
+      }
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    return res.status(500).json({ erro: 'Falha ao aprovar em lote: ' + e.message });
+  }
+  res.json({ ok: true, aprovadas, total: pendentes.length, erros });
 });
 
 router.post('/empenho/rejeitar/:id', (req, res) => {
