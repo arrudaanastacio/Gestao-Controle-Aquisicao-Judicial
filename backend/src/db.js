@@ -178,6 +178,10 @@ CREATE TABLE IF NOT EXISTS auditoria (
   criado_em TEXT DEFAULT (datetime('now'))
 );
 `);
+// origem = IP de origem da requisição (para eventos de segurança: login,
+// logout, acesso negado). Coluna adicionada de forma idempotente.
+const colunasAuditoria = db.prepare("PRAGMA table_info(auditoria)").all().map((c) => c.name);
+if (!colunasAuditoria.includes('origem')) db.exec("ALTER TABLE auditoria ADD COLUMN origem TEXT");
 
 // Cada importação diária do relatório de estoque vira um "snapshot" datado.
 // Mantemos o histórico para acompanhar a evolução do estoque ao longo do tempo.
