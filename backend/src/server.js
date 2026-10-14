@@ -61,10 +61,39 @@ const { autenticar, exigirModulo, exigirModuloDinamico, exigirPerfil, liberarOra
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// --- Cabeçalhos de segurança (helmet) ---------------------------------------
+// Liga as proteções de cabeçalho (X-Content-Type-Options, X-Frame-Options,
+// Referrer-Policy, etc.). Dois recursos ficam DESLIGADOS de propósito por ora:
+//   • contentSecurityPolicy: a interface usa muitos estilos inline; uma CSP
+//     estrita quebraria a tela. Endurecer a CSP é tarefa futura (precisa
+//     revisar o frontend).
+//   • hsts: só faz sentido sob HTTPS (ainda rodamos em HTTP na rede). Ligar
+//     agora poderia "fixar" HTTPS no navegador antes de termos TLS. Liga na
+//     onda de transporte (TLS).
+const helmet = require('helmet');
+app.use(helmet({ contentSecurityPolicy: false, hsts: false }));
+
+// --- Freio contra força-bruta no login --------------------------------------
+// Limita tentativas por IP numa janela de tempo. Aplicado SÓ aos endpoints
+// sensíveis (login e definição de senha por convite) — não afeta o uso normal
+// do sistema. Valor folgado para não atrapalhar quem erra a senha algumas vezes.
+const rateLimit = require('express-rate-limit');
+const limiteLogin = rateLimit({
+  windowMs: 15 * 60 * 1000,   // 15 minutos
+  limit: 20,                  // até 20 tentativas por IP na janela
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { erro: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' },
+});
+
 // Limite ampliado: salvar um planejamento envia todas as linhas (milhares de
 // itens) num único JSON, o que passa do padrão de 100kb do Express.
 app.use(express.json({ limit: '25mb' }));
 app.use(cookieParser());
+
+// O freio precisa vir ANTES do mount de /api/auth para interceptar o login.
+app.use('/api/auth/login', limiteLogin);
+app.use('/api/auth/convite/definir-senha', limiteLogin);
 
 // Informa o ambiente (produção/homologação) e a versão. Público de propósito:
 // o frontend usa para mostrar o selo "HOMOLOGAÇÃO" mesmo na tela de login.
