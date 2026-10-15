@@ -174,6 +174,81 @@ router.get('/entrada/compras-abertas', (req, res) => {
   })) });
 });
 
+// Apoio à associação manual (botão "Ver" da aba "A associar"): por SCODES,
+// reúne o que sabemos do PROCESSO do item para facilitar achar a compra certa:
+//   • compras_estrategico -> Nº Requisição, Protocolo Processo, status, modalidade
+//   • empenhos            -> Nº Requisição, SEI (processo sem papel), empenho, empresa
+// Se o empenho da entrada bater com algum, marca (empenho_bate). A chave é o
+// SCODES (sempre existe); o empenho da entrada às vezes nem foi importado ainda.
+router.get('/entrada/processo-info', (req, res) => {
+  const codigo = String(req.query.codigo || '').trim();
+  const empEntrada = String(req.query.empenho || '').trim();
+  if (!codigo) return res.status(400).json({ erro: 'Informe o SCODES.' });
+  const norm = (s) => String(s || '').toUpperCase().replace(/\s/g, '').replace(/NE0+/, 'NE');
+  const alvo = empEntrada ? norm(empEntrada) : '';
+  // Ano do empenho = os 4 dígitos ANTES do "NE" (ex.: 2026NE01561 -> 2026).
+  // Empenhos de ano diferente do da entrada são descartados (não interessam).
+  const anoDoEmpenho = (s) => { const m = norm(s).match(/^(\d{4})NE/); return m ? m[1] : null; };
+  const anoEntrada = anoDoEmpenho(empEntrada);
+
+  // Processos conhecidos do item (mais recentes primeiro), sem repetir req+protocolo.
+  const vistos = new Set();
+  const compras = [];
+  for (const r of db.prepare(
+    `SELECT nr_requisicao, protocolo_processo, ds_status_item_processo, ds_modalidade, numero_empenho
+     FROM compras_estrategico WHERE codigo_item = ? ORDER BY id DESC LIMIT 30`
+  ).all(codigo)) {
+    const k = (r.nr_requisicao || '') + '|' + (r.protocolo_processo || '');
+    if (vistos.has(k)) continue; vistos.add(k);
+    compras.push({
+      nr_requisicao: r.nr_requisicao, protocolo_processo: r.protocolo_processo,
+      status: r.ds_status_item_processo, modalidade: r.ds_modalidade,
+      numero_empenho: r.numero_empenho,
+      empenho_bate: !!(alvo && r.numero_empenho && norm(r.numero_empenho) === alvo),
+    });
+  }
+
+  // Empenhos do item (empenhos.scodes costuma vir nulo -> casa por siafísico).
+  // Vínculo empenho -> Protocolo Processo (via compras_estrategico do item):
+  // casa pelo número do empenho; senão, pela requisição.
+  const protoPorEmpenho = new Map();
+  const protoPorReq = new Map();
+  for (const r of db.prepare(
+    "SELECT nr_requisicao, protocolo_processo, numero_empenho FROM compras_estrategico WHERE codigo_item = ? AND protocolo_processo IS NOT NULL AND protocolo_processo <> ''"
+  ).all(codigo)) {
+    if (r.numero_empenho) { const ne = norm(r.numero_empenho); if (ne && !protoPorEmpenho.has(ne)) protoPorEmpenho.set(ne, r.protocolo_processo); }
+    if (r.nr_requisicao) { const rq = String(r.nr_requisicao).trim(); if (rq && !protoPorReq.has(rq)) protoPorReq.set(rq, r.protocolo_processo); }
+  }
+
+  const it = db.prepare('SELECT codigo_siafisico FROM itens WHERE codigo_item = ?').get(codigo);
+  const siaf = it && it.codigo_siafisico ? String(it.codigo_siafisico).trim() : null;
+  const empenhos = [];
+  // Só lista empenhos quando a entrada TEM empenho (há ano de referência). Sem
+  // empenho na entrada, a seção é ignorada — associa-se pelos Processos.
+  if (siaf && anoEntrada) {
+    const vis2 = new Set();
+    for (const r of db.prepare(
+      `SELECT numero_requisicao, processo_sem_papel, nota_empenho
+       FROM empenhos WHERE scodes = ? OR siafisico = ? ORDER BY data_referencia DESC, id DESC LIMIT 40`
+    ).all(codigo, siaf)) {
+      // Descarta empenho de ano diferente do empenho da entrada.
+      if (anoEntrada && anoDoEmpenho(r.nota_empenho) !== anoEntrada) continue;
+      const k = norm(r.nota_empenho) + '|' + (r.numero_requisicao || '');
+      if (vis2.has(k)) continue; vis2.add(k);
+      const protocolo = protoPorEmpenho.get(norm(r.nota_empenho))
+        || protoPorReq.get(String(r.numero_requisicao || '').trim()) || null;
+      empenhos.push({
+        numero_requisicao: r.numero_requisicao, sei: r.processo_sem_papel,
+        nota_empenho: r.nota_empenho, protocolo_processo: protocolo,
+        empenho_bate: !!(alvo && r.nota_empenho && norm(r.nota_empenho) === alvo),
+      });
+    }
+  }
+
+  const empenhoEncontrado = compras.some((c) => c.empenho_bate) || empenhos.some((e) => e.empenho_bate);
+  res.json({ empenho_entrada: empEntrada || null, sem_empenho_entrada: !anoEntrada, empenho_encontrado: empenhoEncontrado, compras, empenhos });
+});
+
 // Fila "A associar": entradas TP com compra em aberto do mesmo SCODES, ainda
 // não associadas e sem proposta pendente (inclui as rejeitadas pelo robô).
 // ?incluirIgnoradas=true -> modo revisao: devolve SO as marcadas como Ignorar.
