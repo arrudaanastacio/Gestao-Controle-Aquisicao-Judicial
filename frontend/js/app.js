@@ -7808,14 +7808,66 @@ function renderConcAssoc() {
       <td><div style="font-weight:500;">${escHtml(e.item || '—')}</div><div class="col-codigo">${escHtml(e.codigo_item)}</div></td>
       <td class="num" style="font-weight:600;">${fmtNumero(e.qtde)}</td>
       <td class="col-codigo">${escHtml(e.nota_empenho || '—')}</td>
-      <td style="text-align:right; white-space:nowrap;">${e.ignorada
+      <td style="text-align:right; white-space:nowrap;">
+        <button class="botao-secundario conc-ver" data-idx="${i}" style="padding:4px 10px; font-size:12px;" title="Ver requisição, Protocolo Processo e SEI deste item">Ver</button>
+        ${e.ignorada
         ? `<button class="botao-secundario conc-reativar" data-chave="${escAttr(e.chave_origem || '')}" data-codigo="${escAttr(e.codigo_item)}" style="padding:4px 10px; font-size:12px;">Reativar</button>`
         : `<button class="botao-secundario conc-ign2" data-chave="${escAttr(e.chave_origem || '')}" data-codigo="${escAttr(e.codigo_item)}" style="padding:4px 10px; font-size:12px;" title="Não associar esta entrada">Ignorar</button>
            <button class="botao-primario conc-assoc" data-idx="${i}" style="padding:4px 10px; font-size:12px;">Associar</button>`}</td>
     </tr>`).join('') + (lista.length > 200 ? `<tr><td colspan="5" class="texto-apoio" style="text-align:center;">Mostrando 200 de ${fmtNumero(lista.length)}. Refine a busca.</td></tr>` : '');
+  corpo.querySelectorAll('.conc-ver').forEach((b) => b.addEventListener('click', () => abrirProcessoInfo(mostra[Number(b.dataset.idx)])));
   corpo.querySelectorAll('.conc-assoc').forEach((b) => b.addEventListener('click', () => abrirModalAssoc(mostra[Number(b.dataset.idx)])));
   corpo.querySelectorAll('.conc-ign2').forEach((b) => b.addEventListener('click', () => ignorarConc(b.dataset.chave, b.dataset.codigo, true)));
   corpo.querySelectorAll('.conc-reativar').forEach((b) => b.addEventListener('click', () => ignorarConc(b.dataset.chave, b.dataset.codigo, false)));
+}
+
+// Botão "Ver" da aba "A associar": mostra, por SCODES, os processos conhecidos
+// do item (Requisição + Protocolo Processo, do Relatório de Compras) e os
+// empenhos (Requisição + SEI + empenho + empresa) — destacando o que bate com
+// o empenho da entrada. Facilita descobrir a qual compra associar.
+async function abrirProcessoInfo(entrada) {
+  const m = document.getElementById('modalProcessoInfo');
+  const corpo = document.getElementById('procInfoCorpo');
+  document.getElementById('procInfoTitulo').innerHTML =
+    `${escHtml(entrada.item || entrada.codigo_item)} · <span class="col-codigo">${escHtml(entrada.codigo_item)}</span> · empenho da entrada <b>${escHtml(entrada.nota_empenho || '—')}</b>`;
+  corpo.innerHTML = '<p class="texto-apoio" style="padding:8px 0;">Buscando…</p>';
+  m.hidden = false;
+  try {
+    const d = await api('/conciliacao/entrada/processo-info?codigo=' + encodeURIComponent(entrada.codigo_item) +
+      '&empenho=' + encodeURIComponent(entrada.nota_empenho || ''));
+    const temEmp = entrada.nota_empenho && entrada.nota_empenho !== '—' && entrada.nota_empenho !== '';
+    const destaque = (bate) => bate ? ' style="background:#1f7a5c18;"' : '';
+    const badge = (bate) => bate ? ' <span style="font-size:10.5px; padding:1px 6px; border-radius:5px; background:#1f7a5c; color:#fff;">empenho bate</span>' : '';
+    let html = '';
+    if (temEmp && !d.empenho_encontrado) {
+      html += `<div class="aviso-status" style="margin-bottom:12px; color:#b45309;">⚠ O empenho da entrada (${escHtml(entrada.nota_empenho)}) ainda não foi importado nas bases (Compras/Empenhos). Use os processos abaixo, por SCODES, para associar.</div>`;
+    }
+    // Processos (compras_estrategico)
+    html += `<h4 style="margin:4px 0 6px;">Processos — Relatório de Compras</h4>`;
+    if (!d.compras.length) html += `<p class="texto-apoio" style="margin-bottom:12px;">Nenhum processo encontrado para este SCODES.</p>`;
+    else html += `<table class="tabela" style="margin-bottom:14px;"><thead><tr><th>Requisição</th><th>Protocolo Processo</th><th>Status</th><th>Modalidade</th></tr></thead><tbody>` +
+      d.compras.map((c) => `<tr${destaque(c.empenho_bate)}>
+        <td class="col-codigo">${escHtml(c.nr_requisicao || '—')}</td>
+        <td class="col-codigo">${escHtml(c.protocolo_processo || '—')}${badge(c.empenho_bate)}</td>
+        <td>${escHtml(c.status || '—')}</td>
+        <td>${escHtml(c.modalidade || '—')}</td></tr>`).join('') + `</tbody></table>`;
+    // Empenhos (SEI) — só quando a entrada tem empenho (ano de referência).
+    if (d.sem_empenho_entrada) {
+      html += `<p class="texto-apoio" style="margin-top:6px;">Entrada sem número de empenho — associe pelos processos acima.</p>`;
+    } else {
+    html += `<h4 style="margin:4px 0 6px;">Empenhos — SEI (ano ${escHtml((entrada.nota_empenho || '').slice(0, 4))})</h4>`;
+    if (!d.empenhos.length) html += `<p class="texto-apoio">Nenhum empenho desse ano encontrado para este SCODES/Siafísico.</p>`;
+    else html += `<table class="tabela"><thead><tr><th>Requisição</th><th>SEI</th><th>Empenho</th><th>Protocolo Processo</th></tr></thead><tbody>` +
+      d.empenhos.map((e) => `<tr${destaque(e.empenho_bate)}>
+        <td class="col-codigo">${escHtml(e.numero_requisicao || '—')}</td>
+        <td class="col-codigo">${escHtml(e.sei || '—')}</td>
+        <td class="col-codigo">${escHtml(e.nota_empenho || '—')}${badge(e.empenho_bate)}</td>
+        <td class="col-codigo">${escHtml(e.protocolo_processo || '—')}</td></tr>`).join('') + `</tbody></table>`;
+    }
+    corpo.innerHTML = html;
+  } catch (e) {
+    corpo.innerHTML = `<p class="texto-apoio" style="color:var(--vermelho);">Erro: ${escHtml(e.message)}</p>`;
+  }
 }
 
 async function abrirModalAssoc(entrada) {
@@ -7925,6 +7977,8 @@ document.getElementById('concFiltroMes').addEventListener('change', renderConcPe
 document.getElementById('concMostrarIgnoradas').addEventListener('change', carregarConcAssociar);
 document.getElementById('concCancelar').addEventListener('click', () => { document.getElementById('modalAssociarEntrada').hidden = true; });
 document.getElementById('modalAssociarEntrada').addEventListener('click', (ev) => { if (ev.target.id === 'modalAssociarEntrada') ev.currentTarget.hidden = true; });
+document.getElementById('procInfoFechar').addEventListener('click', () => { document.getElementById('modalProcessoInfo').hidden = true; });
+document.getElementById('modalProcessoInfo').addEventListener('click', (ev) => { if (ev.target.id === 'modalProcessoInfo') ev.currentTarget.hidden = true; });
 document.getElementById('concConfirmar').addEventListener('click', confirmarAssocConc);
 document.getElementById('botaoGerarConciliacao').addEventListener('click', async () => {
   const btn = document.getElementById('botaoGerarConciliacao'); btn.disabled = true; btn.textContent = '🤖 Rodando…';

@@ -41,6 +41,11 @@ const { DatabaseSync } = require('node:sqlite');
 const db = require('./db');
 const { agendarDiariamente } = require('./agendadorUtil');
 const reg = require('./registroServicos');
+const { chaveBackup, comprimirECifrar } = require('./backupCripto');
+
+// Extensão final do backup: cifrado (.db.gz.enc) quando há BACKUP_CHAVE no
+// .env; senão, só compactado (.db.gz). Ver [[backupCripto]].
+function extBackup() { return chaveBackup() ? '.db.gz.enc' : '.db.gz'; }
 
 // Compacta um arquivo para .gz por STREAMING (memória constante — importante
 // porque o backup tem centenas de MB). Reduz ~80% o tamanho no Drive.
@@ -95,7 +100,7 @@ function limparDiariosAntigos(pasta, manter, rotulo) {
     // Aceita .db (backups antigos) e .db.gz (novos, compactados) — a janela
     // rolante vai podando os antigos .db durante a transição.
     arquivos = fs.readdirSync(pasta)
-      .filter((n) => /^medicamentos_judicial_\d{4}-\d{2}-\d{2}\.db(\.gz)?$/.test(n));
+      .filter((n) => /^medicamentos_judicial_\d{4}-\d{2}-\d{2}\.db(\.gz(\.enc)?)?$/.test(n));
   } catch {
     return;
   }
@@ -133,7 +138,7 @@ function copiarParaDrive(origem, nomeArquivo, manterDiarios) {
 function nomeMensalAtual() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
-  return `medicamentos_judicial_mensal_${d.getFullYear()}-${p(d.getMonth() + 1)}.db.gz`;
+  return `medicamentos_judicial_mensal_${d.getFullYear()}-${p(d.getMonth() + 1)}${extBackup()}`;
 }
 
 // Mantém só os últimos N backups mensais numa pasta, apagando os mais
@@ -143,7 +148,7 @@ function limparMensaisAntigos(pasta, manter, rotulo) {
   let arquivos;
   try {
     arquivos = fs.readdirSync(pasta)
-      .filter((n) => /^medicamentos_judicial_mensal_\d{4}-\d{2}\.db(\.gz)?$/.test(n));
+      .filter((n) => /^medicamentos_judicial_mensal_\d{4}-\d{2}\.db(\.gz(\.enc)?)?$/.test(n));
   } catch {
     return;
   }
@@ -190,12 +195,17 @@ async function rodarBackup(opcoesRegistro = {}) {
   const inicioMs = reg.marcarInicio('backup');
   try {
     fs.mkdirSync(PASTA_BACKUPS, { recursive: true });
-    const nomeDb = nomeArquivoHoje();          // ...AAAA-MM-DD.db (temporário)
-    const nomeGz = nomeDb + '.gz';             // ...AAAA-MM-DD.db.gz (final)
+    const senha = chaveBackup();
+    const cifrado = !!senha;
+    const nomeDb = nomeArquivoHoje();              // ...AAAA-MM-DD.db (temporário)
+    const nomeFinal = nomeDb + (cifrado ? '.gz.enc' : '.gz'); // final (.db.gz ou .db.gz.enc)
     const destinoDb = path.join(PASTA_BACKUPS, nomeDb);
-    const destinoGz = path.join(PASTA_BACKUPS, nomeGz);
-    // Reexecução no mesmo dia sobrescreve (remove .db e .gz anteriores de hoje).
-    for (const f of [destinoDb, destinoGz]) if (fs.existsSync(f)) fs.unlinkSync(f);
+    const destinoFinal = path.join(PASTA_BACKUPS, nomeFinal);
+    // Reexecução no mesmo dia sobrescreve (remove o .db temporário e as duas
+    // variantes finais de hoje — .gz e .gz.enc — caso a chave tenha mudado).
+    for (const f of [destinoDb, path.join(PASTA_BACKUPS, nomeDb + '.gz'), path.join(PASTA_BACKUPS, nomeDb + '.gz.enc')]) {
+      if (fs.existsSync(f)) fs.unlinkSync(f);
+    }
 
     const t0 = Date.now();
     // VACUUM INTO não aceita parâmetro (?) para o caminho — o valor é
@@ -207,26 +217,34 @@ async function rodarBackup(opcoesRegistro = {}) {
     // Extrato (relatório Consumo x Entrega), recarregáveis via "Atualizar via
     // Oracle". Enxuga o .bak sem perda: é só rodar a carga de novo se preciso.
     podarTabelasDerivaveis(destinoDb);
-    // Compacta em .gz (reduz ~80%) e apaga o .db — no Drive fica só o .gz.
-    await comprimirGz(destinoDb, destinoGz);
+    // Compacta (gzip ~80%) e, se houver BACKUP_CHAVE, CIFRA (AES-256-GCM) num
+    // só passo em streaming; apaga o .db temporário.
+    if (cifrado) await comprimirECifrar(destinoDb, destinoFinal, senha);
+    else await comprimirGz(destinoDb, destinoFinal);
     fs.unlinkSync(destinoDb);
     const segundos = Math.round((Date.now() - t0) / 1000);
-    const tamanhoMB = (fs.statSync(destinoGz).size / (1024 * 1024)).toFixed(1);
-    console.log(`[BACKUP BANCO] Backup salvo (compactado): ${nomeGz} (${tamanhoMB} MB, ${segundos}s).`);
+    const tamanhoMB = (fs.statSync(destinoFinal).size / (1024 * 1024)).toFixed(1);
+    console.log(`[BACKUP BANCO] Backup salvo (${cifrado ? 'compactado + CIFRADO' : 'compactado'}): ${nomeFinal} (${tamanhoMB} MB, ${segundos}s).`);
 
     // Janela rolante: mantém só os últimos N backups diários (padrão 7).
     const manterDiarios = Math.max(1, parseInt(process.env.BACKUP_MANTER_DIARIOS, 10) || 7);
     limparDiariosAntigos(PASTA_BACKUPS, manterDiarios);
-    copiarParaDrive(destinoGz, nomeGz, manterDiarios);
+    // Só envia ao Google Drive quando o backup está CIFRADO — nunca manda o
+    // banco em texto puro para a nuvem.
+    if (cifrado) {
+      copiarParaDrive(destinoFinal, nomeFinal, manterDiarios);
+    } else if (process.env.BACKUP_PASTA_DRIVE) {
+      console.warn('[BACKUP BANCO] Envio ao Google Drive IGNORADO: backup não está cifrado. Defina BACKUP_CHAVE no .env para proteger a cópia na nuvem.');
+    }
 
     // Backup mensal de longo prazo (1 por mês, mantém os últimos N meses).
     const mensalManter = Math.max(1, parseInt(process.env.BACKUP_MENSAL_MANTER, 10) || 3);
-    garantirBackupMensal(destinoGz, mensalManter);
+    garantirBackupMensal(destinoFinal, mensalManter);
 
     reg.registrarExecucao('backup', {
       resultado: 'sucesso',
-      mensagem: `Backup salvo compactado: ${nomeGz} (${tamanhoMB} MB, ${segundos}s). Mantendo os últimos ${manterDiarios} backups diários.`,
-      arquivo: nomeGz,
+      mensagem: `Backup salvo ${cifrado ? 'compactado+cifrado' : 'compactado'}: ${nomeFinal} (${tamanhoMB} MB, ${segundos}s). Mantendo os últimos ${manterDiarios} backups diários.`,
+      arquivo: nomeFinal,
       inicioMs,
       ...opcoesRegistro,
     });
