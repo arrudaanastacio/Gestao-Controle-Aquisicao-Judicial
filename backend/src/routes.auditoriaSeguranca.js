@@ -85,15 +85,18 @@ router.get('/csv', (req, res) => {
   try {
     const linhas = consultar(req.query, 5000);
     // Anti CSV/Formula Injection: a trilha guarda texto hostil (ex.: o e-mail
-    // tentado num login_falho). Se uma célula começa com =, +, -, @, Tab ou CR,
-    // o Excel a trata como FÓRMULA ao abrir. Prefixamos "'" para neutralizar,
-    // sem alterar o dado original gravado no banco.
+    // tentado num login_falho). Blindagem em três camadas:
+    //  1) achata CR/LF/Tab em espaço — impedem que o conteúdo quebre a linha ou
+    //     a célula (e tiram o truque de "fórmula após nova linha");
+    //  2) prefixa "'" quando começa com = + - @, para o Excel não tratar como
+    //     fórmula;
+    //  3) SEMPRE envolve em aspas (com "" escapado), independente do conteúdo.
+    // Não altera o dado original gravado no banco — só a forma exportada.
     const esc = (v) => {
-      if (v === null || v === undefined) return '';
-      let t = String(v);
-      if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
-      t = t.replace(/"/g, '""');
-      return /[";\n]/.test(t) ? `"${t}"` : t;
+      if (v === null || v === undefined) return '""';
+      let t = String(v).replace(/[\r\n\t]+/g, ' ');
+      if (/^[=+\-@]/.test(t)) t = "'" + t;
+      return '"' + t.replace(/"/g, '""') + '"';
     };
     const cab = ['Data/Hora', 'Evento', 'Usuário (e-mail)', 'IP de origem', 'Detalhe'];
     const corpo = linhas.map((l) => [
