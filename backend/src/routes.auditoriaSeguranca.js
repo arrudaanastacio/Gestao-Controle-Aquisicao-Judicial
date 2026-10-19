@@ -84,9 +84,15 @@ router.get('/', (req, res) => {
 router.get('/csv', (req, res) => {
   try {
     const linhas = consultar(req.query, 5000);
+    // Anti CSV/Formula Injection: a trilha guarda texto hostil (ex.: o e-mail
+    // tentado num login_falho). Se uma célula começa com =, +, -, @, Tab ou CR,
+    // o Excel a trata como FÓRMULA ao abrir. Prefixamos "'" para neutralizar,
+    // sem alterar o dado original gravado no banco.
     const esc = (v) => {
       if (v === null || v === undefined) return '';
-      const t = String(v).replace(/"/g, '""');
+      let t = String(v);
+      if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+      t = t.replace(/"/g, '""');
       return /[";\n]/.test(t) ? `"${t}"` : t;
     };
     const cab = ['Data/Hora', 'Evento', 'Usuário (e-mail)', 'IP de origem', 'Detalhe'];
