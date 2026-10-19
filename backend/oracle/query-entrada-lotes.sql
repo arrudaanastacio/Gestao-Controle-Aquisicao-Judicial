@@ -11,7 +11,18 @@
 -- clicar em "Atualizar via Oracle" — se der erro de tabela/coluna
 -- inexistente, me avise para eu ajustar.
 SELECT
-  fcn_nome_produto(q.pro_id)                                              AS ITEM,
+  ( SELECT CASE nm_ite.CAT_ID
+             WHEN 4 THEN (nm_ite.ITE_DESCRICAO || ' / ' || nm_esp.ESP_DESCRICAO)
+             ELSE CASE nm_prod.PRO_TIPO
+                    WHEN 2 THEN (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / MANIPULADO')
+                    WHEN 3 THEN (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / HOMEOPATICO')
+                    ELSE       (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / '||nm_mar.MAR_DESCRICAO)
+                  END
+           END
+      FROM PRODUTO nm_prod, MARCA nm_mar, ESPECIFICACAO nm_esp, ITEM nm_ite, APRESENTACAO nm_apr
+     WHERE nm_prod.PRO_ID = q.pro_id
+       AND nm_prod.MAR_ID = nm_mar.MAR_ID AND nm_prod.ESP_ID = nm_esp.ESP_ID
+       AND nm_esp.ITE_ID = nm_ite.ITE_ID AND nm_esp.APR_ID = nm_apr.APR_ID )         AS ITEM,
   UND.UND_Descricao                                                       AS UND_DESCRICAO,
   ent_dth                                                                 AS ENT_DTH,
   'Entrada'                                                               AS TIPO,
@@ -31,7 +42,16 @@ SELECT
   e.ent_motivo                                                            AS OBS,
   est_termolabel                                                         AS EST_TERMOLABEL,
   DECODE(m.tpm_id, 23, fdoa.for_descricao, f.for_descricao)               AS FOR_DESCRICAO,
-  DECODE(m.tpm_id, 23, FCN_FORMATA_CNPJ(fdoa.for_cnpj), FCN_FORMATA_CNPJ(f.for_cnpj)) AS FOR_CNPJ,
+  -- FCN_FORMATA_CNPJ substituída pela máscara inline (mesma do saida-lotes):
+  -- 14 dígitos -> NN.NNN.NNN/NNNN-NN; nulo -> nulo; senão o valor como está.
+  DECODE(m.tpm_id, 23,
+    CASE WHEN LENGTH(fdoa.for_cnpj) = 14
+           THEN SUBSTR(fdoa.FOR_CNPJ,1,2)||'.'||SUBSTR(fdoa.FOR_CNPJ,3,3)||'.'||SUBSTR(fdoa.FOR_CNPJ,6,3)||'/'||SUBSTR(fdoa.FOR_CNPJ,9,4)||'-'||SUBSTR(fdoa.FOR_CNPJ,13,2)
+         WHEN fdoa.for_cnpj IS NULL THEN NULL ELSE NVL(fdoa.FOR_CNPJ,'') END,
+    CASE WHEN LENGTH(f.for_cnpj) = 14
+           THEN SUBSTR(f.FOR_CNPJ,1,2)||'.'||SUBSTR(f.FOR_CNPJ,3,3)||'.'||SUBSTR(f.FOR_CNPJ,6,3)||'/'||SUBSTR(f.FOR_CNPJ,9,4)||'-'||SUBSTR(f.FOR_CNPJ,13,2)
+         WHEN f.for_cnpj IS NULL THEN NULL ELSE NVL(f.FOR_CNPJ,'') END
+  )                                                                      AS FOR_CNPJ,
   NVL(tra_tipo, tru_tipo)                                                 AS TRA_TIPO,
   m.tpm_id                                                                AS TPM_ID,
   unt.unt_id                                                              AS UNT_ID,

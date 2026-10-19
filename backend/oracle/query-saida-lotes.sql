@@ -29,7 +29,18 @@
 SELECT * FROM (
   -- ===== Bloco 1: DISPENSAÇÕES (tabela MOVIMENTACAO, tipos 7,8,9) =====
   SELECT
-    fcn_nome_produto(mov.pro_id)                                     AS ITEM,
+    ( SELECT CASE nm_ite.CAT_ID
+               WHEN 4 THEN (nm_ite.ITE_DESCRICAO || ' / ' || nm_esp.ESP_DESCRICAO)
+               ELSE CASE nm_prod.PRO_TIPO
+                      WHEN 2 THEN (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / MANIPULADO')
+                      WHEN 3 THEN (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / HOMEOPATICO')
+                      ELSE       (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / '||nm_mar.MAR_DESCRICAO)
+                    END
+             END
+        FROM PRODUTO nm_prod, MARCA nm_mar, ESPECIFICACAO nm_esp, ITEM nm_ite, APRESENTACAO nm_apr
+       WHERE nm_prod.PRO_ID = mov.pro_id
+         AND nm_prod.MAR_ID = nm_mar.MAR_ID AND nm_prod.ESP_ID = nm_esp.ESP_ID
+         AND nm_esp.ITE_ID = nm_ite.ITE_ID AND nm_esp.APR_ID = nm_apr.APR_ID )     AS ITEM,
     und.UND_Descricao                                               AS UND_DESCRICAO,
     mov.MOV_DTH                                                     AS SAI_DTH,
     'Saída'                                                         AS TIPO,
@@ -77,7 +88,18 @@ SELECT * FROM (
 
   -- ===== Bloco 2: DEMAIS SAÍDAS (tabela SAIDA) =====
   SELECT
-    fcn_nome_produto(em.pro_id)                                     AS ITEM,
+    ( SELECT CASE nm_ite.CAT_ID
+               WHEN 4 THEN (nm_ite.ITE_DESCRICAO || ' / ' || nm_esp.ESP_DESCRICAO)
+               ELSE CASE nm_prod.PRO_TIPO
+                      WHEN 2 THEN (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / MANIPULADO')
+                      WHEN 3 THEN (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / HOMEOPATICO')
+                      ELSE       (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / '||nm_mar.MAR_DESCRICAO)
+                    END
+             END
+        FROM PRODUTO nm_prod, MARCA nm_mar, ESPECIFICACAO nm_esp, ITEM nm_ite, APRESENTACAO nm_apr
+       WHERE nm_prod.PRO_ID = em.pro_id
+         AND nm_prod.MAR_ID = nm_mar.MAR_ID AND nm_prod.ESP_ID = nm_esp.ESP_ID
+         AND nm_esp.ITE_ID = nm_ite.ITE_ID AND nm_esp.APR_ID = nm_apr.APR_ID )      AS ITEM,
     UND.UND_Descricao                                              AS UND_DESCRICAO,
     s.sai_dth                                                      AS SAI_DTH,
     'Saída'                                                        AS TIPO,

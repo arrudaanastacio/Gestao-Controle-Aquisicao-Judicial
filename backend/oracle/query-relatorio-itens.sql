@@ -27,14 +27,36 @@ SELECT VW_ITENS.PRO_ID                              AS PRO_ID,
        VW_ITENS.PRO_CODIGO                           AS CODIGO,
        VW_ITENS.PRO_SIAFISICO                        AS SIAFISICO,
        PROD.PRO_CATMAT                                AS CATMAT,
-       FCN_NOME_PRODUTO(VW_ITENS.PRO_ID)             AS DESCRICAO_ITEM,
+       -- DESCRICAO_ITEM: substitui FCN_NOME_PRODUTO por subconsulta que replica
+       -- a função pelas TABELAS CRUAS (ESPECIFICACAO.ESP_DESCRICAO preserva ';',
+       -- igual à função — validado 100% contra VW_ITENS_EM_ESTOQUE.NOME).
+       ( SELECT CASE nm_ite.CAT_ID
+                  WHEN 4 THEN (nm_ite.ITE_DESCRICAO || ' / ' || nm_esp.ESP_DESCRICAO)
+                  ELSE CASE nm_prod.PRO_TIPO
+                         WHEN 2 THEN (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / MANIPULADO')
+                         WHEN 3 THEN (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / HOMEOPATICO')
+                         ELSE       (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / '||nm_mar.MAR_DESCRICAO)
+                       END
+                END
+           FROM PRODUTO nm_prod, MARCA nm_mar, ESPECIFICACAO nm_esp, ITEM nm_ite, APRESENTACAO nm_apr
+          WHERE nm_prod.PRO_ID = VW_ITENS.PRO_ID
+            AND nm_prod.MAR_ID = nm_mar.MAR_ID AND nm_prod.ESP_ID = nm_esp.ESP_ID
+            AND nm_esp.ITE_ID = nm_ite.ITE_ID AND nm_esp.APR_ID = nm_apr.APR_ID ) AS DESCRICAO_ITEM,
        PROD.PRO_VMU                                   AS VALOR_MEDIO_UNITARIO,
        VW_ITENS.ITE_DESCRICAO                        AS ITEM,
        VW_ITENS.ESP_DESCRICAO                        AS ESPECIFICACAO,
        VW_ITENS.APR_DESCRICAO                        AS APRESENTACAO,
        VW_ITENS.MAR_DESCRICAO                        AS MARCA,
        VW_ITENS.PRO_IMPORTADO                        AS IMPORTADO,
-       FCN_TIPO_PRODUTO(VW_ITENS.PRO_ID)             AS TIPO_ITEM,
+       -- TIPO_ITEM: substitui FCN_TIPO_PRODUTO pelo mesmo CASE (código->texto).
+       ( CASE VW_ITENS.PRO_TIPO
+           WHEN 0 THEN 'N/A'
+           WHEN 1 THEN 'GENERICO'
+           WHEN 2 THEN 'MANIPULADO'
+           WHEN 3 THEN 'HOMEOPATICO'
+           WHEN 4 THEN 'MARCA'
+           ELSE ''
+         END )                                        AS TIPO_ITEM,
        VW_ITENS.GRU_DESCRICAO                        AS GRUPO,
        VW_ITENS.PRG_DESCRICAO                        AS PROGRAMA,
        PROD.GAF_DESCRICAO                             AS GRUPO_AF,

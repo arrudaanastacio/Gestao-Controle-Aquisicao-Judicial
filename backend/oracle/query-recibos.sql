@@ -14,12 +14,59 @@
 -- =====================================================================
 SELECT
    PRO.PRO_CODIGO                                             AS PRO_CODIGO,
-   FCN_NOME_PRODUTO(PRO.PRO_ID)                               AS DESCRICAO_PRODUTO,
+   ( SELECT CASE nm_ite.CAT_ID
+              WHEN 4 THEN (nm_ite.ITE_DESCRICAO || ' / ' || nm_esp.ESP_DESCRICAO)
+              ELSE CASE nm_prod.PRO_TIPO
+                     WHEN 2 THEN (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / MANIPULADO')
+                     WHEN 3 THEN (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / HOMEOPATICO')
+                     ELSE       (nm_ite.ITE_DESCRICAO||' / '||nm_esp.ESP_DESCRICAO||' / '||nm_apr.APR_DESCRICAO||' / '||nm_mar.MAR_DESCRICAO)
+                   END
+            END
+       FROM PRODUTO nm_prod, MARCA nm_mar, ESPECIFICACAO nm_esp, ITEM nm_ite, APRESENTACAO nm_apr
+      WHERE nm_prod.PRO_ID = PRO.PRO_ID
+        AND nm_prod.MAR_ID = nm_mar.MAR_ID AND nm_prod.ESP_ID = nm_esp.ESP_ID
+        AND nm_esp.ITE_ID = nm_ite.ITE_ID AND nm_esp.APR_ID = nm_apr.APR_ID )         AS DESCRICAO_PRODUTO,
    PEA.PEA_ID                                                 AS ID_DEMANDA,
    UD.UND_DESCRICAO                                           AS UND_DESCRICAO,
    NVL(INITCAP(I.CAT_DESCRICAO), 'N/I')                       AS CATEGORIA,
-   FCN_TIPO_PEDIDO(PED.PED_TIPO)                              AS TIPO_DEMANDA,
-   FCN_STATUS_DESC(PEA.PEA_ID)                                AS STATUS_DEMANDA,
+   ( CASE PED.PED_TIPO
+       WHEN 0 THEN 'Adm'
+       WHEN 1 THEN 'Judicial'
+       WHEN 3 THEN 'CF'
+       WHEN 4 THEN 'Jefaz'
+       WHEN 5 THEN 'Saúde Mental'
+       ELSE '-'
+     END )                                                     AS TIPO_DEMANDA,
+   -- FCN_STATUS_DESC substituída pelo mesmo CASE (código STA_ID -> texto).
+   ( CASE PEA.STA_ID
+       WHEN 1  THEN 'Demanda Ativa - Autor incluído'
+       WHEN 2  THEN 'Demanda Inativa - Aguardando Documentação'
+       WHEN 4  THEN 'Demanda Ativa - Determinação Incluída'
+       WHEN 6  THEN 'Demanda Inativa - Aguardando Decisão Judicial'
+       WHEN 5  THEN 'Demanda Ativa - Avaliação Técnica Incluída'
+       WHEN 15 THEN 'Demanda Inativa - Fornecimento Não Autorizado'
+       WHEN 7  THEN 'Demanda Ativa - Ordem de Dispensação Incluída'
+       WHEN 8  THEN 'Demanda Ativa - Aguardando Fornecimento'
+       WHEN 10 THEN 'Demanda Ativa - Demanda em Atendimento'
+       WHEN 17 THEN 'Demanda Ativa - Orientar Migração'
+       WHEN 11 THEN 'Demanda Inativa - OD Sem Dispensação'
+       WHEN 12 THEN 'Demanda Inativa - Suspensão Temporária'
+       WHEN 13 THEN 'Demanda Inativa - Suspensão Definitiva'
+       WHEN 14 THEN 'Demanda Inativa - Integralmente Atendida'
+       WHEN 18 THEN 'Demanda Inativa - Migrado Programa'
+       WHEN 19 THEN 'Demanda Inativa - Atendimento no Local da Prescrição'
+       WHEN 20 THEN 'Demanda Ativa - Aguardando Avaliação Técnica'
+       WHEN 21 THEN 'Demanda Inativa - Reinserido no SUS'
+       WHEN 22 THEN 'Demanda Inativa - Atendimento no Município'
+       WHEN 23 THEN 'Demanda Inativa - Atendimento na União'
+       WHEN 24 THEN 'Demanda Inativa - Suspensa por Improcedência da Ação'
+       WHEN 25 THEN 'Demanda Inativa - Suspensa por Extinção da Ação'
+       WHEN 26 THEN 'Demanda Inativa - Demanda Judicializada'
+       WHEN 27 THEN 'Demanda Inativa - Suspensão Médica'
+       WHEN 28 THEN 'Demanda Inativa - Negado na Renovação'
+       WHEN 29 THEN 'Demanda Inativa - Aguardando Resposta do Município'
+       WHEN 30 THEN 'Demanda Inativa - Aguardando Resposta da União'
+     END )                                                     AS STATUS_DEMANDA,
    ORP.ORP_PERIODICIDADE                                      AS PERIODICIDADE,
    ROUND(ROP.ROP_DISPENSADO - NVL(ROE.ROE_ESTORNADO, 0))      AS QTDE_REAL_ENTREGUE,
    TO_CHAR(REC.REC_DTH_ENTREGA, 'YYYY-MM-DD')                 AS DATA_RECIBO
