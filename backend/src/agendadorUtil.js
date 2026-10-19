@@ -65,4 +65,44 @@ function agendarDiariamente(nomeLog, hora, minuto, tarefa, opcoes = {}) {
   }, ms);
 }
 
-module.exports = { msAteProxima, agendarDiariamente };
+// --- Agendamento DE HORA EM HORA em dias úteis (seg–sex) ----------------
+// Usado para refrescar o Estoque várias vezes ao dia dentro de uma janela
+// (ex.: 10h–17h). Dispara no "topo da hora" (minuto 0) e se reagenda sozinho.
+
+// Dia útil = segunda (getDay 1) a sexta (getDay 5).
+function ehDiaUtil(d) {
+  const g = d.getDay();
+  return g >= 1 && g <= 5;
+}
+
+// Próximo "topo da hora" (minuto 0) que seja dia útil E com a hora dentro de
+// [horaInicio, horaFim] (inclusive). Avança hora a hora até achar — pula noite
+// e fim de semana. Sempre retorna um horário no FUTURO.
+function proximaHoraUtil(horaInicio, horaFim) {
+  const alvo = new Date();
+  alvo.setMinutes(0, 0, 0);
+  alvo.setHours(alvo.getHours() + 1); // sempre a PRÓXIMA hora cheia
+  for (let i = 0; i < 24 * 9; i++) { // margem de 9 dias cobre feriados emendados
+    if (ehDiaUtil(alvo) && alvo.getHours() >= horaInicio && alvo.getHours() <= horaFim) return alvo;
+    alvo.setHours(alvo.getHours() + 1);
+  }
+  return alvo; // salvaguarda (não deve chegar aqui)
+}
+
+// Agenda `tarefa` para rodar a cada hora cheia dentro da janela, só em dias
+// úteis. `nomeLog` aparece no console. A tarefa deve ser idempotente e se
+// proteger contra sobreposição (o executor do Estoque já faz isso).
+function agendarPorHoraUtil(nomeLog, horaInicio, horaFim, tarefa) {
+  const alvo = proximaHoraUtil(horaInicio, horaFim);
+  const ms = alvo - new Date();
+  console.log(`[${nomeLog}] Próxima execução horária: ${alvo.toLocaleString('pt-BR')}.`);
+  setTimeout(() => {
+    console.log(`[${nomeLog}] Disparando execução horária via Oracle...`);
+    // .catch() obrigatório: sem ele uma rejeição escapa e derruba o processo.
+    Promise.resolve().then(tarefa).catch((e) =>
+      console.error(`[${nomeLog}] Falha na execução horária:`, e && e.message));
+    agendarPorHoraUtil(nomeLog, horaInicio, horaFim, tarefa); // reagenda p/ a próxima
+  }, ms);
+}
+
+module.exports = { msAteProxima, agendarDiariamente, agendarPorHoraUtil, proximaHoraUtil, ehDiaUtil };

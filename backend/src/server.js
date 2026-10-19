@@ -244,6 +244,11 @@ app.listen(PORT, '0.0.0.0', () => {
   const { iniciarAgendadorOracleDiario } = require('./agendadorOracleDiario');
   iniciarAgendadorOracleDiario();
 
+  // Estoque de hora em hora em dias úteis (janela configurável, padrão 10h–17h).
+  // Só o Estoque (leve, ~20s); a cadeia completa continua 1x/dia acima.
+  const { iniciarAgendadorEstoqueHorario } = require('./agendadorEstoqueHorario');
+  iniciarAgendadorEstoqueHorario();
+
   // Backup diário do banco (antes das sincronizações via Oracle, por padrão).
   const { iniciarBackupDiario } = require('./backupBanco');
   iniciarBackupDiario();
