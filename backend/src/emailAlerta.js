@@ -49,6 +49,26 @@ async function enviarAlertaFalhaSincronizacao(nomeTarefa, mensagemErro) {
   }
 }
 
+// Alerta de SEGURANÇA genérico (monitor de segurança). Mesmo canal/estilo do
+// alerta de sincronização. Nunca lança: falha de e-mail não pode quebrar nada.
+async function enviarAlertaSeguranca(assunto, mensagem) {
+  const destinatarios = process.env.ALERTA_EMAIL_PARA;
+  if (!destinatarios) { console.log(`[ALERTA SEGURANÇA] Pulado (ALERTA_EMAIL_PARA não configurado): ${assunto}`); return; }
+  const t = obterTransportador();
+  if (!t) { console.log('[ALERTA SEGURANÇA] Pulado (SMTP não configurado no .env).'); return; }
+  try {
+    await t.sendMail({
+      from: process.env.SMTP_USER,
+      to: destinatarios,
+      subject: `🔒 Segurança — ${assunto}`,
+      text: `${mensagem}\n\nGerado automaticamente pelo Monitor de Segurança em ${new Date().toLocaleString('pt-BR')}.`,
+    });
+    console.log(`[ALERTA SEGURANÇA] Enviado para ${destinatarios}: ${assunto}`);
+  } catch (e) {
+    console.error('[ALERTA SEGURANÇA] Falha ao enviar e-mail:', e.message);
+  }
+}
+
 // Verdadeiro só quando há SMTP configurado (para o front esconder/avisar).
 function emailConfigurado() {
   return !!obterTransportador();
@@ -74,4 +94,4 @@ async function enviarConviteAcesso({ nome, email, link, validadeHoras }) {
   });
 }
 
-module.exports = { enviarAlertaFalhaSincronizacao, obterTransportador, emailConfigurado, enviarConviteAcesso };
+module.exports = { enviarAlertaFalhaSincronizacao, enviarAlertaSeguranca, obterTransportador, emailConfigurado, enviarConviteAcesso };
