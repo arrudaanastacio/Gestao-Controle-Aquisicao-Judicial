@@ -246,4 +246,9 @@ app.listen(PORT, '0.0.0.0', () => {
   // Backup diário do banco (antes das sincronizações via Oracle, por padrão).
   const { iniciarBackupDiario } = require('./backupBanco');
   iniciarBackupDiario();
+
+  // Monitor de segurança: observa login_falho/acesso_negado e saúde do backup,
+  // registra no Status dos Serviços e alerta por e-mail nos casos críticos.
+  const { iniciarMonitorSeguranca } = require('./monitorSeguranca');
+  iniciarMonitorSeguranca();
 });

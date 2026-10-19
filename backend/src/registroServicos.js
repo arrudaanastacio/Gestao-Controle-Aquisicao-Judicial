@@ -160,6 +160,16 @@ const CATALOGO = [
     envDesliga: { chave: 'AUTO_BACKUP', valor: 'false' },
     intervaloEsperadoH: 26,
   },
+  {
+    id: 'monitorSeguranca',
+    nome: 'Monitor de Segurança',
+    descricao: 'Verifica periodicamente sinais de segurança: tentativas de login falhas em volume anormal, acessos negados em excesso e saúde do backup (recente e, se houver chave, cifrado). Alerta por e-mail nos casos críticos.',
+    categoria: 'Segurança',
+    tipo: 'agendado',
+    agendamento: () => `A cada ${Math.max(5, parseInt(process.env.SEG_MONITOR_INTERVALO_MIN, 10) || 30)} min`,
+    envDesliga: { chave: 'MONITOR_SEGURANCA', valor: 'false' },
+    intervaloEsperadoH: 2,
+  },
 ];
 
 function horaEnv(chaveH, padraoH, chaveM, padraoM) {
