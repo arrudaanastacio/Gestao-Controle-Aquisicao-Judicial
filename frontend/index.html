@@ -114,6 +114,7 @@
           <a href="#" data-pagina="usuarios" id="linkUsuarios" hidden>Usuários</a>
           <a href="#" data-pagina="importadores" id="linkImportadores" hidden>Importação</a>
           <a href="#" data-pagina="statusServicos" id="linkStatusServicos" hidden>Status dos Serviços <span class="badge-alerta" id="badgeServicos" hidden>0</span></a>
+          <a href="#" data-pagina="auditoriaSeguranca" id="linkAuditoriaSeguranca" hidden>Auditoria de Segurança</a>
         </div>
       </nav>
       <div class="rodape-lateral">
@@ -3191,6 +3192,56 @@
             </div>
             <div class="estado-vazio" id="estadoVazioLogsServicos" hidden>Nenhum registro encontrado com estes filtros.</div>
           </div>
+        </div>
+      </section>
+
+      <!-- ============ Auditoria de Segurança (somente admin) ============ -->
+      <section id="paginaAuditoriaSeguranca" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Auditoria de Segurança</h2>
+            <p>Logins, logouts e tentativas de acesso negado registrados pelo sistema. Use para investigar acessos suspeitos.</p>
+          </div>
+          <div class="acoes-cabecalho">
+            <span class="atualizado-em" id="atualizadoEmAuditoriaSeg">—</span>
+            <button id="botaoAtualizarAuditoriaSeg" class="botao-secundario" type="button" title="Recarrega agora">🔄 Atualizar</button>
+            <button id="botaoExportarAuditoriaSeg" class="botao-secundario" type="button">⬇ Exportar CSV</button>
+          </div>
+        </div>
+
+        <!-- Cartões-resumo do período filtrado -->
+        <div class="cartoes-resumo-seg" id="resumoAuditoriaSeg"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaAuditoriaSeg" placeholder="Buscar por e-mail, IP ou caminho…" style="min-width:260px;">
+          <select id="filtroAcaoAuditoriaSeg">
+            <option value="">Evento: todos</option>
+            <option value="login_ok">Login bem-sucedido</option>
+            <option value="login_falho">Login falhou</option>
+            <option value="logout">Logout</option>
+            <option value="acesso_negado">Acesso negado (403)</option>
+          </select>
+          <label class="rotulo-filtro">De <input type="date" id="filtroInicioAuditoriaSeg"></label>
+          <label class="rotulo-filtro">até <input type="date" id="filtroFimAuditoriaSeg"></label>
+          <button id="botaoAplicarAuditoriaSeg" class="botao-secundario" type="button">Aplicar</button>
+          <button id="botaoLimparAuditoriaSeg" class="botao-secundario" type="button">Limpar filtros</button>
+        </div>
+
+        <div class="faixa-alertas" id="avisoLimiteAuditoriaSeg" hidden></div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data/Hora</th><th>Evento</th><th>Usuário (e-mail)</th>
+                  <th>IP de origem</th><th>Detalhe</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaAuditoriaSeg"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioAuditoriaSeg" hidden>Nenhum evento de segurança neste período/filtro.</div>
         </div>
       </section>
     </main>

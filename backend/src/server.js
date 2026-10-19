@@ -183,6 +183,7 @@ app.use('/api/rupturas', autenticar, exigirModulo('rupturas'), rupturasRoutes);
 // permissões por módulo porque não expõe dados de compra, e sim a saúde do
 // próprio sistema.
 app.use('/api/servicos', autenticar, exigirPerfil('admin'), require('./routes.servicos'));
+app.use('/api/auditoria-seguranca', autenticar, exigirPerfil('admin'), require('./routes.auditoriaSeguranca'));
 
 // Serve o frontend estático (build simples, sem framework)
 const PASTA_FRONT = path.join(__dirname, '..', '..', 'frontend');

@@ -999,6 +999,26 @@ form button[type="submit"]:hover, form button[type="button"]:hover { background:
   white-space: nowrap;
 }
 
+/* ---------- Cartões-resumo da Auditoria de Segurança ---------- */
+.cartoes-resumo-seg {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 4px 0 16px;
+}
+.cartao-resumo-seg {
+  background: var(--cartao, #fff);
+  border: 1px solid var(--linha);
+  border-radius: 8px;
+  padding: 10px 16px;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cartao-resumo-seg .valor { font-size: 22px; font-weight: 700; line-height: 1; }
+.cartao-resumo-seg .rotulo { font-size: 12px; color: var(--tinta-fraca, #667085); }
+
 /* ---------- FILTROS ---------- */
 
 .barra-filtros {

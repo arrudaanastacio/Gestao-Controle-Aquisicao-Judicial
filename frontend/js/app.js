@@ -211,7 +211,9 @@ async function carregarUsuario() {
     document.getElementById('linkAlertas').hidden = false;
     // Status dos Serviços é exclusiva de admin (a API também exige o perfil).
     document.getElementById('linkStatusServicos').hidden = false;
+    document.getElementById('linkAuditoriaSeguranca').hidden = false;
     configurarStatusServicos();
+    configurarAuditoriaSeguranca();
     // "Nova solicitação" fica ESCONDIDO de propósito: as telas de compras
     // TP/OD são espelho da planilha do G: (fonte da verdade). Um cadastro
     // manual aqui seria apagado na próxima importação "refaz o mês" (12h/19h
@@ -429,6 +431,7 @@ const ICONES_NAV = {
   rupturas: '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
   cartasTroca: '<path d="M3 8h13M13 5l3 3-3 3"/><path d="M21 16H8m3-3l-3 3 3 3"/>',
   statusServicos: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  auditoriaSeguranca: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/>',
   alertas: '<path d="M6 9a6 6 0 1 1 12 0c0 4 2 5 2 5H4s2-1 2-5"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   importadores: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
   usuarios: '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 6a3 3 0 0 1 0 6M21 20a6 6 0 0 0-5-5.9"/>',
@@ -711,6 +714,7 @@ const TRILHAS = {
   usuarios: ['Administração', 'Usuários'],
   importadores: ['Administração', 'Importação'],
   statusServicos: ['Administração', 'Status dos Serviços'],
+  auditoriaSeguranca: ['Administração', 'Auditoria de Segurança'],
   elenco: ['Administração', 'Elenco'],
   busca: ['Busca de medicamento'],
 };
@@ -769,6 +773,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaPendenciasProcesso').hidden = pagina !== 'pendenciasProcesso';
   document.getElementById('paginaUsuarios').hidden = pagina !== 'usuarios';
   document.getElementById('paginaStatusServicos').hidden = pagina !== 'statusServicos';
+  document.getElementById('paginaAuditoriaSeguranca').hidden = pagina !== 'auditoriaSeguranca';
 
   // O monitoramento só consulta o servidor enquanto a tela está aberta.
   if (pagina !== 'statusServicos') pararPollingServicos();
@@ -811,6 +816,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'pendenciasProcesso') await carregarPendenciasProcesso();
     if (pagina === 'usuarios') await carregarUsuarios();
     if (pagina === 'statusServicos') { await carregarStatusServicos(); iniciarPollingServicos(); }
+    if (pagina === 'auditoriaSeguranca') await carregarAuditoriaSeguranca();
   } catch (e) {
     if (!window.location.href.includes('login.html')) {
       mostrarErroPagina('pagina' + pagina.charAt(0).toUpperCase() + pagina.slice(1),
@@ -13301,6 +13307,128 @@ function escaparHtml(t) {
   return String(t === null || t === undefined ? '' : t)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// =====================================================================
+// Auditoria de Segurança (somente admin) — visualizador dos eventos
+// login_ok / login_falho / logout / acesso_negado gravados pela Onda B.
+// =====================================================================
+
+// Cor/rótulo de cada tipo de evento (badge na coluna "Evento").
+const ESTILO_EVENTO_SEG = {
+  login_ok:       { rotulo: 'Login OK',        cor: '#1a7f37', fundo: '#e6f4ea' },
+  login_falho:    { rotulo: 'Login falhou',    cor: '#b42318', fundo: '#fde8e6' },
+  logout:         { rotulo: 'Logout',          cor: '#475467', fundo: '#eef1f4' },
+  acesso_negado:  { rotulo: 'Acesso negado',   cor: '#b54708', fundo: '#fdf0e3' },
+};
+
+// Traduz o objeto `detalhe` (formatos diferentes por evento) numa frase curta.
+function resumirDetalheSeg(acao, d) {
+  if (!d) return '—';
+  if (typeof d !== 'object') return String(d);
+  const partes = [];
+  if (acao === 'acesso_negado') {
+    if (d.modulo) partes.push(`módulo: ${d.modulo}`);
+    if (d.recurso) partes.push(`recurso: ${d.recurso}`);
+    if (d.exige_perfil) partes.push(`exige perfil: ${d.exige_perfil} (atual: ${d.perfil_atual || '—'})`);
+    if (d.acaoTentada) partes.push(`ação: ${d.acaoTentada}`);
+    if (d.metodo || d.caminho) partes.push(`${d.metodo || ''} ${d.caminho || ''}`.trim());
+  } else if (acao === 'login_falho') {
+    if (d.motivo) partes.push(d.motivo);
+    if (d.email) partes.push(`e-mail tentado: ${d.email}`);
+  } else {
+    // login_ok / logout ou formato desconhecido: mostra os campos existentes.
+    Object.entries(d).forEach(([k, v]) => partes.push(`${k}: ${v}`));
+  }
+  return partes.length ? partes.join(' · ') : '—';
+}
+
+function filtrosAuditoriaSeg() {
+  const p = new URLSearchParams();
+  const busca = document.getElementById('filtroBuscaAuditoriaSeg').value.trim();
+  const acao = document.getElementById('filtroAcaoAuditoriaSeg').value;
+  const de = document.getElementById('filtroInicioAuditoriaSeg').value;
+  const ate = document.getElementById('filtroFimAuditoriaSeg').value;
+  if (busca) p.set('busca', busca);
+  if (acao) p.set('acao', acao);
+  if (de) p.set('de', de);
+  if (ate) p.set('ate', ate);
+  return p;
+}
+
+let _auditoriaSegConfigurada = false;
+function configurarAuditoriaSeguranca() {
+  if (_auditoriaSegConfigurada) return; // liga os eventos uma única vez
+  _auditoriaSegConfigurada = true;
+  document.getElementById('botaoAtualizarAuditoriaSeg').addEventListener('click', () => carregarAuditoriaSeguranca());
+  document.getElementById('botaoAplicarAuditoriaSeg').addEventListener('click', () => carregarAuditoriaSeguranca());
+  document.getElementById('botaoLimparAuditoriaSeg').addEventListener('click', () => {
+    document.getElementById('filtroBuscaAuditoriaSeg').value = '';
+    document.getElementById('filtroAcaoAuditoriaSeg').value = '';
+    document.getElementById('filtroInicioAuditoriaSeg').value = '';
+    document.getElementById('filtroFimAuditoriaSeg').value = '';
+    carregarAuditoriaSeguranca();
+  });
+  document.getElementById('botaoExportarAuditoriaSeg').addEventListener('click', () => {
+    window.open(`/api/auditoria-seguranca/csv?${filtrosAuditoriaSeg().toString()}`, '_blank');
+  });
+  // Enter no campo de busca aplica o filtro.
+  document.getElementById('filtroBuscaAuditoriaSeg').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') carregarAuditoriaSeguranca();
+  });
+}
+
+function montarResumoAuditoriaSeg(resumo) {
+  const cartao = (rotulo, valor, cor) =>
+    `<div class="cartao-resumo-seg" style="border-left:4px solid ${cor}">
+       <span class="valor" style="color:${cor}">${valor}</span>
+       <span class="rotulo">${rotulo}</span>
+     </div>`;
+  document.getElementById('resumoAuditoriaSeg').innerHTML = [
+    cartao('Total de eventos', resumo.total || 0, '#475467'),
+    cartao('Logins OK', resumo.login_ok || 0, ESTILO_EVENTO_SEG.login_ok.cor),
+    cartao('Logins falhos', resumo.login_falho || 0, ESTILO_EVENTO_SEG.login_falho.cor),
+    cartao('Acessos negados', resumo.acesso_negado || 0, ESTILO_EVENTO_SEG.acesso_negado.cor),
+    cartao('Logouts', resumo.logout || 0, ESTILO_EVENTO_SEG.logout.cor),
+  ].join('');
+}
+
+async function carregarAuditoriaSeguranca() {
+  try {
+    const d = await api(`/auditoria-seguranca?${filtrosAuditoriaSeg().toString()}`);
+    montarResumoAuditoriaSeg(d.resumo || {});
+    document.getElementById('atualizadoEmAuditoriaSeg').textContent =
+      'Atualizado em: ' + new Date().toLocaleString('pt-BR');
+
+    const linhas = d.linhas || [];
+    const corpo = document.getElementById('corpoTabelaAuditoriaSeg');
+    const vazio = document.getElementById('estadoVazioAuditoriaSeg');
+    vazio.hidden = linhas.length > 0;
+
+    corpo.innerHTML = linhas.map((l) => {
+      const est = ESTILO_EVENTO_SEG[l.acao] || { rotulo: l.acao, cor: '#475467', fundo: '#eef1f4' };
+      const badge = `<span style="display:inline-block;padding:2px 8px;border-radius:12px;
+        font-size:12px;font-weight:600;color:${est.cor};background:${est.fundo}">${escaparHtml(est.rotulo)}</span>`;
+      return `<tr>
+        <td style="white-space:nowrap">${escaparHtml(l.criado_em)}</td>
+        <td>${badge}</td>
+        <td>${escaparHtml(l.usuario_email || '—')}</td>
+        <td style="white-space:nowrap">${escaparHtml(l.ip || '—')}</td>
+        <td>${escaparHtml(resumirDetalheSeg(l.acao, l.detalhe))}</td>
+      </tr>`;
+    }).join('');
+
+    // Aviso quando a listagem bate no teto (há mais eventos do que o exibido).
+    const aviso = document.getElementById('avisoLimiteAuditoriaSeg');
+    if (d.limitado) {
+      aviso.hidden = false;
+      aviso.textContent = '⚠️ Mostrando os eventos mais recentes (limite atingido). Refine o período ou a busca para ver os demais.';
+    } else {
+      aviso.hidden = true;
+    }
+  } catch (e) {
+    mostrarErroPagina('paginaAuditoriaSeguranca', 'Erro ao carregar a auditoria de segurança: ' + e.message);
+  }
 }
 
 async function carregarStatusServicos({ silencioso = false } = {}) {
