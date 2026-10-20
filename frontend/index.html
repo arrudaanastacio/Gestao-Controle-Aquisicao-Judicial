@@ -2218,6 +2218,7 @@
           <div>
             <h2>Associar Entrada à Compra</h2>
             <p>O robô cruza cada entrada com as compras em aberto (SCODES + Empenho + Quantidade) e dá a baixa de entrega. Você aprova ou associa manualmente.</p>
+            <p class="texto-apoio" id="concAtualizacao" style="font-size:12.5px; margin-top:2px;"></p>
           </div>
           <div style="display:flex; align-items:center; gap:10px;">
             <button id="botaoGerarConciliacao" class="botao-secundario" type="button" hidden>🤖 Rodar robô agora</button>
@@ -2248,6 +2249,13 @@
             </select>
             <select id="concFiltroMes"><option value="">Mês da compra: todos</option></select>
             <span id="concPendTotal" style="font-size:13px; color:var(--cinza-texto);"></span>
+          </div>
+          <div class="barra-filtros" style="margin-top:-4px; align-items:center;">
+            <span style="font-size:12.5px; color:var(--cinza-texto);">Tipo:</span>
+            <div id="concTipoChips" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+            <div style="flex:1 1 auto;"></div>
+            <button type="button" id="concRejeitarTodos" class="botao-secundario" style="padding:5px 12px; font-size:12.5px;" disabled>Rejeitar todos</button>
+            <button type="button" id="concIgnorarTodos" class="botao-secundario" style="padding:5px 12px; font-size:12.5px;" disabled>Ignorar todos</button>
           </div>
           <div class="tabela-wrap"><div class="tabela-rolavel-x">
             <table style="width:100%;">
