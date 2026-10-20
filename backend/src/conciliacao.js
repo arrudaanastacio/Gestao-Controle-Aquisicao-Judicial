@@ -157,6 +157,7 @@ function gerarPropostasEntrada() {
       detalhe: {
         item: e.item, data_entrada: e.data_entrada, nota_fiscal: e.nota_fiscal,
         nota_empenho: e.nota_empenho, lote: e.lote, qtde: q,
+        tipo_movimentacao: e.tipo_movimentacao,
         sol_mes: best.s.mes, sol_ano: best.s.ano, sol_tipo: best.s.tipo,
         sol_status: best.s.status, sol_pendente: pend,
       },

@@ -272,7 +272,11 @@ router.get('/entrada/a-associar', (req, res) => {
       nota_empenho: e.nota_empenho, lote: e.lote, ignorada: ign,
     });
   }
-  res.json({ fila });
+  // Carimbo de "última atualização" da fonte: as entradas são substituídas a
+  // cada sincronização via Oracle, então MAX(criado_em) = instante da última
+  // importação (das entradas da Tenente Pena, que é o escopo desta tela).
+  const atual = db.prepare("SELECT datetime(MAX(criado_em),'localtime') AS em FROM entrada_lotes_itens WHERE unidade LIKE '%Tenente Pena%'").get();
+  res.json({ fila, atualizacao: (atual && atual.em) || null });
 });
 
 // Marca/desmarca uma entrada como "Ignorar" (nao deve ser associada). Some das
@@ -319,6 +323,52 @@ router.post('/entrada/rejeitar/:id', (req, res) => {
   if (!p) return res.status(404).json({ erro: 'Proposta não encontrada.' });
   db.prepare("UPDATE propostas_conciliacao SET situacao='rejeitada' WHERE id=?").run(p.id);
   res.json({ ok: true });
+});
+
+// Rejeitar em LOTE as propostas filtradas na tela (recebe a lista de ids). Cada
+// uma vira 'rejeitada' e a entrada volta para "A associar". Não aprova nada em
+// lote (decisão de negócio: aprovação continua item a item). Transação única.
+router.post('/entrada/rejeitar-lote', (req, res) => {
+  const ids = Array.isArray(req.body && req.body.ids) ? req.body.ids.map(Number).filter(Boolean) : [];
+  if (!ids.length) return res.status(400).json({ erro: 'Nenhuma proposta informada.' });
+  const ph = ids.map(() => '?').join(',');
+  const info = db.prepare(
+    `UPDATE propostas_conciliacao SET situacao='rejeitada'
+     WHERE origem='entrega' AND situacao='pendente' AND id IN (${ph})`
+  ).run(...ids);
+  res.json({ ok: true, rejeitadas: info.changes });
+});
+
+// Ignorar em LOTE as entradas filtradas (recebe lista de {chave_origem,
+// codigo_item}). Marca cada uma como ignorada (some das listas) e, se houver
+// proposta pendente para a mesma entrada, descarta a proposta junto.
+router.post('/entrada/ignorar-lote', (req, res) => {
+  const itens = Array.isArray(req.body && req.body.itens) ? req.body.itens : [];
+  const limpos = itens
+    .map((i) => ({ chave: String(i.chave_origem || '').trim(), codigo: String(i.codigo_item || '').trim() }))
+    .filter((i) => i.chave);
+  if (!limpos.length) return res.status(400).json({ erro: 'Nenhuma entrada informada.' });
+  const email = (req.usuario && req.usuario.email) || null;
+  const insIgn = db.prepare(`INSERT INTO entradas_ignoradas (chave_origem, codigo_item, ignorado_por, ignorado_em)
+    VALUES (?, ?, ?, datetime('now','localtime'))
+    ON CONFLICT(chave_origem) DO UPDATE SET codigo_item=excluded.codigo_item, ignorado_por=excluded.ignorado_por, ignorado_em=excluded.ignorado_em`);
+  const descartaProp = db.prepare("UPDATE propostas_conciliacao SET situacao='rejeitada' WHERE origem='entrega' AND situacao='pendente' AND chave_origem=?");
+  let ignoradas = 0;
+  db.exec('BEGIN');
+  try {
+    for (const i of limpos) {
+      insIgn.run(i.chave, i.codigo || null, email);
+      descartaProp.run(i.chave);
+      ignoradas++;
+    }
+    db.prepare('INSERT INTO auditoria (usuario_email, acao, tabela, registro_id) VALUES (?,?,?,?)')
+      .run(email, 'ignorar_entrada_lote', 'entradas_ignoradas', String(ignoradas));
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    return res.status(500).json({ erro: 'Falha ao ignorar em lote: ' + e.message });
+  }
+  res.json({ ok: true, ignoradas });
 });
 
 router.post('/entrada/associar-manual', (req, res) => {

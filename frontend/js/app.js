@@ -211,7 +211,9 @@ async function carregarUsuario() {
     document.getElementById('linkAlertas').hidden = false;
     // Status dos Serviços é exclusiva de admin (a API também exige o perfil).
     document.getElementById('linkStatusServicos').hidden = false;
+    document.getElementById('linkAuditoriaSeguranca').hidden = false;
     configurarStatusServicos();
+    configurarAuditoriaSeguranca();
     // "Nova solicitação" fica ESCONDIDO de propósito: as telas de compras
     // TP/OD são espelho da planilha do G: (fonte da verdade). Um cadastro
     // manual aqui seria apagado na próxima importação "refaz o mês" (12h/19h
@@ -429,6 +431,7 @@ const ICONES_NAV = {
   rupturas: '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
   cartasTroca: '<path d="M3 8h13M13 5l3 3-3 3"/><path d="M21 16H8m3-3l-3 3 3 3"/>',
   statusServicos: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  auditoriaSeguranca: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/>',
   alertas: '<path d="M6 9a6 6 0 1 1 12 0c0 4 2 5 2 5H4s2-1 2-5"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   importadores: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
   usuarios: '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 6a3 3 0 0 1 0 6M21 20a6 6 0 0 0-5-5.9"/>',
@@ -711,6 +714,7 @@ const TRILHAS = {
   usuarios: ['Administração', 'Usuários'],
   importadores: ['Administração', 'Importação'],
   statusServicos: ['Administração', 'Status dos Serviços'],
+  auditoriaSeguranca: ['Administração', 'Auditoria de Segurança'],
   elenco: ['Administração', 'Elenco'],
   busca: ['Busca de medicamento'],
 };
@@ -769,6 +773,7 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaPendenciasProcesso').hidden = pagina !== 'pendenciasProcesso';
   document.getElementById('paginaUsuarios').hidden = pagina !== 'usuarios';
   document.getElementById('paginaStatusServicos').hidden = pagina !== 'statusServicos';
+  document.getElementById('paginaAuditoriaSeguranca').hidden = pagina !== 'auditoriaSeguranca';
 
   // O monitoramento só consulta o servidor enquanto a tela está aberta.
   if (pagina !== 'statusServicos') pararPollingServicos();
@@ -811,6 +816,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'pendenciasProcesso') await carregarPendenciasProcesso();
     if (pagina === 'usuarios') await carregarUsuarios();
     if (pagina === 'statusServicos') { await carregarStatusServicos(); iniciarPollingServicos(); }
+    if (pagina === 'auditoriaSeguranca') await carregarAuditoriaSeguranca();
   } catch (e) {
     if (!window.location.href.includes('login.html')) {
       mostrarErroPagina('pagina' + pagina.charAt(0).toUpperCase() + pagina.slice(1),
@@ -7671,7 +7677,7 @@ function mostrarToast(msg) {
   t._timer = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(20px)'; }, 2800);
 }
 
-const estadoConc = { aba: 'pend', propostas: [], aAssociar: [], auditoria: [], modalEntrada: null, escolha: null };
+const estadoConc = { aba: 'pend', propostas: [], aAssociar: [], auditoria: [], modalEntrada: null, escolha: null, atualizacao: null, tiposSel: new Set(), pendFiltradas: [] };
 
 async function carregarAssociarEntrada() {
   await Promise.all([carregarConcPropostas(), carregarConcAssociar(), carregarConcAuditoria()]);
@@ -7685,9 +7691,23 @@ async function carregarConcPropostas() {
 async function carregarConcAssociar() {
   const inc = document.getElementById('concMostrarIgnoradas');
   const q = inc && inc.checked ? '?incluirIgnoradas=true' : '';
-  try { estadoConc.aAssociar = (await api('/conciliacao/entrada/a-associar' + q)).fila || []; }
-  catch (e) { estadoConc.aAssociar = []; }
+  try {
+    const r = await api('/conciliacao/entrada/a-associar' + q);
+    estadoConc.aAssociar = r.fila || [];
+    estadoConc.atualizacao = r.atualizacao || null;
+  } catch (e) { estadoConc.aAssociar = []; estadoConc.atualizacao = null; }
+  renderConcAtualizacao();
   renderConcAssoc();
+}
+// Mostra o carimbo de "dados atualizados em DD/MM/AAAA às HH:MM" (instante da
+// última importação das entradas da TP via Oracle) no cabeçalho da tela.
+function renderConcAtualizacao() {
+  const el = document.getElementById('concAtualizacao');
+  if (!el) return;
+  const dh = estadoConc.atualizacao;
+  el.textContent = dh
+    ? `Dados atualizados em ${formatarData(String(dh).slice(0, 10))} às ${String(dh).slice(11, 16)}`
+    : '';
 }
 async function carregarConcAuditoria() {
   try { estadoConc.auditoria = (await api('/conciliacao/auditoria')).auditoria || []; }
@@ -7732,15 +7752,25 @@ function renderConcPend() {
   selMes.innerHTML = '<option value="">Mês da compra: todos</option>' + meses.map((m) => `<option value="${escAttr(m)}">${escHtml(m)}</option>`).join('');
   selMes.value = meses.includes(mesSel) ? mesSel : '';
 
-  // Filtros client-side: busca (código/empenho/descrição), confiança, mês.
+  // Chips de Tipo (multi-seleção, união OR). Opções = tipos presentes nas
+  // propostas atuais. A seleção fica em estadoConc.tiposSel e é preservada.
+  renderConcTipoChips(todas);
+
+  // Filtros client-side: busca (código/empenho/descrição), confiança, mês, tipo.
   const termo = normalizarBusca(document.getElementById('concBuscaPend').value || '');
   const conf = document.getElementById('concFiltroConf').value;
   const mes = selMes.value;
+  const tiposSel = estadoConc.tiposSel;
   let lista = todas;
   if (conf) lista = lista.filter((p) => p.confianca === conf);
   if (mes) lista = lista.filter((p) => mesCompra(p) === mes);
+  if (tiposSel.size) lista = lista.filter((p) => tiposSel.has(tipoProposta(p)));
   if (termo) lista = lista.filter((p) => { const d = p.detalhe || {}; return normalizarBusca(`${p.codigo_item} ${d.item || ''} ${d.nota_empenho || ''}`).includes(termo); });
   document.getElementById('concPendTotal').textContent = `${fmtNumero(lista.length)} de ${fmtNumero(todas.length)}`;
+
+  // Guarda a lista filtrada e atualiza os botões de lote (Rejeitar/Ignorar todos).
+  estadoConc.pendFiltradas = lista;
+  atualizarBotoesLoteConc(lista.length);
 
   if (!lista.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
   vazio.hidden = true;
@@ -7766,6 +7796,68 @@ function renderConcPend() {
   corpo.querySelectorAll('.conc-apr').forEach((b) => b.addEventListener('click', () => aprovarConc(b.dataset.id)));
   corpo.querySelectorAll('.conc-rej').forEach((b) => b.addEventListener('click', () => rejeitarConc(b.dataset.id)));
   corpo.querySelectorAll('.conc-ign').forEach((b) => b.addEventListener('click', () => ignorarConc(b.dataset.chave, b.dataset.codigo, true)));
+}
+
+// Tipo de movimentação da entrada (ex.: Compra, Ajustes, Fatura SES). Vem do
+// detalhe da proposta; se faltar (propostas antigas), cai em "—".
+function tipoProposta(p) { return ((p.detalhe || {}).tipo_movimentacao || '—'); }
+
+// Desenha os chips de Tipo (toggle, multi-seleção). Mantém só os tipos que ainda
+// existem nas propostas e preserva a seleção atual em estadoConc.tiposSel.
+function renderConcTipoChips(todas) {
+  const cont = document.getElementById('concTipoChips');
+  if (!cont) return;
+  const tipos = [...new Set(todas.map(tipoProposta))].sort((a, b) => a.localeCompare(b, 'pt'));
+  // Descarta da seleção tipos que sumiram (ex.: após rejeitar/ignorar em lote).
+  estadoConc.tiposSel.forEach((t) => { if (!tipos.includes(t)) estadoConc.tiposSel.delete(t); });
+  cont.innerHTML = tipos.map((t) => {
+    const ativo = estadoConc.tiposSel.has(t);
+    const n = todas.filter((p) => tipoProposta(p) === t).length;
+    return `<button type="button" class="chip-faixa conc-tipo-chip${ativo ? ' ativo' : ''}" data-tipo="${escAttr(t)}" style="padding:3px 10px; font-size:12px;">${escHtml(t)} <span style="opacity:.7;">(${fmtNumero(n)})</span></button>`;
+  }).join('');
+  cont.querySelectorAll('.conc-tipo-chip').forEach((b) => b.addEventListener('click', () => {
+    const t = b.dataset.tipo;
+    if (estadoConc.tiposSel.has(t)) estadoConc.tiposSel.delete(t); else estadoConc.tiposSel.add(t);
+    renderConcPend();
+  }));
+}
+
+// Liga/desliga os botões "Rejeitar todos"/"Ignorar todos" conforme há itens
+// filtrados, e mostra a contagem no rótulo para o usuário saber o alcance.
+function atualizarBotoesLoteConc(n) {
+  const bRej = document.getElementById('concRejeitarTodos');
+  const bIgn = document.getElementById('concIgnorarTodos');
+  if (!bRej || !bIgn) return;
+  bRej.disabled = !n;
+  bIgn.disabled = !n;
+  bRej.textContent = n ? `Rejeitar todos (${fmtNumero(n)})` : 'Rejeitar todos';
+  bIgn.textContent = n ? `Ignorar todos (${fmtNumero(n)})` : 'Ignorar todos';
+}
+
+// Rejeita em lote as propostas atualmente filtradas (voltam para "A associar").
+async function rejeitarTodosConc() {
+  const lista = estadoConc.pendFiltradas || [];
+  if (!lista.length) return;
+  if (!confirm(`Rejeitar as ${fmtNumero(lista.length)} propostas filtradas? Elas voltam para a aba "A associar" para associação manual.`)) return;
+  try {
+    const r = await api('/conciliacao/entrada/rejeitar-lote', { method: 'POST', body: JSON.stringify({ ids: lista.map((p) => p.id) }) });
+    mostrarToast(`${fmtNumero(r.rejeitadas || 0)} proposta(s) rejeitada(s).`);
+    await Promise.all([carregarConcPropostas(), carregarConcAssociar(), carregarConcAuditoria()]);
+  } catch (e) { alert(e.message); }
+}
+
+// Ignora em lote as entradas atualmente filtradas (somem das listas; não
+// voltam). Útil para tipos que não são compra judicial (ex.: Ajustes).
+async function ignorarTodosConc() {
+  const lista = estadoConc.pendFiltradas || [];
+  if (!lista.length) return;
+  if (!confirm(`Ignorar as ${fmtNumero(lista.length)} entradas filtradas? Elas somem das listas e não serão associadas a nenhuma compra.`)) return;
+  try {
+    const itens = lista.map((p) => ({ chave_origem: p.chave_origem, codigo_item: p.codigo_item }));
+    const r = await api('/conciliacao/entrada/ignorar-lote', { method: 'POST', body: JSON.stringify({ itens }) });
+    mostrarToast(`${fmtNumero(r.ignoradas || 0)} entrada(s) ignorada(s).`);
+    await Promise.all([carregarConcPropostas(), carregarConcAssociar(), carregarConcAuditoria()]);
+  } catch (e) { alert(e.message); }
 }
 
 async function aprovarConc(id) {
@@ -7975,6 +8067,8 @@ document.getElementById('concBuscaPend').addEventListener('input', renderConcPen
 document.getElementById('concFiltroConf').addEventListener('change', renderConcPend);
 document.getElementById('concFiltroMes').addEventListener('change', renderConcPend);
 document.getElementById('concMostrarIgnoradas').addEventListener('change', carregarConcAssociar);
+document.getElementById('concRejeitarTodos').addEventListener('click', rejeitarTodosConc);
+document.getElementById('concIgnorarTodos').addEventListener('click', ignorarTodosConc);
 document.getElementById('concCancelar').addEventListener('click', () => { document.getElementById('modalAssociarEntrada').hidden = true; });
 document.getElementById('modalAssociarEntrada').addEventListener('click', (ev) => { if (ev.target.id === 'modalAssociarEntrada') ev.currentTarget.hidden = true; });
 document.getElementById('procInfoFechar').addEventListener('click', () => { document.getElementById('modalProcessoInfo').hidden = true; });
@@ -13301,6 +13395,128 @@ function escaparHtml(t) {
   return String(t === null || t === undefined ? '' : t)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// =====================================================================
+// Auditoria de Segurança (somente admin) — visualizador dos eventos
+// login_ok / login_falho / logout / acesso_negado gravados pela Onda B.
+// =====================================================================
+
+// Cor/rótulo de cada tipo de evento (badge na coluna "Evento").
+const ESTILO_EVENTO_SEG = {
+  login_ok:       { rotulo: 'Login OK',        cor: '#1a7f37', fundo: '#e6f4ea' },
+  login_falho:    { rotulo: 'Login falhou',    cor: '#b42318', fundo: '#fde8e6' },
+  logout:         { rotulo: 'Logout',          cor: '#475467', fundo: '#eef1f4' },
+  acesso_negado:  { rotulo: 'Acesso negado',   cor: '#b54708', fundo: '#fdf0e3' },
+};
+
+// Traduz o objeto `detalhe` (formatos diferentes por evento) numa frase curta.
+function resumirDetalheSeg(acao, d) {
+  if (!d) return '—';
+  if (typeof d !== 'object') return String(d);
+  const partes = [];
+  if (acao === 'acesso_negado') {
+    if (d.modulo) partes.push(`módulo: ${d.modulo}`);
+    if (d.recurso) partes.push(`recurso: ${d.recurso}`);
+    if (d.exige_perfil) partes.push(`exige perfil: ${d.exige_perfil} (atual: ${d.perfil_atual || '—'})`);
+    if (d.acaoTentada) partes.push(`ação: ${d.acaoTentada}`);
+    if (d.metodo || d.caminho) partes.push(`${d.metodo || ''} ${d.caminho || ''}`.trim());
+  } else if (acao === 'login_falho') {
+    if (d.motivo) partes.push(d.motivo);
+    if (d.email) partes.push(`e-mail tentado: ${d.email}`);
+  } else {
+    // login_ok / logout ou formato desconhecido: mostra os campos existentes.
+    Object.entries(d).forEach(([k, v]) => partes.push(`${k}: ${v}`));
+  }
+  return partes.length ? partes.join(' · ') : '—';
+}
+
+function filtrosAuditoriaSeg() {
+  const p = new URLSearchParams();
+  const busca = document.getElementById('filtroBuscaAuditoriaSeg').value.trim();
+  const acao = document.getElementById('filtroAcaoAuditoriaSeg').value;
+  const de = document.getElementById('filtroInicioAuditoriaSeg').value;
+  const ate = document.getElementById('filtroFimAuditoriaSeg').value;
+  if (busca) p.set('busca', busca);
+  if (acao) p.set('acao', acao);
+  if (de) p.set('de', de);
+  if (ate) p.set('ate', ate);
+  return p;
+}
+
+let _auditoriaSegConfigurada = false;
+function configurarAuditoriaSeguranca() {
+  if (_auditoriaSegConfigurada) return; // liga os eventos uma única vez
+  _auditoriaSegConfigurada = true;
+  document.getElementById('botaoAtualizarAuditoriaSeg').addEventListener('click', () => carregarAuditoriaSeguranca());
+  document.getElementById('botaoAplicarAuditoriaSeg').addEventListener('click', () => carregarAuditoriaSeguranca());
+  document.getElementById('botaoLimparAuditoriaSeg').addEventListener('click', () => {
+    document.getElementById('filtroBuscaAuditoriaSeg').value = '';
+    document.getElementById('filtroAcaoAuditoriaSeg').value = '';
+    document.getElementById('filtroInicioAuditoriaSeg').value = '';
+    document.getElementById('filtroFimAuditoriaSeg').value = '';
+    carregarAuditoriaSeguranca();
+  });
+  document.getElementById('botaoExportarAuditoriaSeg').addEventListener('click', () => {
+    window.open(`/api/auditoria-seguranca/csv?${filtrosAuditoriaSeg().toString()}`, '_blank');
+  });
+  // Enter no campo de busca aplica o filtro.
+  document.getElementById('filtroBuscaAuditoriaSeg').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') carregarAuditoriaSeguranca();
+  });
+}
+
+function montarResumoAuditoriaSeg(resumo) {
+  const cartao = (rotulo, valor, cor) =>
+    `<div class="cartao-resumo-seg" style="border-left:4px solid ${cor}">
+       <span class="valor" style="color:${cor}">${valor}</span>
+       <span class="rotulo">${rotulo}</span>
+     </div>`;
+  document.getElementById('resumoAuditoriaSeg').innerHTML = [
+    cartao('Total de eventos', resumo.total || 0, '#475467'),
+    cartao('Logins OK', resumo.login_ok || 0, ESTILO_EVENTO_SEG.login_ok.cor),
+    cartao('Logins falhos', resumo.login_falho || 0, ESTILO_EVENTO_SEG.login_falho.cor),
+    cartao('Acessos negados', resumo.acesso_negado || 0, ESTILO_EVENTO_SEG.acesso_negado.cor),
+    cartao('Logouts', resumo.logout || 0, ESTILO_EVENTO_SEG.logout.cor),
+  ].join('');
+}
+
+async function carregarAuditoriaSeguranca() {
+  try {
+    const d = await api(`/auditoria-seguranca?${filtrosAuditoriaSeg().toString()}`);
+    montarResumoAuditoriaSeg(d.resumo || {});
+    document.getElementById('atualizadoEmAuditoriaSeg').textContent =
+      'Atualizado em: ' + new Date().toLocaleString('pt-BR');
+
+    const linhas = d.linhas || [];
+    const corpo = document.getElementById('corpoTabelaAuditoriaSeg');
+    const vazio = document.getElementById('estadoVazioAuditoriaSeg');
+    vazio.hidden = linhas.length > 0;
+
+    corpo.innerHTML = linhas.map((l) => {
+      const est = ESTILO_EVENTO_SEG[l.acao] || { rotulo: l.acao, cor: '#475467', fundo: '#eef1f4' };
+      const badge = `<span style="display:inline-block;padding:2px 8px;border-radius:12px;
+        font-size:12px;font-weight:600;color:${est.cor};background:${est.fundo}">${escaparHtml(est.rotulo)}</span>`;
+      return `<tr>
+        <td style="white-space:nowrap">${escaparHtml(l.criado_em)}</td>
+        <td>${badge}</td>
+        <td>${escaparHtml(l.usuario_email || '—')}</td>
+        <td style="white-space:nowrap">${escaparHtml(l.ip || '—')}</td>
+        <td>${escaparHtml(resumirDetalheSeg(l.acao, l.detalhe))}</td>
+      </tr>`;
+    }).join('');
+
+    // Aviso quando a listagem bate no teto (há mais eventos do que o exibido).
+    const aviso = document.getElementById('avisoLimiteAuditoriaSeg');
+    if (d.limitado) {
+      aviso.hidden = false;
+      aviso.textContent = '⚠️ Mostrando os eventos mais recentes (limite atingido). Refine o período ou a busca para ver os demais.';
+    } else {
+      aviso.hidden = true;
+    }
+  } catch (e) {
+    mostrarErroPagina('paginaAuditoriaSeguranca', 'Erro ao carregar a auditoria de segurança: ' + e.message);
+  }
 }
 
 async function carregarStatusServicos({ silencioso = false } = {}) {

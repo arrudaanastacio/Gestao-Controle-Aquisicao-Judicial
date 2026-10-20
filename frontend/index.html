@@ -114,6 +114,7 @@
           <a href="#" data-pagina="usuarios" id="linkUsuarios" hidden>Usuários</a>
           <a href="#" data-pagina="importadores" id="linkImportadores" hidden>Importação</a>
           <a href="#" data-pagina="statusServicos" id="linkStatusServicos" hidden>Status dos Serviços <span class="badge-alerta" id="badgeServicos" hidden>0</span></a>
+          <a href="#" data-pagina="auditoriaSeguranca" id="linkAuditoriaSeguranca" hidden>Auditoria de Segurança</a>
         </div>
       </nav>
       <div class="rodape-lateral">
@@ -2217,6 +2218,7 @@
           <div>
             <h2>Associar Entrada à Compra</h2>
             <p>O robô cruza cada entrada com as compras em aberto (SCODES + Empenho + Quantidade) e dá a baixa de entrega. Você aprova ou associa manualmente.</p>
+            <p class="texto-apoio" id="concAtualizacao" style="font-size:12.5px; margin-top:2px;"></p>
           </div>
           <div style="display:flex; align-items:center; gap:10px;">
             <button id="botaoGerarConciliacao" class="botao-secundario" type="button" hidden>🤖 Rodar robô agora</button>
@@ -2247,6 +2249,13 @@
             </select>
             <select id="concFiltroMes"><option value="">Mês da compra: todos</option></select>
             <span id="concPendTotal" style="font-size:13px; color:var(--cinza-texto);"></span>
+          </div>
+          <div class="barra-filtros" style="margin-top:-4px; align-items:center;">
+            <span style="font-size:12.5px; color:var(--cinza-texto);">Tipo:</span>
+            <div id="concTipoChips" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+            <div style="flex:1 1 auto;"></div>
+            <button type="button" id="concRejeitarTodos" class="botao-secundario" style="padding:5px 12px; font-size:12.5px;" disabled>Rejeitar todos</button>
+            <button type="button" id="concIgnorarTodos" class="botao-secundario" style="padding:5px 12px; font-size:12.5px;" disabled>Ignorar todos</button>
           </div>
           <div class="tabela-wrap"><div class="tabela-rolavel-x">
             <table style="width:100%;">
@@ -3191,6 +3200,56 @@
             </div>
             <div class="estado-vazio" id="estadoVazioLogsServicos" hidden>Nenhum registro encontrado com estes filtros.</div>
           </div>
+        </div>
+      </section>
+
+      <!-- ============ Auditoria de Segurança (somente admin) ============ -->
+      <section id="paginaAuditoriaSeguranca" hidden>
+        <div class="cabecalho-pagina">
+          <div>
+            <h2>Auditoria de Segurança</h2>
+            <p>Logins, logouts e tentativas de acesso negado registrados pelo sistema. Use para investigar acessos suspeitos.</p>
+          </div>
+          <div class="acoes-cabecalho">
+            <span class="atualizado-em" id="atualizadoEmAuditoriaSeg">—</span>
+            <button id="botaoAtualizarAuditoriaSeg" class="botao-secundario" type="button" title="Recarrega agora">🔄 Atualizar</button>
+            <button id="botaoExportarAuditoriaSeg" class="botao-secundario" type="button">⬇ Exportar CSV</button>
+          </div>
+        </div>
+
+        <!-- Cartões-resumo do período filtrado -->
+        <div class="cartoes-resumo-seg" id="resumoAuditoriaSeg"></div>
+
+        <div class="barra-filtros">
+          <input type="text" id="filtroBuscaAuditoriaSeg" placeholder="Buscar por e-mail, IP ou caminho…" style="min-width:260px;">
+          <select id="filtroAcaoAuditoriaSeg">
+            <option value="">Evento: todos</option>
+            <option value="login_ok">Login bem-sucedido</option>
+            <option value="login_falho">Login falhou</option>
+            <option value="logout">Logout</option>
+            <option value="acesso_negado">Acesso negado (403)</option>
+          </select>
+          <label class="rotulo-filtro">De <input type="date" id="filtroInicioAuditoriaSeg"></label>
+          <label class="rotulo-filtro">até <input type="date" id="filtroFimAuditoriaSeg"></label>
+          <button id="botaoAplicarAuditoriaSeg" class="botao-secundario" type="button">Aplicar</button>
+          <button id="botaoLimparAuditoriaSeg" class="botao-secundario" type="button">Limpar filtros</button>
+        </div>
+
+        <div class="faixa-alertas" id="avisoLimiteAuditoriaSeg" hidden></div>
+
+        <div class="tabela-wrap">
+          <div class="tabela-rolavel-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data/Hora</th><th>Evento</th><th>Usuário (e-mail)</th>
+                  <th>IP de origem</th><th>Detalhe</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaAuditoriaSeg"></tbody>
+            </table>
+          </div>
+          <div class="estado-vazio" id="estadoVazioAuditoriaSeg" hidden>Nenhum evento de segurança neste período/filtro.</div>
         </div>
       </section>
     </main>
