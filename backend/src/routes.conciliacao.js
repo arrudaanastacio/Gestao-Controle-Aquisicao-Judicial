@@ -270,6 +270,7 @@ router.get('/entrada/a-associar', (req, res) => {
       chave_origem: chave, codigo_item: e.codigo_item, item: e.item,
       data_entrada: e.data_entrada, qtde: num(e.qtde), nota_fiscal: e.nota_fiscal,
       nota_empenho: e.nota_empenho, lote: e.lote, ignorada: ign,
+      tipo_movimentacao: e.tipo_movimentacao,
     });
   }
   // Carimbo de "última atualização" da fonte: as entradas são substituídas a
