@@ -7677,7 +7677,7 @@ function mostrarToast(msg) {
   t._timer = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(20px)'; }, 2800);
 }
 
-const estadoConc = { aba: 'pend', propostas: [], aAssociar: [], auditoria: [], modalEntrada: null, escolha: null, atualizacao: null, tiposSel: new Set(), pendFiltradas: [] };
+const estadoConc = { aba: 'pend', propostas: [], aAssociar: [], auditoria: [], modalEntrada: null, escolha: null, atualizacao: null, tiposSel: new Set(), pendFiltradas: [], tiposSelAssoc: new Set(), assocFiltradas: [] };
 
 async function carregarAssociarEntrada() {
   await Promise.all([carregarConcPropostas(), carregarConcAssociar(), carregarConcAuditoria()]);
@@ -7887,11 +7887,23 @@ function renderConcAssoc() {
   const corpo = document.getElementById('concAssocBody');
   const vazio = document.getElementById('concAssocVazio');
   document.getElementById('contAssoc').textContent = estadoConc.aAssociar.length ? `(${estadoConc.aAssociar.length})` : '';
+  // Chips de Tipo (multi-seleção, união OR) a partir do tipo_movimentacao da
+  // entrada. Base = todas as entradas da aba (antes dos outros filtros).
+  renderConcAssocTipoChips(estadoConc.aAssociar);
+
   const termo = normalizarBusca(document.getElementById('concBuscaAssoc').value || '');
   const soEmp = document.getElementById('concSoComEmpenho').checked;
+  const tiposSel = estadoConc.tiposSelAssoc;
   let lista = estadoConc.aAssociar.filter((e) => !soEmp || (e.nota_empenho && e.nota_empenho !== '—' && e.nota_empenho !== ''));
+  if (tiposSel.size) lista = lista.filter((e) => tiposSel.has(tipoEntradaAssoc(e)));
   if (termo) lista = lista.filter((e) => normalizarBusca(`${e.codigo_item} ${e.item} ${e.nota_empenho || ''}`).includes(termo));
   document.getElementById('concAssocTotal').textContent = `${fmtNumero(lista.length)} de ${fmtNumero(estadoConc.aAssociar.length)}`;
+
+  // Guarda a lista filtrada (toda, não só as 200 exibidas) para "Ignorar todos".
+  estadoConc.assocFiltradas = lista;
+  const btnIgn = document.getElementById('concAssocIgnorarTodos');
+  if (btnIgn) { btnIgn.disabled = !lista.length; btnIgn.textContent = lista.length ? `Ignorar todos (${fmtNumero(lista.length)})` : 'Ignorar todos'; }
+
   const mostra = lista.slice(0, 200);
   if (!mostra.length) { corpo.innerHTML = ''; vazio.hidden = false; return; }
   vazio.hidden = true;
@@ -7911,6 +7923,42 @@ function renderConcAssoc() {
   corpo.querySelectorAll('.conc-assoc').forEach((b) => b.addEventListener('click', () => abrirModalAssoc(mostra[Number(b.dataset.idx)])));
   corpo.querySelectorAll('.conc-ign2').forEach((b) => b.addEventListener('click', () => ignorarConc(b.dataset.chave, b.dataset.codigo, true)));
   corpo.querySelectorAll('.conc-reativar').forEach((b) => b.addEventListener('click', () => ignorarConc(b.dataset.chave, b.dataset.codigo, false)));
+}
+
+// Tipo de movimentação de uma entrada da aba "A associar" (vem no nível raiz,
+// não no detalhe como nas propostas). Sem valor, cai em "—".
+function tipoEntradaAssoc(e) { return (e.tipo_movimentacao || '—'); }
+
+// Chips de Tipo da aba "A associar" (toggle, multi-seleção). Seleção em
+// estadoConc.tiposSelAssoc, preservada entre re-renderizações.
+function renderConcAssocTipoChips(todas) {
+  const cont = document.getElementById('concAssocTipoChips');
+  if (!cont) return;
+  const tipos = [...new Set(todas.map(tipoEntradaAssoc))].sort((a, b) => a.localeCompare(b, 'pt'));
+  estadoConc.tiposSelAssoc.forEach((t) => { if (!tipos.includes(t)) estadoConc.tiposSelAssoc.delete(t); });
+  cont.innerHTML = tipos.map((t) => {
+    const ativo = estadoConc.tiposSelAssoc.has(t);
+    const n = todas.filter((e) => tipoEntradaAssoc(e) === t).length;
+    return `<button type="button" class="chip-faixa conc-assoc-tipo-chip${ativo ? ' ativo' : ''}" data-tipo="${escAttr(t)}" style="padding:3px 10px; font-size:12px;">${escHtml(t)} <span style="opacity:.7;">(${fmtNumero(n)})</span></button>`;
+  }).join('');
+  cont.querySelectorAll('.conc-assoc-tipo-chip').forEach((b) => b.addEventListener('click', () => {
+    const t = b.dataset.tipo;
+    if (estadoConc.tiposSelAssoc.has(t)) estadoConc.tiposSelAssoc.delete(t); else estadoConc.tiposSelAssoc.add(t);
+    renderConcAssoc();
+  }));
+}
+
+// Ignora em lote as entradas filtradas na aba "A associar" (somem das listas).
+async function ignorarTodosAssoc() {
+  const lista = (estadoConc.assocFiltradas || []).filter((e) => !e.ignorada);
+  if (!lista.length) { mostrarToast('Nenhuma entrada a ignorar no filtro atual.'); return; }
+  if (!confirm(`Ignorar as ${fmtNumero(lista.length)} entradas filtradas? Elas somem das listas e não serão associadas a nenhuma compra.`)) return;
+  try {
+    const itens = lista.map((e) => ({ chave_origem: e.chave_origem, codigo_item: e.codigo_item }));
+    const r = await api('/conciliacao/entrada/ignorar-lote', { method: 'POST', body: JSON.stringify({ itens }) });
+    mostrarToast(`${fmtNumero(r.ignoradas || 0)} entrada(s) ignorada(s).`);
+    await Promise.all([carregarConcPropostas(), carregarConcAssociar(), carregarConcAuditoria()]);
+  } catch (e) { alert(e.message); }
 }
 
 // Botão "Ver" da aba "A associar": mostra, por SCODES, os processos conhecidos
@@ -8069,6 +8117,7 @@ document.getElementById('concFiltroMes').addEventListener('change', renderConcPe
 document.getElementById('concMostrarIgnoradas').addEventListener('change', carregarConcAssociar);
 document.getElementById('concRejeitarTodos').addEventListener('click', rejeitarTodosConc);
 document.getElementById('concIgnorarTodos').addEventListener('click', ignorarTodosConc);
+document.getElementById('concAssocIgnorarTodos').addEventListener('click', ignorarTodosAssoc);
 document.getElementById('concCancelar').addEventListener('click', () => { document.getElementById('modalAssociarEntrada').hidden = true; });
 document.getElementById('modalAssociarEntrada').addEventListener('click', (ev) => { if (ev.target.id === 'modalAssociarEntrada') ev.currentTarget.hidden = true; });
 document.getElementById('procInfoFechar').addEventListener('click', () => { document.getElementById('modalProcessoInfo').hidden = true; });
