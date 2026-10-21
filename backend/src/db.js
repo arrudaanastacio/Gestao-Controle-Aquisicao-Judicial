@@ -709,6 +709,23 @@ CREATE TABLE IF NOT EXISTS distribuicao_he_unidades (
 `);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_disthe_unidades ON distribuicao_he_unidades(unidade);`);
 
+// Faturas em trânsito "zeradas" manualmente (botão na aba Distribuição H.E.).
+// Guardamos pelo numero_fatura (identificador estável da fatura): a fatura
+// marcada aqui deixa de contar como "a chegar" no cálculo de reposição, mesmo
+// após as reimportações automáticas. Uma fatura NOVA (número diferente) não
+// fica na lista, então volta a contar normalmente ("zera até a nova distribuição").
+db.exec(`
+CREATE TABLE IF NOT EXISTS distribuicao_faturas_zeradas (
+  numero_fatura TEXT PRIMARY KEY,
+  codigo_destino TEXT,
+  codigo_item TEXT,
+  qtde REAL,
+  zerado_por TEXT,
+  zerado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_distfatzeradas_destino ON distribuicao_faturas_zeradas(codigo_destino, codigo_item);`);
+
 // Solicitações de compra de Outras Demandas (relatório próprio, separado do
 // Tenente Pena — layout de colunas diferente, mesmo conceito de mês a mês)
 db.exec(`

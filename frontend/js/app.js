@@ -3944,6 +3944,7 @@ function criarPainelReposicao(cfg) {
         + `${nUnid} unidade(s) · Estoque: ${dados.dataReferenciaEstoque ? formatarData(dados.dataReferenciaEstoque) + horaImportacao(dados.dataImportacaoEstoque) : '—'} · `
         + `Operador: ${dados.dataReferenciaOperador ? formatarData(dados.dataReferenciaOperador) + horaImportacao(dados.dataImportacaoOperador) : '—'}`;
       if (dados.ignoradas && dados.ignoradas.length) txt += ` · Ignoradas (sem Local de Entrega): ${dados.ignoradas.length}`;
+      if (dados.faturasZeradas) txt += ` · ⚠ Fatura em trânsito zerada: ${dados.faturasZeradas} fatura(s)`;
       info.textContent = txt;
       renderizar();
     } catch (e) {
@@ -4161,7 +4162,16 @@ function criarPainelReposicao(cfg) {
     }
   });
 
-  return { carregar };
+  // Param de unidades no formato esperado pelos endpoints ('__todas__' ou lista
+  // separada por vírgula); null se nada selecionado. Usado por ações externas
+  // (ex.: zerar fatura em trânsito na aba H.E.).
+  function paramUnidades() {
+    const sel = selecionadas();
+    if (!sel.length) return null;
+    return sel.length === unidadesLista.length ? '__todas__' : sel.join(',');
+  }
+
+  return { carregar, paramUnidades, selecionadas };
 }
 
 // Painel geral (Sugestão de Reposição) — padrão: CEDMAC marcada.
@@ -4232,6 +4242,31 @@ document.getElementById('botaoExportarGrade').addEventListener('click', baixarGr
 document.getElementById('botaoExportarGradeFinal').addEventListener('click', baixarGradeXlsx);
 const btnExpHE = document.getElementById('botaoExportarGradeHE');
 if (btnExpHE) btnExpHE.addEventListener('click', baixarGradeXlsx);
+
+// Zerar / restaurar a fatura em trânsito das unidades H.E. selecionadas.
+// "Zerar" marca as faturas pendentes atuais (por numero_fatura) para não
+// contarem na sugestão — até chegar uma fatura nova. "Restaurar" desfaz.
+async function acaoTransitoHE(acao) {
+  const unidades = painelReposicaoHE.paramUnidades();
+  if (!unidades) { alert('Selecione ao menos uma unidade H.E. primeiro.'); return; }
+  const qtdUnid = unidades === '__todas__' ? 'todas as unidades' : `${unidades.split(',').length} unidade(s)`;
+  const msg = acao === 'zerar'
+    ? `Zerar a fatura em trânsito (a chegar) de ${qtdUnid}? As faturas pendentes atuais deixam de contar na sugestão de reposição. Uma fatura nova volta a contar normalmente.`
+    : `Restaurar a fatura em trânsito de ${qtdUnid}? As faturas zeradas voltam a contar na sugestão.`;
+  if (!confirm(msg)) return;
+  try {
+    const r = await api(`/distribuicao/reposicao-he/${acao === 'zerar' ? 'zerar-transito' : 'restaurar-transito'}`,
+      { method: 'POST', body: JSON.stringify({ unidades }) });
+    mostrarToast(acao === 'zerar'
+      ? `${fmtNumero(r.zeradas || 0)} fatura(s) zerada(s) (qtde ${fmtNumero(r.qtde || 0)}).`
+      : `${fmtNumero(r.restauradas || 0)} fatura(s) restaurada(s).`);
+    await carregarTabelaReposicaoHE();
+  } catch (e) { alert('Erro: ' + e.message); }
+}
+const btnZerarHE = document.getElementById('botaoZerarTransitoHE');
+if (btnZerarHE) btnZerarHE.addEventListener('click', () => acaoTransitoHE('zerar'));
+const btnRestHE = document.getElementById('botaoRestaurarTransitoHE');
+if (btnRestHE) btnRestHE.addEventListener('click', () => acaoTransitoHE('restaurar'));
 
 // -------------------- Grade Final --------------------
 // Cópia editável da grade validada (o Rafael ajusta qtde/remove e depois Salva).
