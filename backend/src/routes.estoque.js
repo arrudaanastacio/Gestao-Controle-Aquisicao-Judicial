@@ -14,6 +14,25 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 
 // Status de compra considerados "em aberto" (compra ainda não concluída)
 const STATUS_EM_ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial'];
 
+// Faixas de autonomia (meses de cobertura). Cada chave -> condição SQL.
+const FAIXAS_AUTONOMIA = {
+  '0': 'e.autonomia = 0',
+  '0-1': 'e.autonomia >= 0 AND e.autonomia <= 1',
+  '1-2': 'e.autonomia > 1 AND e.autonomia <= 2',
+  '2-6': 'e.autonomia > 2 AND e.autonomia <= 6',
+  '6mais': 'e.autonomia > 6',
+};
+// Monta a condição SQL do filtro de autonomia. Aceita UMA faixa ou VÁRIAS
+// separadas por vírgula (ex.: "0,0-1,1-2"); várias faixas unem-se por OR.
+// Considera só itens com autonomia preenchida. Retorna a condição ou null.
+function condFaixaAutonomia(valor) {
+  if (!valor) return null;
+  const partes = String(valor).split(',').map((s) => s.trim()).filter((s) => FAIXAS_AUTONOMIA[s]);
+  if (!partes.length) return null;
+  const ors = partes.map((k) => '(' + FAIXAS_AUTONOMIA[k] + ')').join(' OR ');
+  return 'e.autonomia IS NOT NULL AND (' + ors + ')';
+}
+
 // Divide o estoque por escopo de unidade dispensadora:
 //   'udtp'  → UD 01 - Tenente Pena (inclui linhas antigas sem unidade preenchida)
 //   'geral' → TODAS as unidades, incluindo a UD 01 - Tenente Pena (sem restrição)
@@ -596,18 +615,9 @@ router.get('/', (req, res) => {
   if (situacao === 'zerado') condicoes.push('e.estoque <= 0');
   if (situacao === 'estoque_sem_demanda') condicoes.push('(e.estoque > 0 AND (e.demandas = 0 OR e.demandas IS NULL))');
 
-  // Filtro por faixa de autonomia (meses de cobertura).
-  // Considera apenas itens com autonomia preenchida (não nula).
-  const FAIXAS_AUTONOMIA = {
-    '0': 'e.autonomia = 0',
-    '0-1': 'e.autonomia >= 0 AND e.autonomia <= 1',
-    '1-2': 'e.autonomia > 1 AND e.autonomia <= 2',
-    '2-6': 'e.autonomia > 2 AND e.autonomia <= 6',
-    '6mais': 'e.autonomia > 6',
-  };
-  if (autonomia && FAIXAS_AUTONOMIA[autonomia]) {
-    condicoes.push('e.autonomia IS NOT NULL AND (' + FAIXAS_AUTONOMIA[autonomia] + ')');
-  }
+  // Filtro por faixa(s) de autonomia (uma ou várias, unidas por OR).
+  const condAuton = condFaixaAutonomia(autonomia);
+  if (condAuton) condicoes.push(condAuton);
 
   // Filtro por demanda: itens com ou sem demanda cadastrada no relatório.
   if (demanda === 'com') condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
@@ -688,8 +698,8 @@ router.get('/exportar', (req, res) => {
   if (situacao === 'baixo') condicoes.push('(e.estoque > 0 AND e.autonomia > 0 AND e.autonomia <= ' + limiar + ')');
   if (situacao === 'zerado') condicoes.push('e.estoque <= 0');
   if (situacao === 'estoque_sem_demanda') condicoes.push('(e.estoque > 0 AND (e.demandas = 0 OR e.demandas IS NULL))');
-  const FX = { '0': 'e.autonomia = 0', '0-1': 'e.autonomia >= 0 AND e.autonomia <= 1', '1-2': 'e.autonomia > 1 AND e.autonomia <= 2', '2-6': 'e.autonomia > 2 AND e.autonomia <= 6', '6mais': 'e.autonomia > 6' };
-  if (autonomia && FX[autonomia]) condicoes.push('e.autonomia IS NOT NULL AND (' + FX[autonomia] + ')');
+  const condAutonExp = condFaixaAutonomia(autonomia);
+  if (condAutonExp) condicoes.push(condAutonExp);
   if (demanda === 'com') condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
   if (demanda === 'sem') condicoes.push('(e.demandas IS NULL OR e.demandas = 0)');
   const filtrosColuna = { categoria, controlado, tipo_item, marca, importado, outras_demandas };
@@ -758,8 +768,8 @@ router.get('/resumo', (req, res) => {
   if (situacao === 'baixo') condicoes.push('(e.estoque > 0 AND e.autonomia > 0 AND e.autonomia <= ' + limiar + ')');
   if (situacao === 'zerado') condicoes.push('e.estoque <= 0');
   if (situacao === 'estoque_sem_demanda') condicoes.push('(e.estoque > 0 AND (e.demandas = 0 OR e.demandas IS NULL))');
-  const FX = { '0': 'e.autonomia = 0', '0-1': 'e.autonomia >= 0 AND e.autonomia <= 1', '1-2': 'e.autonomia > 1 AND e.autonomia <= 2', '2-6': 'e.autonomia > 2 AND e.autonomia <= 6', '6mais': 'e.autonomia > 6' };
-  if (autonomia && FX[autonomia]) condicoes.push('e.autonomia IS NOT NULL AND (' + FX[autonomia] + ')');
+  const condAutonGeral = condFaixaAutonomia(autonomia);
+  if (condAutonGeral) condicoes.push(condAutonGeral);
   if (demanda === 'com') condicoes.push('e.demandas IS NOT NULL AND e.demandas > 0');
   if (demanda === 'sem') condicoes.push('(e.demandas IS NULL OR e.demandas = 0)');
   const filtrosColuna = { categoria, controlado, tipo_item, marca, importado, outras_demandas };

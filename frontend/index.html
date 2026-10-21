@@ -482,14 +482,10 @@
               <option value="zerado">Estoque zerado</option>
               <option value="estoque_sem_demanda">Com estoque e demanda zero</option>
             </select>
-            <select id="filtroAutonomiaEstoque">
-              <option value="">Autonomia: todas</option>
-              <option value="0">Sem autonomia (0 mês)</option>
-              <option value="0-1">Até 1 mês</option>
-              <option value="1-2">De 1 a 2 meses</option>
-              <option value="2-6">De 2 a 6 meses</option>
-              <option value="6mais">Mais de 6 meses</option>
-            </select>
+            <span style="display:inline-flex; align-items:center; gap:6px;" title="Autonomia: clique para filtrar uma ou mais faixas (combina em OU)">
+              <span style="font-size:12.5px; color:var(--cinza-texto);">Autonomia:</span>
+              <span id="filtroAutonomiaEstoque" style="display:inline-flex; gap:6px; flex-wrap:wrap;"></span>
+            </span>
             <select id="filtroDemandaEstoque">
               <option value="">Demanda: todas</option>
               <option value="com">Com demanda</option>
@@ -569,14 +565,10 @@
               <option value="zerado">Estoque zerado</option>
               <option value="estoque_sem_demanda">Com estoque e demanda zero</option>
             </select>
-            <select id="filtroAutonomiaEstoqueGeral">
-              <option value="">Autonomia: todas</option>
-              <option value="0">Sem autonomia (0 mês)</option>
-              <option value="0-1">Até 1 mês</option>
-              <option value="1-2">De 1 a 2 meses</option>
-              <option value="2-6">De 2 a 6 meses</option>
-              <option value="6mais">Mais de 6 meses</option>
-            </select>
+            <span style="display:inline-flex; align-items:center; gap:6px;" title="Autonomia: clique para filtrar uma ou mais faixas (combina em OU)">
+              <span style="font-size:12.5px; color:var(--cinza-texto);">Autonomia:</span>
+              <span id="filtroAutonomiaEstoqueGeral" style="display:inline-flex; gap:6px; flex-wrap:wrap;"></span>
+            </span>
             <select id="filtroDemandaEstoqueGeral">
               <option value="">Demanda: todas</option>
               <option value="com">Com demanda</option>
