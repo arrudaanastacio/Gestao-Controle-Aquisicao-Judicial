@@ -1919,14 +1919,42 @@ function montarAutocompleteEstoque(inputId, escopoUnidade, aoSelecionar) {
 }
 montarAutocompleteEstoque('filtroBuscaEstoque', 'udtp', () => { estado.estoque.pagina = 1; carregarTabelaEstoque(); });
 montarAutocompleteEstoque('filtroBuscaEstoqueGeral', 'geral', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
+
+// --- Filtro de Autonomia por faixas (multi-seleção, chips) ---
+// Mesmas faixas do backend (condFaixaAutonomia). A seleção fica por tela.
+const FAIXAS_AUTONOMIA_UI = [
+  { v: '0', r: 'Sem autonomia (0 mês)' },
+  { v: '0-1', r: 'Até 1 mês' },
+  { v: '1-2', r: '1 a 2 meses' },
+  { v: '2-6', r: '2 a 6 meses' },
+  { v: '6mais', r: 'Mais de 6 meses' },
+];
+// Elemento-contêiner e estado por tela ('udtp' = TP, 'geral' = demais unidades).
+const CONTAINER_AUTONOMIA = { udtp: 'filtroAutonomiaEstoque', geral: 'filtroAutonomiaEstoqueGeral' };
+const faixasAutonomiaSel = { udtp: new Set(), geral: new Set() };
+// Valor para enviar ao backend: faixas selecionadas unidas por vírgula ('' = todas).
+function faixaAutonomiaParam(tela) { return [...faixasAutonomiaSel[tela]].join(','); }
+// Desenha os chips e liga o clique (toggle -> recarrega via onMudar).
+function renderChipsAutonomia(tela, onMudar) {
+  const cont = document.getElementById(CONTAINER_AUTONOMIA[tela]);
+  if (!cont) return;
+  const sel = faixasAutonomiaSel[tela];
+  cont.innerHTML = FAIXAS_AUTONOMIA_UI.map((f) =>
+    `<button type="button" class="chip-faixa${sel.has(f.v) ? ' ativo' : ''}" data-faixa="${escAttr(f.v)}" style="padding:3px 10px; font-size:12px;">${escHtml(f.r)}</button>`
+  ).join('');
+  cont.querySelectorAll('.chip-faixa').forEach((b) => b.addEventListener('click', () => {
+    const v = b.dataset.faixa;
+    if (sel.has(v)) sel.delete(v); else sel.add(v);
+    renderChipsAutonomia(tela, onMudar);
+    if (onMudar) onMudar();
+  }));
+}
 criarFiltroChips('filtroBuscaEstoque', () => { estado.estoque.pagina = 1; carregarTabelaEstoque(); });
 criarFiltroChips('filtroBuscaEstoqueGeral', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
 document.getElementById('filtroSituacaoEstoque').addEventListener('change', () => {
   estado.estoque.pagina = 1; carregarTabelaEstoque();
 });
-document.getElementById('filtroAutonomiaEstoque').addEventListener('change', () => {
-  estado.estoque.pagina = 1; carregarTabelaEstoque();
-});
+renderChipsAutonomia('udtp', () => { estado.estoque.pagina = 1; carregarTabelaEstoque(); });
 document.getElementById('filtroDemandaEstoque').addEventListener('change', () => {
   estado.estoque.pagina = 1; carregarTabelaEstoque();
 });
@@ -2006,7 +2034,8 @@ document.getElementById('botaoLimparFiltrosEstoque').addEventListener('click', (
   document.getElementById('filtroBuscaEstoque').value = '';
   document.getElementById('filtroBuscaEstoque')._chips?.limpar();
   document.getElementById('filtroSituacaoEstoque').value = '';
-  document.getElementById('filtroAutonomiaEstoque').value = '';
+  faixasAutonomiaSel.udtp.clear();
+  renderChipsAutonomia('udtp', () => { estado.estoque.pagina = 1; carregarTabelaEstoque(); });
   document.getElementById('filtroDemandaEstoque').value = '';
   ['filtroCategoria', 'filtroControlado', 'filtroTipoItem', 'filtroMarca', 'filtroImportado', 'filtroOutrasDemandas']
     .forEach((id) => { document.getElementById(id).value = ''; });
@@ -2570,7 +2599,7 @@ function exportarEstoqueTP() {
   if (estado.estoque.data) params.set('data', estado.estoque.data);
   anexarTermosBusca(params, 'filtroBuscaEstoque');
   const situacao = document.getElementById('filtroSituacaoEstoque').value; if (situacao) params.set('situacao', situacao);
-  const autonomia = document.getElementById('filtroAutonomiaEstoque').value; if (autonomia) params.set('autonomia', autonomia);
+  const autonomia = faixaAutonomiaParam('udtp'); if (autonomia) params.set('autonomia', autonomia);
   const demanda = document.getElementById('filtroDemandaEstoque').value; if (demanda) params.set('demanda', demanda);
   FILTROS_COLUNA_ESTOQUE.forEach(({ id, coluna }) => { const v = document.getElementById(id).value; if (v) params.set(coluna, v); });
   if (unidadesSelecionadas.length) params.set('unidade', unidadesSelecionadas.join(','));
@@ -2580,7 +2609,7 @@ document.getElementById('botaoExportarEstoque').addEventListener('click', export
 
 async function carregarTabelaEstoque() {
   const situacao = document.getElementById('filtroSituacaoEstoque').value;
-  const autonomia = document.getElementById('filtroAutonomiaEstoque').value;
+  const autonomia = faixaAutonomiaParam('udtp');
   const demanda = document.getElementById('filtroDemandaEstoque').value;
 
   const params = new URLSearchParams({ page: estado.estoque.pagina, pageSize: estado.estoque.pageSize });
@@ -2667,7 +2696,7 @@ document.getElementById('filtroBuscaEstoqueGeral').addEventListener('input', () 
   debounceBuscaGeral = setTimeout(() => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); }, 350);
 });
 document.getElementById('filtroSituacaoEstoqueGeral').addEventListener('change', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
-document.getElementById('filtroAutonomiaEstoqueGeral').addEventListener('change', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
+renderChipsAutonomia('geral', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
 document.getElementById('filtroDemandaEstoqueGeral').addEventListener('change', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
 document.getElementById('seletorDataEstoqueGeral').addEventListener('change', async (ev) => {
   estadoEstoqueGeral.data = ev.target.value; estadoEstoqueGeral.pagina = 1;
@@ -2680,7 +2709,8 @@ document.getElementById('botaoLimparFiltrosEstoqueGeral').addEventListener('clic
   document.getElementById('filtroBuscaEstoqueGeral').value = '';
   document.getElementById('filtroBuscaEstoqueGeral')._chips?.limpar();
   document.getElementById('filtroSituacaoEstoqueGeral').value = '';
-  document.getElementById('filtroAutonomiaEstoqueGeral').value = '';
+  faixasAutonomiaSel.geral.clear();
+  renderChipsAutonomia('geral', () => { estadoEstoqueGeral.pagina = 1; carregarTabelaEstoqueGeral(); });
   document.getElementById('filtroDemandaEstoqueGeral').value = '';
   COLS_FILTRO_GERAL.forEach(({ id }) => { document.getElementById(id).value = ''; });
   unidadesSelecionadasGeral = [];
@@ -2772,7 +2802,7 @@ function paramsFiltroEstoqueGeral() {
   const params = new URLSearchParams({ escopoUnidade: 'geral' });
   if (estadoEstoqueGeral.data) params.set('data', estadoEstoqueGeral.data);
   const situacao = document.getElementById('filtroSituacaoEstoqueGeral').value;
-  const autonomia = document.getElementById('filtroAutonomiaEstoqueGeral').value;
+  const autonomia = faixaAutonomiaParam('geral');
   const demanda = document.getElementById('filtroDemandaEstoqueGeral').value;
   anexarTermosBusca(params, 'filtroBuscaEstoqueGeral');
   if (situacao) params.set('situacao', situacao);
@@ -2811,7 +2841,7 @@ function exportarEstoqueGeral() {
   if (estadoEstoqueGeral.data) params.set('data', estadoEstoqueGeral.data);
   anexarTermosBusca(params, 'filtroBuscaEstoqueGeral');
   const situacao = document.getElementById('filtroSituacaoEstoqueGeral').value; if (situacao) params.set('situacao', situacao);
-  const autonomia = document.getElementById('filtroAutonomiaEstoqueGeral').value; if (autonomia) params.set('autonomia', autonomia);
+  const autonomia = faixaAutonomiaParam('geral'); if (autonomia) params.set('autonomia', autonomia);
   const demanda = document.getElementById('filtroDemandaEstoqueGeral').value; if (demanda) params.set('demanda', demanda);
   COLS_FILTRO_GERAL.forEach(({ id, coluna }) => { const v = document.getElementById(id).value; if (v) params.set(coluna, v); });
   if (unidadesSelecionadasGeral.length) params.set('unidade', unidadesSelecionadasGeral.join(','));
@@ -2821,7 +2851,7 @@ document.getElementById('botaoExportarEstoqueGeral').addEventListener('click', e
 
 async function carregarTabelaEstoqueGeral() {
   const situacao = document.getElementById('filtroSituacaoEstoqueGeral').value;
-  const autonomia = document.getElementById('filtroAutonomiaEstoqueGeral').value;
+  const autonomia = faixaAutonomiaParam('geral');
   const demanda = document.getElementById('filtroDemandaEstoqueGeral').value;
 
   const params = new URLSearchParams({ page: estadoEstoqueGeral.pagina, pageSize: estadoEstoqueGeral.pageSize });
