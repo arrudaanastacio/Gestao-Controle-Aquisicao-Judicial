@@ -926,6 +926,7 @@ router.get('/reposicao', (req, res) => {
   for (const r of db.prepare(
     `SELECT codigo_destino, codigo_item, COALESCE(SUM(qtde_faturada), 0) v
        FROM distribuicao_faturas WHERE status IN (${placeholders}) AND codigo_item IS NOT NULL
+         AND numero_fatura NOT IN (SELECT numero_fatura FROM distribuicao_faturas_zeradas)
        GROUP BY codigo_destino, codigo_item`
   ).all(...STATUS_PENDENTES)) {
     mapaTransito.set(`${r.codigo_destino}|${r.codigo_item}`, r.v);
@@ -1048,6 +1049,7 @@ router.get('/reposicao-he', (req, res) => {
   for (const r of db.prepare(
     `SELECT codigo_destino, codigo_item, COALESCE(SUM(qtde_faturada), 0) v
        FROM distribuicao_faturas WHERE status IN (${placeholders}) AND codigo_item IS NOT NULL
+         AND numero_fatura NOT IN (SELECT numero_fatura FROM distribuicao_faturas_zeradas)
        GROUP BY codigo_destino, codigo_item`
   ).all(...STATUS_PENDENTES)) {
     mapaTransito.set(`${r.codigo_destino}|${r.codigo_item}`, r.v);
@@ -1061,10 +1063,12 @@ router.get('/reposicao-he', (req, res) => {
 
   let itens = [];
   const ignoradas = [];
+  const destinosSel = [];
   for (const unidade of selecionadas) {
     const loc = buscaLocal.get(unidade);
     if (!loc) { ignoradas.push(unidade); continue; }
     const codigoDestino = loc.cod_local;
+    destinosSel.push(codigoDestino);
 
     // Estoque/consumo dos itens HE nesta unidade (fechado à lista de itens HE,
     // independente do flag outras_demandas).
@@ -1138,9 +1142,87 @@ router.get('/reposicao-he', (req, res) => {
     autonomiaAlvoMeses: alvoForcadoHE || AUTONOMIA_ALVO_MESES,
     autonomiaMinimaExibir: AUTONOMIA_MINIMA_EXIBIR,
     faixaAutonomia: req.query.faixaAutonomia || 'min2',
+    faturasZeradas: contarFaturasZeradasHE(destinosSel, codigosHE),
     total: itens.length,
     itens,
   });
+});
+
+// Resolve o escopo H.E. a partir das unidades pedidas (mesma semântica do GET
+// /reposicao-he): devolve os códigos de destino (cod_local) e os codigo_item do
+// universo H.E. Usado pelas ações de zerar/restaurar fatura em trânsito.
+function resolverEscopoHE(unidadesParam) {
+  const unidadesHE = db.prepare('SELECT unidade FROM distribuicao_he_unidades ORDER BY unidade').all().map((r) => r.unidade);
+  const codigosHE = db.prepare('SELECT codigo_item FROM distribuicao_he_itens WHERE codigo_item IS NOT NULL').all().map((r) => r.codigo_item);
+  let selecionadas;
+  if (unidadesParam === '__todas__' || !unidadesParam) {
+    selecionadas = unidadesHE.slice();
+  } else {
+    const pedidas = new Set(String(unidadesParam).split(',').map((s) => s.trim()).filter(Boolean));
+    selecionadas = unidadesHE.filter((u) => pedidas.has(u));
+  }
+  const buscaLocal = db.prepare('SELECT cod_local FROM distribuicao_locais_entrega WHERE local_entrega = ?');
+  const destinos = [];
+  for (const u of selecionadas) { const loc = buscaLocal.get(u); if (loc) destinos.push(loc.cod_local); }
+  return { destinos, codigosHE, selecionadas };
+}
+
+// Quantas faturas pendentes de um escopo H.E. estão atualmente "zeradas".
+function contarFaturasZeradasHE(destinos, codigosHE) {
+  if (!destinos.length || !codigosHE.length) return 0;
+  const phD = destinos.map(() => '?').join(',');
+  const phI = codigosHE.map(() => '?').join(',');
+  return db.prepare(
+    `SELECT COUNT(*) c FROM distribuicao_faturas_zeradas
+      WHERE codigo_destino IN (${phD}) AND codigo_item IN (${phI})`
+  ).get(...destinos, ...codigosHE).c;
+}
+
+// Zera a fatura em trânsito das unidades H.E. selecionadas: marca as faturas
+// PENDENTES atuais (por numero_fatura) para não contarem mais como "a chegar".
+// Uma fatura nova (número diferente) que chegar depois volta a contar.
+router.post('/reposicao-he/zerar-transito', (req, res) => {
+  const { destinos, codigosHE } = resolverEscopoHE((req.body && req.body.unidades) || req.query.unidades);
+  if (!destinos.length || !codigosHE.length) return res.status(400).json({ erro: 'Nenhuma unidade H.E. válida no escopo.' });
+  const phStatus = STATUS_PENDENTES.map(() => '?').join(',');
+  const phD = destinos.map(() => '?').join(',');
+  const phI = codigosHE.map(() => '?').join(',');
+  const pendentes = db.prepare(
+    `SELECT numero_fatura, codigo_destino, codigo_item, COALESCE(SUM(qtde_faturada),0) q
+       FROM distribuicao_faturas
+      WHERE status IN (${phStatus}) AND codigo_item IN (${phI}) AND codigo_destino IN (${phD})
+        AND numero_fatura IS NOT NULL
+        AND numero_fatura NOT IN (SELECT numero_fatura FROM distribuicao_faturas_zeradas)
+      GROUP BY numero_fatura, codigo_destino, codigo_item`
+  ).all(...STATUS_PENDENTES, ...codigosHE, ...destinos);
+  const email = (req.usuario && req.usuario.email) || null;
+  const ins = db.prepare(`INSERT INTO distribuicao_faturas_zeradas (numero_fatura, codigo_destino, codigo_item, qtde, zerado_por)
+    VALUES (?, ?, ?, ?, ?) ON CONFLICT(numero_fatura) DO NOTHING`);
+  let zeradas = 0, qtde = 0;
+  db.exec('BEGIN');
+  try {
+    for (const p of pendentes) { const r = ins.run(p.numero_fatura, p.codigo_destino, p.codigo_item, p.q, email); if (r.changes) { zeradas++; qtde += p.q; } }
+    db.prepare('INSERT INTO auditoria (usuario_email, acao, tabela, registro_id) VALUES (?,?,?,?)')
+      .run(email, 'zerar_fatura_transito_he', 'distribuicao_faturas_zeradas', String(zeradas));
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); return res.status(500).json({ erro: 'Falha ao zerar: ' + e.message }); }
+  res.json({ ok: true, zeradas, qtde });
+});
+
+// Restaura (desfaz) as faturas zeradas das unidades H.E. selecionadas: elas
+// voltam a contar como "a chegar".
+router.post('/reposicao-he/restaurar-transito', (req, res) => {
+  const { destinos, codigosHE } = resolverEscopoHE((req.body && req.body.unidades) || req.query.unidades);
+  if (!destinos.length || !codigosHE.length) return res.status(400).json({ erro: 'Nenhuma unidade H.E. válida no escopo.' });
+  const phD = destinos.map(() => '?').join(',');
+  const phI = codigosHE.map(() => '?').join(',');
+  const email = (req.usuario && req.usuario.email) || null;
+  const info = db.prepare(
+    `DELETE FROM distribuicao_faturas_zeradas WHERE codigo_destino IN (${phD}) AND codigo_item IN (${phI})`
+  ).run(...destinos, ...codigosHE);
+  db.prepare('INSERT INTO auditoria (usuario_email, acao, tabela, registro_id) VALUES (?,?,?,?)')
+    .run(email, 'restaurar_fatura_transito_he', 'distribuicao_faturas_zeradas', String(info.changes));
+  res.json({ ok: true, restauradas: info.changes });
 });
 
 // ---------- Consulta: Itens Elegíveis ----------
