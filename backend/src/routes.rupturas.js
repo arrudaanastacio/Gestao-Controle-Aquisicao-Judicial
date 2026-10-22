@@ -13,6 +13,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('./db');
+const { enviarXlsxAoa, pediuXlsx } = require('./exportarPlanilha');
 const { importarRupturasPeriodo, importarUltimos30Dias, janelaPadrao, DIAS_JANELA_PADRAO } = require('./rupturasUdtp');
 const { credenciaisConfiguradas } = require('./udtpApi');
 const { exigirPerfil } = require('./auth');
@@ -448,15 +449,21 @@ router.get('/csv', (req, res) => {
      ORDER BY r.data DESC, r.descricao COLLATE NOCASE
   `).all(dAut, dRel, ...params);
 
+  const cabArr = ['Data', 'Codigo do Item', 'Medicamento', 'Unidade', 'Qtde em falta', 'Protocolo', 'Paciente', 'Categoria', 'Tipo de item', 'Importado', 'Outras demandas'];
+  const valores = (l) => [
+    l.data, l.codigo_item, l.descricao, l.unidade_medida, l.quantidade,
+    l.protocolo, l.autor, l.categoria, l.tipo_item, l.importado, l.outras_demandas,
+  ];
+  if (pediuXlsx(req)) {
+    const aoa = [cabArr, ...linhas.map((l) => valores(l).map((v) => v ?? ''))];
+    return enviarXlsxAoa(res, `rupturas_${inicio}_a_${fim}.xlsx`, aoa, 'Rupturas');
+  }
   const esc = (v) => {
     const t = v === null || v === undefined ? '' : String(v);
     return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
   };
-  const cab = 'Data;Codigo do Item;Medicamento;Unidade;Qtde em falta;Protocolo;Paciente;Categoria;Tipo de item;Importado;Outras demandas';
-  const corpo = linhas.map((l) => [
-    l.data, l.codigo_item, l.descricao, l.unidade_medida, l.quantidade,
-    l.protocolo, l.autor, l.categoria, l.tipo_item, l.importado, l.outras_demandas,
-  ].map(esc).join(';')).join('\n');
+  const cab = cabArr.join(';');
+  const corpo = linhas.map((l) => valores(l).map(esc).join(';')).join('\n');
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="rupturas_${inicio}_a_${fim}.csv"`);

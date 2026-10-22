@@ -11,6 +11,7 @@
 
 const express = require('express');
 const db = require('./db');
+const { enviarXlsxAoa, pediuXlsx } = require('./exportarPlanilha');
 const reg = require('./registroServicos');
 
 const router = express.Router();
@@ -89,10 +90,15 @@ router.get('/logs/csv', (req, res) => {
       return /[";\n]/.test(t) ? `"${t}"` : t;
     };
     const cab = ['Data/Hora', 'Serviço', 'Nível', 'Resultado', 'Duração (ms)', 'Registros', 'Origem', 'Usuário', 'Arquivo', 'Mensagem'];
-    const corpo = linhas.map((l) => [
+    const valores = (l) => [
       l.iniciado_em, nomes[l.servico] || l.servico, l.nivel, l.resultado,
       l.duracao_ms, l.registros, l.origem, l.usuario_email, l.arquivo, l.mensagem,
-    ].map(esc).join(';'));
+    ];
+    if (pediuXlsx(req)) {
+      const aoa = [cab, ...linhas.map((l) => valores(l).map((v) => v ?? ''))];
+      return enviarXlsxAoa(res, 'logs-servicos.xlsx', aoa, 'Logs Servicos');
+    }
+    const corpo = linhas.map((l) => valores(l).map(esc).join(';'));
     const csv = '﻿' + [cab.join(';'), ...corpo].join('\r\n');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="logs-servicos.csv"');

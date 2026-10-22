@@ -17,6 +17,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('./db');
+const { enviarXlsxAoa, pediuXlsx } = require('./exportarPlanilha');
 
 const router = express.Router();
 
@@ -77,13 +78,18 @@ router.get('/', (req, res) => {
 // GET /api/itens-importados/csv
 router.get('/csv', (req, res) => {
   const { itens } = listar((req.query.busca || '').trim(), (req.query.categoria || '').trim());
+  const cabArr = ['Codigo SCODES', 'CATMAT', 'Siafisico', 'Descricao do Item', 'Categoria', 'Codigo GSNET'];
+  const valores = (i) => [i.codigo, i.catmat, i.siafisico, i.descricao, i.categoria, i.codigoGsnet];
+  if (pediuXlsx(req)) {
+    const aoa = [cabArr, ...itens.map((i) => valores(i).map((v) => v ?? ''))];
+    return enviarXlsxAoa(res, 'itens_importados.xlsx', aoa, 'Itens Importados');
+  }
   const esc = (v) => {
     const t = v === null || v === undefined ? '' : String(v);
     return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
   };
-  const cab = 'Codigo SCODES;CATMAT;Siafisico;Descricao do Item;Categoria;Codigo GSNET';
-  const corpo = itens.map((i) => [i.codigo, i.catmat, i.siafisico, i.descricao, i.categoria, i.codigoGsnet]
-    .map(esc).join(';')).join('\n');
+  const cab = cabArr.join(';');
+  const corpo = itens.map((i) => valores(i).map(esc).join(';')).join('\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="itens_importados.csv"');
   res.send('﻿' + cab + '\n' + corpo);

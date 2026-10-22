@@ -2,6 +2,7 @@ const express = require('express');
 const XLSX = require('xlsx');
 const multer = require('multer');
 const db = require('./db');
+const { enviarXlsxAoa, pediuXlsx } = require('./exportarPlanilha');
 const { autenticar, exigirPerfil, exigirOracle } = require('./auth');
 const { criarCalculadoraAta } = require('./ataSituacao');
 const { CAIXAS, REGRA_VERSAO, criarCalculadoraCaixa, caixaPredominante } = require('./caixaAtendimento');
@@ -303,12 +304,16 @@ router.get('/exportar', (req, res) => {
     ['descricao_item', 'Descrição do Item'], ['qtde_consumo', 'Qtde de Consumo'],
     ['prazo', 'Prazo'], ['periodicidade', 'Periodicidade'], ['categoria', 'Categoria'],
   ];
+  const escopo = req.query.escopoUnidade === 'geral' ? 'demais_unidades' : 'tenente_pena';
+  if (pediuXlsx(req)) {
+    const aoa = [cols.map((c) => c[1]), ...linhas.map((l) => cols.map((c) => l[c[0]] ?? ''))];
+    return enviarXlsxAoa(res, `autores_${escopo}.xlsx`, aoa, 'Autores');
+  }
   const esc = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
   const header = cols.map((c) => esc(c[1])).join(';');
   const corpo = linhas.map((l) => cols.map((c) => esc(l[c[0]])).join(';')).join('\r\n');
   const csv = '﻿' + header + '\r\n' + corpo;
 
-  const escopo = req.query.escopoUnidade === 'geral' ? 'demais_unidades' : 'tenente_pena';
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="autores_${escopo}.csv"`);
   res.send(csv);

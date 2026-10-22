@@ -284,6 +284,7 @@
               <option value="">Todos os anos</option>
             </select>
             <button class="botao-secundario" id="botaoExportarRelatorio">Exportar CSV</button>
+            <button class="botao-secundario" id="botaoExportarRelatorioXlsx">📊 Exportar Excel</button>
           </div>
         </div>
 
@@ -1445,6 +1446,7 @@
             <label style="display:flex; align-items:center; gap:6px; font-size:13px; white-space:nowrap;" title="Mostra só itens em que o estoque já está todo comprometido"><input type="checkbox" id="filtroComprometidosReservas"> Só comprometidos (disponível ≤ 0)</label>
             <button id="botaoLimparFiltrosReservas" class="botao-secundario" type="button">Limpar filtros</button>
             <button id="botaoExportarReservas" class="botao-secundario" type="button">⬇ Exportar CSV</button>
+            <button id="botaoExportarReservasXlsx" class="botao-secundario" type="button">📊 Exportar Excel</button>
           </div>
 
           <div class="tabela-wrap">
@@ -1509,6 +1511,7 @@
             </select>
             <button id="botaoLimparFiltrosRupturas" class="botao-secundario" type="button">Limpar filtros</button>
             <button id="botaoExportarRupturas" class="botao-secundario" type="button">⬇ Exportar CSV</button>
+            <button id="botaoExportarRupturasXlsx" class="botao-secundario" type="button">📊 Exportar Excel</button>
           </div>
 
           <div class="abas-tela" id="abasRupturas">
@@ -1639,7 +1642,8 @@
               <button type="button" class="chip-faixa" data-janela="mais90">Mais de 90 dias</button>
             </div>
             <button id="botaoLimparFiltrosValidades" class="botao-secundario" type="button">Limpar filtros</button>
-            <button id="botaoExportarValidades" class="botao-primario" type="button">Exportar CSV</button>
+            <button id="botaoExportarValidades" class="botao-secundario" type="button">Exportar CSV</button>
+            <button id="botaoExportarValidadesXlsx" class="botao-primario" type="button">📊 Exportar Excel</button>
           </div>
 
           <div class="tabela-wrap">
@@ -2114,6 +2118,7 @@
           <button id="botaoLimparFiltrosItensImportados" class="botao-secundario" type="button">Limpar</button>
           <span id="totalItensImportados" style="font-size:13px; color:var(--cinza-texto);"></span>
           <button id="botaoExportarItensImportados" class="botao-secundario" type="button" style="margin-left:auto;">⬇ Exportar CSV</button>
+          <button id="botaoExportarItensImportadosXlsx" class="botao-secundario" type="button">📊 Exportar Excel</button>
         </div>
 
         <div class="tabela-wrap">
@@ -2169,6 +2174,7 @@
           <span id="totalConsumoEntrega" style="font-size:13px; color:var(--cinza-texto);"></span>
           <span id="carimboConsumoEntrega" style="font-size:12px; color:var(--cinza-texto);"></span>
           <button id="botaoExportarConsumoEntrega" class="botao-secundario" type="button" style="margin-left:auto;">⬇ Exportar CSV</button>
+          <button id="botaoExportarConsumoEntregaXlsx" class="botao-secundario" type="button">📊 Exportar Excel</button>
         </div>
 
         <div class="tabela-wrap">
@@ -2582,6 +2588,7 @@
             <button id="ctBotaoImportarEmpenhos" class="botao-secundario" type="button" hidden title="Sobe o Relatório Estratégico de Empenhos (GsnetCompras) que serve de fonte de busca para o cadastro das cartas.">📥 Importar empenhos</button>
             <input type="file" id="ctArquivoEmpenhos" accept=".xlsx,.xls" hidden>
             <button id="ctBotaoExportar" class="botao-secundario" type="button">⬇️ Exportar CSV</button>
+            <button id="ctBotaoExportarXlsx" class="botao-secundario" type="button">📊 Exportar Excel</button>
             <button id="ctBotaoNova" class="botao-primario" type="button" hidden>+ Registro de Carta de Troca</button>
           </div>
         </div>
@@ -3188,6 +3195,7 @@
             <label class="rotulo-filtro">até <input type="date" id="filtroFimLogs"></label>
             <button id="botaoAplicarLogs" class="botao-secundario" type="button">Aplicar</button>
             <button id="botaoExportarLogs" class="botao-secundario" type="button">⬇ Exportar CSV</button>
+            <button id="botaoExportarLogsXlsx" class="botao-secundario" type="button">📊 Exportar Excel</button>
           </div>
           <div class="tabela-wrap">
             <div class="tabela-rolavel-x">
@@ -3214,6 +3222,7 @@
             <span class="atualizado-em" id="atualizadoEmAuditoriaSeg">—</span>
             <button id="botaoAtualizarAuditoriaSeg" class="botao-secundario" type="button" title="Recarrega agora">🔄 Atualizar</button>
             <button id="botaoExportarAuditoriaSeg" class="botao-secundario" type="button">⬇ Exportar CSV</button>
+            <button id="botaoExportarAuditoriaSegXlsx" class="botao-secundario" type="button">📊 Exportar Excel</button>
           </div>
         </div>
 
@@ -4049,6 +4058,8 @@
       }).catch(function () {});
     })();
   </script>
-  <script src="/js/app.js?v=82"></script>
+  <!-- SheetJS (xlsx) servido localmente — gera .xlsx no navegador sem depender de CDN/internet -->
+  <script src="/vendor/xlsx.full.min.js"></script>
+  <script src="/js/app.js?v=83"></script>
 </body>
 </html>
