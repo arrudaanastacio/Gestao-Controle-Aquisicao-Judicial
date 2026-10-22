@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('./db');
+const { enviarXlsxAoa, pediuXlsx } = require('./exportarPlanilha');
 const { autenticar } = require('./auth');
 const EmpProc = require('./empenhoPorProcesso');
 
@@ -112,7 +113,7 @@ router.get('/consolidado', (req, res) => {
   `).all(...params)
     .sort((a, b) => a.ano - b.ano || ORDEM_MES[a.mes] - ORDEM_MES[b.mes]);
 
-  if (formato === 'csv') {
+  if (formato === 'csv' || formato === 'xlsx') {
     const cabecalho = [
       'codigo_item', 'codigo_siafisico', 'descricao', 'ano', 'mes', 'tipo',
       'modalidade_compra', 'n_oficio', 'qtde_solicitada', 'data_solicitacao',
@@ -120,6 +121,10 @@ router.get('/consolidado', (req, res) => {
       'data_entrega', 'qtde_entregue', 'qtde_pendente', 'status', 'status_item_processo',
       'protocolo_processo', 'observacao', 'justificativa',
     ];
+    if (formato === 'xlsx') {
+      const aoa = [cabecalho, ...linhas.map((l) => cabecalho.map((c) => l[c] ?? ''))];
+      return enviarXlsxAoa(res, 'relatorio_consolidado.xlsx', aoa, 'Consolidado');
+    }
     const escapar = (v) => {
       if (v === null || v === undefined) return '';
       const s = String(v).replace(/"/g, '""');

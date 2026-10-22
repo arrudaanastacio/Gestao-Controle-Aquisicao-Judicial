@@ -43,6 +43,23 @@ function horaImportacao(dh) {
   return dh ? ` · importado às ${String(dh).slice(11, 16)}` : '';
 }
 
+// Baixa um relatório do backend num formato ('csv' | 'xlsx'), anexando
+// ?formato= à URL (os endpoints reaproveitam os mesmos dados, só mudam a saída).
+function baixarRelatorioFormato(url, formato) {
+  window.location.href = url + (url.includes('?') ? '&' : '?') + 'formato=' + formato;
+}
+// Gera e baixa um .xlsx NO NAVEGADOR a partir de um AOA (array de arrays),
+// usando a SheetJS servida localmente (global XLSX). Para os relatórios cujo
+// arquivo é montado no cliente (ex.: IBL, Comparativo, Validades).
+function baixarXlsxCliente(nomeArquivo, aoa, aba = 'Dados') {
+  if (typeof XLSX === 'undefined') { alert('Biblioteca de Excel não carregou. Dê Ctrl+F5 e tente de novo.'); return; }
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  const abaLimpa = String(aba).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31) || 'Dados';
+  XLSX.utils.book_append_sheet(wb, ws, abaLimpa);
+  XLSX.writeFile(wb, nomeArquivo);
+}
+
 // Normaliza texto para BUSCA (não muda o que é exibido/gravado): tira espaços
 // das pontas, passa para minúsculas e remove acentos. Assim "Lítio" acha
 // "litio" e vice-versa. Usada nos filtros de tela (lado do cliente).
@@ -1408,6 +1425,11 @@ document.getElementById('botaoExportarRelatorio').addEventListener('click', () =
   params.set('formato', 'csv');
   window.open(`/api/relatorios/consolidado?${params.toString()}`, '_blank');
 });
+document.getElementById('botaoExportarRelatorioXlsx').addEventListener('click', () => {
+  const params = paramsRelatorio();
+  params.set('formato', 'xlsx');
+  window.open(`/api/relatorios/consolidado?${params.toString()}`, '_blank');
+});
 
 filtroAnoRelatorio.addEventListener('change', carregarRelatorio);
 filtroStatusRelatorio.addEventListener('change', carregarRelatorio);
@@ -2603,7 +2625,7 @@ function exportarEstoqueTP() {
   const demanda = document.getElementById('filtroDemandaEstoque').value; if (demanda) params.set('demanda', demanda);
   FILTROS_COLUNA_ESTOQUE.forEach(({ id, coluna }) => { const v = document.getElementById(id).value; if (v) params.set(coluna, v); });
   if (unidadesSelecionadas.length) params.set('unidade', unidadesSelecionadas.join(','));
-  window.location.href = '/api/estoque/exportar?' + params.toString();
+  baixarRelatorioFormato('/api/estoque/exportar?' + params.toString(), 'xlsx');
 }
 document.getElementById('botaoExportarEstoque').addEventListener('click', exportarEstoqueTP);
 
@@ -2845,7 +2867,7 @@ function exportarEstoqueGeral() {
   const demanda = document.getElementById('filtroDemandaEstoqueGeral').value; if (demanda) params.set('demanda', demanda);
   COLS_FILTRO_GERAL.forEach(({ id, coluna }) => { const v = document.getElementById(id).value; if (v) params.set(coluna, v); });
   if (unidadesSelecionadasGeral.length) params.set('unidade', unidadesSelecionadasGeral.join(','));
-  window.location.href = '/api/estoque/exportar?' + params.toString();
+  baixarRelatorioFormato('/api/estoque/exportar?' + params.toString(), 'xlsx');
 }
 document.getElementById('botaoExportarEstoqueGeral').addEventListener('click', exportarEstoqueGeral);
 
@@ -3272,20 +3294,15 @@ document.getElementById('iblFiltroSituacao').addEventListener('change', renderIb
 document.getElementById('iblBusca').addEventListener('input', renderIblAtual);
 document.getElementById('iblExportar').addEventListener('click', exportarIblCsv);
 
-// Export simples em CSV do que está filtrado na tela (sem ida ao servidor).
+// Export em Excel (.xlsx) do que está filtrado na tela (montado no navegador).
 function exportarIblCsv() {
   const d = estadoIbl.dados;
   if (!d) return;
   const itens = iblItensFiltrados();
   const cab = ['Local', 'Cod SCODES', 'Cod SKU', 'Siafisico', 'Descricao', 'Lote', 'Validade', 'Disponivel', 'Bloqueado', 'Reservada', 'Total', 'Multiplo', 'Valor unit.'];
-  const esc = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
-  const linhas = itens.map((i) => [i.projeto_codigo, i.codigo_item, i.codigo_sku, i.siafisico, i.descricao, i.lote, i.validade,
-    i.qtde_disponivel, i.qtde_bloqueado, i.qtde_reservada, i.qtde_total, i.multiplo_distribuicao, i.valor_unitario].map(esc).join(';'));
-  const csv = '﻿' + [cab.map(esc).join(';'), ...linhas].join('\r\n');
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-  const a = document.createElement('a');
-  a.href = url; a.download = `Estoque_IBL_API_${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  const aoa = [cab, ...itens.map((i) => [i.projeto_codigo, i.codigo_item, i.codigo_sku, i.siafisico, i.descricao, i.lote, i.validade,
+    i.qtde_disponivel, i.qtde_bloqueado, i.qtde_reservada, i.qtde_total, i.multiplo_distribuicao, i.valor_unitario].map((v) => v ?? ''))];
+  baixarXlsxCliente(`Estoque_IBL_API_${new Date().toISOString().slice(0, 10)}.xlsx`, aoa, 'Estoque IBL');
 }
 
 async function carregarEstoqueOD() {
@@ -4860,11 +4877,12 @@ document.getElementById('botaoLimparFiltrosValidades').addEventListener('click',
   carregarValidades();
 });
 
-document.getElementById('botaoExportarValidades').addEventListener('click', exportarValidadesCSV);
+document.getElementById('botaoExportarValidades').addEventListener('click', () => exportarValidades('csv'));
+document.getElementById('botaoExportarValidadesXlsx').addEventListener('click', () => exportarValidades('xlsx'));
 
 // Exporta os lotes da gestão de validades (respeitando os filtros atuais) para CSV.
 // Usa ponto-e-vírgula e BOM UTF-8 para abrir certinho no Excel em português.
-async function exportarValidadesCSV() {
+async function exportarValidades(formato) {
   const params = new URLSearchParams();
   if (estado.validades.data) params.set('data', estado.validades.data);
   const q = document.getElementById('filtroBuscaValidades').value.trim();
@@ -4877,19 +4895,24 @@ async function exportarValidadesCSV() {
     return;
   }
 
+  const cabecalho = ['Medicamento', 'Código do item', 'Lote', 'Validade', 'Dias para vencer',
+    'Quantidade', 'Valor unitário', 'Valor total', 'Fornecedor', 'Categoria', 'Marca'];
+  const valores = (l) => [
+    l.descricao, l.codigo_item, l.lote, l.validade, l.dias_para_vencer,
+    l.qtde, l.valor_unit, l.valor_total, l.fabricante, l.categoria, l.marca,
+  ];
+
+  if (formato === 'xlsx') {
+    const aoa = [cabecalho, ...dados.lotes.map((l) => valores(l).map((v) => v ?? ''))];
+    baixarXlsxCliente(`validades_${dados.dataReferencia || 'estoque'}.xlsx`, aoa, 'Validades');
+    return;
+  }
+
   const csvCampo = (v) => {
     const t = (v === null || v === undefined) ? '' : String(v);
     return `"${t.replace(/"/g, '""')}"`; // protege aspas, ponto-e-vírgula e quebras
   };
-
-  const cabecalho = ['Medicamento', 'Código do item', 'Lote', 'Validade', 'Dias para vencer',
-    'Quantidade', 'Valor unitário', 'Valor total', 'Fornecedor', 'Categoria', 'Marca'];
-
-  const linhas = dados.lotes.map((l) => [
-    l.descricao, l.codigo_item, l.lote, l.validade, l.dias_para_vencer,
-    l.qtde, l.valor_unit, l.valor_total, l.fabricante, l.categoria, l.marca,
-  ].map(csvCampo).join(';'));
-
+  const linhas = dados.lotes.map((l) => valores(l).map(csvCampo).join(';'));
   const csv = '﻿' + [cabecalho.map(csvCampo).join(';'), ...linhas].join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -5347,7 +5370,7 @@ function exportarAutores(escopoGeral) {
     const el = document.getElementById(id);
     if (el && el.value) params.set(param, el.value);
   }
-  window.location.href = '/api/autores/exportar?' + params.toString();
+  baixarRelatorioFormato('/api/autores/exportar?' + params.toString(), 'xlsx');
 }
 document.getElementById('botaoExportarAutores').addEventListener('click', () => exportarAutores(false));
 document.getElementById('botaoExportarAutoresGeral').addEventListener('click', () => exportarAutores(true));
@@ -5572,7 +5595,7 @@ document.getElementById('botaoExportarAutoresImportados').addEventListener('clic
   if (q) params.set('q', q);
   const mapa = { unidade: 'filtroUnidadeAutoresImportados', status_demanda: 'filtroStatusDemandaAutoresImportados', status_item: 'filtroStatusItemAutoresImportados', categoria: 'filtroCategoriaAutoresImportados' };
   for (const [param, id] of Object.entries(mapa)) { const el = document.getElementById(id); if (el && el.value) params.set(param, el.value); }
-  window.location.href = '/api/autores/exportar?' + params.toString();
+  baixarRelatorioFormato('/api/autores/exportar?' + params.toString(), 'xlsx');
 });
 
 async function carregarAutoresImportados() {
@@ -5900,13 +5923,19 @@ document.getElementById('botaoLimparFiltrosItensImportados').addEventListener('c
   document.getElementById('filtroCategoriaItensImportados').value = '';
   renderItensImportados();
 });
-document.getElementById('botaoExportarItensImportados').addEventListener('click', () => {
+function paramsItensImportados() {
   const p = new URLSearchParams();
   const b = document.getElementById('filtroBuscaItensImportados').value.trim();
   const c = document.getElementById('filtroCategoriaItensImportados').value;
   if (b) p.set('busca', b);
   if (c) p.set('categoria', c);
-  window.location.href = '/api/itens-importados/csv?' + p.toString();
+  return p;
+}
+document.getElementById('botaoExportarItensImportados').addEventListener('click', () => {
+  window.location.href = '/api/itens-importados/csv?' + paramsItensImportados().toString();
+});
+document.getElementById('botaoExportarItensImportadosXlsx').addEventListener('click', () => {
+  baixarRelatorioFormato('/api/itens-importados/csv?' + paramsItensImportados().toString(), 'xlsx');
 });
 
 function renderAnaliseImp() {
@@ -7638,25 +7667,35 @@ async function abrirDetalheConsumoEntrega(codigo) {
   }
 }
 
-function exportarConsumoEntregaCSV() {
+function dadosConsumoEntregaExport() {
   const d = estadoConsumoEntrega.dados;
-  if (!d || !d.itens.length) { alert('Nada para exportar.'); return; }
+  if (!d || !d.itens.length) return null;
   const cab = ['SCODES', 'Descrição', 'Demanda', 'Consumo/mês', `Consumo estim (${d.dias}d)`, 'Demandas atendidas', 'Real entregue', 'Periodicidade média', '% Consumo x Entrega'];
   const linhas = d.itens.map((it) => [
     it.codigo_item, it.descricao || '', it.demanda, it.consumo_mensal, it.consumo_estimado_periodo,
     it.demandas_atendidas, it.soma_real_entregue, it.periodicidade_media == null ? '' : it.periodicidade_media,
     it.percentual == null ? '' : it.percentual,
   ]);
-  const csv = [cab, ...linhas].map((l) => l.map((c) => {
+  return { cab, linhas, nome: `consumo-x-entrega_${estadoConsumoEntrega.aba}_${d.dias}d` };
+}
+function exportarConsumoEntregaCSV() {
+  const r = dadosConsumoEntregaExport();
+  if (!r) { alert('Nada para exportar.'); return; }
+  const csv = [r.cab, ...r.linhas].map((l) => l.map((c) => {
     const s = String(c ?? '');
     return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }).join(';')).join('\r\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `consumo-x-entrega_${estadoConsumoEntrega.aba}_${d.dias}d.csv`;
+  a.download = r.nome + '.csv';
   a.click();
   URL.revokeObjectURL(a.href);
+}
+function exportarConsumoEntregaXlsx() {
+  const r = dadosConsumoEntregaExport();
+  if (!r) { alert('Nada para exportar.'); return; }
+  baixarXlsxCliente(r.nome + '.xlsx', [r.cab, ...r.linhas.map((l) => l.map((v) => v ?? ''))], 'Consumo x Entrega');
 }
 
 // Listeners da tela Consumo x Entrega.
@@ -7677,6 +7716,7 @@ document.getElementById('botaoLimparConsumoEntrega').addEventListener('click', (
   carregarConsumoEntrega();
 });
 document.getElementById('botaoExportarConsumoEntrega').addEventListener('click', exportarConsumoEntregaCSV);
+document.getElementById('botaoExportarConsumoEntregaXlsx').addEventListener('click', exportarConsumoEntregaXlsx);
 document.getElementById('fecharDetalheConsumoEntrega').addEventListener('click', () => { document.getElementById('modalDetalheConsumoEntrega').hidden = true; });
 document.getElementById('modalDetalheConsumoEntrega').addEventListener('click', (ev) => { if (ev.target.id === 'modalDetalheConsumoEntrega') ev.currentTarget.hidden = true; });
 
@@ -8589,19 +8629,9 @@ document.getElementById('botaoExportarComparativo').addEventListener('click', ()
   const aba = abaComparativoAtiva;
   const { cols, linhas } = dadosTextoComparativo(aba);
   if (linhas.length === 0) { alert('Não há registros para exportar nesta aba.'); return; }
-
-  const campo = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const csv = '﻿' + [cols.map(campo).join(';'), ...linhas.map((l) => l.map(campo).join(';'))].join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
   const nomeAba = { novos: 'pacientes-novos', encerrados: 'pacientes-inativos', alteracoes: 'alteracoes' }[aba] || aba;
-  a.href = url;
-  a.download = `comparativo_${nomeAba}_${dadosComparativo.atual || ''}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const aoa = [cols, ...linhas.map((l) => l.map((v) => v ?? ''))];
+  baixarXlsxCliente(`comparativo_${nomeAba}_${dadosComparativo.atual || ''}.xlsx`, aoa, nomeAba);
 });
 
 // -------------------- Requisição de Compra (construtor) --------------------
@@ -10556,6 +10586,7 @@ document.getElementById('ctEmpAnterior').addEventListener('click', () => { if (e
 document.getElementById('ctEmpProximo').addEventListener('click', () => { estadoEmpenhos.pagina++; carregarTabelaEmpenhos(); });
 document.getElementById('ctBotaoNova').addEventListener('click', abrirModalNovaCarta);
 document.getElementById('ctBotaoExportar').addEventListener('click', () => { window.location.href = `/api/cartas-troca/exportar?${ctParamsFiltro().toString()}`; });
+document.getElementById('ctBotaoExportarXlsx').addEventListener('click', () => baixarRelatorioFormato('/api/cartas-troca/exportar?' + ctParamsFiltro().toString(), 'xlsx'));
 document.getElementById('ctBotaoImportarEmpenhos').addEventListener('click', () => document.getElementById('ctArquivoEmpenhos').click());
 document.getElementById('ctArquivoEmpenhos').addEventListener('change', (ev) => ctImportarEmpenhos(ev.target));
 document.getElementById('ctBuscaEmpenho').addEventListener('input', ctBuscarEmpenhos);
@@ -12674,6 +12705,10 @@ document.getElementById('botaoExportarReservas').addEventListener('click', () =>
   if (!estadoReservas.data) return;
   window.location.href = '/api/reservas/csv?data=' + encodeURIComponent(estadoReservas.data);
 });
+document.getElementById('botaoExportarReservasXlsx').addEventListener('click', () => {
+  if (!estadoReservas.data) return;
+  baixarRelatorioFormato('/api/reservas/csv?data=' + encodeURIComponent(estadoReservas.data), 'xlsx');
+});
 document.getElementById('botaoAtualizarReservas').addEventListener('click', async () => {
   const botao = document.getElementById('botaoAtualizarReservas');
   const textoOriginal = botao.textContent;
@@ -13037,6 +13072,9 @@ document.getElementById('botaoLimparFiltrosRupturas').addEventListener('click', 
 });
 document.getElementById('botaoExportarRupturas').addEventListener('click', () => {
   window.location.href = '/api/rupturas/csv?' + paramsRupturas().toString();
+});
+document.getElementById('botaoExportarRupturasXlsx').addEventListener('click', () => {
+  baixarRelatorioFormato('/api/rupturas/csv?' + paramsRupturas().toString(), 'xlsx');
 });
 document.getElementById('botaoAtualizarRupturas').addEventListener('click', async () => {
   const botao = document.getElementById('botaoAtualizarRupturas');
@@ -13574,6 +13612,9 @@ function configurarAuditoriaSeguranca() {
   document.getElementById('botaoExportarAuditoriaSeg').addEventListener('click', () => {
     window.open(`/api/auditoria-seguranca/csv?${filtrosAuditoriaSeg().toString()}`, '_blank');
   });
+  document.getElementById('botaoExportarAuditoriaSegXlsx').addEventListener('click', () => {
+    window.open(`/api/auditoria-seguranca/csv?${filtrosAuditoriaSeg().toString()}&formato=xlsx`, '_blank');
+  });
   // Enter no campo de busca aplica o filtro.
   document.getElementById('filtroBuscaAuditoriaSeg').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') carregarAuditoriaSeguranca();
@@ -14066,5 +14107,8 @@ function configurarStatusServicos() {
   });
   document.getElementById('botaoExportarLogs').addEventListener('click', () => {
     window.location.href = '/api/servicos/logs/csv?' + parametrosLogs();
+  });
+  document.getElementById('botaoExportarLogsXlsx').addEventListener('click', () => {
+    baixarRelatorioFormato('/api/servicos/logs/csv?' + parametrosLogs(), 'xlsx');
   });
 }

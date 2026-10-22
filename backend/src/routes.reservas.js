@@ -7,6 +7,7 @@
 // =====================================================================
 const express = require('express');
 const db = require('./db');
+const { enviarXlsxAoa, pediuXlsx } = require('./exportarPlanilha');
 const { importarReservasDoDia, importarReservasMaisRecente } = require('./reservasUdtp');
 const { importarEstoqueDoDia, importarEstoqueMaisRecente } = require('./estoqueUdtp');
 const { credenciaisConfiguradas } = require('./udtpApi');
@@ -191,14 +192,18 @@ router.get('/csv', (req, res) => {
      ORDER BY descricao COLLATE NOCASE, recebedor COLLATE NOCASE
   `).all(data);
 
+  const cabArr = ['Codigo do Item', 'Protocolo', 'Medicamento', 'Recebedor', 'Saldo Reservado'];
+  const valores = (l) => [l.codigo_item, l.codigo_protocolo, l.descricao, l.recebedor, l.saldo_reservado];
+  if (pediuXlsx(req)) {
+    const aoa = [cabArr, ...linhas.map((l) => valores(l).map((v) => v ?? ''))];
+    return enviarXlsxAoa(res, `reservas_${data}.xlsx`, aoa, 'Reservas');
+  }
   const esc = (v) => {
     const t = v === null || v === undefined ? '' : String(v);
     return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
   };
-  const cabecalho = 'Codigo do Item;Protocolo;Medicamento;Recebedor;Saldo Reservado';
-  const corpo = linhas.map((l) => [
-    l.codigo_item, l.codigo_protocolo, l.descricao, l.recebedor, l.saldo_reservado,
-  ].map(esc).join(';')).join('\n');
+  const cabecalho = cabArr.join(';');
+  const corpo = linhas.map((l) => valores(l).map(esc).join(';')).join('\n');
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="reservas_${data}.csv"`);

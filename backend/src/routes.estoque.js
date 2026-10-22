@@ -5,6 +5,7 @@ const db = require('./db');
 const { autenticar, exigirPerfil, exigirOracle } = require('./auth');
 const { referenciaParaColeta } = require('./diasUteis');
 const { condNotInOcultas } = require('./unidadesOcultas');
+const { enviarXlsxAoa, pediuXlsx } = require('./exportarPlanilha');
 
 const router = express.Router();
 router.use(autenticar);
@@ -726,12 +727,16 @@ router.get('/exportar', (req, res) => {
     ['demandas_jefaz', 'Demanda Jefaz'], ['consumo_mensal_jefaz', 'Consumo Jefaz'],
     ['catmat', 'CATMAT'], ['valor_medio_unitario', 'Valor Médio Mensal'],
   ];
+  const sufixo = escopoUnidade === 'geral' ? 'demais_unidades' : 'tenente_pena';
+  if (pediuXlsx(req)) {
+    const aoa = [cols.map((c) => c[1]), ...linhas.map((l) => cols.map((c) => l[c[0]] == null ? '' : l[c[0]]))];
+    return enviarXlsxAoa(res, `estoque_${sufixo}_${dataRef || 'sem_data'}.xlsx`, aoa, 'Estoque');
+  }
   const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
   const header = cols.map((c) => esc(c[1])).join(';');
   const corpo = linhas.map((l) => cols.map((c) => esc(l[c[0]])).join(';')).join('\r\n');
   const csv = '﻿' + header + '\r\n' + corpo;
 
-  const sufixo = escopoUnidade === 'geral' ? 'demais_unidades' : 'tenente_pena';
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="estoque_${sufixo}_${dataRef || 'sem_data'}.csv"`);
   res.send(csv);

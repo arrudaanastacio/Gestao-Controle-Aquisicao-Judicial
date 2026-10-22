@@ -15,6 +15,7 @@
 
 const express = require('express');
 const db = require('./db');
+const { enviarXlsxAoa, pediuXlsx } = require('./exportarPlanilha');
 
 const router = express.Router();
 
@@ -99,13 +100,20 @@ router.get('/csv', (req, res) => {
       return '"' + t.replace(/"/g, '""') + '"';
     };
     const cab = ['Data/Hora', 'Evento', 'Usuário (e-mail)', 'IP de origem', 'Detalhe'];
-    const corpo = linhas.map((l) => [
+    const valores = (l) => [
       l.criado_em,
       l.acaoRotulo,
       l.usuario_email,
       l.ip,
       l.detalhe ? (typeof l.detalhe === 'object' ? JSON.stringify(l.detalhe) : l.detalhe) : '',
-    ].map(esc).join(';'));
+    ];
+    if (pediuXlsx(req)) {
+      // No XLSX o SheetJS grava células como texto (não interpreta fórmula),
+      // então não há risco de "formula injection" — usamos os valores crus.
+      const aoa = [cab, ...linhas.map((l) => valores(l).map((v) => v ?? ''))];
+      return enviarXlsxAoa(res, 'auditoria-seguranca.xlsx', aoa, 'Auditoria Seguranca');
+    }
+    const corpo = linhas.map((l) => valores(l).map(esc).join(';'));
     const csv = '﻿' + [cab.join(';'), ...corpo].join('\r\n');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="auditoria-seguranca.csv"');

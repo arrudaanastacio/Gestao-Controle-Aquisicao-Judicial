@@ -25,6 +25,7 @@ const express = require('express');
 const XLSX = require('xlsx');
 const multer = require('multer');
 const db = require('./db');
+const { enviarXlsxAoa, pediuXlsx } = require('./exportarPlanilha');
 const { autenticar, exigirPerfil } = require('./auth');
 const emailCarta = require('./emailCartaTroca');
 
@@ -283,12 +284,17 @@ router.get('/exportar', (req, res) => {
     ['motivo_reprovacao', 'Motivo da Reprovação'], ['avaliado_por', 'Avaliado por'], ['avaliado_em', 'Avaliado em'],
     ['observacao', 'Observação'], ['criado_por', 'Registrado por'], ['criado_em', 'Registrado em'],
   ];
+  const lotesTexto = (l) => lotesDaCarta(l.id).map((x) => `${x.lote || '-'}|${x.data_validade || '-'}|${x.quantidade ?? '-'}`).join(' / ');
+  if (pediuXlsx(req)) {
+    const aoa = [
+      [...cols.map((c) => c[1]), 'Lotes (lote|validade|qtd)'],
+      ...linhas.map((l) => [...cols.map((c) => l[c[0]] ?? ''), lotesTexto(l)]),
+    ];
+    return enviarXlsxAoa(res, 'cartas_troca.xlsx', aoa, 'Cartas de Troca');
+  }
   const esc = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
   const header = [...cols.map((c) => esc(c[1])), esc('Lotes (lote|validade|qtd)')].join(';');
-  const corpo = linhas.map((l) => {
-    const lotes = lotesDaCarta(l.id).map((x) => `${x.lote || '-'}|${x.data_validade || '-'}|${x.quantidade ?? '-'}`).join(' / ');
-    return [...cols.map((c) => esc(l[c[0]])), esc(lotes)].join(';');
-  }).join('\r\n');
+  const corpo = linhas.map((l) => [...cols.map((c) => esc(l[c[0]])), esc(lotesTexto(l))].join(';')).join('\r\n');
   const csv = '﻿' + header + '\r\n' + corpo;
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="cartas_troca.csv"');
