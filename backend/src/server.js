@@ -212,7 +212,7 @@ app.get(['/', '/index.html'], servirIndex);
 
 app.use(express.static(PASTA_FRONT));
 
-app.listen(PORT, '0.0.0.0', () => {
+const servidor = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Sistema v${VERSAO} — ambiente: ${process.env.NODE_ENV || 'producao'}`);
   console.log(`Servidor rodando em http://0.0.0.0:${PORT}`);
   console.log('Acesse pela rede local usando o IP deste computador, ex: http://192.168.x.x:' + PORT);
@@ -257,4 +257,25 @@ app.listen(PORT, '0.0.0.0', () => {
   // registra no Status dos Serviços e alerta por e-mail nos casos críticos.
   const { iniciarMonitorSeguranca } = require('./monitorSeguranca');
   iniciarMonitorSeguranca();
+});
+
+// GUARDA DE INSTÂNCIA ÚNICA: se a porta já estiver em uso, é porque OUTRA cópia
+// do sistema já está no ar. Sem isto, o erro EADDRINUSE caía no handler global
+// uncaughtException (que mantém o processo vivo por design) — e a cópia ficava
+// como "zumbi": sem servidor HTTP, mas rodando TODOS os agendadores em paralelo
+// com a instância real. Isso causava 'database is locked' no SQLite e conexões
+// Oracle concorrentes derrubadas (NJS-500/ECONNRESET nas sincronizações).
+// Como os agendadores só sobem no callback de sucesso acima, uma cópia que não
+// conseguiu a porta NUNCA chega a agendar nada: aqui ela só encerra na hora.
+servidor.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    // Porta ocupada = outra cópia já está no ar. Sai com código 0 (saída LIMPA)
+    // de propósito: o laço de reinício das .bat só reinicia quando errorlevel>=1,
+    // então esta cópia duplicada encerra sem entrar em loop de reinício.
+    console.error(`[INSTÂNCIA DUPLICADA] A porta ${PORT} já está em uso — outra cópia do sistema já está rodando. Encerrando esta cópia para não duplicar os agendadores.`);
+    process.exit(0);
+  }
+  // Outro erro no servidor HTTP: registra e sai com erro (a .bat reinicia).
+  registrarErroFatal('erro-no-servidor-http', err);
+  process.exit(1);
 });
