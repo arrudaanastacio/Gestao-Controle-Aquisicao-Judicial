@@ -14014,10 +14014,43 @@ function trocarAbaServicos(aba) {
   document.querySelectorAll('#abasServicos .chip-faixa')
     .forEach((b) => b.classList.toggle('ativo', b.dataset.aba === aba));
   document.getElementById('abaServicosLista').hidden = aba !== 'servicos';
+  document.getElementById('abaServicosAgendamento').hidden = aba !== 'agendamento';
   document.getElementById('abaServicosHistorico').hidden = aba !== 'historico';
   document.getElementById('abaServicosLogs').hidden = aba !== 'logs';
+  if (aba === 'agendamento') carregarAgendamentosServicos();
   if (aba === 'historico') carregarHistoricoServicos();
   if (aba === 'logs') carregarLogsServicos();
+}
+
+// --- Aba Agendamento: quando cada serviço roda ---
+async function carregarAgendamentosServicos() {
+  const corpo = document.getElementById('corpoTabelaAgendamento');
+  const vazio = document.getElementById('estadoVazioAgendamento');
+  try {
+    const d = await api('/servicos/agendamentos');
+    const linhas = d.agendamentos || [];
+    vazio.hidden = linhas.length > 0;
+    corpo.innerHTML = linhas.map((a) => {
+      const tipo = a.tipo === 'continuo'
+        ? '<span class="tag-status" style="background:#1c6cad22; color:#1c6cad; border:1px solid #1c6cad55;">Contínuo</span>'
+        : '<span class="tag-status" style="background:#6d4c9f22; color:#6d4c9f; border:1px solid #6d4c9f55;">Agendado</span>';
+      const situacao = a.ativo
+        ? '<span class="tag-status" style="background:#1f7a5c22; color:#1f7a5c; border:1px solid #1f7a5c55;">Ativo</span>'
+        : '<span class="tag-status" style="background:var(--realce-tabela); color:var(--cinza-texto); border:1px solid var(--linha);">Desativado</span>';
+      const proxima = a.proxima ? dataHoraServico(a.proxima) : (a.tipo === 'continuo' ? '—' : (a.ativo ? '—' : 'desativado'));
+      return `<tr${a.ativo ? '' : ' style="opacity:.6;"'}>
+        <td style="font-weight:500;">${escHtml(a.nome)}</td>
+        <td>${escHtml(a.categoria || '—')}</td>
+        <td>${tipo}</td>
+        <td>${escHtml(a.quando || '—')}</td>
+        <td class="col-codigo">${proxima}</td>
+        <td>${situacao}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    corpo.innerHTML = `<tr><td colspan="6" class="texto-apoio" style="color:var(--vermelho);">Erro ao carregar: ${escHtml(e.message)}</td></tr>`;
+    vazio.hidden = true;
+  }
 }
 
 // --- Polling de 30s: só roda enquanto a tela está aberta e visível ---

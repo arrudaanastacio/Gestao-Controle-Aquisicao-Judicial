@@ -46,6 +46,59 @@ router.get('/', (req, res) => {
   }
 });
 
+// --- Agendamento (quando cada serviço roda) ---------------------------
+// Reúne, numa visão só, o horário/cadência de cada serviço do catálogo mais
+// os dois agendamentos que não têm entrada própria no catálogo (Estoque de
+// hora em hora e Listagem de Autores à tarde). Tudo derivado do .env.
+router.get('/agendamentos', (req, res) => {
+  try {
+    const { proximaHoraUtil, msAteProxima } = require('./agendadorUtil');
+    const p2 = (n) => String(n).padStart(2, '0');
+    const isoLocal = (d) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:00`;
+
+    // 1) Serviços do catálogo — reaproveita agendamento, proximaExecucao e habilitado.
+    const base = reg.listar().map((s) => ({
+      nome: s.nome,
+      categoria: s.categoria,
+      tipo: s.tipo === 'vigia' ? 'continuo' : 'agendado',
+      quando: s.agendamento,
+      proxima: s.proximaExecucao || null,
+      ativo: s.habilitado,
+    }));
+
+    // 2) Agendamentos extras (sem entrada no catálogo), lidos do .env.
+    const extras = [];
+    const ehAtivo = process.env.AGENDAR_ESTOQUE_HORARIO === 'true';
+    const ehIni = Math.min(23, Math.max(0, parseInt(process.env.ESTOQUE_HORARIO_INICIO, 10) || 10));
+    const ehFim = Math.min(23, Math.max(ehIni, parseInt(process.env.ESTOQUE_HORARIO_FIM, 10) || 17));
+    extras.push({
+      nome: 'Estoque de hora em hora (Oracle)',
+      categoria: 'Integração',
+      tipo: 'agendado',
+      quando: `De hora em hora, ${p2(ehIni)}h–${p2(ehFim)}h (dias úteis)`,
+      proxima: ehAtivo ? isoLocal(proximaHoraUtil(ehIni, ehFim)) : null,
+      ativo: ehAtivo,
+    });
+    const avAtivo = process.env.AGENDAR_AUTORES_VESPERTINO === 'true';
+    const avH = Math.min(23, Math.max(0, parseInt(process.env.AUTORES_VESPERTINO_HORA, 10) || 12));
+    const avMraw = parseInt(process.env.AUTORES_VESPERTINO_MINUTO, 10);
+    const avM = Math.min(59, Math.max(0, Number.isFinite(avMraw) ? avMraw : 15));
+    extras.push({
+      nome: 'Listagem de Autores (tarde)',
+      categoria: 'Integração',
+      tipo: 'agendado',
+      quando: `Diário às ${p2(avH)}:${p2(avM)} (dias úteis)`,
+      proxima: avAtivo ? isoLocal(new Date(Date.now() + msAteProxima(avH, avM))) : null,
+      ativo: avAtivo,
+    });
+
+    res.json({ agendamentos: [...base, ...extras] });
+  } catch (e) {
+    console.error('[SERVIÇOS] Falha ao montar agendamentos:', e.message);
+    res.status(500).json({ erro: 'Não consegui montar os agendamentos.' });
+  }
+});
+
 // --- Logs (todas as execuções de todos os serviços) -------------------
 // Filtros: nivel, servico, busca (texto na mensagem), de/ate (datas).
 function consultarLogs(q) {
