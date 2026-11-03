@@ -291,13 +291,19 @@ function importarEstoqueDeLinhas(linhas, opcoes = {}) {
   let resumo;
   db.exec('BEGIN');
   try {
-    // Se já houver importação nesta data (e ainda não for um snapshot
-    // histórico arquivado), substitui (refaz a foto do dia). Snapshots
-    // arquivados (dias 01/15) nunca são apagados aqui.
-    const existente = db.prepare('SELECT id FROM estoque_importacoes WHERE data_referencia = ? AND arquivado = 0').get(dataReferencia);
-    if (existente) {
-      db.prepare('DELETE FROM estoque_itens WHERE importacao_id = ?').run(existente.id);
-      db.prepare('DELETE FROM estoque_importacoes WHERE id = ?').run(existente.id);
+    // Se já houver QUALQUER importação nesta data — a foto viva (arquivado=0)
+    // OU um snapshot histórico (01/15) coletado NESTE MESMO dia —, substitui
+    // por completo. Guardar duas importações com a MESMA data_referencia fazia
+    // a listagem (que filtra só por data) mostrar cada item DUAS vezes. Isso
+    // acontecia no 1º dia útil de 01/15: a foto da manhã era arquivada e, à
+    // tarde, a atualização de hora em hora criava uma segunda foto ao lado.
+    // O bloco de arquivamento abaixo re-arquiva a foto nova com a mesma
+    // referência (pois a antiga some de jaArquivadas), preservando o histórico
+    // — que passa a congelar no ÚLTIMO valor do dia, em vez do primeiro.
+    const existentes = db.prepare('SELECT id FROM estoque_importacoes WHERE data_referencia = ?').all(dataReferencia);
+    for (const ex of existentes) {
+      db.prepare('DELETE FROM estoque_itens WHERE importacao_id = ?').run(ex.id);
+      db.prepare('DELETE FROM estoque_importacoes WHERE id = ?').run(ex.id);
     }
 
     const infoImp = db.prepare(
@@ -352,7 +358,7 @@ function importarEstoqueDeLinhas(linhas, opcoes = {}) {
     resumo = {
       dataReferencia,
       totalItens: linhas.length,
-      substituiu: !!existente,
+      substituiu: existentes.length > 0,
       arquivadoComoHistorico: referencia || null,
       snapshotsDescartados: descartar.length,
       ...alertasGerados,
