@@ -291,16 +291,22 @@ function importarEstoqueDeLinhas(linhas, opcoes = {}) {
   let resumo;
   db.exec('BEGIN');
   try {
-    // Se já houver QUALQUER importação nesta data — a foto viva (arquivado=0)
-    // OU um snapshot histórico (01/15) coletado NESTE MESMO dia —, substitui
-    // por completo. Guardar duas importações com a MESMA data_referencia fazia
-    // a listagem (que filtra só por data) mostrar cada item DUAS vezes. Isso
-    // acontecia no 1º dia útil de 01/15: a foto da manhã era arquivada e, à
-    // tarde, a atualização de hora em hora criava uma segunda foto ao lado.
-    // O bloco de arquivamento abaixo re-arquiva a foto nova com a mesma
-    // referência (pois a antiga some de jaArquivadas), preservando o histórico
-    // — que passa a congelar no ÚLTIMO valor do dia, em vez do primeiro.
-    const existentes = db.prepare('SELECT id FROM estoque_importacoes WHERE data_referencia = ?').all(dataReferencia);
+    // Substitui a importação anterior desta data. Regra do descarte:
+    //  • Data = HOJE: apaga QUALQUER foto do dia, inclusive um snapshot
+    //    histórico (01/15) recém-arquivado nesta mesma data. É o caso da
+    //    atualização de hora em hora: de manhã a foto é arquivada e, à tarde,
+    //    o refresh criava uma 2ª foto ao lado → a listagem (que filtra só por
+    //    data) mostrava cada item DUAS vezes. O bloco de arquivamento abaixo
+    //    re-arquiva a foto nova com a mesma referência (a antiga sai de
+    //    jaArquivadas), preservando o histórico — congela no último valor do dia.
+    //  • Data PASSADA (reimportação manual de planilha antiga): NUNCA apaga um
+    //    snapshot histórico arquivado. Ele é um registro imutável de 01/15;
+    //    sobrescrevê-lo em silêncio corromperia o histórico. Mantém o filtro
+    //    arquivado=0 (só substitui a foto viva daquela data, se houver).
+    const hoje = new Date().toISOString().slice(0, 10);
+    const existentes = dataReferencia === hoje
+      ? db.prepare('SELECT id FROM estoque_importacoes WHERE data_referencia = ?').all(dataReferencia)
+      : db.prepare('SELECT id FROM estoque_importacoes WHERE data_referencia = ? AND arquivado = 0').all(dataReferencia);
     for (const ex of existentes) {
       db.prepare('DELETE FROM estoque_itens WHERE importacao_id = ?').run(ex.id);
       db.prepare('DELETE FROM estoque_importacoes WHERE id = ?').run(ex.id);
