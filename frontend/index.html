@@ -3118,6 +3118,7 @@
 
         <div class="abas-tela" id="abasServicos">
           <button type="button" class="chip-faixa ativo" data-aba="servicos">🧩 Serviços</button>
+          <button type="button" class="chip-faixa" data-aba="agendamento">📅 Agendamento</button>
           <button type="button" class="chip-faixa" data-aba="historico">🕘 Histórico</button>
           <button type="button" class="chip-faixa" data-aba="logs">📄 Logs</button>
         </div>
@@ -3207,6 +3208,25 @@
               </table>
             </div>
             <div class="estado-vazio" id="estadoVazioLogsServicos" hidden>Nenhum registro encontrado com estes filtros.</div>
+          </div>
+        </div>
+
+        <!-- ABA: agendamento (quando cada serviço roda) -->
+        <div id="abaServicosAgendamento" hidden>
+          <p class="descricao-item" style="margin:4px 0 12px;">Quando cada serviço automático é executado. Os horários vêm da configuração (<code>.env</code>) e só valem para os serviços <b>ativos</b>.</p>
+          <div class="tabela-wrap">
+            <div class="tabela-rolavel-x">
+              <table class="tabela-servicos">
+                <thead>
+                  <tr>
+                    <th>Serviço</th><th>Categoria</th><th>Tipo</th>
+                    <th>Agendamento</th><th>Próxima execução</th><th>Situação</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaAgendamento"></tbody>
+              </table>
+            </div>
+            <div class="estado-vazio" id="estadoVazioAgendamento" hidden>Nenhum agendamento para mostrar.</div>
           </div>
         </div>
       </section>
