@@ -249,6 +249,11 @@ const servidor = app.listen(PORT, '0.0.0.0', () => {
   const { iniciarAgendadorEstoqueHorario } = require('./agendadorEstoqueHorario');
   iniciarAgendadorEstoqueHorario();
 
+  // Listagem de Autores uma vez à tarde (padrão 12:15), em dias úteis — foto
+  // mais nova das demandas no meio do dia, complementando a cadeia das 06h.
+  const { iniciarAgendadorAutoresVespertino } = require('./agendadorAutoresVespertino');
+  iniciarAgendadorAutoresVespertino();
+
   // Backup diário do banco (antes das sincronizações via Oracle, por padrão).
   const { iniciarBackupDiario } = require('./backupBanco');
   iniciarBackupDiario();
