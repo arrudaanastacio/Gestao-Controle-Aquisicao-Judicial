@@ -739,7 +739,17 @@ router.post('/requisicoes/coletiva', (req, res) => {
   if (!lista.length) return res.status(400).json({ erro: 'Informe ao menos um paciente com item marcado.' });
   const statusColetiva = statusInicialAtendimento(apenas_registro);
 
-  const num = (v) => { const n = parseFloat(String(v ?? '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; };
+  // Espelha o parseNumeroReq do front: só trata ponto como separador de milhar
+  // QUANDO há vírgula (formato BR "1.234,5"). Sem vírgula, o ponto é decimal
+  // ("489.6" = 489,6). O bug antigo apagava o ponto sempre, transformando as
+  // quantidades fracionadas da aquisição em números gigantes (ex.: 489.6→4896).
+  const num = (v) => {
+    if (v === null || v === undefined || v === '') return 0;
+    let s = String(v).trim();
+    if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  };
 
   // Consolida os itens por código, somando quantidade e consumo, e guardando o
   // detalhe por paciente.
@@ -826,7 +836,15 @@ router.put('/requisicoes/:id/reabrir-coletiva', (req, res) => {
   if (!lista.length) return res.status(400).json({ erro: 'Informe ao menos um paciente com item marcado.' });
   const statusReabrir = statusInicialAtendimento(apenas_registro);
 
-  const num = (v) => { const n = parseFloat(String(v ?? '').replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; };
+  // Mesmo parser seguro da rota de geração (ponto = decimal quando não há
+  // vírgula). Evita corromper quantidades fracionadas ao reabrir/atualizar.
+  const num = (v) => {
+    if (v === null || v === undefined || v === '') return 0;
+    let s = String(v).trim();
+    if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  };
   const mapaItem = new Map();
   for (const p of lista) {
     for (const it of p.itens) {
