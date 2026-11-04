@@ -8980,27 +8980,46 @@ function parseNumeroReq(v) {
 }
 
 // Calcula a Qtde de Aquisição da requisição de Primeiro Atendimento.
-// Regra base: Consumo × Autonomia de compra.
+// Regra base: Consumo × Autonomia de compra. A aquisição NUNCA é fracionada —
+// sempre arredonda PARA CIMA (não dá para comprar fração de embalagem):
 //  • Itens com conversão (unidade Dose/Mililitro/Grama): Consumo × conversão ×
-//    Autonomia, arredondado PARA CIMA (não dá para comprar fração de embalagem).
+//    Autonomia, arredondado ao inteiro para cima.
+//  • Demais itens: arredonda para cima ao múltiplo da embalagem (`passo`) — para
+//    itens em ATA é a caixa (embalagem secundária); SEM ATA ou sem embalagem o
+//    passo é 1, ou seja, arredonda ao inteiro.
 //  • Prazo “Único”: aquisição única — a autonomia é fixada em 1 (se também tiver
 //    conversão, ainda multiplica pela conversão).
-function calcAquisicaoReq({ consumo, conv, requer, unico, autonomia }) {
+function calcAquisicaoReq({ consumo, conv, requer, unico, autonomia, passo }) {
   const mult = (requer && conv > 0) ? conv : 1;
   const aut = unico ? 1 : (autonomia || 0);
   const base = consumo * mult * aut;
-  return requer ? Math.ceil(base) : +(base).toFixed(2);
+  if (requer) return Math.ceil(base);
+  const p = passo && passo > 0 ? passo : 1;
+  return Math.ceil(base / p) * p;
+}
+
+// Múltiplo de arredondamento (embalagem) da aquisição: quando o item é
+// efetivamente ATA, usa a caixa da ata (embalagem secundária); senão 1 (inteiro).
+// id = identificador da aba/linha para resolver a escolha de itens "em avaliação".
+function passoAquisicaoAta(item, id) {
+  const ata = (item && item.ata) || {};
+  const ehAta = ata.situacao === 'ATA' || (ata.situacao === 'AVALIACAO' && escolhasAta.get(id) === 'ATA');
+  if (!ehAta) return 1;
+  const e = parseNumeroReq(ata.embalagem);
+  return e > 0 ? e : 1;
 }
 
 // Parâmetros de cálculo a partir de um item da requisição (individual ou
 // coletiva) + a autonomia de compra escolhida. Centraliza a leitura dos campos.
-function paramsAquisicaoItem(item, autonomia) {
+// passo = múltiplo da embalagem para o arredondamento (padrão 1 = inteiro).
+function paramsAquisicaoItem(item, autonomia, passo) {
   return {
     consumo: parseNumeroReq(item.qtde_consumo),
     conv: parseNumeroReq(item.embalagem_conversao),
     requer: unidadeAquisicaoFracionada(item.unidade_fornecimento),
     unico: normalizarBusca(item.prazo || '').includes('unico'),
     autonomia,
+    passo: passo || 1,
   };
 }
 function itemPrazoUnico(item) { return normalizarBusca(item.prazo || '').includes('unico'); }
@@ -9433,7 +9452,7 @@ function renderTabsColetiva() {
     const { aquisicao } = totaisAba(t);
     return `<button type="button" class="col-aba ${i === colTabAtivo ? 'ativo' : ''}" data-i="${i}">
       ${escHtml(nome)} <span class="col-aba-cont">${marc}</span>
-      <span class="col-aba-aquis" title="Quantidade total de aquisição deste medicamento">aquis. ${fmtNumero(+aquisicao.toFixed(2))}</span>
+      <span class="col-aba-aquis" title="Quantidade total de aquisição deste medicamento">aquis. ${fmtNumero(Math.round(aquisicao))}</span>
       <span class="col-aba-x" data-rem="${i}" title="Remover medicamento">✕</span>
     </button>`;
   }).join('') + `<button type="button" class="col-aba col-aba-add" id="colInserirMed">+ Inserir medicamento</button>`;
@@ -9573,7 +9592,8 @@ function renderSelecionadosPac() {
     const s = tab.sel[p.autor];
     const prazoUnico = itemPrazoUnico(it);
     if (prazoUnico) s.autonomia = 1; // aquisição única: autonomia fixa em 1
-    const qtd = calcAquisicaoReq(paramsAquisicaoItem(it, s.autonomia || 0));
+    const passo = passoAquisicaoAta(it, 'coltab_' + colTabAtivo);
+    const qtd = calcAquisicaoReq(paramsAquisicaoItem(it, s.autonomia || 0, passo));
     const etiquetaConv = htmlEtiquetaConversaoReq(it);
     const alertaHtml = htmlAlertaReq(it);
     const aut = it.autonomia_atual;
@@ -9618,7 +9638,8 @@ function renderSelecionadosPac() {
     const a = parseNumeroReq(inp.value);
     tab.sel[autor].autonomia = a;
     const p = tab.pacientes.find((x) => x.autor === autor);
-    const q = calcAquisicaoReq(paramsAquisicaoItem((p && p.item) || {}, a));
+    const itP = (p && p.item) || {};
+    const q = calcAquisicaoReq(paramsAquisicaoItem(itP, a, passoAquisicaoAta(itP, 'coltab_' + colTabAtivo)));
     const campo = alvo.querySelector(`.col-pac-qtd[data-autor="${cssEsc(autor)}"]`);
     if (campo) campo.value = q;
     // Mudar a autonomia muda a qtde de aquisição: atualiza rodapé E o valor
@@ -9636,11 +9657,13 @@ function cssEsc(s) { return String(s).replace(/["\\]/g, '\\$&'); }
 // cada aba quanto pelo rodapé da aba ativa — assim os números batem sempre.
 function totaisAba(t) {
   let itens = 0, aquisicao = 0;
+  const idTab = 'coltab_' + colTabs.indexOf(t); // para resolver a embalagem ATA
   if (t) t.pacientes.forEach((p) => {
     const s = t.sel[p.autor];
     if (!s || !s.checked) return;
     itens++;
-    aquisicao += calcAquisicaoReq(paramsAquisicaoItem(p.item || {}, s.autonomia || 0));
+    const it = p.item || {};
+    aquisicao += calcAquisicaoReq(paramsAquisicaoItem(it, s.autonomia || 0, passoAquisicaoAta(it, idTab)));
   });
   return { itens, aquisicao };
 }
@@ -9656,7 +9679,7 @@ function atualizarContadorColetiva() {
   // Dentro de uma aba cada paciente contribui com exatamente 1 item.
   const { itens, aquisicao } = totaisAba(colTabs[colTabAtivo]);
   el.textContent =
-    `${itens} paciente(s) · ${itens} item(ns) · aquisição total ${fmtNumero(+aquisicao.toFixed(2))}`;
+    `${itens} paciente(s) · ${itens} item(ns) · aquisição total ${fmtNumero(Math.round(aquisicao))}`;
 }
 
 // Diálogo do "↺ Reabrir" da linha INDIVIDUAL: pergunta se a reabertura é
@@ -9793,7 +9816,7 @@ async function gerarColetiva() {
         periodicidade: it.periodicidade, dispensacoes_autorizadas: it.dispensacoes_autorizadas,
         unidade_fornecimento: it.unidade_fornecimento,
         autonomia_compra: String(autonomiaEfetiva),
-        quantidade: calcAquisicaoReq(paramsAquisicaoItem(it, autonomiaEfetiva)),
+        quantidade: calcAquisicaoReq(paramsAquisicaoItem(it, autonomiaEfetiva, passoAquisicaoAta(it, 'coltab_' + ti))),
         situacao_ata: situacaoAta, escolha_ata: escolhaAta,
         valor_unitario: valorUnit,
       });

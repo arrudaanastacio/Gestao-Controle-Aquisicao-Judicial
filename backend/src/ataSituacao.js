@@ -23,6 +23,41 @@ function normMarca(s) {
   return t.replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+// Unidades de PESO/VOLUME. Nelas o número da apresentação é o conteúdo de UMA
+// unidade (ex.: "LATA COM 400G" = uma lata de 400 g), NÃO um pacote de 400 itens.
+// Por isso não viram múltiplo de arredondamento — comprar-se-ia de 400 em 400.
+const UNID_CONTEUDO = new Set([
+  'G', 'GR', 'GRAMA', 'GRAMAS', 'KG', 'MG', 'MCG', 'UI',
+  'ML', 'L', 'LT', 'LITRO', 'LITROS', 'GAL', 'GALAO',
+]);
+
+// Deriva o tamanho da embalagem de compra a partir do texto da apresentação da
+// ata (ex.: "APRESENTAÇÃO: CAIXA COM 10 UNIDADES" → 10). É mais confiável que o
+// campo embalagem_secundaria, que às vezes é importado como 1 mesmo quando a
+// caixa tem N unidades (caso real: toalha umedecida). Só conta quando a unidade
+// é CONTÁVEL (UNIDADES, ROLOS, FRASCOS, BOLSAS, TIRAS…); para peso/volume devolve
+// null. Também devolve null para N ausente ou ≤ 1 (sem agrupamento).
+//
+// Segurança: itens "duas peças" (bolsa + placa) trazem DUAS embalagens no mesmo
+// texto (ex.: "CAIXA COM 30 UNIDADES (BOLSA) / CAIXA COM 05 UNIDADES (PLACA)").
+// Nesse caso o texto é ambíguo e não dá para saber qual vale para a compra, então
+// devolvemos null e deixamos o comportamento antigo (embalagem_secundaria) decidir.
+function embalagemDaApresentacao(apresentacao) {
+  if (!apresentacao) return null;
+  const txt = String(apresentacao).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  // Kit "duas peças" (bolsa + placa): tem embalagens distintas e o texto às vezes
+  // vem com um dos números faltando, furando a contagem de grupos — trata como
+  // ambíguo direto pelos marcadores.
+  if (txt.includes('BOLSA') && txt.includes('PLACA')) return null;
+  const grupos = txt.match(/COM\s+0*\d+\s*[A-Z]+/g) || [];
+  if (grupos.length !== 1) return null; // nenhuma ou ambígua (2+)
+  const m = /COM\s+0*(\d+)\s*([A-Z]+)/.exec(grupos[0]);
+  const n = parseInt(m[1], 10);
+  if (!n || n <= 1) return null;
+  if (UNID_CONTEUDO.has(m[2])) return null;
+  return n;
+}
+
 // Marca do estoque atende à ata? "SEM MARCA"/sem marca => qualquer marca atende.
 function marcasBatem(marcaEstoque, nomeAta) {
   const a = normMarca(marcaEstoque);
@@ -45,7 +80,8 @@ function criarCalculadoraAta() {
     "SELECT marca FROM estoque_itens WHERE codigo_item = ? AND (unidade IS NULL OR unidade LIKE '%Tenente Pena%') ORDER BY data_referencia DESC LIMIT 1"
   );
   const qAta = dataRefAtas ? db.prepare(`
-    SELECT ata, vencimento, nome_comercial, detentor_registro, ultimo_valor_publicado
+    SELECT ata, vencimento, nome_comercial, detentor_registro, ultimo_valor_publicado,
+           embalagem_secundaria, apresentacao
       FROM atas_itens
      WHERE data_referencia = ? AND siafisico = ?
        AND (vencimento IS NULL OR vencimento >= ?)
@@ -75,6 +111,13 @@ function criarCalculadoraAta() {
         detentor: ata.detentor_registro || null,
         valor: (ata.ultimo_valor_publicado != null && Number(ata.ultimo_valor_publicado) > 0)
           ? Number(ata.ultimo_valor_publicado) : null,
+        // Qtd por embalagem de compra = múltiplo de arredondamento da aquisição
+        // para itens em ATA. Fonte preferida: o texto da apresentação ("CAIXA
+        // COM N UNIDADES"), que é mais confiável que embalagem_secundaria (ver
+        // embalagemDaApresentacao). Cai para a secundária só quando a apresentação
+        // não informa. Null → sem agrupamento (arredonda ao inteiro no front).
+        embalagem: embalagemDaApresentacao(ata.apresentacao)
+          || (Number(ata.embalagem_secundaria) > 1 ? Number(ata.embalagem_secundaria) : null),
         marca_estoque: marca,
       };
     }
