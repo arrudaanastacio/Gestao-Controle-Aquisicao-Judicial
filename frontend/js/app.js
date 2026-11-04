@@ -9429,8 +9429,11 @@ function renderTabsColetiva() {
   bar.innerHTML = colTabs.map((t, i) => {
     const nome = (t.item.descricao_item || '').split(' / ')[0];
     const marc = Object.values(t.sel).filter((s) => s.checked).length;
+    // Valor total desta aba, mostrado no próprio chip para ver todos de uma vez.
+    const { aquisicao } = totaisAba(t);
     return `<button type="button" class="col-aba ${i === colTabAtivo ? 'ativo' : ''}" data-i="${i}">
       ${escHtml(nome)} <span class="col-aba-cont">${marc}</span>
+      <span class="col-aba-aquis" title="Quantidade total de aquisição deste medicamento">aquis. ${fmtNumero(+aquisicao.toFixed(2))}</span>
       <span class="col-aba-x" data-rem="${i}" title="Remover medicamento">✕</span>
     </button>`;
   }).join('') + `<button type="button" class="col-aba col-aba-add" id="colInserirMed">+ Inserir medicamento</button>`;
@@ -9618,26 +9621,42 @@ function renderSelecionadosPac() {
     const q = calcAquisicaoReq(paramsAquisicaoItem((p && p.item) || {}, a));
     const campo = alvo.querySelector(`.col-pac-qtd[data-autor="${cssEsc(autor)}"]`);
     if (campo) campo.value = q;
+    // Mudar a autonomia muda a qtde de aquisição: atualiza rodapé E o valor
+    // mostrado no chip desta aba.
     atualizarContadorColetiva();
+    renderTabsColetiva();
   }));
 }
 
 // Escapa um valor para uso seguro em seletor de atributo.
 function cssEsc(s) { return String(s).replace(/["\\]/g, '\\$&'); }
 
-// Total geral, considerando TODAS as abas e as seleções guardadas.
-function atualizarContadorColetiva() {
-  const pacientesUnicos = new Set();
-  let totalItens = 0, aquisicaoTotal = 0;
-  colTabs.forEach((t) => t.pacientes.forEach((p) => {
+// Soma os totais de UMA aba (medicamento): quantos pacientes marcados e a
+// quantidade de aquisição acumulada. Fonte única usada tanto pelo chip de
+// cada aba quanto pelo rodapé da aba ativa — assim os números batem sempre.
+function totaisAba(t) {
+  let itens = 0, aquisicao = 0;
+  if (t) t.pacientes.forEach((p) => {
     const s = t.sel[p.autor];
     if (!s || !s.checked) return;
-    pacientesUnicos.add(p.autor);
-    totalItens++;
-    aquisicaoTotal += calcAquisicaoReq(paramsAquisicaoItem(p.item || {}, s.autonomia || 0));
-  }));
-  document.getElementById('colContador').textContent =
-    `${pacientesUnicos.size} paciente(s) · ${totalItens} item(ns) · aquisição total ${fmtNumero(+aquisicaoTotal.toFixed(2))}`;
+    itens++;
+    aquisicao += calcAquisicaoReq(paramsAquisicaoItem(p.item || {}, s.autonomia || 0));
+  });
+  return { itens, aquisicao };
+}
+
+// Rodapé: total da ABA ATIVA apenas. Cada medicamento (aba) tem seus próprios
+// pacientes e quantidades, então o contador reflete só a aba aberta — e cada
+// chip mostra o seu próprio valor (ver renderTabsColetiva). Como trocar de aba
+// chama renderPacientesTab(), que chama esta função, o número se atualiza ao
+// alternar entre os medicamentos.
+function atualizarContadorColetiva() {
+  const el = document.getElementById('colContador');
+  if (!el) return;
+  // Dentro de uma aba cada paciente contribui com exatamente 1 item.
+  const { itens, aquisicao } = totaisAba(colTabs[colTabAtivo]);
+  el.textContent =
+    `${itens} paciente(s) · ${itens} item(ns) · aquisição total ${fmtNumero(+aquisicao.toFixed(2))}`;
 }
 
 // Diálogo do "↺ Reabrir" da linha INDIVIDUAL: pergunta se a reabertura é

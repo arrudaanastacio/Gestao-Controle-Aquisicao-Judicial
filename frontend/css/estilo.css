@@ -2459,6 +2459,8 @@ th.ordenavel .seta { opacity: 0.45; font-size: 10px; margin-left: 3px; }
   background: rgba(0,0,0,0.12); border-radius: 10px; padding: 0 7px; font-size: 11px; font-weight: 600;
 }
 .col-aba.ativo .col-aba-cont { background: rgba(255,255,255,0.28); }
+.col-aba-aquis { font-size: 11px; opacity: .85; font-variant-numeric: tabular-nums; }
+.col-aba.ativo .col-aba-aquis { opacity: .95; }
 .col-aba-x { font-size: 11px; opacity: .7; }
 .col-aba-x:hover { opacity: 1; color: #ffd7d0; }
 .col-aba-add { background: none; border: 1px dashed var(--linha); color: var(--selo-escuro); border-radius: 8px; }
