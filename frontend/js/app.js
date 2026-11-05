@@ -60,6 +60,182 @@ function baixarXlsxCliente(nomeArquivo, aoa, aba = 'Dados') {
   XLSX.writeFile(wb, nomeArquivo);
 }
 
+// Dados da última Solicitação Coletiva aberta como documento. Guardados aqui
+// porque o botão "Exportar Excel" vive na JANELA POPUP do documento, que não tem
+// a SheetJS carregada; ele chama de volta esta janela (window.opener) para montar
+// o arquivo. Ver montarDocumentoColetiva e reabrirRequisicao.
+let ultimaColetivaDoc = null;
+
+// Monta e baixa o .xlsx da Solicitação Coletiva aberta: aba "Consolidado" (total
+// por medicamento, igual à tabela do documento) + aba "Itens por paciente" (o
+// detalhe por autor). Chamada pelo documento via window.opener.exportarColetivaXlsx().
+function exportarColetivaXlsx() {
+  // Usa a xlsx-js-style (window.XLSX_STYLE) para gravar estilos de célula e deixar
+  // o arquivo com a cara do PDF; se ela não carregou, cai no XLSX comum (sem cor).
+  const S = window.XLSX_STYLE || (typeof XLSX !== 'undefined' ? XLSX : null);
+  if (!S) { alert('Biblioteca de Excel não carregou. Dê Ctrl+F5 e tente de novo.'); return; }
+  if (!ultimaColetivaDoc) { alert('Reabra a solicitação coletiva e tente de novo.'); return; }
+  const { r, itens, pacientes } = ultimaColetivaDoc;
+  const preco = (v) => { if (v == null || v === '') return null; const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
+  const colUnid = (itens || []).some((it) => unidadeAquisicaoFracionada(it.unidade_fornecimento));
+
+  // --- Paleta/estilos (espelham o documento HTML) ---
+  const VERDE = '1F4C3C', CAB = 'EEEEEE', SEC = 'E4E7E4', BORDA = 'BBBBBB', MOEDA = '"R$" #,##0.00';
+  const bf = { style: 'thin', color: { rgb: BORDA } };
+  const bordas = { top: bf, bottom: bf, left: bf, right: bf };
+  const estBadge = { fill: { fgColor: { rgb: VERDE } }, font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 12 }, alignment: { vertical: 'center' } };
+  const estTitulo = { font: { bold: true, sz: 14 } };
+  const estSub = { font: { color: { rgb: '666666' }, sz: 10 } };
+  const estInfo = { font: { sz: 10 }, alignment: { vertical: 'center', wrapText: true } };
+  const estCab = { fill: { fgColor: { rgb: CAB } }, font: { bold: true, sz: 10 }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: bordas };
+  const estCel = { font: { sz: 10 }, alignment: { vertical: 'top', wrapText: true }, border: bordas };
+  const estCentro = { ...estCel, alignment: { horizontal: 'center', vertical: 'top' } };
+  const estDir = { ...estCel, alignment: { horizontal: 'right', vertical: 'top' } };
+  const estTotal = { fill: { fgColor: { rgb: CAB } }, font: { bold: true, sz: 10 }, alignment: { horizontal: 'right' }, border: bordas };
+  const estSecao = { fill: { fgColor: { rgb: SEC } }, font: { bold: true, sz: 11 }, border: bordas };
+
+  // Escreve (criando a célula se faltar) valor + estilo (+ formato numérico z).
+  const put = (ws, rr, cc, v, s, z) => {
+    const a = S.utils.encode_cell({ r: rr, c: cc });
+    const cel = ws[a] || (ws[a] = { t: (typeof v === 'number') ? 'n' : 's', v: (v == null ? '' : v) });
+    if (v != null) { cel.v = v; cel.t = (typeof v === 'number') ? 'n' : 's'; }
+    if (s) cel.s = s;
+    if (z) cel.z = z;
+  };
+  const mesclar = (ws, rr, c0, c1) => { (ws['!merges'] = ws['!merges'] || []).push({ s: { r: rr, c: c0 }, e: { r: rr, c: c1 } }); };
+
+  // ===================== Aba 1 — Consolidado por medicamento =====================
+  const cab1 = ['#', 'Cód. Item', 'SIAFÍSICO', 'CATMAT', 'Descrição do Item'];
+  if (colUnid) cab1.push('Unid. Fornecimento');
+  cab1.push('Pacientes', 'Qtde total', 'Valor Unitário', 'Valor Total');
+  const nc = cab1.length;
+  const NP = r.total_pacientes || (pacientes ? pacientes.length : 0);
+  const sub = 'Unidade Tenente Pena (UDTP) · Emitida em ' + formatarDataHora(r.criado_em) + (r.sei ? ' · SEI Nº ' + r.sei : '');
+  const info = 'Pacientes: ' + NP + '    |    Medicamentos: ' + itens.length + '    |    Operador: ' + (r.operador_nome || '—') + '    |    Login: ' + (r.operador_email || '—');
+
+  const aoa1 = [
+    ['Nº de controle: ' + (r.codigo_controle || '—')],
+    ['SOLICITAÇÃO COLETIVA DE COMPRA'],
+    [sub],
+    [info],
+    [],
+    cab1.slice(),
+  ];
+  const linCabItens = aoa1.length - 1; // índice da linha de cabeçalho da tabela
+  let totalGeral = 0, temValor = false;
+  itens.forEach((it, i) => {
+    const uni = preco(it.valor_unitario);
+    const qtd = parseNumeroReq(it.quantidade);
+    const tot = (uni != null && qtd) ? uni * qtd : null;
+    if (tot != null) { totalGeral += tot; temValor = true; }
+    const linha = [i + 1, it.codigo_item || '', it.cod_siafisico || '', it.catmat || '', it.descricao_item || ''];
+    if (colUnid) linha.push(unidadeAquisicaoFracionada(it.unidade_fornecimento) ? (it.unidade_fornecimento || '') : '');
+    linha.push(
+      it.n_pacientes != null ? it.n_pacientes : (it.detalhe ? it.detalhe.length : ''),
+      qtd || (it.quantidade || ''),  // número quando numérico; senão texto cru ("Apenas registro")
+      uni != null ? uni : '',
+      tot != null ? tot : ''
+    );
+    aoa1.push(linha);
+  });
+  const linTotal = temValor ? aoa1.length : -1;
+  if (temValor) {
+    const lt = new Array(nc).fill('');
+    lt[nc - 2] = 'Total da aquisição';
+    lt[nc - 1] = totalGeral;
+    aoa1.push(lt);
+  }
+
+  const ws1 = S.utils.aoa_to_sheet(aoa1);
+  // cabeçalho (badge verde, título, subtítulo, info) — mesclados na largura da tabela
+  for (let rr = 0; rr <= 3; rr++) mesclar(ws1, rr, 0, nc - 1);
+  put(ws1, 0, 0, null, estBadge);
+  put(ws1, 1, 0, null, estTitulo);
+  put(ws1, 2, 0, null, estSub);
+  put(ws1, 3, 0, null, estInfo);
+  // linha de cabeçalho da tabela
+  for (let c = 0; c < nc; c++) put(ws1, linCabItens, c, null, estCab);
+  // linhas de dados
+  const idxUnidFim = colUnid ? 5 : 4; // última coluna textual à esquerda
+  for (let i = 0; i < itens.length; i++) {
+    const rr = linCabItens + 1 + i;
+    put(ws1, rr, 0, null, estCentro);                 // #
+    for (let c = 1; c <= idxUnidFim; c++) put(ws1, rr, c, null, estCel); // cód/siaf/catmat/descr[/unid]
+    put(ws1, rr, nc - 4, null, estCentro);            // Pacientes
+    put(ws1, rr, nc - 3, null, estCentro);            // Qtde total
+    put(ws1, rr, nc - 2, null, estDir, MOEDA);        // Valor Unitário
+    put(ws1, rr, nc - 1, null, estDir, MOEDA);        // Valor Total
+  }
+  if (temValor) {
+    for (let c = 0; c < nc; c++) put(ws1, linTotal, c, null, estTotal);
+    put(ws1, linTotal, nc - 1, null, estTotal, MOEDA);
+    mesclar(ws1, linTotal, 0, nc - 2);
+  }
+  // larguras
+  const cols1 = [{ wch: 4 }, { wch: 20 }, { wch: 11 }, { wch: 9 }, { wch: 50 }];
+  if (colUnid) cols1.push({ wch: 16 });
+  cols1.push({ wch: 10 }, { wch: 11 }, { wch: 14 }, { wch: 14 });
+  ws1['!cols'] = cols1;
+
+  // ===================== Aba 2 — Itens por paciente =====================
+  const cab2 = ['Descrição do Item', 'SCODES', 'SIAFÍSICO', 'Qtde'];
+  const nc2 = cab2.length;
+  const aoa2 = [
+    ['Nº de controle: ' + (r.codigo_controle || '—')],
+    ['Itens por paciente (' + (pacientes ? pacientes.length : 0) + ')'],
+    [],
+    cab2.slice(),
+  ];
+  const linCab2 = aoa2.length - 1;
+  const itensPorPaciente = new Map();
+  for (const it of itens) {
+    for (const d of (it.detalhe || [])) {
+      if (!itensPorPaciente.has(d.autor)) itensPorPaciente.set(d.autor, []);
+      itensPorPaciente.get(d.autor).push({ descricao: it.descricao_item, codigo: it.codigo_item, siafisico: it.cod_siafisico, quantidade: d.quantidade });
+    }
+  }
+  const linhasSecao = []; // linhas que são "cabeçalho de paciente" (mescladas)
+  const linhasItem = [];  // linhas de item (com borda)
+  (pacientes || []).forEach((p, i) => {
+    const titulo = (i + 1) + '. ' + (p.autor || '—')
+      + (p.protocolo ? '   ·   Protocolo ' + p.protocolo : '')
+      + (p.processo ? '   ·   Processo ' + p.processo : '');
+    linhasSecao.push(aoa2.length);
+    aoa2.push([titulo, '', '', '']);
+    const lst = itensPorPaciente.get(p.autor) || [];
+    if (!lst.length) { linhasItem.push(aoa2.length); aoa2.push(['Sem itens.', '', '', '']); return; }
+    for (const x of lst) {
+      linhasItem.push(aoa2.length);
+      aoa2.push([
+        x.descricao || x.codigo || '',
+        x.codigo || '',
+        x.siafisico || '',
+        parseNumeroReq(x.quantidade) || ((x.quantidade != null && x.quantidade !== '') ? x.quantidade : ''),
+      ]);
+    }
+  });
+
+  const ws2 = S.utils.aoa_to_sheet(aoa2);
+  mesclar(ws2, 0, 0, nc2 - 1); put(ws2, 0, 0, null, estBadge);
+  mesclar(ws2, 1, 0, nc2 - 1); put(ws2, 1, 0, null, estTitulo);
+  for (let c = 0; c < nc2; c++) put(ws2, linCab2, c, null, estCab);
+  for (const rr of linhasSecao) { for (let c = 0; c < nc2; c++) put(ws2, rr, c, null, estSecao); mesclar(ws2, rr, 0, nc2 - 1); }
+  for (const rr of linhasItem) {
+    put(ws2, rr, 0, null, estCel);
+    put(ws2, rr, 1, null, estCel);
+    put(ws2, rr, 2, null, estCel);
+    put(ws2, rr, 3, null, estCentro);
+  }
+  ws2['!cols'] = [{ wch: 52 }, { wch: 18 }, { wch: 12 }, { wch: 10 }];
+
+  // ===================== Monta o arquivo =====================
+  const wb = S.utils.book_new();
+  S.utils.book_append_sheet(wb, ws1, 'Consolidado');
+  S.utils.book_append_sheet(wb, ws2, 'Itens por paciente');
+  const nome = String(r.codigo_controle || 'solicitacao-coletiva').replace(/[\\/?*[\]:]/g, '-') + '.xlsx';
+  S.writeFile(wb, nome);
+}
+
 // Normaliza texto para BUSCA (não muda o que é exibido/gravado): tira espaços
 // das pontas, passa para minúsculas e remove acentos. Assim "Lítio" acha
 // "litio" e vice-versa. Usada nos filtros de tela (lado do cliente).
@@ -9236,7 +9412,10 @@ function montarDocumentoColetiva(r, itens, pacientes) {
       table{width:100%;border-collapse:collapse;font-size:12.5px;} th,td{border:1px solid #bbb;padding:6px 8px;text-align:left;vertical-align:top;} th{background:#eee;}
       @media print{.no-print{display:none;}} button{padding:8px 16px;font-size:14px;cursor:pointer;}
     </style></head><body>
-    <div class="no-print" style="margin-bottom:18px;"><button onclick="window.print()">🖨 Imprimir / Salvar PDF</button></div>
+    <div class="no-print" style="margin-bottom:18px;display:flex;gap:10px;">
+      <button onclick="window.print()">🖨 Imprimir / Salvar PDF</button>
+      <button onclick="if(window.opener&&window.opener.exportarColetivaXlsx){window.opener.exportarColetivaXlsx();}else{alert('Abra o documento pela janela principal do sistema para exportar.');}">⬇ Exportar Excel</button>
+    </div>
     <div class="id">Nº de controle: ${r.codigo_controle || '—'}</div><br>
     <h1>SOLICITAÇÃO COLETIVA DE COMPRA</h1>
     <p class="sub">Unidade Tenente Pena (UDTP) · Emitida em ${formatarDataHora(r.criado_em)}${r.sei ? ' · SEI Nº ' + r.sei : ''}</p>
@@ -9958,7 +10137,12 @@ async function abrirItensColetiva(id) {
 async function reabrirRequisicao(id) {
   const dados = await api(`/autores/requisicoes/${id}`);
   const r = dados.requisicao;
-  if (r.coletiva) { abrirDocumento(montarDocumentoColetiva(r, dados.itens, dados.pacientes || [])); return; }
+  if (r.coletiva) {
+    // guarda p/ o botão "Exportar Excel" do documento (ver exportarColetivaXlsx)
+    ultimaColetivaDoc = { r, itens: dados.itens, pacientes: dados.pacientes || [] };
+    abrirDocumento(montarDocumentoColetiva(r, dados.itens, dados.pacientes || []));
+    return;
+  }
   const html = montarDocumentoRequisicao({
     codigoControle: r.codigo_controle,
     autor: r.autor, unidade: r.unidade, procurador: r.procurador, sei: r.sei,
