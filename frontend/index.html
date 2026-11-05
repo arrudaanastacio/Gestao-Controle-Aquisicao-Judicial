@@ -4080,6 +4080,12 @@
   </script>
   <!-- SheetJS (xlsx) servido localmente — gera .xlsx no navegador sem depender de CDN/internet -->
   <script src="/vendor/xlsx.full.min.js"></script>
-  <script src="/js/app.js?v=83"></script>
+  <!-- xlsx-js-style (base SheetJS 0.18.5 + estilos de célula) isolado em window.XLSX_STYLE,
+       usado SÓ na exportação formatada da Solicitação Coletiva (escrita de dados próprios).
+       Não substitui o window.XLSX global (0.20.3, correção do CVE-2023-30533) dos demais exports. -->
+  <script>window.__XLSX_CE = window.XLSX;</script>
+  <script src="/vendor/xlsx-js-style.js"></script>
+  <script>window.XLSX_STYLE = window.XLSX; window.XLSX = window.__XLSX_CE; try { delete window.__XLSX_CE; } catch (e) { window.__XLSX_CE = undefined; }</script>
+  <script src="/js/app.js?v=85"></script>
 </body>
 </html>
