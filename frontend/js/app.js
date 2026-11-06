@@ -387,9 +387,67 @@ function tagCategoria(v) {
 }
 
 // -------------------- Autenticação / shell --------------------
+
+// Termo de Ciência/Responsabilidade (LGPD): se o /me disser que está pendente,
+// abre o modal bloqueante e só RESOLVE a Promise quando a pessoa aceita. Se ela
+// recusar, faz logout e volta ao login (a Promise nunca resolve — a navegação
+// encerra a página). Assim nada do sistema carrega antes do aceite.
+function verificarTermoLGPD(usuario) {
+  return new Promise((resolve) => {
+    const lgpd = usuario && usuario.lgpd;
+    if (!lgpd || !lgpd.pendente) { resolve(); return; }
+
+    const fundo = document.getElementById('modalLgpd');
+    document.getElementById('tituloModalLgpd').textContent =
+      lgpd.titulo || 'Termo de Ciência e Responsabilidade – Tratamento de Dados (LGPD)';
+
+    const caixa = document.getElementById('textoModalLgpd');
+    caixa.innerHTML = '';
+    for (const p of (lgpd.paragrafos || [])) {
+      const el = document.createElement('p');
+      el.style.margin = '0 0 12px';
+      el.textContent = p; // textContent nunca interpreta HTML — seguro
+      caixa.appendChild(el);
+    }
+
+    // O modal abre DURANTE o boot, enquanto o overlay "Verificando sessão…"
+    // (#telaCarregando, z-index 9999) ainda cobre a tela. Escondemos esse
+    // overlay e colocamos o modal acima dele, senão o termo fica atrás e a
+    // página trava em "Verificando sessão…".
+    const overlay = document.getElementById('telaCarregando');
+    if (overlay) overlay.hidden = true;
+    fundo.style.zIndex = '10000';
+
+    const btnAceitar = document.getElementById('botaoAceitarLgpd');
+    const btnRecusar = document.getElementById('botaoRecusarLgpd');
+
+    btnAceitar.onclick = async () => {
+      btnAceitar.disabled = true;
+      try {
+        await api('/auth/lgpd/aceitar', { method: 'POST' });
+        fundo.hidden = true;
+        resolve();
+      } catch (e) {
+        btnAceitar.disabled = false;
+        alert('Não foi possível registrar o aceite: ' + (e.message || 'erro'));
+      }
+    };
+    btnRecusar.onclick = async () => {
+      btnRecusar.disabled = true;
+      try { await api('/auth/logout', { method: 'POST' }); } catch (_) { /* ignora */ }
+      window.location.href = '/login.html';
+    };
+
+    fundo.hidden = false;
+  });
+}
+
 async function carregarUsuario() {
   const { usuario } = await api('/auth/me');
   estado.usuario = usuario;
+
+  // Trava o acesso no termo LGPD antes de montar qualquer tela do sistema.
+  await verificarTermoLGPD(usuario);
   document.getElementById('nomeUsuario').textContent = usuario.nome;
   document.getElementById('perfilUsuario').textContent = usuario.perfil === 'admin' ? 'Admin' : 'Consulta';
 
@@ -579,10 +637,21 @@ document.getElementById('botaoSair').addEventListener('click', async () => {
 }
 
 document.querySelectorAll('.nav-lateral a').forEach((link) => {
+  // href real "#rota" => clique do meio / Ctrl+clique abrem nova aba NATIVAMENTE.
+  if (link.dataset.pagina) link.setAttribute('href', '#' + encodeURIComponent(link.dataset.pagina));
   link.addEventListener('click', (ev) => {
+    if (cliquePedeNovaAba(ev)) return;   // nova aba/janela: deixa o navegador agir
     ev.preventDefault();
     mudarPagina(link.dataset.pagina);
   });
+});
+
+// Mudança de hash (nova aba aberta em /#rota, ou botões Voltar/Avançar do
+// navegador): troca a tela. Compara com a tela atual para não re-navegar quando
+// foi o próprio mudarPagina que gravou o hash.
+window.addEventListener('hashchange', () => {
+  const p = paginaDoHash();
+  if (p !== estado.paginaAtual) mudarPagina(p);
 });
 
 // Ícones (linha simples) para cada item do menu — visual mais moderno
@@ -777,11 +846,11 @@ const ICONES_NAV = {
       const orig = document.querySelector(`.nav-grupo a[data-pagina="${p}"]`);
       const a = document.createElement('a');
       a.className = 'link';
-      a.href = '#';
+      a.href = '#' + encodeURIComponent(p);   // âncora real => nova aba nativa
       a.dataset.pagina = p;
       a.innerHTML = orig.innerHTML;
       a.querySelectorAll('.fav-estrela').forEach((s) => s.remove());
-      a.addEventListener('click', (ev) => { ev.preventDefault(); mudarPagina(p); });
+      a.addEventListener('click', (ev) => { if (cliquePedeNovaAba(ev)) return; ev.preventDefault(); mudarPagina(p); });
       box.appendChild(a);
     });
   }
@@ -922,8 +991,39 @@ function atualizarTrilha(pagina) {
     .join(sep);
 }
 
+// ===================== Navegação: rotas por hash + nova aba =====================
+// O Elo é um SPA (uma página só): cada tela é uma <section> alternada por
+// mudarPagina(). Para permitir ABRIR DESTINOS EM NOVA ABA (clique do meio /
+// Ctrl+clique) damos a cada tela uma URL por hash (ex.: /#relatorio). Assim os
+// links de navegação viram âncoras reais e o navegador abre a nova aba
+// NATIVAMENTE — sem window.open e sem target="_blank" indiscriminado.
+
+// Rota válida = existe um link de menu com esse data-pagina. (O dado de cada
+// tela é protegido no servidor; aqui só validamos o destino para não cair numa
+// tela inexistente ao abrir /#algo digitado à mão.)
+function rotaValida(pagina) {
+  if (!pagina) return false;
+  try { return !!document.querySelector(`.nav-lateral a[data-pagina="${CSS.escape(pagina)}"]`); }
+  catch (_) { return false; }
+}
+function paginaDoHash() {
+  const p = decodeURIComponent((location.hash || '').replace(/^#/, '')).trim();
+  return rotaValida(p) ? p : 'painel';
+}
+// Verdadeiro quando o clique pede "nova aba/janela" — aí NÃO interceptamos,
+// deixando o navegador agir (abrir a âncora em nova aba).
+function cliquePedeNovaAba(ev) {
+  return ev.button === 1 || ev.ctrlKey || ev.metaKey || ev.shiftKey;
+}
+
 async function mudarPagina(pagina) {
   estado.paginaAtual = pagina;
+  // Reflete a tela atual na URL (#rota), para dar "endereço" a cada tela e
+  // permitir nova aba. Só grava se mudou, e como estado.paginaAtual já foi
+  // ajustado acima, o ouvinte de hashchange não re-navega (evita loop).
+  if (decodeURIComponent((location.hash || '').replace(/^#/, '')) !== pagina) {
+    location.hash = encodeURIComponent(pagina);
+  }
   atualizarTrilha(pagina);
   document.querySelectorAll('.nav-lateral a').forEach((a) => a.classList.toggle('ativo', a.dataset.pagina === pagina));
   document.getElementById('paginaPainel').hidden = pagina !== 'painel';
@@ -12993,7 +13093,9 @@ document.getElementById('botaoAtualizarSaidaLotes').addEventListener('click', as
     preencherAnos();
     document.getElementById('telaCarregando').hidden = true;
     document.querySelector('.app-shell').hidden = false;
-    await mudarPagina('painel');
+    // Abre a tela pedida na URL (#rota) quando a aba foi aberta por clique do
+    // meio num menu; sem hash válido, cai no Painel.
+    await mudarPagina(paginaDoHash());
     verificarFalhasOracle();
   } catch (e) {
     // carregarUsuario já redireciona para login em caso de 401.

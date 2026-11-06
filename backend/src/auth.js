@@ -231,4 +231,4 @@ function liberarOracle(gateModulo) {
   };
 }
 
-module.exports = { gerarToken, autenticar, exigirPerfil, exigirModulo, exigirModuloDinamico, acaoDaRequisicao, definirCorteSessoes, carregarCorteSessoes, JWT_SECRET, usuarioPodeOracle, exigirOracle, liberarOracle, registrarSeguranca };
+module.exports = { gerarToken, autenticar, exigirPerfil, exigirModulo, exigirModuloDinamico, acaoDaRequisicao, definirCorteSessoes, carregarCorteSessoes, JWT_SECRET, usuarioPodeOracle, exigirOracle, liberarOracle, registrarSeguranca, ipDaRequisicao };
