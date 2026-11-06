@@ -1952,7 +1952,7 @@ function renderResultadoCompras(dados, fase) {
     `<div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
        <span>${rotulo}</span><strong style="color:${cor || 'inherit'};">${valor}</strong></div>`;
   let html = `<div class="painel-cartao" style="padding:12px 14px;">`;
-  html += `<div style="font-size:12.5px; color:var(--cinza-texto); margin-bottom:6px;">Destino: <strong>${dados.destino}</strong> · aba "${dados.aba}" · ${dados.colunasReconhecidas.length} colunas reconhecidas</div>`;
+  html += `<div style="font-size:12.5px; color:var(--cinza-texto); margin-bottom:6px;">Destino: <strong>${escComprasSeg(dados.destino)}</strong> · aba "${escComprasSeg(dados.aba)}" · ${dados.colunasReconhecidas.length} colunas reconhecidas</div>`;
   if (fase === 'previa') {
     html += linha('Linhas lidas', dados.totalLinhas);
     html += linha('Solicitações novas (serão inseridas)', dados.novos, '#1baf7a');
@@ -1988,7 +1988,7 @@ document.getElementById('botaoPreviaCompras').addEventListener('click', async ()
     renderResultadoCompras(dados, 'previa');
     document.getElementById('botaoConfirmarCompras').disabled = false;
   } catch (e) {
-    el.innerHTML = `<div class="estado-vazio">${e.message}</div>`;
+    el.innerHTML = `<div class="estado-vazio">${escComprasSeg(e.message)}</div>`;
     document.getElementById('botaoConfirmarCompras').disabled = true;
   }
 });
@@ -2017,7 +2017,7 @@ document.getElementById('botaoConfirmarCompras').addEventListener('click', async
     renderResultadoCompras(dados, 'confirmar');
     document.getElementById('botaoConfirmarCompras').disabled = true;
   } catch (e) {
-    el.innerHTML = `<div class="estado-vazio">${e.message}</div>`;
+    el.innerHTML = `<div class="estado-vazio">${escComprasSeg(e.message)}</div>`;
   }
 });
 
@@ -2214,10 +2214,10 @@ function renderTabelaComprasSeg(el, linhas, pagina) {
         <td>${escComprasSeg(s.modalidade_compra || '—')}</td>
         <td class="col-codigo">${escComprasSeg(s.sei || '—')}</td>
         <td>${valorCelula(s.qtde_solicitada)}</td>
-        <td class="col-data">${formatarData(s.data_solicitacao)}</td>
-        <td class="col-codigo">${fmtGsnet(s.requisicao_gsnet) || '—'}</td>
+        <td class="col-data">${escComprasSeg(formatarData(s.data_solicitacao))}</td>
+        <td class="col-codigo">${escComprasSeg(fmtGsnet(s.requisicao_gsnet) || '—')}</td>
         <td class="col-codigo">${escComprasSeg(s.n_empenho || '—')}</td>
-        <td class="col-data">${formatarData(s.data_entrega)}</td>
+        <td class="col-data">${escComprasSeg(formatarData(s.data_entrega))}</td>
         <td>${valorCelula(s.qtde_entregue)}</td>
         <td>${valorCelula(s.qtde_pendente)}</td>
         <td><span class="etiqueta-status ${classe}">${escComprasSeg(rotulo)}</span></td>
