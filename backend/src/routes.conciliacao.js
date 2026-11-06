@@ -17,6 +17,12 @@ function dataEntradaISO(dt){ // '2026-08-31 13:16:00' -> '2026-08-31'
   if(!dt) return null; const s=String(dt); return s.slice(0,10);
 }
 
+// Whitelist da tabela de solicitações por `fonte` (nunca interpola valor cru):
+// 'solicitacoes' (Medicamentos/TP, padrão) ou 'solicitacoes_seg' (Nutrição/
+// Materiais). Qualquer outro valor cai no padrão seguro.
+const TABELAS_FONTE = { solicitacoes: 'solicitacoes', solicitacoes_seg: 'solicitacoes_seg' };
+function tabelaDaFonte(fonte){ return TABELAS_FONTE[fonte] || 'solicitacoes'; }
+
 // A tabela `solicitacoes` é reimportada ("refaz o mês" = DELETE+INSERT), o que
 // TROCA o id de cada linha. Uma proposta gerada antes da reimportação passa a
 // apontar para um id inexistente → "Solicitação não encontrada" ao aprovar.
@@ -24,9 +30,10 @@ function dataEntradaISO(dt){ // '2026-08-31 13:16:00' -> '2026-08-31'
 // mes + tipo) guardada no detalhe da proposta, quando o id não existir mais.
 function reencontrarSolicitacao(codigoItem, detalhe, opts = {}) {
   if (!codigoItem || !detalhe || detalhe.sol_ano == null || !detalhe.sol_mes) return null;
+  const tbl = tabelaDaFonte(opts.fonte);
   const cond = opts.semEmpenho ? "AND (n_empenho IS NULL OR n_empenho='')" : '';
   return db.prepare(
-    `SELECT * FROM solicitacoes
+    `SELECT * FROM ${tbl}
       WHERE codigo_item=? AND ano=? AND mes=? AND (tipo IS ? OR tipo=?) ${cond}
       ORDER BY id DESC LIMIT 1`
   ).get(codigoItem, detalhe.sol_ano, detalhe.sol_mes, detalhe.sol_tipo || null, detalhe.sol_tipo || '');
@@ -34,9 +41,10 @@ function reencontrarSolicitacao(codigoItem, detalhe, opts = {}) {
 
 // ---------- Aplicar / desfazer a BAIXA DE ENTREGA numa solicitação ----------
 // Núcleo compartilhado por "aprovar proposta" e "associar manual".
-function aplicarEntrega({ solicitacaoId, quantidade, chaveOrigem, detalhe, como, usuarioEmail, codigoItem }) {
-  let s = db.prepare('SELECT * FROM solicitacoes WHERE id = ?').get(solicitacaoId);
-  if (!s) s = reencontrarSolicitacao(codigoItem, detalhe);
+function aplicarEntrega({ solicitacaoId, quantidade, chaveOrigem, detalhe, como, usuarioEmail, codigoItem, fonte }) {
+  const tbl = tabelaDaFonte(fonte);
+  let s = db.prepare(`SELECT * FROM ${tbl} WHERE id = ?`).get(solicitacaoId);
+  if (!s) s = reencontrarSolicitacao(codigoItem, detalhe, { fonte });
   if (!s) throw new Error('Solicitação não encontrada.');
   const pend = conc.pendenteSolicitacao(s);
   const q = Math.min(num(quantidade) || 0, pend);
@@ -59,29 +67,30 @@ function aplicarEntrega({ solicitacaoId, quantidade, chaveOrigem, detalhe, como,
 
   const info = db.prepare(`
     INSERT INTO associacoes
-      (origem, codigo_item, solicitacao_id, sol_ano, sol_mes, sol_tipo, quantidade,
+      (origem, codigo_item, solicitacao_id, fonte, sol_ano, sol_mes, sol_tipo, quantidade,
        chave_origem, detalhe_json, status_anterior, status_novo,
        qtde_entregue_anterior, qtde_pendente_anterior, data_entrega_anterior, como, usuario_email)
-    VALUES ('entrega', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES ('entrega', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    s.codigo_item, s.id, s.ano, s.mes, s.tipo, q,
+    s.codigo_item, s.id, tbl, s.ano, s.mes, s.tipo, q,
     chaveOrigem || null, detalhe ? JSON.stringify(detalhe) : null,
     s.status, novoStatus, entregueAnt, num(s.qtde_pendente), s.data_entrega, como, usuarioEmail || null
   );
 
-  db.prepare(`UPDATE solicitacoes SET qtde_entregue=?, qtde_pendente=?, status=?, data_entrega=COALESCE(?, data_entrega), n_empenho=? WHERE id=?`)
+  db.prepare(`UPDATE ${tbl} SET qtde_entregue=?, qtde_pendente=?, status=?, data_entrega=COALESCE(?, data_entrega), n_empenho=? WHERE id=?`)
     .run(novoEntregue, novoPendente, novoStatus, dataEntrega, nEmpenhoFinal, s.id);
 
   db.prepare('INSERT INTO auditoria (usuario_email, acao, tabela, registro_id) VALUES (?,?,?,?)')
-    .run(usuarioEmail || 'robo', 'associar_entrega', 'solicitacoes', String(s.id));
+    .run(usuarioEmail || 'robo', 'associar_entrega', tbl, String(s.id));
 
   return { associacaoId: info.lastInsertRowid, status: novoStatus, quantidade: q, pendente: novoPendente };
 }
 
 // ---------- Aplicar a BAIXA DE EMPENHO numa solicitação ----------
-function aplicarEmpenho({ solicitacaoId, chaveOrigem, detalhe, como, usuarioEmail, codigoItem }) {
-  let s = db.prepare('SELECT * FROM solicitacoes WHERE id = ?').get(solicitacaoId);
-  if (!s) s = reencontrarSolicitacao(codigoItem, detalhe, { semEmpenho: true });
+function aplicarEmpenho({ solicitacaoId, chaveOrigem, detalhe, como, usuarioEmail, codigoItem, fonte }) {
+  const tbl = tabelaDaFonte(fonte);
+  let s = db.prepare(`SELECT * FROM ${tbl} WHERE id = ?`).get(solicitacaoId);
+  if (!s) s = reencontrarSolicitacao(codigoItem, detalhe, { semEmpenho: true, fonte });
   if (!s) throw new Error('Solicitação não encontrada.');
   const nEmp = detalhe && detalhe.nota_empenho ? String(detalhe.nota_empenho) : null;
   if (!nEmp) throw new Error('Empenho sem número.');
@@ -91,20 +100,20 @@ function aplicarEmpenho({ solicitacaoId, chaveOrigem, detalhe, como, usuarioEmai
 
   const info = db.prepare(`
     INSERT INTO associacoes
-      (origem, codigo_item, solicitacao_id, sol_ano, sol_mes, sol_tipo, quantidade,
+      (origem, codigo_item, solicitacao_id, fonte, sol_ano, sol_mes, sol_tipo, quantidade,
        chave_origem, detalhe_json, status_anterior, status_novo,
        n_empenho_anterior, quantidade_empenho_anterior, como, usuario_email)
-    VALUES ('empenho', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES ('empenho', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    s.codigo_item, s.id, s.ano, s.mes, s.tipo, qtdeEmp,
+    s.codigo_item, s.id, tbl, s.ano, s.mes, s.tipo, qtdeEmp,
     chaveOrigem || null, detalhe ? JSON.stringify(detalhe) : null,
     s.status, novoStatus, s.n_empenho, num(s.quantidade_empenho), como, usuarioEmail || null
   );
 
-  db.prepare('UPDATE solicitacoes SET n_empenho=?, quantidade_empenho=?, status=? WHERE id=?')
+  db.prepare(`UPDATE ${tbl} SET n_empenho=?, quantidade_empenho=?, status=? WHERE id=?`)
     .run(nEmp, qtdeEmp, novoStatus, s.id);
   db.prepare('INSERT INTO auditoria (usuario_email, acao, tabela, registro_id) VALUES (?,?,?,?)')
-    .run(usuarioEmail || 'robo', 'associar_empenho', 'solicitacoes', String(s.id));
+    .run(usuarioEmail || 'robo', 'associar_empenho', tbl, String(s.id));
 
   return { associacaoId: info.lastInsertRowid, n_empenho: nEmp, quantidade_empenho: qtdeEmp, status: novoStatus };
 }
@@ -112,11 +121,12 @@ function aplicarEmpenho({ solicitacaoId, chaveOrigem, detalhe, como, usuarioEmai
 function desfazerAssociacao(id, usuarioEmail) {
   const a = db.prepare('SELECT * FROM associacoes WHERE id=? AND desfeita=0').get(id);
   if (!a) throw new Error('Associação não encontrada ou já desfeita.');
+  const tbl = tabelaDaFonte(a.fonte); // fonte NULL (linhas antigas) -> 'solicitacoes'
   if (a.origem === 'entrega') {
-    db.prepare('UPDATE solicitacoes SET qtde_entregue=?, qtde_pendente=?, status=?, data_entrega=? WHERE id=?')
+    db.prepare(`UPDATE ${tbl} SET qtde_entregue=?, qtde_pendente=?, status=?, data_entrega=? WHERE id=?`)
       .run(a.qtde_entregue_anterior, a.qtde_pendente_anterior, a.status_anterior, a.data_entrega_anterior, a.solicitacao_id);
   } else if (a.origem === 'empenho') {
-    db.prepare('UPDATE solicitacoes SET n_empenho=?, quantidade_empenho=?, status=? WHERE id=?')
+    db.prepare(`UPDATE ${tbl} SET n_empenho=?, quantidade_empenho=?, status=? WHERE id=?`)
       .run(a.n_empenho_anterior, a.quantidade_empenho_anterior, a.status_anterior, a.solicitacao_id);
   }
   db.prepare("UPDATE associacoes SET desfeita=1, desfeita_em=datetime('now','localtime'), desfeita_por=? WHERE id=?")
@@ -312,7 +322,7 @@ router.post('/entrada/aprovar/:id', (req, res) => {
     const r = aplicarEntrega({
       solicitacaoId: p.solicitacao_id, quantidade: p.quantidade,
       chaveOrigem: p.chave_origem, detalhe: JSON.parse(p.detalhe_json || '{}'),
-      como: 'robo', usuarioEmail: req.usuario.email, codigoItem: p.codigo_item,
+      como: 'robo', usuarioEmail: req.usuario.email, codigoItem: p.codigo_item, fonte: p.fonte,
     });
     db.prepare("UPDATE propostas_conciliacao SET situacao='aprovada' WHERE id=?").run(p.id);
     res.json({ ok: true, ...r });
@@ -378,7 +388,7 @@ router.post('/entrada/associar-manual', (req, res) => {
   try {
     const r = aplicarEntrega({
       solicitacaoId: b.solicitacao_id, quantidade: b.quantidade, chaveOrigem: b.chave_origem,
-      detalhe: b.detalhe || {}, como: 'manual', usuarioEmail: req.usuario.email,
+      detalhe: b.detalhe || {}, como: 'manual', usuarioEmail: req.usuario.email, fonte: b.fonte,
     });
     res.json({ ok: true, ...r });
   } catch (e) { res.status(400).json({ erro: e.message }); }
@@ -407,7 +417,7 @@ router.post('/empenho/aprovar/:id', (req, res) => {
   const p = db.prepare("SELECT * FROM propostas_conciliacao WHERE id=? AND origem='empenho' AND situacao='pendente'").get(req.params.id);
   if (!p) return res.status(404).json({ erro: 'Proposta não encontrada.' });
   try {
-    const r = aplicarEmpenho({ solicitacaoId: p.solicitacao_id, chaveOrigem: p.chave_origem, detalhe: JSON.parse(p.detalhe_json || '{}'), como: 'robo', usuarioEmail: req.usuario.email, codigoItem: p.codigo_item });
+    const r = aplicarEmpenho({ solicitacaoId: p.solicitacao_id, chaveOrigem: p.chave_origem, detalhe: JSON.parse(p.detalhe_json || '{}'), como: 'robo', usuarioEmail: req.usuario.email, codigoItem: p.codigo_item, fonte: p.fonte });
     db.prepare("UPDATE propostas_conciliacao SET situacao='aprovada' WHERE id=?").run(p.id);
     res.json({ ok: true, ...r });
   } catch (e) { res.status(400).json({ erro: e.message }); }
@@ -430,7 +440,7 @@ router.post('/empenho/aprovar-todas', (req, res) => {
         aplicarEmpenho({
           solicitacaoId: p.solicitacao_id, chaveOrigem: p.chave_origem,
           detalhe: JSON.parse(p.detalhe_json || '{}'), como: 'robo',
-          usuarioEmail: req.usuario.email, codigoItem: p.codigo_item,
+          usuarioEmail: req.usuario.email, codigoItem: p.codigo_item, fonte: p.fonte,
         });
         db.prepare("UPDATE propostas_conciliacao SET situacao='aprovada' WHERE id=?").run(p.id);
         aprovadas++;
@@ -491,7 +501,7 @@ router.post('/empenho/associar-manual', (req, res) => {
   const b = req.body || {};
   if (!b.solicitacao_id || !b.detalhe || !b.detalhe.nota_empenho) return res.status(400).json({ erro: 'Informe a compra e o empenho.' });
   try {
-    const r = aplicarEmpenho({ solicitacaoId: b.solicitacao_id, chaveOrigem: b.chave_origem, detalhe: b.detalhe, como: 'manual', usuarioEmail: req.usuario.email });
+    const r = aplicarEmpenho({ solicitacaoId: b.solicitacao_id, chaveOrigem: b.chave_origem, detalhe: b.detalhe, como: 'manual', usuarioEmail: req.usuario.email, fonte: b.fonte });
     res.json({ ok: true, ...r });
   } catch (e) { res.status(400).json({ erro: e.message }); }
 });

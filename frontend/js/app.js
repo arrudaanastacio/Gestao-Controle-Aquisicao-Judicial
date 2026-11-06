@@ -930,6 +930,10 @@ async function mudarPagina(pagina) {
   document.getElementById('paginaSolicitacoes').hidden = pagina !== 'solicitacoes';
   document.getElementById('paginaBusca').hidden = pagina !== 'busca';
   document.getElementById('paginaRelatorio').hidden = pagina !== 'relatorio';
+  document.getElementById('paginaComprasNutricao').hidden = pagina !== 'comprasNutricao';
+  document.getElementById('paginaAndamentoNutricao').hidden = pagina !== 'andamentoNutricao';
+  document.getElementById('paginaComprasMateriais').hidden = pagina !== 'comprasMateriais';
+  document.getElementById('paginaAndamentoMateriais').hidden = pagina !== 'andamentoMateriais';
   document.getElementById('paginaEstoque').hidden = pagina !== 'estoque';
   document.getElementById('paginaMonitoramento').hidden = pagina !== 'monitoramento';
   document.getElementById('paginaEstoqueGeral').hidden = pagina !== 'estoqueGeral';
@@ -975,6 +979,7 @@ async function mudarPagina(pagina) {
     if (pagina === 'painel') await carregarPainel();
     if (pagina === 'solicitacoes') await carregarSolicitacoes();
     if (pagina === 'relatorio') await carregarRelatorio();
+    if (['comprasNutricao','andamentoNutricao','comprasMateriais','andamentoMateriais'].includes(pagina)) await carregarComprasSeg(pagina);
     if (pagina === 'estoque') await carregarEstoque();
     if (pagina === 'monitoramento') await carregarMonitoramento();
     if (pagina === 'estoqueGeral') await carregarEstoqueGeral();
@@ -1936,6 +1941,293 @@ document.getElementById('botaoConfirmarSolicitacoes').addEventListener('click', 
     el.innerHTML = `<div class="estado-vazio">${e.message}</div>`;
   }
 });
+
+// --- Importador único de compras (novo modelo: destino Medic./Nutrição/Materiais/OD) ---
+let arquivoComprasSelecionado = null;
+let destinoComprasSelecionado = null;
+
+function renderResultadoCompras(dados, fase) {
+  const el = document.getElementById('resultadoImportacaoCompras');
+  const linha = (rotulo, valor, cor) =>
+    `<div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+       <span>${rotulo}</span><strong style="color:${cor || 'inherit'};">${valor}</strong></div>`;
+  let html = `<div class="painel-cartao" style="padding:12px 14px;">`;
+  html += `<div style="font-size:12.5px; color:var(--cinza-texto); margin-bottom:6px;">Destino: <strong>${dados.destino}</strong> · aba "${dados.aba}" · ${dados.colunasReconhecidas.length} colunas reconhecidas</div>`;
+  if (fase === 'previa') {
+    html += linha('Linhas lidas', dados.totalLinhas);
+    html += linha('Solicitações novas (serão inseridas)', dados.novos, '#1baf7a');
+    html += linha('Já existentes (serão ignoradas)', dados.jaExistentes, '#b08900');
+    if (dados.itensACadastrar) html += linha('Itens novos a cadastrar no elenco', dados.itensACadastrar);
+  } else {
+    html += linha('Solicitações inseridas', dados.inseridos, '#1baf7a');
+    html += linha('Ignoradas (já existiam)', dados.ignorados, '#b08900');
+    if (dados.itensCadastrados) html += linha('Itens cadastrados no elenco', dados.itensCadastrados);
+    if (dados.itensInexistentes) html += linha('Linhas sem item válido (puladas)', dados.itensInexistentes, '#c0392b');
+  }
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+document.getElementById('botaoPreviaCompras').addEventListener('click', async () => {
+  const input = document.getElementById('arquivoCompras');
+  if (!input.files[0]) { alert('Selecione um arquivo .xlsx/.xlsm primeiro.'); return; }
+  arquivoComprasSelecionado = input.files[0];
+  destinoComprasSelecionado = document.getElementById('destinoCompras').value;
+
+  const el = document.getElementById('resultadoImportacaoCompras');
+  el.innerHTML = '<div class="estado-vazio">Analisando planilha…</div>';
+
+  const formData = new FormData();
+  formData.append('arquivo', arquivoComprasSelecionado);
+  formData.append('destino', destinoComprasSelecionado);
+
+  try {
+    const resp = await fetch('/api/importar-compras/previa', { method: 'POST', body: formData });
+    const dados = await resp.json();
+    if (!resp.ok) throw new Error(dados.erro);
+    renderResultadoCompras(dados, 'previa');
+    document.getElementById('botaoConfirmarCompras').disabled = false;
+  } catch (e) {
+    el.innerHTML = `<div class="estado-vazio">${e.message}</div>`;
+    document.getElementById('botaoConfirmarCompras').disabled = true;
+  }
+});
+
+document.getElementById('botaoConfirmarCompras').addEventListener('click', async () => {
+  if (!arquivoComprasSelecionado) return;
+  // Se o usuário trocou o destino depois da prévia, exige nova prévia (segurança).
+  if (document.getElementById('destinoCompras').value !== destinoComprasSelecionado) {
+    alert('O destino mudou depois da análise. Clique em "Analisar planilha" de novo antes de confirmar.');
+    document.getElementById('botaoConfirmarCompras').disabled = true;
+    return;
+  }
+  if (!confirm(`Confirmar a importação para o destino "${destinoComprasSelecionado}"?`)) return;
+
+  const el = document.getElementById('resultadoImportacaoCompras');
+  el.innerHTML = '<div class="estado-vazio">Importando…</div>';
+
+  const formData = new FormData();
+  formData.append('arquivo', arquivoComprasSelecionado);
+  formData.append('destino', destinoComprasSelecionado);
+
+  try {
+    const resp = await fetch('/api/importar-compras/confirmar', { method: 'POST', body: formData });
+    const dados = await resp.json();
+    if (!resp.ok) throw new Error(dados.erro);
+    renderResultadoCompras(dados, 'confirmar');
+    document.getElementById('botaoConfirmarCompras').disabled = true;
+  } catch (e) {
+    el.innerHTML = `<div class="estado-vazio">${e.message}</div>`;
+  }
+});
+
+// ========== Relatórios de Compra por segmento (Nutrição / Materiais) ==========
+// 4 telas montadas por um só renderizador, variando segmento + modo:
+//   - modo 'relatorio': todas as solicitações do segmento (com filtro de status);
+//   - modo 'andamento': só as compras EM ABERTO (Planejamento/Adjudicado/
+//     Empenhado/Entrega Parcial).
+// Lê de /api/compras-seg/<seg>/consolidado (tabela solicitacoes_seg).
+const COMPRAS_SEG_CFG = {
+  comprasNutricao:   { seg: 'nutricao',  rotulo: 'Nutrição', modo: 'relatorio' },
+  andamentoNutricao: { seg: 'nutricao',  rotulo: 'Nutrição', modo: 'andamento' },
+  comprasMateriais:  { seg: 'materiais', rotulo: 'Materiais', modo: 'relatorio' },
+  andamentoMateriais:{ seg: 'materiais', rotulo: 'Materiais', modo: 'andamento' },
+};
+const STATUS_COMPRAS_SEG = ['Planejamento','Adjudicado','Empenhado','Entrega Parcial','Finalizado','Cancelado','Deserto','Fracassado','Revogado'];
+const estadoComprasSeg = {}; // por página: { q, ano, mes, status }
+
+function escComprasSeg(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Monta a "casca" da tela uma única vez (cabeçalho + filtros + contêineres).
+function montarShellComprasSeg(pagina) {
+  const sec = document.getElementById('pagina' + pagina.charAt(0).toUpperCase() + pagina.slice(1));
+  if (sec.dataset.montado === '1') return sec;
+  const cfg = COMPRAS_SEG_CFG[pagina];
+  const titulo = cfg.modo === 'andamento'
+    ? `Aquisição em Andamento — ${cfg.rotulo}`
+    : `Relatório de Compras — ${cfg.rotulo}`;
+  const sub = cfg.modo === 'andamento'
+    ? 'Somente compras em andamento (Planejamento, Adjudicado, Empenhado, Entrega Parcial)'
+    : 'Todas as solicitações de compra deste segmento';
+
+  const selStatus = cfg.modo === 'andamento' ? '' : `
+    <select id="filtroStatus_${pagina}">
+      <option value="">Todos os status</option>
+      ${STATUS_COMPRAS_SEG.map((s) => `<option value="${s}">${s}</option>`).join('')}
+    </select>`;
+
+  sec.innerHTML = `
+    <div class="cabecalho-pagina">
+      <div><h2>${escComprasSeg(titulo)}</h2><p>${sub}</p></div>
+      <div class="cabecalho-direita"><span class="atualizado-em" id="atualizado_${pagina}"></span></div>
+    </div>
+    <div class="grade-resumo" id="kpis_${pagina}"></div>
+    <div class="barra-filtros">
+      <input type="text" id="filtroBusca_${pagina}" placeholder="Buscar por código, siafísico, descrição, SEI, requisição ou empenho…" style="min-width:320px;">
+      <input type="number" id="filtroAno_${pagina}" placeholder="Ano" style="max-width:110px;">
+      <select id="filtroMes_${pagina}">
+        <option value="">Todos os meses</option>
+        ${['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'].map((m) => `<option value="${m}">${m}</option>`).join('')}
+      </select>
+      ${selStatus}
+      <button class="botao-secundario" type="button" id="btnCsv_${pagina}">⬇ CSV</button>
+      <button class="botao-secundario" type="button" id="btnXlsx_${pagina}">📊 Excel</button>
+    </div>
+    <div id="tabela_${pagina}"></div>`;
+
+  // Listeners: busca com debounce; demais filtros imediatos.
+  let deb;
+  document.getElementById(`filtroBusca_${pagina}`).addEventListener('input', () => {
+    clearTimeout(deb); deb = setTimeout(() => atualizarComprasSeg(pagina), 350);
+  });
+  document.getElementById(`filtroAno_${pagina}`).addEventListener('input', () => {
+    clearTimeout(deb); deb = setTimeout(() => atualizarComprasSeg(pagina), 350);
+  });
+  document.getElementById(`filtroMes_${pagina}`).addEventListener('change', () => atualizarComprasSeg(pagina));
+  if (cfg.modo !== 'andamento') {
+    document.getElementById(`filtroStatus_${pagina}`).addEventListener('change', () => atualizarComprasSeg(pagina));
+  }
+  document.getElementById(`btnCsv_${pagina}`).addEventListener('click', () => baixarRelatorioFormato(urlComprasSeg(pagina), 'csv'));
+  document.getElementById(`btnXlsx_${pagina}`).addEventListener('click', () => baixarRelatorioFormato(urlComprasSeg(pagina), 'xlsx'));
+
+  // Salvar o Protocolo Processo editado (listener delegado: sobrevive aos
+  // redesenhos da tabela, pois o contêiner #tabela_<pagina> permanece).
+  document.getElementById(`tabela_${pagina}`).addEventListener('change', async (ev) => {
+    const inp = ev.target.closest && ev.target.closest('.edit-protocolo');
+    if (!inp) return;
+    const prev = inp.defaultValue;
+    inp.disabled = true;
+    try {
+      const resp = await fetch(`/api/compras-seg/${inp.dataset.seg}/${inp.dataset.id}/protocolo`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ protocolo: inp.value.trim() }),
+      });
+      const d = await resp.json();
+      if (!resp.ok) throw new Error(d.erro || 'Falha ao salvar.');
+      inp.value = d.protocolo_processo || '';
+      inp.defaultValue = inp.value;
+      inp.style.borderColor = '#1baf7a'; // flash verde de confirmação
+      setTimeout(() => { inp.style.borderColor = 'var(--linha)'; }, 1200);
+    } catch (e) {
+      inp.value = prev; // desfaz visualmente se não salvou
+      alert('Não consegui salvar o Protocolo: ' + e.message);
+    } finally {
+      inp.disabled = false;
+    }
+  });
+
+  sec.dataset.montado = '1';
+  return sec;
+}
+
+// Monta a URL do endpoint com os filtros atuais da tela.
+function urlComprasSeg(pagina) {
+  const cfg = COMPRAS_SEG_CFG[pagina];
+  const q = (document.getElementById(`filtroBusca_${pagina}`) || {}).value || '';
+  const ano = (document.getElementById(`filtroAno_${pagina}`) || {}).value || '';
+  const mes = (document.getElementById(`filtroMes_${pagina}`) || {}).value || '';
+  const statusEl = document.getElementById(`filtroStatus_${pagina}`);
+  const status = statusEl ? statusEl.value : '';
+  const p = new URLSearchParams();
+  if (q) p.set('q', q);
+  if (ano) p.set('ano', ano);
+  if (mes) p.set('mes', mes);
+  if (cfg.modo === 'andamento') p.set('emAberto', '1');
+  else if (status) p.set('status', status);
+  const qs = p.toString();
+  return `/api/compras-seg/${cfg.seg}/consolidado${qs ? '?' + qs : ''}`;
+}
+
+// Entrada da página (chamada pelo mudarPagina): monta casca e carrega dados.
+async function carregarComprasSeg(pagina) {
+  montarShellComprasSeg(pagina);
+  await atualizarComprasSeg(pagina);
+}
+
+// Busca os dados e redesenha só KPIs + tabela (preserva o foco dos filtros).
+async function atualizarComprasSeg(pagina) {
+  const elTab = document.getElementById(`tabela_${pagina}`);
+  const elKpi = document.getElementById(`kpis_${pagina}`);
+  elTab.innerHTML = '<div class="estado-vazio">Carregando…</div>';
+  try {
+    const resp = await fetch(urlComprasSeg(pagina));
+    const dados = await resp.json();
+    if (!resp.ok) throw new Error(dados.erro || 'Falha ao carregar.');
+    renderKpisComprasSeg(elKpi, dados.solicitacoes);
+    renderTabelaComprasSeg(elTab, dados.solicitacoes, pagina);
+    const at = document.getElementById(`atualizado_${pagina}`);
+    if (at) at.textContent = `${dados.total} solicitação(ões)`;
+  } catch (e) {
+    elTab.innerHTML = `<div class="estado-vazio">${escComprasSeg(e.message)}</div>`;
+    elKpi.innerHTML = '';
+  }
+}
+
+function renderKpisComprasSeg(el, linhas) {
+  // Mesmos KPIs do Relatório de Compras TP (mesmo helper kpiCard).
+  const ABERTO = ['Planejamento', 'Adjudicado', 'Empenhado', 'Entrega Parcial'];
+  const total = linhas.length;
+  const emAndamento = linhas.filter((l) => ABERTO.includes(l.status)).length;
+  const finalizadas = linhas.filter((l) => l.status === 'Finalizado').length;
+  const itens = new Set(linhas.map((l) => l.codigo_item).filter(Boolean)).size;
+  const n = (v) => v.toLocaleString('pt-BR');
+  const pct = total ? Math.round((finalizadas / total) * 100) : 0;
+  el.innerHTML =
+    kpiCard('doc', n(total), 'Solicitações (filtro atual)', 'no recorte selecionado') +
+    kpiCard('chart', n(emAndamento), 'Em andamento', 'Planejamento · Adjudicado · Empenhado · Entrega Parcial', 'aviso') +
+    kpiCard('check', n(finalizadas), 'Finalizadas', `${pct}% do total`) +
+    kpiCard('list', n(itens), 'Itens distintos', 'itens diferentes');
+}
+
+function renderTabelaComprasSeg(el, linhas, pagina) {
+  if (!linhas.length) {
+    el.innerHTML = '<div class="estado-vazio">Nenhuma solicitação encontrada. Importe o Excel de aquisição deste segmento na tela "Importar dados".</div>';
+    return;
+  }
+  const seg = (COMPRAS_SEG_CFG[pagina] || {}).seg || '';
+  // Célula do Protocolo Processo: editável por QUALQUER usuário logado. O robô
+  // preenche pelo GSNET; o que ficar vazio é digitado à mão e salvo.
+  const celProtocolo = (s) =>
+    `<input class="edit-protocolo" data-id="${s.id}" data-seg="${seg}" value="${escComprasSeg(s.protocolo_processo || '')}" placeholder="—" title="Digite o Protocolo do Processo; Enter ou sair do campo salva"
+      style="width:150px; border:1px solid var(--linha); border-radius:4px; padding:3px 6px; font:inherit; background:var(--papel-elevado); color:var(--tinta);">`;
+  // Mesmo conjunto de colunas do Relatório de Compras TP (Medicamentos).
+  const th = `<tr>
+    <th>Código do Item</th><th>Código Siafísico</th><th>Descrição do Item</th><th>Ano</th><th>Mês</th>
+    <th>Tipo</th><th>Modalidade de Compra</th><th>SEI</th><th>Qtde. Solicitada</th><th>Data de Solicitação</th>
+    <th>Requisição GSNET</th><th>Nº Empenho</th><th>Data Entrega</th><th>Qtde. Entregue</th><th>Qtde. Pendente</th>
+    <th>Status do Item</th><th>Status Item Processo</th><th>Protocolo Processo</th>
+  </tr>`;
+  const body = linhas.map((s) => {
+    const classe = classeStatus(s.status, s.data_previsao_entrega);
+    const rotulo = rotuloStatus(s.status, s.data_previsao_entrega);
+    return `
+      <tr>
+        <td class="col-codigo">${escComprasSeg(s.codigo_item || '—')}</td>
+        <td class="col-codigo">${escComprasSeg(s.codigo_siafisico || '—')}</td>
+        <td>${escComprasSeg(s.descricao || '—')}</td>
+        <td>${s.ano || '—'}</td>
+        <td>${escComprasSeg(s.mes || '—')}</td>
+        <td>${s.tipo ? `<span class="tag-tipo">${escComprasSeg(s.tipo)}</span>` : '—'}</td>
+        <td>${escComprasSeg(s.modalidade_compra || '—')}</td>
+        <td class="col-codigo">${escComprasSeg(s.sei || '—')}</td>
+        <td>${valorCelula(s.qtde_solicitada)}</td>
+        <td class="col-data">${formatarData(s.data_solicitacao)}</td>
+        <td class="col-codigo">${fmtGsnet(s.requisicao_gsnet) || '—'}</td>
+        <td class="col-codigo">${escComprasSeg(s.n_empenho || '—')}</td>
+        <td class="col-data">${formatarData(s.data_entrega)}</td>
+        <td>${valorCelula(s.qtde_entregue)}</td>
+        <td>${valorCelula(s.qtde_pendente)}</td>
+        <td><span class="etiqueta-status ${classe}">${escComprasSeg(rotulo)}</span></td>
+        <td>${escComprasSeg(s.status_item_processo || '—')}</td>
+        <td class="col-codigo">${celProtocolo(s)}</td>
+      </tr>`;
+  }).join('');
+  // Mesmo container largo (cartão + rolagem horizontal) das telas de Medicamentos/OD.
+  el.innerHTML = `<div class="tabela-wrap"><div class="tabela-rolavel-x"><table><thead>${th}</thead><tbody>${body}</tbody></table></div></div>`;
+}
 
 // -------------------- Estoque --------------------
 function fmtNumero(v) {
