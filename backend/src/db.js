@@ -761,6 +761,56 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_solod_anomes ON solicitacoes_od(ano, mes
 // ano+mes, coberto por idx_solod_anomes) e não depende mais desse índice.
 db.exec(`DROP INDEX IF EXISTS idx_solod_unico;`);
 
+// Solicitações de compra dos SEGMENTOS novos do Tenente Pena (Nutrição,
+// Materiais e futuros), em tabela PRÓPRIA — separada da `solicitacoes`
+// (Medicamentos) de propósito: assim nenhum dos ~40 pontos que leem a
+// `solicitacoes` precisa aprender a filtrar segmento, e um item de Nutrição
+// nunca vaza para o relatório de Medicamentos. Mesma estrutura da
+// `solicitacoes` (para reaproveitar o código dos relatórios/robôs), só que:
+//   - `segmento`: 'Nutrição' | 'Materiais' | ... (um valor por tela);
+//   - `sei`: é o antigo "Nº Ofício", renomeado (mesmo papel, nome novo).
+// Identidade de uma solicitação = codigo_item + ano + mes + sei +
+// requisicao_gsnet: o mesmo item pode ter várias solicitações no mês, desde
+// que SEI/requisição sejam diferentes (índice único abaixo garante isso).
+db.exec(`
+CREATE TABLE IF NOT EXISTS solicitacoes_seg (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  segmento TEXT NOT NULL,
+  codigo_item TEXT NOT NULL,
+  ano INTEGER NOT NULL,
+  mes TEXT NOT NULL,
+  tipo TEXT,
+  modalidade_compra TEXT,
+  sei TEXT,
+  qtde_solicitada REAL,
+  data_solicitacao TEXT,
+  requisicao_gsnet TEXT,
+  n_empenho TEXT,
+  quantidade_empenho REAL,
+  data_previsao_entrega TEXT,
+  data_entrega TEXT,
+  qtde_entregue REAL,
+  qtde_pendente REAL,
+  status TEXT,
+  observacao TEXT,
+  justificativa TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_solseg_codigo ON solicitacoes_seg(codigo_item);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_solseg_segmento ON solicitacoes_seg(segmento, ano, mes);`);
+// Unicidade da solicitação (item + ano + mês + SEI + requisição, dentro do
+// segmento). COALESCE('') porque SEI/requisição podem vir nulos e, em SQLite,
+// NULL não conflita com NULL num índice único — o COALESCE força o conflito
+// quando ambos faltam, evitando linhas 100% duplicadas.
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_solseg_unico
+  ON solicitacoes_seg(segmento, codigo_item, ano, mes, COALESCE(sei,''), COALESCE(requisicao_gsnet,''));`);
+// Protocolo do Processo editável MANUALMENTE (Nutrição/Materiais): o robô
+// preenche pelo GSNET (compras_estrategico); o que ficar vazio o usuário digita
+// aqui. No relatório mostramos o manual quando houver, senão o do robô.
+const colsSolSeg = db.prepare("PRAGMA table_info(solicitacoes_seg)").all().map((c) => c.name);
+if (!colsSolSeg.includes('protocolo_processo')) db.exec("ALTER TABLE solicitacoes_seg ADD COLUMN protocolo_processo TEXT");
+
 // Movimentações de Entrada com Lotes/Validade (via Oracle/SCODES).
 // Janela dos últimos 12 meses até hoje, recalculada na própria query SQL.
 // A cada sincronização o conteúdo é substituído por completo (não é um
@@ -873,6 +923,16 @@ CREATE TABLE IF NOT EXISTS associacoes (
 `);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_assoc_chave ON associacoes(origem, chave_origem, desfeita);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_assoc_sol ON associacoes(solicitacao_id);`);
+
+// `fonte`: de qual tabela de solicitações a proposta/associação trata —
+// 'solicitacoes' (Medicamentos/TP, padrão) ou 'solicitacoes_seg' (Nutrição/
+// Materiais). NULL em linhas antigas = 'solicitacoes' (retrocompatível). Permite
+// o robô de conciliação dar baixa de entrega/empenho também nos novos segmentos,
+// sem ambiguidade de id entre as duas tabelas.
+const colsProp = db.prepare("PRAGMA table_info(propostas_conciliacao)").all().map((c) => c.name);
+if (!colsProp.includes('fonte')) db.exec("ALTER TABLE propostas_conciliacao ADD COLUMN fonte TEXT");
+const colsAssoc = db.prepare("PRAGMA table_info(associacoes)").all().map((c) => c.name);
+if (!colsAssoc.includes('fonte')) db.exec("ALTER TABLE associacoes ADD COLUMN fonte TEXT");
 
 // Movimentações de SAÍDA com Lotes/Validade (via Oracle/SCODES). Mesma
 // lógica da tabela de Entrada: janela dos últimos 12 meses recalculada na
@@ -1447,6 +1507,34 @@ CREATE TABLE IF NOT EXISTS entradas_ignoradas (
   ignorado_em TEXT
 );
 `);
+
+// empenhos_consulta: foto da tela "Consultar Empenho" (Menu Empenhos > Empenhos)
+// do GsnetCompras, importada pelo robo automacao-empenhos/importar-consultar-empenhos.js
+// (que tambem cria a tabela). 1 linha por Nº Empenho. Usada por empenhoPorProcesso.js
+// para preencher o Nº Empenho das solicitacoes casando pelo Nº Processo.
+db.exec(`
+CREATE TABLE IF NOT EXISTS empenhos_consulta (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_referencia TEXT,
+  numero_empenho TEXT,
+  prioridade TEXT,
+  numero_processo TEXT,
+  valor_total REAL,
+  data_emissao TEXT,
+  data_publicacao TEXT,
+  data_retorno TEXT,
+  data_envio_fornecedor TEXT,
+  data_ateste_recebimento TEXT,
+  data_limite_entrega TEXT,
+  data_entrega_final TEXT,
+  fornecedor_cnpj TEXT,
+  fornecedor TEXT,
+  gerado_por TEXT,
+  data_gerado TEXT
+);
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_emp_consulta_ne ON empenhos_consulta(numero_empenho);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_emp_consulta_proc ON empenhos_consulta(numero_processo);`);
 
 // cartas_troca: o CONTROLE em si. Cada registro é 1 carta para 1 item de 1
 // empenho (relação 1-para-1 por linha empenho+medicamento). A empresa protocola

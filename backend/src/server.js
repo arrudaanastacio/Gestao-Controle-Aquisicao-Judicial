@@ -120,6 +120,8 @@ app.use('/api/importacoes', autenticar, importacoesInfoRoutes); // só data/hora
 app.use('/api/solicitacoes', autenticar, exigirModulo('tabelaAnaliseTP'), solicitacoesRoutes);
 app.use('/api/relatorios', autenticar, exigirModulo('relatorioComprasTP'), relatoriosRoutes);
 app.use('/api/importar-solicitacoes', autenticar, exigirModulo('tabelaAnaliseTP'), importarSolicitacoesRoutes);
+app.use('/api/importar-compras', require('./routes.importarCompras')); // importador único (destino: Medic./Nutrição/Materiais/OD); trava admin interna
+app.use('/api/compras-seg', autenticar, require('./routes.comprasSeg')); // relatórios dos segmentos novos (Nutrição/Materiais), só leitura
 app.use('/api/elenco', autenticar, exigirModulo('elenco'), elencoRoutes);
 app.use('/api/alertas', autenticar, exigirModulo('alertas'), alertasRoutes);
 

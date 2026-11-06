@@ -2,6 +2,7 @@ const express = require('express');
 const XLSX = require('xlsx');
 const db = require('./db');
 const { autenticar, exigirPerfil } = require('./auth');
+const EmpProc = require('./empenhoPorProcesso');
 
 const router = express.Router();
 router.use(autenticar);
@@ -241,6 +242,7 @@ router.get('/', (req, res) => {
     ORDER BY ano DESC, id DESC
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
+  EmpProc.preencher(linhas); // overlay: Nº Empenho pelo processo quando vazio e inequívoco
 
   res.json({ solicitacoes: linhas, total, page: Number(page), pageSize: limit });
 });

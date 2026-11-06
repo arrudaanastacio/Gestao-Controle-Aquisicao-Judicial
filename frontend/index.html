@@ -53,6 +53,10 @@
             <p class="nav-grupo-titulo nav-subgrupo-titulo">🛒 Compras</p>
             <a href="#" data-pagina="solicitacoes">Tabela Análise TP</a>
             <a href="#" data-pagina="relatorio">Relatório de Compras TP</a>
+            <a href="#" data-pagina="comprasNutricao">Relatório de Compras Nutrição</a>
+            <a href="#" data-pagina="andamentoNutricao">Aquisição em Andamento Nutrição</a>
+            <a href="#" data-pagina="comprasMateriais">Relatório de Compras Materiais</a>
+            <a href="#" data-pagina="andamentoMateriais">Aquisição em Andamento Materiais</a>
             <a href="#" data-pagina="pendenciasProcesso">Pendências no Processo</a>
             <a href="#" data-pagina="comparativoAutores">Comparativo de Autores</a>
             <a href="#" data-pagina="relatorioReq">Relatório de Primeiro Atendimento</a>
@@ -1134,6 +1138,13 @@
           </div>
         </div>
       </section>
+
+      <!-- Relatórios de Compra dos segmentos novos (Nutrição/Materiais). O conteúdo
+           (filtros, KPIs e tabela) é montado por carregarComprasSeg() em app.js. -->
+      <section id="paginaComprasNutricao" hidden></section>
+      <section id="paginaAndamentoNutricao" hidden></section>
+      <section id="paginaComprasMateriais" hidden></section>
+      <section id="paginaAndamentoMateriais" hidden></section>
 
       <section id="paginaSolicitacoesOD" hidden>
         <div class="cabecalho-pagina">
@@ -2923,6 +2934,41 @@
           </div>
         </div>
 
+        <div class="grade-resumo" style="grid-template-columns: 1fr; margin-bottom:14px;">
+          <div class="cartao-resumo" style="text-align:left; border-left:4px solid #1F4C3C;">
+            <h3 style="font-size:16px; margin-bottom:8px;">🆕 Importador de compras (novo modelo)</h3>
+            <p style="font-size:12.5px; color:var(--cinza-texto); margin:0 0 14px;">
+              Envie o Excel de aquisição (o mesmo que vai ao setor de Compras) e escolha o
+              <strong>destino</strong>. As colunas são reconhecidas pelo <strong>nome do cabeçalho</strong>
+              (Código Scodes, Código Siafísico, Item, Qtde. Solicitada, Tipo, SEI, Requisição GSNET, Mês,
+              Ano, Modalidade de Compra, Data de Solicitação). Cada linha vira uma solicitação; o mesmo
+              item pode repetir no mês se o <strong>SEI</strong> ou a <strong>requisição</strong> forem
+              diferentes. Só insere o que ainda não existe — <strong>nunca apaga</strong>. Empenho, entrega
+              e status continuam vindo sozinhos pelos robôs do GSNET.
+            </p>
+            <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;">
+              <div>
+                <label style="font-size:12px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Destino</label>
+                <select id="destinoCompras" style="min-width:200px;">
+                  <option value="Medicamentos">Medicamentos (TP)</option>
+                  <option value="Nutrição">Nutrição (TP)</option>
+                  <option value="Materiais">Materiais (TP)</option>
+                  <option value="Outras Demandas">Outras Demandas (OD)</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:12px; font-weight:600; color:var(--tinta-suave); display:block; margin-bottom:4px;">Arquivo (.xlsx/.xlsm)</label>
+                <input type="file" id="arquivoCompras" accept=".xlsx,.xlsm">
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:12px;">
+              <button class="botao-secundario" id="botaoPreviaCompras">Analisar planilha</button>
+              <button class="botao-primario" id="botaoConfirmarCompras" disabled>Confirmar importação</button>
+            </div>
+            <div id="resultadoImportacaoCompras" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
         <div class="grade-resumo" style="grid-template-columns: 1fr 1fr;">
           <div class="cartao-resumo" style="text-align:left;">
             <h3 style="font-size:16px; margin-bottom:8px;">Elenco de medicamentos</h3>
@@ -4086,6 +4132,6 @@
   <script>window.__XLSX_CE = window.XLSX;</script>
   <script src="/vendor/xlsx-js-style.js"></script>
   <script>window.XLSX_STYLE = window.XLSX; window.XLSX = window.__XLSX_CE; try { delete window.__XLSX_CE; } catch (e) { window.__XLSX_CE = undefined; }</script>
-  <script src="/js/app.js?v=85"></script>
+  <script src="/js/app.js?v=88"></script>
 </body>
 </html>

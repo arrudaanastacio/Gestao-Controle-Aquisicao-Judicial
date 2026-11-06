@@ -55,18 +55,30 @@ function chaveEntrada(e) {
   ].join('|');
 }
 
-// Índice das solicitações em aberto, agrupadas por codigo_item.
-function solicitacoesAbertasPorItem() {
+// Índice das solicitações em aberto, agrupadas por codigo_item. Cada linha é
+// marcada com `_fonte` ('solicitacoes' por padrão). Com { incluirSeg:true },
+// acrescenta também as solicitações dos segmentos novos (solicitacoes_seg,
+// marcadas com _fonte='solicitacoes_seg') — usado só na GERAÇÃO de propostas do
+// robô, nunca na associação manual (que segue TP-only).
+function solicitacoesAbertasPorItem({ incluirSeg = false } = {}) {
   const ph = STATUS_ABERTO.map(() => '?').join(',');
-  const linhas = db.prepare(
+  const mapa = new Map();
+  const add = (s) => {
+    if (!mapa.has(s.codigo_item)) mapa.set(s.codigo_item, []);
+    mapa.get(s.codigo_item).push(s);
+  };
+  for (const s of db.prepare(
     `SELECT id, codigo_item, ano, mes, tipo, status, n_empenho,
             qtde_solicitada, qtde_entregue, qtde_pendente
      FROM solicitacoes WHERE status IN (${ph})`
-  ).all(...STATUS_ABERTO);
-  const mapa = new Map();
-  for (const s of linhas) {
-    if (!mapa.has(s.codigo_item)) mapa.set(s.codigo_item, []);
-    mapa.get(s.codigo_item).push(s);
+  ).all(...STATUS_ABERTO)) { s._fonte = 'solicitacoes'; add(s); }
+
+  if (incluirSeg) {
+    for (const s of db.prepare(
+      `SELECT id, codigo_item, ano, mes, tipo, status, n_empenho,
+              qtde_solicitada, qtde_entregue, qtde_pendente
+       FROM solicitacoes_seg WHERE status IN (${ph})`
+    ).all(...STATUS_ABERTO)) { s._fonte = 'solicitacoes_seg'; add(s); }
   }
   return mapa;
 }
@@ -114,7 +126,7 @@ function melhorCandidata(entrada, candidatas) {
 
 // Gera propostas de ENTREGA (não grava — só devolve a lista).
 function gerarPropostasEntrada() {
-  const abertas = solicitacoesAbertasPorItem();
+  const abertas = solicitacoesAbertasPorItem({ incluirSeg: true });
   const jaAssoc = chavesJaAssociadas();
   const ignoradas = chavesIgnoradas();
   const entradas = db.prepare(
@@ -150,6 +162,7 @@ function gerarPropostasEntrada() {
       chave_origem: chave,
       codigo_item: e.codigo_item,
       solicitacao_id: best.s.id,
+      fonte: best.s._fonte || 'solicitacoes',
       quantidade: q,
       confianca,
       sinais: { SCODES: true, Empenho: empMatch, Quantidade: qtdeExata },
@@ -188,22 +201,31 @@ function chaveEmpenho(e) {
 }
 
 // Compras em aberto SEM empenho, agrupadas por codigo_item.
-function comprasSemEmpenhoPorItem() {
+function comprasSemEmpenhoPorItem({ incluirSeg = false } = {}) {
   const ph = STATUS_ABERTO.map(() => '?').join(',');
-  const linhas = db.prepare(
-    `SELECT id, codigo_item, ano, mes, tipo, status, n_oficio, requisicao_gsnet, qtde_solicitada
-     FROM solicitacoes WHERE status IN (${ph}) AND (n_empenho IS NULL OR n_empenho='')`
-  ).all(...STATUS_ABERTO);
   const mapa = new Map();
-  for (const s of linhas) {
+  const add = (s) => {
     if (!mapa.has(s.codigo_item)) mapa.set(s.codigo_item, []);
     mapa.get(s.codigo_item).push(s);
+  };
+  for (const s of db.prepare(
+    `SELECT id, codigo_item, ano, mes, tipo, status, n_oficio, requisicao_gsnet, qtde_solicitada
+     FROM solicitacoes WHERE status IN (${ph}) AND (n_empenho IS NULL OR n_empenho='')`
+  ).all(...STATUS_ABERTO)) { s._fonte = 'solicitacoes'; add(s); }
+
+  if (incluirSeg) {
+    // Em solicitacoes_seg o campo do SEI chama-se `sei` — apelidado para
+    // n_oficio para o resto do motor (extrairSEI) funcionar igual.
+    for (const s of db.prepare(
+      `SELECT id, codigo_item, ano, mes, tipo, status, sei AS n_oficio, requisicao_gsnet, qtde_solicitada
+       FROM solicitacoes_seg WHERE status IN (${ph}) AND (n_empenho IS NULL OR n_empenho='')`
+    ).all(...STATUS_ABERTO)) { s._fonte = 'solicitacoes_seg'; add(s); }
   }
   return mapa;
 }
 
 function gerarPropostasEmpenho() {
-  const alvo = comprasSemEmpenhoPorItem();
+  const alvo = comprasSemEmpenhoPorItem({ incluirSeg: true });
   if (!alvo.size) return [];
   // Ponte Siafísico -> codigo_item (empenhos às vezes só têm o siafísico).
   const siafParaItem = new Map();
@@ -250,6 +272,7 @@ function gerarPropostasEmpenho() {
       empUsados.add(best.chave);
       propostas.push({
         origem: 'empenho', chave_origem: best.chave, codigo_item: cod, solicitacao_id: s.id,
+        fonte: s._fonte || 'solicitacoes',
         quantidade: num(best.e.quantidade),
         confianca, sinais: { SCODES: true, Requisicao: best.reqM, SEI: best.seiM, Quantidade: best.qtdM },
         resultado_previsto: 'Empenhado',
@@ -274,13 +297,13 @@ function salvarPropostasPendentes(origem, gerarFn) {
   ).all(origem).map(r => r.chave_origem));
   const propostas = gerarFn().filter(p => !rejeitadas.has(p.chave_origem));
   const ins = db.prepare(`INSERT INTO propostas_conciliacao
-    (origem, chave_origem, codigo_item, solicitacao_id, quantidade, confianca, sinais_json, resultado_previsto, detalhe_json, situacao)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente')`);
+    (origem, chave_origem, codigo_item, solicitacao_id, fonte, quantidade, confianca, sinais_json, resultado_previsto, detalhe_json, situacao)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente')`);
   db.exec('BEGIN');
   try {
     db.prepare("DELETE FROM propostas_conciliacao WHERE origem=? AND situacao='pendente'").run(origem);
     for (const p of propostas) {
-      ins.run(origem, p.chave_origem, p.codigo_item, p.solicitacao_id, p.quantidade, p.confianca,
+      ins.run(origem, p.chave_origem, p.codigo_item, p.solicitacao_id, p.fonte || 'solicitacoes', p.quantidade, p.confianca,
         JSON.stringify(p.sinais), p.resultado_previsto, JSON.stringify(p.detalhe));
     }
     db.exec('COMMIT');
