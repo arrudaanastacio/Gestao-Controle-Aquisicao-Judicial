@@ -93,6 +93,21 @@ const colunasUsuarios = db.prepare("PRAGMA table_info(usuarios)").all().map((c) 
 if (!colunasUsuarios.includes('ultimo_acesso')) {
   db.exec('ALTER TABLE usuarios ADD COLUMN ultimo_acesso TEXT');
 }
+// Aceites do Termo de Ciência e Responsabilidade (LGPD). Log IMUTÁVEL:
+// cada aceite é uma linha nova (nunca atualizada), guardando a versão do
+// termo, quando foi aceito e o IP de origem. O histórico É a prova de aceite.
+db.exec(`
+CREATE TABLE IF NOT EXISTS lgpd_aceites (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  usuario_id INTEGER NOT NULL,
+  versao TEXT NOT NULL,
+  aceito_em TEXT DEFAULT (datetime('now')),
+  origem TEXT
+);
+`);
+// Uma linha por usuário+versão (reaceitar a MESMA versão não duplica).
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_lgpd_usuario_versao ON lgpd_aceites(usuario_id, versao)');
+
 // Convite por e-mail: token de uso único para o colega criar a própria senha.
 // Enquanto houver token válido e senha_hash vazio, o usuário ainda não definiu senha.
 if (!colunasUsuarios.includes('token_convite')) {

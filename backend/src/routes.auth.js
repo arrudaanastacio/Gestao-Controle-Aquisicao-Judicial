@@ -2,7 +2,15 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
-const { gerarToken, autenticar, registrarSeguranca, JWT_SECRET } = require('./auth');
+const { gerarToken, autenticar, registrarSeguranca, ipDaRequisicao, JWT_SECRET } = require('./auth');
+const termoLGPD = require('./termoLGPD');
+
+// Verdadeiro quando o usuário ainda NÃO aceitou a versão vigente do termo.
+function termoPendente(usuarioId) {
+  const r = db.prepare('SELECT 1 FROM lgpd_aceites WHERE usuario_id = ? AND versao = ?')
+    .get(usuarioId, termoLGPD.VERSAO);
+  return !r;
+}
 
 const router = express.Router();
 const isProd = process.env.NODE_ENV === 'production';
@@ -120,7 +128,34 @@ router.get('/me', autenticar, (req, res) => {
       for (const a of ACOES) permissoes[m.chave][a] = l[a] === 1;
     }
   }
-  res.json({ usuario: { ...req.usuario, permissoes, habilitado } });
+  // Termo de Ciência/Responsabilidade (LGPD): a tela usa `pendente` para
+  // decidir se abre o modal bloqueante. O texto só é enviado quando pendente
+  // (não precisa trafegar em todo /me).
+  const pendente = termoPendente(req.usuario.id);
+  const lgpd = { pendente, versao: termoLGPD.VERSAO };
+  if (pendente) {
+    lgpd.titulo = termoLGPD.TITULO;
+    lgpd.paragrafos = termoLGPD.PARAGRAFOS;
+  }
+
+  res.json({ usuario: { ...req.usuario, permissoes, habilitado, lgpd } });
+});
+
+// Registra o aceite do termo vigente pelo usuário logado. Idempotente:
+// aceitar de novo a mesma versão não duplica (índice único usuario+versão).
+router.post('/lgpd/aceitar', autenticar, (req, res) => {
+  const versao = termoLGPD.VERSAO;
+  db.prepare('INSERT OR IGNORE INTO lgpd_aceites (usuario_id, versao, origem) VALUES (?,?,?)')
+    .run(req.usuario.id, versao, ipDaRequisicao(req));
+
+  registrarSeguranca(req, {
+    usuario_id: req.usuario.id,
+    usuario_email: req.usuario.email,
+    acao: 'lgpd_aceite',
+    detalhe: { versao },
+  });
+
+  res.json({ ok: true, versao });
 });
 
 module.exports = router;
